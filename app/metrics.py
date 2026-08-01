@@ -9,7 +9,7 @@ from typing import Any, Iterable
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .models import AlertEvent, Bot, BotSnapshot, SyncRun
+from .models import AlertEvent, Bot, BotSnapshot, GateAccount, SyncRun
 
 
 def as_utc(value: datetime | None) -> datetime | None:
@@ -31,12 +31,54 @@ def json_loads(value: str | None, default: Any) -> Any:
         return default
 
 
+def _sum(values: Iterable[Decimal | None]) -> Decimal:
+    return sum((value for value in values if value is not None), Decimal("0"))
+
+
+def _bot_profit(bot: Bot) -> Decimal | None:
+    return bot.total_profit if bot.total_profit is not None else bot.pnl
+
+
+def account_to_dict(account: GateAccount, bots: list[Bot] | None = None) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "id": account.id,
+        "name": account.name,
+        "account_type": account.account_type,
+        "gate_uid": account.gate_uid,
+        "enabled": account.enabled,
+        "configured": account.configured,
+        "sync_status": account.sync_status,
+        "last_sync_at": as_utc(account.last_sync_at).isoformat() if account.last_sync_at else None,
+        "last_success_at": as_utc(account.last_success_at).isoformat() if account.last_success_at else None,
+        "last_error": account.last_error,
+        "bot_count": account.bot_count,
+        "updated_at": as_utc(account.updated_at).isoformat(),
+    }
+    if bots is not None:
+        running = [bot for bot in bots if bot.status == "running"]
+        invest = _sum(bot.invest_amount for bot in running)
+        current = _sum(bot.current_value for bot in running)
+        pnl = _sum(_bot_profit(bot) for bot in running)
+        result["portfolio"] = {
+            "tracked": len(bots),
+            "running": len(running),
+            "invest_amount": float(invest),
+            "current_value": float(current),
+            "pnl": float(pnl),
+            "roi_pct": float(pnl / invest * Decimal("100")) if invest else None,
+        }
+    return result
+
+
 def bot_to_dict(bot: Bot, *, include_raw: bool = False) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     last_seen = as_utc(bot.last_seen_at)
     stale_seconds = int((now - last_seen).total_seconds()) if last_seen else None
+    account_name = bot.account.name if bot.account is not None else bot.account_id
     result: dict[str, Any] = {
         "id": bot.id,
+        "account_id": bot.account_id,
+        "account_name": account_name,
         "strategy_id": bot.strategy_id,
         "strategy_type": bot.strategy_type,
         "strategy_name": bot.strategy_name,
@@ -107,18 +149,17 @@ def snapshot_to_dict(snapshot: BotSnapshot) -> dict[str, Any]:
 def sync_to_dict(run: SyncRun) -> dict[str, Any]:
     return {
         "id": run.id,
+        "account_id": run.account_id,
+        "account_name": run.account.name if run.account else None,
         "started_at": as_utc(run.started_at).isoformat(),
         "finished_at": as_utc(run.finished_at).isoformat() if run.finished_at else None,
         "status": run.status,
+        "trigger": run.trigger,
         "bot_count": run.bot_count,
         "detail_count": run.detail_count,
         "error": run.error,
         "summary": json_loads(run.raw_summary_json, {}),
     }
-
-
-def _sum(values: Iterable[Decimal | None]) -> Decimal:
-    return sum((value for value in values if value is not None), Decimal("0"))
 
 
 def calculate_drawdown(points: list[tuple[datetime, Decimal]]) -> dict[str, float | None]:
@@ -141,32 +182,58 @@ def calculate_drawdown(points: list[tuple[datetime, Decimal]]) -> dict[str, floa
     }
 
 
-def overview(session: Session) -> dict[str, Any]:
-    bots = list(session.scalars(select(Bot).order_by(Bot.pnl.desc().nullslast())))
+def overview(session: Session, account_id: str | None = None) -> dict[str, Any]:
+    all_bots = list(session.scalars(select(Bot).order_by(Bot.pnl.desc().nullslast())))
+    bots = [bot for bot in all_bots if not account_id or bot.account_id == account_id]
     running = [bot for bot in bots if bot.status == "running"]
     stopped = [bot for bot in bots if bot.status == "stopped"]
     paused = [bot for bot in bots if bot.status == "paused"]
 
     total_invest = _sum(bot.invest_amount for bot in running)
     total_value = _sum(bot.current_value for bot in running)
-    total_pnl = _sum((bot.total_profit if bot.total_profit is not None else bot.pnl) for bot in running)
+    total_pnl = _sum(_bot_profit(bot) for bot in running)
     total_grid_profit = _sum(bot.grid_profit for bot in running)
     total_floating = _sum(bot.floating_pnl for bot in running)
     roi = (total_pnl / total_invest * Decimal("100")) if total_invest else None
 
-    latest_sync = session.scalar(select(SyncRun).order_by(SyncRun.started_at.desc()).limit(1))
-    unacked_alerts = session.scalar(
-        select(func.count(AlertEvent.id)).where(AlertEvent.acknowledged_at.is_(None))
-    ) or 0
+    sync_stmt = select(SyncRun).order_by(SyncRun.started_at.desc()).limit(1)
+    if account_id:
+        sync_stmt = sync_stmt.where(SyncRun.account_id == account_id)
+    else:
+        sync_stmt = sync_stmt.where(SyncRun.account_id.is_(None))
+    latest_sync = session.scalar(sync_stmt)
+    if latest_sync is None and not account_id:
+        latest_sync = session.scalar(select(SyncRun).order_by(SyncRun.started_at.desc()).limit(1))
 
-    best = max(running, key=lambda bot: bot.profit_rate or bot.pnl_rate or Decimal("-Infinity"), default=None)
-    worst = min(running, key=lambda bot: bot.profit_rate or bot.pnl_rate or Decimal("Infinity"), default=None)
+    alert_stmt = select(func.count(AlertEvent.id)).where(AlertEvent.acknowledged_at.is_(None))
+    if account_id:
+        alert_stmt = alert_stmt.join(Bot, Bot.id == AlertEvent.bot_id).where(Bot.account_id == account_id)
+    unacked_alerts = session.scalar(alert_stmt) or 0
 
-    history_7d = portfolio_history(session, datetime.now(timezone.utc) - timedelta(days=7))
+    best = max(
+        running,
+        key=lambda bot: bot.profit_rate or bot.pnl_rate or Decimal("-Infinity"),
+        default=None,
+    )
+    worst = min(
+        running,
+        key=lambda bot: bot.profit_rate or bot.pnl_rate or Decimal("Infinity"),
+        default=None,
+    )
+
+    history_7d = portfolio_history(
+        session,
+        datetime.now(timezone.utc) - timedelta(days=7),
+        account_id=account_id,
+    )
 
     def period_change(hours: int) -> dict[str, float | None]:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-        candidates = [point for point in history_7d if datetime.fromisoformat(point["captured_at"]) >= cutoff]
+        candidates = [
+            point
+            for point in history_7d
+            if datetime.fromisoformat(point["captured_at"]) >= cutoff
+        ]
         if len(candidates) < 2:
             return {"pnl_change": None, "value_change": None, "value_change_pct": None}
         first, last = candidates[0], candidates[-1]
@@ -174,10 +241,20 @@ def overview(session: Session) -> dict[str, Any]:
         return {
             "pnl_change": last["pnl"] - first["pnl"],
             "value_change": value_change,
-            "value_change_pct": (value_change / first["current_value"] * 100) if first["current_value"] else None,
+            "value_change_pct": (
+                value_change / first["current_value"] * 100 if first["current_value"] else None
+            ),
         }
 
+    accounts = list(session.scalars(select(GateAccount).order_by(GateAccount.name.asc())))
+    bots_by_account: dict[str, list[Bot]] = defaultdict(list)
+    for bot in all_bots:
+        bots_by_account[bot.account_id].append(bot)
+
+    selected_account = next((item for item in accounts if item.id == account_id), None)
     return {
+        "account_id": account_id,
+        "selected_account": account_to_dict(selected_account, bots_by_account[account_id]) if selected_account else None,
         "totals": {
             "invest_amount": float(total_invest),
             "current_value": float(total_value),
@@ -198,29 +275,52 @@ def overview(session: Session) -> dict[str, Any]:
         "worst_bot": bot_to_dict(worst) if worst else None,
         "latest_sync": sync_to_dict(latest_sync) if latest_sync else None,
         "unacknowledged_alerts": unacked_alerts,
+        "accounts": [account_to_dict(account, bots_by_account[account.id]) for account in accounts],
     }
 
 
-def portfolio_history(session: Session, since: datetime) -> list[dict[str, Any]]:
-    snapshots = session.execute(
+def portfolio_history(
+    session: Session,
+    since: datetime,
+    account_id: str | None = None,
+) -> list[dict[str, Any]]:
+    stmt = (
         select(BotSnapshot, Bot)
         .join(Bot, Bot.id == BotSnapshot.bot_id)
         .where(BotSnapshot.captured_at >= since)
-        .order_by(BotSnapshot.captured_at.asc())
-    ).all()
-    buckets: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"invest_amount": Decimal("0"), "current_value": Decimal("0"), "pnl": Decimal("0"), "bots": set()}
+        .order_by(BotSnapshot.captured_at.asc(), BotSnapshot.id.asc())
     )
-    for snapshot, bot in snapshots:
+    if account_id:
+        stmt = stmt.where(Bot.account_id == account_id)
+
+    # Keep only the latest snapshot for each bot within each minute. This avoids
+    # inflating portfolio totals when POLL_SECONDS is less than 60.
+    latest_per_bot_minute: dict[tuple[str, int], BotSnapshot] = {}
+    for snapshot, bot in session.execute(stmt).all():
         captured = as_utc(snapshot.captured_at)
         if captured is None:
             continue
         minute = captured.replace(second=0, microsecond=0).isoformat()
+        latest_per_bot_minute[(minute, bot.id)] = snapshot
+
+    buckets: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {
+            "invest_amount": Decimal("0"),
+            "current_value": Decimal("0"),
+            "pnl": Decimal("0"),
+            "bots": set(),
+        }
+    )
+    for (minute, bot_id), snapshot in latest_per_bot_minute.items():
         bucket = buckets[minute]
-        bucket["bots"].add(bot.id)
+        bucket["bots"].add(bot_id)
         bucket["invest_amount"] += snapshot.invest_amount or Decimal("0")
         bucket["current_value"] += snapshot.current_value or Decimal("0")
-        bucket["pnl"] += snapshot.total_profit if snapshot.total_profit is not None else (snapshot.pnl or Decimal("0"))
+        bucket["pnl"] += (
+            snapshot.total_profit
+            if snapshot.total_profit is not None
+            else (snapshot.pnl or Decimal("0"))
+        )
 
     result: list[dict[str, Any]] = []
     for timestamp, bucket in sorted(buckets.items()):

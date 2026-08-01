@@ -12,15 +12,44 @@ from .db import Base, utcnow
 DECIMAL = Numeric(36, 12)
 
 
+class GateAccount(Base):
+    __tablename__ = "gate_accounts"
+    __table_args__ = (
+        Index("ix_gate_accounts_enabled", "enabled"),
+        Index("ix_gate_accounts_sync_status", "sync_status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    account_type: Mapped[str] = mapped_column(String(64), default="subaccount")
+    gate_uid: Mapped[str] = mapped_column(String(64), default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    configured: Mapped[bool] = mapped_column(Boolean, default=False)
+    sync_status: Mapped[str] = mapped_column(String(32), default="never")
+    last_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    bot_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    bots: Mapped[list["Bot"]] = relationship(back_populates="account")
+    sync_runs: Mapped[list["SyncRun"]] = relationship(back_populates="account")
+
+
 class Bot(Base):
     __tablename__ = "bots"
     __table_args__ = (
-        UniqueConstraint("strategy_id", "strategy_type", name="uq_bot_strategy"),
+        UniqueConstraint("account_id", "strategy_id", "strategy_type", name="uq_bot_account_strategy"),
+        Index("ix_bots_account_status", "account_id", "status"),
         Index("ix_bots_status", "status"),
         Index("ix_bots_market", "market"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("gate_accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     strategy_id: Mapped[str] = mapped_column(String(128), nullable=False)
     strategy_type: Mapped[str] = mapped_column(String(64), nullable=False)
     strategy_name: Mapped[str] = mapped_column(String(255), default="")
@@ -68,6 +97,7 @@ class Bot(Base):
     raw_list_json: Mapped[str] = mapped_column(Text, default="{}")
     raw_detail_json: Mapped[str] = mapped_column(Text, default="{}")
 
+    account: Mapped[GateAccount] = relationship(back_populates="bots")
     snapshots: Mapped[list["BotSnapshot"]] = relationship(
         back_populates="bot", cascade="all, delete-orphan"
     )
@@ -104,16 +134,25 @@ class BotSnapshot(Base):
 
 class SyncRun(Base):
     __tablename__ = "sync_runs"
-    __table_args__ = (Index("ix_sync_started", "started_at"),)
+    __table_args__ = (
+        Index("ix_sync_started", "started_at"),
+        Index("ix_sync_account_started", "account_id", "started_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("gate_accounts.id", ondelete="SET NULL"), nullable=True
+    )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(32), default="running")
+    trigger: Mapped[str] = mapped_column(String(32), default="scheduler")
     bot_count: Mapped[int] = mapped_column(Integer, default=0)
     detail_count: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str] = mapped_column(Text, default="")
     raw_summary_json: Mapped[str] = mapped_column(Text, default="{}")
+
+    account: Mapped[Optional[GateAccount]] = relationship(back_populates="sync_runs")
 
 
 class AlertRule(Base):

@@ -24,17 +24,28 @@ class Settings(BaseSettings):
     frontend_dir: Path = Field(default=Path(__file__).resolve().parent.parent / "frontend")
 
     gate_base_url: str = "https://api.gateio.ws/api/v4"
+    gate_accounts_file: Path = Path("/run/secrets/gate_accounts.json")
+
+    # Legacy single-account variables remain supported for a one-account install.
+    # When GATE_ACCOUNTS_FILE exists and contains accounts, it takes precedence.
     gate_api_key: str = ""
     gate_api_secret: str = ""
+    gate_account_id: str = "default"
+    gate_account_name: str = "Default account"
+    gate_account_type: str = "subaccount"
+    gate_uid: str = ""
+
     gate_language: str = "en-US"
     gate_request_timeout_seconds: float = 20.0
     gate_bot_page_size: int = 50
     gate_details_concurrency: int = 4
+    gate_account_concurrency: int = 4
 
     poll_seconds: int = 60
     stale_after_minutes: int = 5
     missing_bot_grace_syncs: int = 2
     snapshot_retention_days: int = 365
+    purge_demo_data_on_live: bool = True
 
     demo_mode: bool = False
     demo_seed: int = 42
@@ -60,13 +71,18 @@ class Settings(BaseSettings):
     def validate_page_size(cls, value: int) -> int:
         return max(1, min(value, 50))
 
+    @field_validator("gate_details_concurrency", "gate_account_concurrency")
+    @classmethod
+    def validate_concurrency(cls, value: int) -> int:
+        return max(1, min(value, 20))
+
     @field_validator("poll_seconds")
     @classmethod
     def validate_poll_seconds(cls, value: int) -> int:
         return max(15, value)
 
     @property
-    def gate_configured(self) -> bool:
+    def legacy_gate_configured(self) -> bool:
         return bool(self.gate_api_key and self.gate_api_secret)
 
     @property

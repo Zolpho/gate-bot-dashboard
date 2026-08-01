@@ -9,10 +9,15 @@ services:
       - "127.0.0.1:8080:8080"
     volumes:
       - gate_bot_data:/data
+      - ./secrets:/run/config:ro
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
 
 volumes:
   gate_bot_data:

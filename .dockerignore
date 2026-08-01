@@ -2,8 +2,12 @@
 .env
 .venv
 __pycache__
+*.pyc
 .pytest_cache
 .ruff_cache
-*.pyc
-data/*.db
-data/*.db-*
+.mypy_cache
+data/*.db*
+exports
+backups
+secrets/gate_accounts.json
+gate_probe_output*.json

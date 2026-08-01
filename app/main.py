@@ -12,7 +12,7 @@ from .api import alerts, bots, dashboard, system
 from .collector import collector
 from .config import get_settings
 from .db import init_db, session_scope
-from .demo import seed_demo_data
+from .demo import purge_demo_data, seed_demo_data
 from .security import OptionalBasicAuthMiddleware
 
 settings = get_settings()
@@ -38,6 +38,10 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     with session_scope() as session:
         if settings.demo_mode:
             seed_demo_data(session, settings)
+        elif settings.purge_demo_data_on_live:
+            purged = purge_demo_data(session)
+            if purged:
+                logger.info("Removed %s demo bots before live collection", purged)
         seed_default_rules(session, settings)
 
     task = asyncio.create_task(collection_loop())
@@ -51,8 +55,8 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.0.0",
-    description="Native Gate.io trading bot monitoring, history, analytics and alerting.",
+    version="2.0.0",
+    description="Multi-account native Gate.io trading bot monitoring, history, analytics and alerting.",
     lifespan=lifespan,
 )
 app.add_middleware(OptionalBasicAuthMiddleware, settings=settings)

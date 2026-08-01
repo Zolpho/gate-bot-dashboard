@@ -90,12 +90,15 @@ def delete_rule(rule_id: int, db: Session = Depends(get_db)):  # type: ignore[no
 @router.get("/events")
 def list_events(
     unacknowledged_only: bool = False,
+    account_id: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     db: Session = Depends(get_db),
 ):  # type: ignore[no-untyped-def]
     stmt = select(AlertEvent).order_by(AlertEvent.triggered_at.desc()).limit(limit)
     if unacknowledged_only:
         stmt = stmt.where(AlertEvent.acknowledged_at.is_(None))
+    if account_id:
+        stmt = stmt.join(Bot, Bot.id == AlertEvent.bot_id).where(Bot.account_id == account_id.strip().lower())
     events = db.scalars(stmt).all()
     result = []
     for event in events:

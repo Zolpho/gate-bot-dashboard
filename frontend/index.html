@@ -30,6 +30,7 @@
           <p id="pageSubtitle">Native Gate.io bot performance and portfolio history</p>
         </div>
         <div class="top-actions">
+          <label class="account-selector">Account<select id="accountSelector" aria-label="Gate account"><option value="">All accounts</option></select></label>
           <span class="mode-badge" id="modeBadge">—</span>
           <button class="button secondary" id="refreshButton">Refresh</button>
           <button class="button primary" id="syncButton">Sync Gate</button>
@@ -85,7 +86,7 @@
         <article class="panel table-panel">
           <div class="table-scroll">
             <table>
-              <thead><tr><th>Strategy</th><th>Status</th><th>Invested</th><th>Current value</th><th>PnL</th><th>ROI</th><th>Grid profit</th><th>Runtime</th><th></th></tr></thead>
+              <thead><tr><th>Strategy</th><th>Account</th><th>Status</th><th>Invested</th><th>Current value</th><th>PnL</th><th>ROI</th><th>Grid profit</th><th>Runtime</th><th></th></tr></thead>
               <tbody id="botsTableBody"></tbody>
             </table>
           </div>
@@ -114,10 +115,14 @@
             <div class="button-row"><button class="button secondary" id="testAccountButton">Load account snapshot</button><button class="button secondary" id="loadRecommendations">Load recommendations</button></div>
           </article>
           <article class="panel">
-            <div class="panel-header"><div><h2>Collection runs</h2><p>Last scheduled and manual synchronisations</p></div></div>
-            <div id="syncRuns" class="sync-list"></div>
+            <div class="panel-header"><div><h2>Gate accounts</h2><p>Per-account sync and portfolio status</p></div></div>
+            <div id="accountsList" class="account-list"></div>
           </article>
         </div>
+        <article class="panel">
+          <div class="panel-header"><div><h2>Collection runs</h2><p>Aggregate and per-account synchronisations</p></div></div>
+          <div id="syncRuns" class="sync-list"></div>
+        </article>
         <article class="panel raw-panel">
           <div class="panel-header"><div><h2>API inspector</h2><p>Account or strategy recommendation response</p></div><button class="text-button" id="clearInspector">Clear</button></div>
           <pre id="apiInspector">Select an action above to inspect a response.</pre>

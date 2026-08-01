@@ -141,6 +141,7 @@ def evaluate_alerts(session: Session, *, now: datetime | None = None) -> list[Al
                 triggered_at=now,
                 metric_value=value,
                 message=(
+                    f"[{bot.account.name if bot.account else bot.account_id}] "
                     f"{bot.strategy_name or bot.strategy_id} ({bot.market}) {label} "
                     f"is {value:.4f}{suffix}; rule {rule.operator} {rule.threshold}."
                 ),

@@ -1,34 +1,33 @@
-# Security Checklist
+# Security notes
 
-## Gate key
+## Gate credentials
 
-- Create a dedicated key for this service.
-- Keep it read-only during monitoring validation.
-- Never enable withdrawals.
-- Restrict it by server IP where possible.
-- Do not put credentials in `docker-compose.yml`, source control, frontend files, screenshots, or support messages.
-- Rotate the key after any suspected disclosure.
+Use one dedicated read-only Gate API v4 key per account or subaccount. Store the real values only in `secrets/gate_accounts.json` on Ubuntu.
 
-## Dashboard
+The JSON file is ignored by Git and excluded from the Docker build context. At container start, a short root entrypoint copies the host-mounted file into `/run/secrets/gate_accounts.json`, changes ownership to the unprivileged `dashboard` user, then drops privileges before starting FastAPI.
 
-- Set `DASHBOARD_USERNAME` and a strong `DASHBOARD_PASSWORD` before exposing port 8080 beyond a trusted network.
-- Prefer a TLS reverse proxy such as Caddy, Traefik, or nginx.
-- Firewall the service to known administration networks where practical.
-- Keep `ALLOW_BOT_STOP=false` until monitoring data has been reconciled.
+API responses expose only safe account metadata. Keys and secrets are never serialized by the application.
 
-## Host
+## Required permissions
 
-- Keep Docker and the operating system patched.
-- Back up `/data/gate_bots.db`.
-- Protect `.env` with owner-only permissions:
+Enable only the read permissions needed by that account's bots. Keep Withdraw and subaccount administration disabled. Keep `ALLOW_BOT_STOP=false` for monitoring.
+
+## Network
+
+Compose binds FastAPI to `127.0.0.1:8080`. Use Caddy or Nginx for HTTPS. Do not publish port 8080 directly.
+
+## Authentication
+
+Set both `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD` to enable HTTP Basic Authentication. All routes except `/api/health` then require authentication.
+
+## Local files
+
+Recommended host permissions:
 
 ```bash
 chmod 600 .env
+chmod 700 secrets
+chmod 600 secrets/gate_accounts.json
 ```
 
-- Review container logs for repeated authentication or Gate API errors.
-- The supplied container drops Linux capabilities and sets `no-new-privileges`.
-
-## Telegram phase
-
-When Telegram is added, it should read `alert_events` or call the dashboard API. Bot-management commands must use an administrator allowlist, replay protection, explicit confirmations, and separate read/write Gate keys.
+Never commit probe output, databases, backups, `.env`, or the real accounts file.

@@ -13,6 +13,7 @@ const state = {
   currentBotData: null,
   currentBotHistory: [],
   currentRawKey: 'metrics',
+  selectedAccount: '',
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -75,6 +76,18 @@ function valueClass(value) { return Number(value) > 0 ? 'positive' : Number(valu
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[c])); }
 function strategyLabel(value) { return String(value || 'unknown').replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase()); }
 
+function withParams(path, params = {}) {
+  const url = new URL(path, window.location.origin);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') url.searchParams.set(key, value);
+  });
+  return `${url.pathname}${url.search}`;
+}
+
+function scopedPath(path, params = {}) {
+  return withParams(path, { ...params, account_id: state.selectedAccount || undefined });
+}
+
 function switchTab(tab) {
   $$('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
   $$('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `tab-${tab}`));
@@ -126,9 +139,10 @@ function renderOverview() {
   $('#statusList').innerHTML = statuses.map(([label, count, color]) => `<div class="status-row"><span><i class="dot" style="background:${color}"></i>${label}</span><b>${count}</b></div>`).join('');
 
   const leaders = [...state.bots].filter(b => b.status === 'running').sort((a,b) => (b.profit_rate ?? b.pnl_rate ?? -Infinity) - (a.profit_rate ?? a.pnl_rate ?? -Infinity)).slice(0,4);
-  $('#leaderCards').innerHTML = leaders.length ? leaders.map(bot => `<button class="leader row-button" data-bot-id="${bot.id}"><span><b>${escapeHtml(bot.strategy_name)}</b><small>${escapeHtml(bot.market)} · ${strategyLabel(bot.strategy_type)}</small></span><strong class="${valueClass(bot.profit_rate ?? bot.pnl_rate)}">${fmtPct(bot.profit_rate ?? bot.pnl_rate)}<small>${fmtMoney(bot.total_profit ?? bot.pnl)}</small></strong></button>`).join('') : '<div class="empty-state">No running bots yet.</div>';
+  $('#leaderCards').innerHTML = leaders.length ? leaders.map(bot => `<button class="leader row-button" data-bot-id="${bot.id}"><span><b>${escapeHtml(bot.strategy_name)}</b><small>${escapeHtml(bot.account_name)} · ${escapeHtml(bot.market)} · ${strategyLabel(bot.strategy_type)}</small></span><strong class="${valueClass(bot.profit_rate ?? bot.pnl_rate)}">${fmtPct(bot.profit_rate ?? bot.pnl_rate)}<small>${fmtMoney(bot.total_profit ?? bot.pnl)}</small></strong></button>`).join('') : '<div class="empty-state">No running bots yet.</div>';
 
-  $('#lastSyncSidebar').textContent = latest ? `Last sync ${fmtDate(latest.finished_at || latest.started_at)}` : 'No sync yet';
+  const accountLabel = state.selectedAccount ? (state.overview.selected_account?.name || state.selectedAccount) : 'All accounts';
+  $('#lastSyncSidebar').textContent = latest ? `${accountLabel} · ${fmtDate(latest.finished_at || latest.started_at)}` : `${accountLabel} · no sync yet`;
   renderOverviewAlerts();
   drawPortfolioChart();
 }
@@ -215,6 +229,17 @@ function drawPortfolioChart() {
   ]);
 }
 
+function populateAccountSelector(accounts = []) {
+  const selector = $('#accountSelector');
+  const current = state.selectedAccount;
+  selector.innerHTML = '<option value="">All accounts</option>' + accounts.map(account => {
+    const suffix = account.sync_status && account.sync_status !== 'success' ? ` · ${account.sync_status}` : '';
+    return `<option value="${escapeHtml(account.id)}">${escapeHtml(account.name)}${escapeHtml(suffix)}</option>`;
+  }).join('');
+  if (current && accounts.some(account => account.id === current)) selector.value = current;
+  else { state.selectedAccount = ''; selector.value = ''; }
+}
+
 function populateFilterOptions(filters = {}) {
   const type = $('#typeFilter'), market = $('#marketFilter');
   const currentType = type.value, currentMarket = market.value;
@@ -222,7 +247,7 @@ function populateFilterOptions(filters = {}) {
   market.innerHTML = '<option value="">All markets</option>' + (filters.markets || []).map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
   type.value = currentType; market.value = currentMarket;
   const botSelect = $('#ruleForm select[name="bot_id"]');
-  botSelect.innerHTML = '<option value="">All bots</option>' + state.bots.map(bot => `<option value="${bot.id}">${escapeHtml(bot.strategy_name)} (${escapeHtml(bot.market)})</option>`).join('');
+  botSelect.innerHTML = '<option value="">All bots</option>' + state.bots.map(bot => `<option value="${bot.id}">[${escapeHtml(bot.account_name)}] ${escapeHtml(bot.strategy_name)} (${escapeHtml(bot.market)})</option>`).join('');
 }
 
 function applyBotFilters() {
@@ -232,7 +257,7 @@ function applyBotFilters() {
   const market = $('#marketFilter').value;
   const sort = $('#sortFilter').value;
   const valueFor = (bot) => ({ pnl: bot.total_profit ?? bot.pnl ?? -Infinity, roi: bot.profit_rate ?? bot.pnl_rate ?? -Infinity, updated: new Date(bot.updated_at).valueOf(), name: bot.strategy_name, market: bot.market }[sort]);
-  state.filteredBots = state.bots.filter(bot => (!term || `${bot.strategy_name} ${bot.market} ${bot.strategy_id}`.toLowerCase().includes(term)) && (!status || bot.status === status) && (!type || bot.strategy_type === type) && (!market || bot.market === market)).sort((a,b) => typeof valueFor(a) === 'string' ? String(valueFor(a)).localeCompare(String(valueFor(b))) : Number(valueFor(b)) - Number(valueFor(a)));
+  state.filteredBots = state.bots.filter(bot => (!term || `${bot.account_name} ${bot.account_id} ${bot.strategy_name} ${bot.market} ${bot.strategy_id}`.toLowerCase().includes(term)) && (!status || bot.status === status) && (!type || bot.strategy_type === type) && (!market || bot.market === market)).sort((a,b) => typeof valueFor(a) === 'string' ? String(valueFor(a)).localeCompare(String(valueFor(b))) : Number(valueFor(b)) - Number(valueFor(a)));
   renderBots();
 }
 
@@ -243,6 +268,7 @@ function renderBots() {
     const roi = bot.profit_rate ?? bot.pnl_rate;
     return `<tr>
       <td class="strategy-cell"><strong>${escapeHtml(bot.strategy_name)}</strong><small>${escapeHtml(bot.market)} · ${strategyLabel(bot.strategy_type)}</small></td>
+      <td><span class="account-badge">${escapeHtml(bot.account_name)}</span></td>
       <td><span class="status-badge ${escapeHtml(bot.status)}">${escapeHtml(bot.status)}</span></td>
       <td>${fmtMoney(bot.invest_amount)}</td><td>${fmtMoney(bot.current_value)}</td>
       <td class="${valueClass(pnl)}">${fmtMoney(pnl)}</td><td class="${valueClass(roi)}">${fmtPct(roi)}</td>
@@ -270,26 +296,52 @@ function renderAlerts() {
 function renderSystem() {
   if (!state.health) return;
   const health = state.health;
+  const accounts = state.overview?.accounts || [];
   $('#modeBadge').textContent = health.mode.toUpperCase();
   $('#modeBadge').className = `mode-badge ${health.mode}`;
   $('#connectionDot').className = health.status === 'ok' ? 'online' : 'offline';
-  $('#connectionText').textContent = health.mode === 'demo' ? 'Demo data' : health.gate_configured ? 'Gate configured' : 'Credentials missing';
+  $('#connectionText').textContent = health.mode === 'demo'
+    ? 'Demo accounts'
+    : health.enabled_account_count
+      ? `${health.enabled_account_count} Gate account${health.enabled_account_count === 1 ? '' : 's'}`
+      : 'Credentials missing';
   const details = [
-    ['Application', health.status], ['Mode', health.mode], ['Gate credentials', health.gate_configured ? 'Configured' : 'Not configured'],
-    ['Collector', health.collector_running ? 'Synchronising' : 'Idle'], ['Poll interval', `${health.poll_seconds}s`],
-    ['History retention', `${health.snapshot_retention_days} days`], ['Stop action', health.allow_bot_stop ? 'Enabled' : 'Disabled'],
+    ['Application', health.status], ['Mode', health.mode], ['Configured accounts', health.configured_account_count ?? accounts.length],
+    ['Enabled accounts', health.enabled_account_count ?? 0], ['Collector', health.collector_running ? 'Synchronising' : 'Idle'],
+    ['Poll interval', `${health.poll_seconds}s`], ['History retention', `${health.snapshot_retention_days} days`],
+    ['Stop action', health.allow_bot_stop ? 'Enabled' : 'Disabled'],
   ];
+  if (health.account_config_error) details.push(['Account config error', health.account_config_error]);
   $('#healthDetails').innerHTML = details.map(([k,v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('');
-  $('#syncRuns').innerHTML = state.syncRuns.length ? state.syncRuns.map(run => `<article class="sync-run"><i class="sync-dot ${run.status === 'error' ? 'error' : ''}"></i><div><strong>${escapeHtml(run.status)}</strong><small>${fmtDate(run.started_at)} · ${run.bot_count} bots / ${run.detail_count} details${run.error ? ` · ${escapeHtml(run.error)}` : ''}</small></div><span class="type-badge">${escapeHtml(run.summary?.trigger || '—')}</span></article>`).join('') : '<div class="empty-state">No collection runs yet.</div>';
+
+  $('#accountsList').innerHTML = accounts.length ? accounts.map(account => {
+    const portfolio = account.portfolio || {};
+    const statusClass = account.sync_status === 'success' ? 'success' : account.sync_status === 'running' ? 'running' : account.sync_status === 'disabled' ? 'disabled' : 'error';
+    return `<article class="account-row">
+      <i class="account-dot ${statusClass}"></i>
+      <div><strong>${escapeHtml(account.name)}</strong><small>${escapeHtml(account.id)} · ${portfolio.running ?? account.bot_count ?? 0} running · ${fmtMoney(portfolio.pnl)}</small></div>
+      <div class="account-status"><span class="status-badge ${statusClass}">${escapeHtml(account.sync_status || 'never')}</span><small>${fmtDate(account.last_success_at)}</small></div>
+      ${account.last_error ? `<p class="account-error">${escapeHtml(account.last_error)}</p>` : ''}
+    </article>`;
+  }).join('') : '<div class="empty-state">No accounts recorded yet.</div>';
+
+  $('#syncRuns').innerHTML = state.syncRuns.length ? state.syncRuns.map(run => `<article class="sync-run"><i class="sync-dot ${run.status === 'error' ? 'error' : run.status === 'partial' ? 'warning' : ''}"></i><div><strong>${escapeHtml(run.account_name || 'All accounts')} · ${escapeHtml(run.status)}</strong><small>${fmtDate(run.started_at)} · ${run.bot_count} bots / ${run.detail_count} details${run.error ? ` · ${escapeHtml(run.error)}` : ''}</small></div><span class="type-badge">${escapeHtml(run.trigger || run.summary?.trigger || '—')}</span></article>`).join('') : '<div class="empty-state">No collection runs yet.</div>';
 }
 
 async function loadCore() {
   try {
     const hours = Number($('#historyRange').value);
     const [health, overviewData, botData, historyData, ruleData, eventData, syncData] = await Promise.all([
-      api('/api/health'), api('/api/overview'), api('/api/bots'), api(`/api/portfolio/history?hours=${hours}`), api('/api/alerts/rules'), api(`/api/alerts/events?unacknowledged_only=${$('#unackedOnly').checked}`), api('/api/sync-runs?limit=20'),
+      api('/api/health'),
+      api(scopedPath('/api/overview')),
+      api(scopedPath('/api/bots')),
+      api(scopedPath('/api/portfolio/history', { hours })),
+      api('/api/alerts/rules'),
+      api(scopedPath('/api/alerts/events', { unacknowledged_only: $('#unackedOnly').checked })),
+      api(scopedPath('/api/sync-runs', { limit: 20 })),
     ]);
     state.health = health; state.overview = overviewData; state.bots = botData.items; state.history = historyData.items; state.rules = ruleData.items; state.alertEvents = eventData.items; state.syncRuns = syncData.items;
+    populateAccountSelector(overviewData.accounts || []);
     populateFilterOptions(botData.filters);
     applyBotFilters(); renderOverview(); renderAlerts(); renderSystem();
   } catch (error) {
@@ -302,9 +354,10 @@ async function syncNow() {
   const button = $('#syncButton');
   button.disabled = true; button.textContent = 'Syncing…';
   try {
-    const result = await api('/api/sync', { method: 'POST' });
+    const result = await api(scopedPath('/api/sync'), { method: 'POST' });
     if (result.status === 'error') throw new Error(result.error || 'Sync failed');
-    showToast(result.status === 'skipped' ? 'A sync is already running.' : `Sync complete: ${result.bot_count ?? 0} bots`);
+    const scope = state.selectedAccount ? ` for ${state.selectedAccount}` : '';
+    showToast(result.status === 'skipped' ? 'A sync is already running.' : `Sync complete${scope}: ${result.bot_count ?? 0} bots`);
     await loadCore();
   } catch (error) { showToast(error.message, true); }
   finally { button.disabled = false; button.textContent = 'Sync Gate'; }
@@ -323,7 +376,7 @@ async function openBot(botId) {
 function renderBotDialog(detail, history) {
   const bot = detail.bot;
   $('#dialogTitle').textContent = bot.strategy_name;
-  $('#dialogSubtitle').textContent = `${bot.market} · ${strategyLabel(bot.strategy_type)} · ${bot.strategy_id}`;
+  $('#dialogSubtitle').textContent = `${bot.account_name} · ${bot.market} · ${strategyLabel(bot.strategy_type)} · ${bot.strategy_id}`;
   const stats = [
     ['Invested', fmtMoney(bot.invest_amount), null], ['Current value', fmtMoney(bot.current_value), bot.total_profit],
     ['Total PnL', fmtMoney(bot.total_profit ?? bot.pnl), bot.total_profit ?? bot.pnl], ['ROI', fmtPct(bot.profit_rate ?? bot.pnl_rate), bot.profit_rate ?? bot.pnl_rate],
@@ -334,7 +387,7 @@ function renderBotDialog(detail, history) {
   $('#botDetailMetrics').innerHTML = stats.map(([label,value,cls]) => `<div class="detail-stat"><span>${label}</span><strong class="${cls === null ? '' : valueClass(cls)}">${escapeHtml(value)}</strong></div>`).join('');
   $('#drawdownSummary').textContent = `Max ${fmtPct(history.analytics?.max_drawdown_pct)} · Current ${fmtPct(history.analytics?.current_drawdown_pct)} · Peak ${fmtMoney(history.analytics?.peak_value)}`;
   const definitions = [
-    ['Strategy ID', bot.strategy_id], ['Type', strategyLabel(bot.strategy_type)], ['Gate status', bot.source_status], ['Created', fmtDate(bot.created_at_gate)], ['Last seen', fmtDate(bot.last_seen_at)],
+    ['Account', bot.account_name], ['Account ID', bot.account_id], ['Strategy ID', bot.strategy_id], ['Type', strategyLabel(bot.strategy_type)], ['Gate status', bot.source_status], ['Created', fmtDate(bot.created_at_gate)], ['Last seen', fmtDate(bot.last_seen_at)],
     ['Price range', bot.price_range || '—'], ['Grid count', fmtNumber(bot.grid_count,0)], ['Finished rounds', fmtNumber(bot.finished_rounds,0)], ['Position side', bot.position_side || '—'],
     ['Position amount', fmtNumber(bot.position_amount,8)], ['Entry price', fmtMoney(bot.entry_price)], ['Position value', fmtMoney(bot.position_value)], ['Margin', fmtMoney(bot.margin)],
     ['Liquidation price', fmtMoney(bot.estimated_liquidation_price)], ['Maintenance margin', fmtPct(bot.maintenance_margin_ratio)], ['Stop supported', bot.stop_supported ? 'Yes' : 'No'],
@@ -376,7 +429,7 @@ async function stopCurrentBot() {
 }
 
 function exportCsv() {
-  const headers = ['strategy_id','strategy_name','strategy_type','market','status','invest_amount','current_value','total_profit','profit_rate','grid_profit','floating_pnl','runtime_seconds','last_seen_at'];
+  const headers = ['account_id','account_name','strategy_id','strategy_name','strategy_type','market','status','invest_amount','current_value','total_profit','profit_rate','grid_profit','floating_pnl','runtime_seconds','last_seen_at'];
   const quote = value => `"${String(value ?? '').replaceAll('"','""')}"`;
   const rows = [headers.join(','), ...state.filteredBots.map(bot => headers.map(key => quote(bot[key])).join(','))];
   const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' });
@@ -418,6 +471,7 @@ function bindEvents() {
   $$('.nav-item').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
   $$('[data-jump]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.jump)));
   $('#refreshButton').addEventListener('click', loadCore); $('#syncButton').addEventListener('click', syncNow);
+  $('#accountSelector').addEventListener('change', event => { state.selectedAccount = event.target.value; loadCore(); });
   $('#historyRange').addEventListener('change', loadCore);
   ['#botSearch','#statusFilter','#typeFilter','#marketFilter','#sortFilter'].forEach(selector => $(selector).addEventListener(selector === '#botSearch' ? 'input' : 'change', applyBotFilters));
   $('#exportCsv').addEventListener('click', exportCsv);
@@ -436,8 +490,8 @@ function bindEvents() {
   $('#addRuleButton').addEventListener('click', () => $('#ruleDialog').showModal());
   $('#closeRuleDialog').addEventListener('click', () => $('#ruleDialog').close()); $('#cancelRule').addEventListener('click', () => $('#ruleDialog').close());
   $('#ruleForm').addEventListener('submit', createRule);
-  $('#testAccountButton').addEventListener('click', () => inspectEndpoint('/api/account'));
-  $('#loadRecommendations').addEventListener('click', () => inspectEndpoint('/api/recommendations?limit=10'));
+  $('#testAccountButton').addEventListener('click', () => inspectEndpoint(scopedPath('/api/account')));
+  $('#loadRecommendations').addEventListener('click', () => inspectEndpoint(scopedPath('/api/recommendations', { limit: 10 })));
   $('#clearInspector').addEventListener('click', () => { $('#apiInspector').textContent = 'Select an action above to inspect a response.'; });
   window.addEventListener('resize', () => { drawPortfolioChart(); if ($('#botDialog').open) drawBotChart(); });
 }

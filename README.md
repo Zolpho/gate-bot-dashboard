@@ -1,200 +1,243 @@
 # Gate Bot Dashboard
 
-A self-hosted dashboard for Gate.io's **native trading bots**. It polls Gate API v4, stores snapshots locally, calculates portfolio history and drawdown, exposes raw strategy-specific fields, and evaluates local alert rules. Telegram can later consume the same alert/event API without changing the collector.
+A self-hosted dashboard for monitoring Gate native trading bots across multiple Gate accounts and subaccounts.
 
-![Status](https://img.shields.io/badge/status-ready_to_deploy-17d39a)
+The application keeps Gate credentials on the Ubuntu server, signs API v4 requests in FastAPI, stores periodic snapshots in SQLite, and serves the dashboard from the same HTTPS origin.
 
-## Included
+## Multi-account features
 
-- Native Gate bot discovery through `GET /bot/portfolio/running`
-- Per-strategy detail through `GET /bot/portfolio/detail`
-- Dynamic preservation of Gate's `base_info`, `metrics`, and `position` maps
-- Spot Grid, Futures Grid, Margin Grid, Infinite Grid, Spot Martingale, and Futures/Contract Martingale labels
-- Portfolio totals, 24-hour/7-day changes, current value, PnL, ROI, grid profit, and floating PnL
-- Local equity/PnL history and per-bot history
-- Current and maximum drawdown calculated from saved snapshots
-- Strategy table, search, filters, sorting, CSV export, and raw API inspector
-- Local alert rules for PnL, ROI, drawdown, floating PnL, current value, liquidation distance, and stale data
-- Optional account snapshot from wallet/spot/USDT-futures endpoints
-- Strategy recommendations endpoint inspector
-- Optional native stop action, **disabled by default**
-- Docker Compose, health check, API probe, SQLite backup, snapshot export, and tests
-- Demo mode with realistic sample history, requiring no Gate credentials
+- Separate API key and secret for every Gate account or subaccount
+- Combined portfolio overview across all accounts
+- Global account selector for overview, bots, history, alerts, and sync runs
+- Per-account connection state, last successful sync, errors, bot count, PnL, and ROI
+- Bot identity keyed by `(account_id, strategy_id, strategy_type)`
+- Per-account API client and per-account sync audit records
+- Account name included in bot details, alert messages, CSV exports, and snapshot exports
+- Manual sync for all accounts or one selected account
+- Read-only account snapshot inspection for one or all configured accounts
+- Backward-compatible support for a single API key in `.env`
+- Automatic in-place migration of the original SQLite schema
 
-## Start in demo mode
+## Architecture
+
+```text
+Browser
+   │ HTTPS
+   ▼
+Caddy or Nginx
+   │
+   ▼
+FastAPI + static dashboard on 127.0.0.1:8080
+   ├── Gate client: zolnode credentials
+   ├── Gate client: arnold credentials
+   ├── background collector
+   ├── analytics and alerts
+   └── SQLite in Docker volume
+```
+
+GitHub stores source code only. These stay on Ubuntu and are ignored by Git:
+
+- `.env`
+- `secrets/gate_accounts.json`
+- SQLite database and backups
+- probe output
+
+## Quick start in demo mode
 
 ```bash
 cp .env.example .env
+chmod 600 .env
+mkdir -p secrets
+
 docker compose up -d --build
+docker compose logs --tail=100
+curl -s http://127.0.0.1:8080/api/health
 ```
 
-Open:
+The Compose port is bound to `127.0.0.1:8080`; place Caddy or Nginx in front of it for public HTTPS access.
 
-```text
-http://SERVER_IP:8080
-```
+## Configure `zolnode` and `arnold`
 
-The example environment starts with `DEMO_MODE=true`. This is intentional: inspect the dashboard before adding any API credential.
-
-## Connect Gate
-
-1. Create a dedicated API v4 key in Gate.
-2. Give it only the read permissions needed by the Bot, Wallet, Spot, and Futures endpoints you plan to use.
-3. Do **not** enable withdrawals.
-4. Restrict the API key to the server's public IP when Gate offers that option.
-5. Put the key and secret in `.env`.
-6. Run the read-only probe before switching the dashboard to live mode.
+Create the local secret file:
 
 ```bash
-# .env
+install -d -m 700 secrets
+cp secrets/gate_accounts.example.json secrets/gate_accounts.json
+nano secrets/gate_accounts.json
+chmod 600 secrets/gate_accounts.json
+jq empty secrets/gate_accounts.json
+```
+
+Structure:
+
+```json
+{
+  "accounts": [
+    {
+      "id": "zolnode",
+      "name": "zolnode",
+      "account_type": "subaccount",
+      "gate_uid": "",
+      "api_key": "ZOLNODE_API_KEY",
+      "api_secret": "ZOLNODE_API_SECRET",
+      "enabled": true
+    },
+    {
+      "id": "arnold",
+      "name": "arnold",
+      "account_type": "subaccount",
+      "gate_uid": "",
+      "api_key": "ARNOLD_API_KEY",
+      "api_secret": "ARNOLD_API_SECRET",
+      "enabled": true
+    }
+  ]
+}
+```
+
+The host file can remain `root:root` with mode `600`. The container entrypoint copies it into an internal runtime secret owned by the unprivileged `dashboard` user before FastAPI starts.
+
+Confirm Git ignores it:
+
+```bash
+git check-ignore -v secrets/gate_accounts.json
+git ls-files secrets/gate_accounts.json
+```
+
+The second command must return nothing.
+
+## Probe both accounts safely
+
+Keep `DEMO_MODE=true` while testing credentials. Build and start the new image, then run:
+
+```bash
+docker compose run --rm --no-deps \
+  gate-bot-dashboard \
+  python scripts/probe_gate.py \
+  --output /data/gate_probe_output.json
+```
+
+Show a safe summary without printing strategy details:
+
+```bash
+docker compose run --rm --no-deps \
+  gate-bot-dashboard \
+  python - <<'PY'
+import json
+from pathlib import Path
+p = Path('/data/gate_probe_output.json')
+data = json.loads(p.read_text())
+print('error_count:', data['error_count'])
+for item in data['accounts']:
+    running = item.get('running') or {}
+    print(item['account']['id'], 'bots=', running.get('count', 0), 'errors=', len(item['errors']))
+PY
+```
+
+Probe only one account when necessary:
+
+```bash
+docker compose run --rm --no-deps \
+  gate-bot-dashboard \
+  python scripts/probe_gate.py \
+  --account zolnode \
+  --output /data/gate_probe_zolnode.json
+```
+
+The probe is read-only. Its output can contain bot IDs, balances, positions, and raw Gate responses; do not commit or publish it.
+
+## Switch to live collection
+
+After both probes return zero errors:
+
+```bash
+nano .env
+```
+
+Set:
+
+```env
 DEMO_MODE=false
-GATE_API_KEY=your_key
-GATE_API_SECRET=your_secret
+GATE_ACCOUNTS_FILE=/run/secrets/gate_accounts.json
 ALLOW_BOT_STOP=false
 ```
 
-Run the probe from a local Python environment:
+Recreate the service:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python scripts/probe_gate.py
-```
-
-It writes `gate_probe_output.json` with the running-bot response and the first bot detail. It does not create, change, or stop a bot.
-
-Then deploy:
-
-```bash
-docker compose up -d --build
+docker compose up -d --build --force-recreate
 docker compose logs -f --tail=200
 ```
 
-## Configuration
+The first live startup automatically:
 
-| Variable | Default | Purpose |
-|---|---:|---|
-| `DEMO_MODE` | `false` in code / `true` in example | Use generated bots without calling Gate |
-| `GATE_API_KEY` | empty | Gate API v4 key |
-| `GATE_API_SECRET` | empty | Gate API v4 secret |
-| `POLL_SECONDS` | `60` | Collection interval; minimum 15 seconds |
-| `DATABASE_URL` | `sqlite:////data/gate_bots.db` | SQLAlchemy database URL |
-| `SNAPSHOT_RETENTION_DAYS` | `365` | Snapshot retention |
-| `MISSING_BOT_GRACE_SYNCS` | `2` | Successful missing cycles before a locally tracked bot is marked stopped |
-| `DASHBOARD_USERNAME` | empty | Optional HTTP Basic Auth username |
-| `DASHBOARD_PASSWORD` | empty | Optional HTTP Basic Auth password |
-| `ALLOW_BOT_STOP` | `false` | Enables the server-side stop route |
-| `BOT_STOP_CONFIRMATION_TEXT` | `STOP` | Confirmation required by the stop route |
+1. upgrades an original single-account SQLite schema,
+2. preserves existing IDs, snapshots, alert references, and sync history,
+3. removes generated demo bots when `PURGE_DEMO_DATA_ON_LIVE=true`, and
+4. starts separate collection for `zolnode` and `arnold`.
 
-The API secret never reaches the browser. Signed Gate requests are made only by the FastAPI backend.
+## Safe API-key permissions
+
+For monitoring, use a separate read-only key on each subaccount:
+
+- Bots: Read Only
+- Account: Read Only
+- Wallets: Read Only
+- Spot Trading: Read Only when used
+- Perpetual Futures: Read Only when used
+- Withdraw: disabled
+- Subaccount administration: disabled
+- IP whitelist: Ubuntu server public IP
+
+Keep `ALLOW_BOT_STOP=false`. A later Telegram management service should use separate narrowly scoped write-enabled keys rather than expanding these monitoring keys.
 
 ## Dashboard API
 
 | Method | Route | Description |
 |---|---|---|
-| `GET` | `/api/health` | Mode and safe configuration status |
-| `GET` | `/api/overview` | Portfolio totals, periods, counts, leaders, latest sync |
-| `GET` | `/api/portfolio/history` | Locally recorded portfolio series |
-| `POST` | `/api/sync` | Trigger a collection immediately |
-| `GET` | `/api/bots` | Filtered normalized bot list |
-| `GET` | `/api/bots/{id}` | Bot detail, analytics, and raw Gate maps |
-| `GET` | `/api/bots/{id}/history` | Bot snapshots and drawdown |
-| `POST` | `/api/bots/{id}/stop` | Optional Gate native stop request |
-| `GET/POST` | `/api/alerts/rules` | List/create alert rules |
-| `PATCH/DELETE` | `/api/alerts/rules/{id}` | Update/delete a rule |
-| `GET` | `/api/alerts/events` | Alert event history |
-| `POST` | `/api/alerts/events/{id}/acknowledge` | Acknowledge an event |
-| `GET` | `/api/account` | On-demand account endpoint snapshot |
-| `GET` | `/api/recommendations` | Gate strategy recommendation response |
-| `GET` | `/api/sync-runs` | Collector history |
+| `GET` | `/api/health` | Safe configuration and account count |
+| `GET` | `/api/accounts` | Per-account sync and portfolio status |
+| `GET` | `/api/overview?account_id=` | Combined or selected-account totals |
+| `GET` | `/api/portfolio/history?account_id=` | Combined or selected history |
+| `POST` | `/api/sync?account_id=` | Sync every account or one account |
+| `GET` | `/api/sync-runs?account_id=` | Aggregate or per-account audit trail |
+| `GET` | `/api/bots?account_id=` | Account-aware bot list |
+| `GET` | `/api/bots/{id}` | Bot detail, analytics, account, and raw maps |
+| `GET` | `/api/bots/{id}/history` | Bot snapshot history and drawdown |
+| `GET` | `/api/alerts/events?account_id=` | Alert events scoped by account |
+| `GET` | `/api/account?account_id=` | Gate account snapshot; all accounts when omitted |
+| `GET` | `/api/recommendations?account_id=` | Recommendation response using the selected account |
 
-Interactive FastAPI documentation is available at `/docs`, and the generated OpenAPI schema is available at `/openapi.json`. For an internet-facing deployment, protect the whole service with the included Basic Auth or a reverse proxy with stronger authentication.
+## Upgrade an existing installation
 
-## Data model
+See [`docs/UPGRADE_MULTI_ACCOUNT.md`](docs/UPGRADE_MULTI_ACCOUNT.md).
 
-The collector keeps four important layers:
-
-1. `bots`: latest normalized state for each `(strategy_id, strategy_type)`.
-2. `bot_snapshots`: time-series values captured on every successful poll.
-3. `sync_runs`: success/error audit trail.
-4. `alert_rules` and `alert_events`: reusable for the later Telegram integration.
-
-Gate changed bot detail data to strategy-specific string maps. The adapter maps known fields into stable columns while preserving the complete response in `raw_detail_json`. New Gate fields therefore remain visible in the dashboard even before a new adapter release.
-
-## Current Gate limitations handled by the project
-
-- The public native portfolio-list endpoint is specifically a **running strategies** endpoint. A bot that disappears is retained locally and marked stopped after a configurable grace period, but the dashboard cannot reconstruct old bots that Gate never returns and that were stopped before the first collection.
-- Gate does not document a native bot WebSocket stream in the current Bot API. The project polls REST endpoints.
-- `base_info`, `metrics`, and `position` vary by bot type. Empty values are normal for strategies where a metric does not apply.
-- Marketplace/copied strategies appear only when Gate returns them through the authenticated portfolio endpoint. The project does not scrape mobile-app/private endpoints.
-- Local 24-hour performance, equity curves, and drawdown become more accurate after the collector has accumulated snapshots.
-- Gate's application may calculate display PnL or annualised values differently from the generic fields returned for a specific strategy. Raw data is always retained for reconciliation.
-
-## Stop action
-
-Monitoring is the default. To expose the stop button:
-
-```bash
-ALLOW_BOT_STOP=true
-```
-
-The UI then requires typed confirmation and the server verifies that Gate's detail response reports `stop_supported=true`. One stop policy is submitted per request. Keep this disabled until the read-only dashboard has been validated against the Gate app.
-
-## Backup and export
-
-For Docker, create a consistent online SQLite backup inside the persistent volume and copy it to the host:
+Back up the database before upgrading:
 
 ```bash
 backup_path=$(docker compose exec -T gate-bot-dashboard python scripts/backup_db.py | tr -d '\r')
 mkdir -p backups
 docker cp "gate-bot-dashboard:${backup_path}" backups/
+chmod 600 backups/*.db
 ```
 
-For a local non-Docker run:
+Never run `docker compose down -v` unless you intentionally want to delete the persistent database volume.
 
-```bash
-python scripts/backup_db.py --source data/gate_bots.db --directory backups
-python scripts/export_snapshots.py
-```
-
-## Development
+## Development and validation
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
-cp .env.example .env
-make demo
+PYTHONPATH=. pytest -q
+node --check frontend/app.js
 ```
 
-Tests and lint:
+## Security
 
-```bash
-make test
-make lint
-```
-
-## Architecture
-
-```text
-Browser (HTML/CSS/JS)
-        │
-        ▼
-FastAPI REST API
-        ├── Gate API v4 signer/client
-        ├── strategy adapter (known fields + raw maps)
-        ├── asyncio background collector
-        ├── alert evaluator
-        └── SQLAlchemy
-                │
-                ▼
-             SQLite
-```
-
-## Official references
-
-- Gate API v4 documentation: https://www.gate.com/docs/developers/apiv4/en/
-- Official Gate Python SDK and generated BotApi: https://github.com/gate/gateapi-python
-
-See [`docs/API_CAPABILITIES.md`](docs/API_CAPABILITIES.md) for the endpoint and model audit used by this implementation.
+- Gate API secrets are never returned by an API route or sent to the browser.
+- The safe account representations contain only IDs, labels, account type, UID, enabled state, and configured state.
+- The credentials directory and real JSON file are excluded from Git and Docker build context.
+- FastAPI runs as the unprivileged `dashboard` user after the entrypoint copies the secret.
+- The application port is localhost-only by default.
+- Optional Basic Authentication protects the dashboard and all routes except `/api/health`.

@@ -17,7 +17,7 @@ def main() -> None:
     with session_scope() as session, output.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow([
-            "strategy_id", "strategy_type", "strategy_name", "market", "captured_at", "status",
+            "account_id", "account_name", "strategy_id", "strategy_type", "strategy_name", "market", "captured_at", "status",
             "invest_amount", "current_value", "total_profit", "profit_rate", "grid_profit",
             "floating_pnl", "realized_pnl", "position_value", "liquidation_price",
         ])
@@ -26,7 +26,7 @@ def main() -> None:
         )
         for snapshot, bot in rows:
             writer.writerow([
-                bot.strategy_id, bot.strategy_type, bot.strategy_name, bot.market, snapshot.captured_at,
+                bot.account_id, bot.account.name if bot.account else bot.account_id, bot.strategy_id, bot.strategy_type, bot.strategy_name, bot.market, snapshot.captured_at,
                 snapshot.status, snapshot.invest_amount, snapshot.current_value, snapshot.total_profit,
                 snapshot.profit_rate, snapshot.grid_profit, snapshot.floating_pnl, snapshot.realized_pnl,
                 snapshot.position_value, snapshot.liquidation_price,

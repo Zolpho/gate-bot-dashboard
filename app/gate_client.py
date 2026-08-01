@@ -11,6 +11,7 @@ from urllib.parse import urlencode, urlsplit
 
 import httpx
 
+from .accounts import GateAccountConfig
 from .config import Settings, get_settings
 
 
@@ -44,8 +45,16 @@ class GateClient:
     unknown strategy-specific map fields intact in bot detail responses.
     """
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        account: GateAccountConfig | None = None,
+    ) -> None:
         self.settings = settings or get_settings()
+        self.account = account
+        self.account_id = account.id if account else self.settings.gate_account_id
+        self.api_key = account.api_key if account else self.settings.gate_api_key
+        self.api_secret = account.api_secret if account else self.settings.gate_api_secret
         self.base_url = self.settings.gate_base_url.rstrip("/")
         parsed = urlsplit(self.base_url)
         self._base_path = parsed.path.rstrip("/")
@@ -53,7 +62,7 @@ class GateClient:
             timeout=httpx.Timeout(self.settings.gate_request_timeout_seconds),
             headers={
                 "Accept": "application/json",
-                "User-Agent": "gate-bot-dashboard/1.0",
+                "User-Agent": "gate-bot-dashboard/2.0",
                 "X-Gate-App-Lang": self.settings.gate_language,
             },
         )
@@ -132,15 +141,15 @@ class GateClient:
             headers.update(extra_headers)
 
         if signed:
-            if not self.settings.gate_configured:
-                raise GateAPIError("Gate API key and secret are not configured")
+            if not self.api_key or not self.api_secret:
+                raise GateAPIError(f"Gate API key and secret are not configured for account {self.account_id}")
             timestamp = str(int(time.time()))
             headers.update(
                 {
-                    "KEY": self.settings.gate_api_key,
+                    "KEY": self.api_key,
                     "Timestamp": timestamp,
                     "SIGN": self.build_signature(
-                        self.settings.gate_api_secret,
+                        self.api_secret,
                         method,
                         request_path,
                         query_string,

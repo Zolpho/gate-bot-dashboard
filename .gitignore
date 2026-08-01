@@ -8,10 +8,17 @@ __pycache__/
 data/*.db
 data/*.db-*
 exports/
+backups/
+gate_probe_output.json
+gate_probe_output_*.json
+*.log
 .DS_Store
 
-gate_probe_output.json
-backups/
-*.log
-secrets/
-gate_accounts.json
+secrets/*
+!secrets/.gitkeep
+!secrets/gate_accounts.example.json
+
+# Local Gate credentials
+!secrets/
+secrets/*
+!secrets/gate_accounts.example.json

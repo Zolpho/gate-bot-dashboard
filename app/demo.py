@@ -6,11 +6,11 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .config import Settings, get_settings
-from .models import Bot, BotSnapshot
+from .models import AlertEvent, AlertRule, Bot, BotSnapshot, GateAccount
 
 
 def _d(value: float) -> Decimal:
@@ -19,14 +19,43 @@ def _d(value: float) -> Decimal:
 
 def seed_demo_data(session: Session, settings: Settings | None = None) -> list[Bot]:
     settings = settings or get_settings()
-    existing = list(session.scalars(select(Bot)))
+    existing = list(session.scalars(select(Bot).where(Bot.strategy_id.like("demo-%"))))
     if existing:
         return existing
 
     rng = random.Random(settings.demo_seed)
     now = datetime.now(timezone.utc)
+    demo_accounts = {
+        "zolnode": GateAccount(
+            id="zolnode",
+            name="zolnode",
+            account_type="demo",
+            enabled=True,
+            configured=True,
+            sync_status="success",
+            last_sync_at=now,
+            last_success_at=now,
+            bot_count=2,
+        ),
+        "arnold": GateAccount(
+            id="arnold",
+            name="arnold",
+            account_type="demo",
+            enabled=True,
+            configured=True,
+            sync_status="success",
+            last_sync_at=now,
+            last_success_at=now,
+            bot_count=1,
+        ),
+    }
+    for demo_account in demo_accounts.values():
+        session.merge(demo_account)
+    session.flush()
+
     specs: list[dict[str, Any]] = [
         {
+            "account_id": "zolnode",
             "strategy_id": "demo-spot-001",
             "strategy_type": "spot_grid",
             "strategy_name": "ETH Range Grid",
@@ -44,6 +73,7 @@ def seed_demo_data(session: Session, settings: Settings | None = None) -> list[B
             "liq": None,
         },
         {
+            "account_id": "arnold",
             "strategy_id": "demo-futures-002",
             "strategy_type": "futures_grid",
             "strategy_name": "BTC Long Futures Grid",
@@ -61,6 +91,7 @@ def seed_demo_data(session: Session, settings: Settings | None = None) -> list[B
             "liq": 93410.0,
         },
         {
+            "account_id": "zolnode",
             "strategy_id": "demo-marti-003",
             "strategy_type": "spot_martingale",
             "strategy_name": "SOL Spot Martingale",
@@ -82,6 +113,7 @@ def seed_demo_data(session: Session, settings: Settings | None = None) -> list[B
     for i, spec in enumerate(specs):
         created = now - timedelta(days=14 - i * 2)
         bot = Bot(
+            account_id=spec["account_id"],
             strategy_id=spec["strategy_id"],
             strategy_type=spec["strategy_type"],
             strategy_name=spec["strategy_name"],
@@ -148,6 +180,31 @@ def seed_demo_data(session: Session, settings: Settings | None = None) -> list[B
                 )
             )
     return bots
+
+
+def purge_demo_data(session: Session) -> int:
+    demo_bot_ids = list(
+        session.scalars(
+            select(Bot.id).where(
+                (Bot.strategy_id.like("demo-%"))
+                | (Bot.account_id.in_(select(GateAccount.id).where(GateAccount.account_type == "demo")))
+            )
+        )
+    )
+    if not demo_bot_ids:
+        return 0
+
+    session.execute(delete(AlertEvent).where(AlertEvent.bot_id.in_(demo_bot_ids)))
+    session.execute(delete(AlertRule).where(AlertRule.bot_id.in_(demo_bot_ids)))
+    session.execute(delete(BotSnapshot).where(BotSnapshot.bot_id.in_(demo_bot_ids)))
+    session.execute(delete(Bot).where(Bot.id.in_(demo_bot_ids)))
+    session.execute(
+        delete(GateAccount).where(
+            (GateAccount.account_type == "demo") | (GateAccount.id == "legacy"),
+            ~GateAccount.id.in_(select(Bot.account_id)),
+        )
+    )
+    return len(demo_bot_ids)
 
 
 def advance_demo_data(session: Session, settings: Settings | None = None) -> int:
