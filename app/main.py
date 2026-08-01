@@ -44,13 +44,19 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
                 logger.info("Removed %s demo bots before live collection", purged)
         seed_default_rules(session, settings)
 
-    task = asyncio.create_task(collection_loop())
+    task = asyncio.create_task(
+        collection_loop(),
+        name="gate-bot-collector",
+    )
+    app.state.collection_task = task
+
     try:
         yield
     finally:
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+        app.state.collection_task = None
 
 
 app = FastAPI(

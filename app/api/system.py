@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -29,14 +29,29 @@ def _account_config_or_http(account_id: str):  # type: ignore[no-untyped-def]
 
 
 @router.get("/health")
-def health():  # type: ignore[no-untyped-def]
+def health(request: Request):  # type: ignore[no-untyped-def]
     config_error = ""
     accounts: list[dict] = []  # type: ignore[type-arg]
     try:
         accounts = safe_account_config()
     except AccountConfigError as exc:
         config_error = str(exc)
-    enabled_count = sum(1 for account in accounts if account["enabled"] and account["configured"])
+    enabled_count = sum(
+        1
+        for account in accounts
+        if account["enabled"] and account["configured"]
+    )
+
+    collection_task = getattr(
+        request.app.state,
+        "collection_task",
+        None,
+    )
+    collector_running = bool(
+        collection_task is not None
+        and not collection_task.done()
+    )
+
     return {
         "status": "ok" if not config_error else "degraded",
         "mode": "demo" if settings.demo_mode else "live",
@@ -45,7 +60,7 @@ def health():  # type: ignore[no-untyped-def]
         "enabled_account_count": enabled_count,
         "account_config_error": config_error,
         "accounts": accounts,
-        "collector_running": collector.running,
+        "collector_running": collector_running,
         "poll_seconds": settings.poll_seconds,
         "allow_bot_stop": settings.allow_bot_stop,
         "snapshot_retention_days": settings.snapshot_retention_days,
