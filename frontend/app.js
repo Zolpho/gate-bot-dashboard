@@ -1,5 +1,27 @@
 'use strict';
 
+const configuredApiBaseUrl = String(
+  window.GATE_DASHBOARD_CONFIG?.apiBaseUrl || ''
+).replace(/\/+$/, '');
+
+const runningOnGitHubPages =
+  window.location.hostname.endsWith('.github.io');
+
+const API_BASE_URL = configuredApiBaseUrl || (
+  runningOnGitHubPages ? '' : window.location.origin
+);
+
+function apiUrl(path) {
+  if (!API_BASE_URL) {
+    throw new Error(
+      'The dashboard frontend is online, but the backend API URL is not configured yet.'
+    );
+  }
+
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+}
+
 const state = {
   overview: null,
   bots: [],
@@ -20,8 +42,12 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+  const response = await fetch(apiUrl(path), {
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
     ...options,
   });
   const text = await response.text();
