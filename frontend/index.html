@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1110">
+  <title>Gate Bot Dashboard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">G</span><div><strong>Gate Bots</strong><small>Analytics Console</small></div></div>
+      <nav aria-label="Primary navigation">
+        <button class="nav-item active" data-tab="overview"><span>◫</span>Overview</button>
+        <button class="nav-item" data-tab="bots"><span>⌁</span>Bots</button>
+        <button class="nav-item" data-tab="alerts"><span>◇</span>Alerts</button>
+        <button class="nav-item" data-tab="system"><span>⚙</span>System</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="connection"><i id="connectionDot"></i><span id="connectionText">Connecting…</span></div>
+        <small id="lastSyncSidebar">No sync yet</small>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Overview</h1>
+          <p id="pageSubtitle">Native Gate.io bot performance and portfolio history</p>
+        </div>
+        <div class="top-actions">
+          <span class="mode-badge" id="modeBadge">—</span>
+          <button class="button secondary" id="refreshButton">Refresh</button>
+          <button class="button primary" id="syncButton">Sync Gate</button>
+        </div>
+      </header>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+      <section class="tab-panel active" id="tab-overview">
+        <div class="metric-grid">
+          <article class="metric-card"><span>Capital in active bots</span><strong id="totalInvest">—</strong><small id="activeBotCount">—</small></article>
+          <article class="metric-card"><span>Current bot value</span><strong id="currentValue">—</strong><small id="portfolioDelta">—</small></article>
+          <article class="metric-card"><span>Total PnL</span><strong id="totalPnl">—</strong><small id="totalRoi">—</small></article>
+          <article class="metric-card"><span>Grid / floating</span><strong id="gridProfit">—</strong><small id="floatingPnl">—</small></article>
+        </div>
+
+        <div class="dashboard-grid wide-left">
+          <article class="panel chart-panel">
+            <div class="panel-header"><div><h2>Portfolio performance</h2><p>Locally recorded snapshots</p></div><select id="historyRange" aria-label="History range"><option value="24">24 hours</option><option value="168" selected>7 days</option><option value="720">30 days</option><option value="8760">1 year</option></select></div>
+            <div class="chart-wrap"><canvas id="portfolioChart" aria-label="Portfolio value and PnL chart"></canvas><div id="chartEmpty" class="empty-state hidden">History appears after snapshots are collected.</div></div>
+            <div class="chart-legend"><span><i class="legend-value"></i>Current value</span><span><i class="legend-pnl"></i>PnL</span></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header"><div><h2>Portfolio status</h2><p>Current Gate strategies</p></div></div>
+            <div class="status-ring-wrap"><div class="status-ring" id="statusRing"><div><strong id="ringTotal">0</strong><span>Total</span></div></div></div>
+            <div class="status-list" id="statusList"></div>
+          </article>
+        </div>
+
+        <div class="dashboard-grid equal">
+          <article class="panel">
+            <div class="panel-header"><div><h2>Performance leaders</h2><p>Active strategies by return</p></div></div>
+            <div id="leaderCards" class="leader-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header"><div><h2>Recent alerts</h2><p>Conditions needing attention</p></div><button class="text-button" data-jump="alerts">View all</button></div>
+            <div id="overviewAlerts" class="event-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-bots">
+        <article class="panel toolbar-panel">
+          <div class="filters">
+            <label>Search<input id="botSearch" type="search" placeholder="Name, market or ID"></label>
+            <label>Status<select id="statusFilter"><option value="">All statuses</option><option value="running">Running</option><option value="paused">Paused</option><option value="stopped">Stopped</option><option value="error">Error</option></select></label>
+            <label>Type<select id="typeFilter"><option value="">All types</option></select></label>
+            <label>Market<select id="marketFilter"><option value="">All markets</option></select></label>
+            <label>Sort<select id="sortFilter"><option value="pnl">PnL</option><option value="roi">ROI</option><option value="updated">Last update</option><option value="name">Name</option><option value="market">Market</option></select></label>
+          </div>
+          <button class="button secondary" id="exportCsv">Export CSV</button>
+        </article>
+        <article class="panel table-panel">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Strategy</th><th>Status</th><th>Invested</th><th>Current value</th><th>PnL</th><th>ROI</th><th>Grid profit</th><th>Runtime</th><th></th></tr></thead>
+              <tbody id="botsTableBody"></tbody>
+            </table>
+          </div>
+          <div id="botsEmpty" class="empty-state hidden">No bots match the current filters.</div>
+        </article>
+      </section>
+
+      <section class="tab-panel" id="tab-alerts">
+        <div class="dashboard-grid equal">
+          <article class="panel">
+            <div class="panel-header"><div><h2>Alert rules</h2><p>Evaluated after every collection</p></div><button class="button secondary" id="addRuleButton">Add rule</button></div>
+            <div id="rulesList" class="rule-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header"><div><h2>Alert events</h2><p>Newest first</p></div><label class="inline-check"><input id="unackedOnly" type="checkbox">Unacknowledged only</label></div>
+            <div id="alertEvents" class="event-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-system">
+        <div class="dashboard-grid equal">
+          <article class="panel">
+            <div class="panel-header"><div><h2>Integration status</h2><p>Safe configuration summary</p></div></div>
+            <dl class="definition-list" id="healthDetails"></dl>
+            <div class="button-row"><button class="button secondary" id="testAccountButton">Load account snapshot</button><button class="button secondary" id="loadRecommendations">Load recommendations</button></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header"><div><h2>Collection runs</h2><p>Last scheduled and manual synchronisations</p></div></div>
+            <div id="syncRuns" class="sync-list"></div>
+          </article>
+        </div>
+        <article class="panel raw-panel">
+          <div class="panel-header"><div><h2>API inspector</h2><p>Account or strategy recommendation response</p></div><button class="text-button" id="clearInspector">Clear</button></div>
+          <pre id="apiInspector">Select an action above to inspect a response.</pre>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="botDialog" class="bot-dialog">
+    <div class="dialog-header"><div><h2 id="dialogTitle">Bot details</h2><p id="dialogSubtitle"></p></div><button class="icon-button" id="closeDialog" aria-label="Close">×</button></div>
+    <div class="dialog-content">
+      <div id="botDetailMetrics" class="detail-metrics"></div>
+      <article class="detail-chart"><div class="panel-header"><div><h3>Equity and drawdown</h3><p id="drawdownSummary"></p></div><select id="botHistoryRange"><option value="24">24 hours</option><option value="168" selected>7 days</option><option value="720">30 days</option><option value="8760">1 year</option></select></div><div class="chart-wrap small"><canvas id="botChart"></canvas></div></article>
+      <div class="detail-columns"><section><h3>Strategy information</h3><dl id="botDefinitionList" class="definition-list"></dl></section><section><h3>Gate dynamic data</h3><div class="raw-tabs"><button class="raw-tab active" data-raw="metrics">Metrics</button><button class="raw-tab" data-raw="position">Position</button><button class="raw-tab" data-raw="base_info">Base info</button><button class="raw-tab" data-raw="raw_detail">Raw</button></div><pre id="botRaw"></pre></section></div>
+      <div class="danger-zone" id="dangerZone"><div><strong>Stop strategy</strong><p>Disabled by default. The server must explicitly allow this action.</p></div><button class="button danger" id="stopBotButton">Stop bot</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="ruleDialog" class="small-dialog">
+    <div class="dialog-header"><div><h2>Create alert rule</h2><p>Rules run locally after each snapshot.</p></div><button class="icon-button" id="closeRuleDialog" aria-label="Close">×</button></div>
+    <form id="ruleForm" class="form-grid">
+      <label class="full">Name<input name="name" required maxlength="255" placeholder="High drawdown"></label>
+      <label>Metric<select name="metric"><option value="drawdown_pct">Drawdown %</option><option value="pnl">PnL USDT</option><option value="pnl_rate">ROI %</option><option value="floating_pnl">Floating PnL</option><option value="current_value">Current value</option><option value="liquidation_distance_pct">Liquidation distance %</option><option value="stale_minutes">Data age minutes</option></select></label>
+      <label>Operator<select name="operator"><option value=">=">≥</option><option value="<=">≤</option><option value=">">&gt;</option><option value="<">&lt;</option><option value="==">=</option></select></label>
+      <label>Threshold<input name="threshold" type="number" step="any" required></label>
+      <label>Cooldown seconds<input name="cooldown_seconds" type="number" min="0" value="3600" required></label>
+      <label class="full">Bot<select name="bot_id"><option value="">All bots</option></select></label>
+      <div class="form-actions full"><button type="button" class="button secondary" id="cancelRule">Cancel</button><button type="submit" class="button primary">Create rule</button></div>
+    </form>
+  </dialog>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

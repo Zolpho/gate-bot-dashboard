@@ -1,0 +1,18 @@
+services:
+  gate-bot-dashboard:
+    container_name: gate-bot-dashboard
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - gate_bot_data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  gate_bot_data:
