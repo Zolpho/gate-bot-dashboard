@@ -13,3 +13,5 @@ exports/
 gate_probe_output.json
 backups/
 *.log
+secrets/
+gate_accounts.json
