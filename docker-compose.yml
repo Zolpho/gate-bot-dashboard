@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     ports:
-      - "127.0.0.1:8080:8080"
+      - "192.168.1.221:8080:8080"
     volumes:
       - gate_bot_data:/data
       - ./secrets:/run/config:ro
