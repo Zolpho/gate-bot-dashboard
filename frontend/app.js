@@ -743,6 +743,12 @@ function bindEvents() {
   window.addEventListener('resize', () => { drawPortfolioChart(); if ($('#botDialog').open) drawBotChart(); });
 }
 
+const footerYear = document.getElementById("footer-year");
+
+if (footerYear) {
+  footerYear.textContent = new Date().getFullYear();
+}
+
 bindEvents();
 renderAdminState();
 loadCore();
