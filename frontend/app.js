@@ -269,7 +269,11 @@ function setMetric(selector, value, formatter = fmtMoney, classValue = value) {
   const el = $(selector);
   el.textContent = formatter(value);
   el.classList.remove('positive', 'negative');
-  if (classValue !== null && classValue !== undefined) el.classList.add(valueClass(classValue));
+
+  if (classValue !== null && classValue !== undefined) {
+    const metricClass = valueClass(classValue);
+    if (metricClass) el.classList.add(metricClass);
+  }
 }
 
 function renderOverview() {
