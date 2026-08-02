@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     gate_account_concurrency: int = 4
     balance_cache_seconds: int = 30
     balance_dust_usdt: float = 0.01
+    deposit_catalog_cache_seconds: int = 900
+    deposit_address_cache_seconds: int = 300
+    deposit_favorites: str = "USDT,EQTY,BTC,ETH"
 
     poll_seconds: int = 60
     stale_after_minutes: int = 5
@@ -100,6 +103,14 @@ class Settings(BaseSettings):
     def validate_balance_dust_usdt(cls, value: float) -> float:
         return max(0.0, min(value, 100.0))
 
+    @field_validator(
+        "deposit_catalog_cache_seconds",
+        "deposit_address_cache_seconds",
+    )
+    @classmethod
+    def validate_deposit_cache_seconds(cls, value: int) -> int:
+        return max(0, min(value, 3600))
+
     @field_validator("poll_seconds")
     @classmethod
     def validate_poll_seconds(cls, value: int) -> int:
@@ -116,6 +127,14 @@ class Settings(BaseSettings):
     @property
     def auth_enabled(self) -> bool:
         return self.legacy_admin_enabled or self.dashboard_users_file.exists()
+
+    @property
+    def deposit_favorite_list(self) -> list[str]:
+        return [
+            item.strip().upper()
+            for item in self.deposit_favorites.split(",")
+            if item.strip()
+        ]
 
     @property
     def cors_origin_list(self) -> list[str]:

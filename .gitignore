@@ -19,3 +19,4 @@ secrets/*
 !secrets/gate_accounts.example.json
 
 !secrets/dashboard_users.example.json
+.feature-backups/

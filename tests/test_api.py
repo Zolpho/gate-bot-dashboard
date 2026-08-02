@@ -70,6 +70,48 @@ def test_public_dashboard_and_account_scoped_actions() -> None:
         )
         assert forbidden_balance.status_code == 403
 
+        catalogue = client.get("/api/deposit/currencies")
+        assert catalogue.status_code == 200
+        assert {
+            item["currency"]
+            for item in catalogue.json()["currencies"]
+        } >= {"USDT", "EQTY", "BTC", "ETH"}
+
+        assert (
+            client.get("/api/me/deposit/USDT/networks").status_code
+            == 401
+        )
+
+        networks = client.get(
+            "/api/me/deposit/USDT/networks",
+            headers=zolnode_headers,
+        )
+        assert networks.status_code == 200
+        available_chain = next(
+            item["chain"]
+            for item in networks.json()["networks"]
+            if item["deposit_enabled"]
+        )
+
+        deposit = client.get(
+            f"/api/me/deposit/USDT?chain={available_chain}",
+            headers=zolnode_headers,
+        )
+        assert deposit.status_code == 200
+        assert deposit.json()["account_id"] == "zolnode"
+        assert deposit.json()["network"][
+            "qr_svg_data_uri"
+        ].startswith("data:image/svg+xml")
+
+        forbidden_deposit = client.get(
+            (
+                f"/api/me/deposit/USDT?chain={available_chain}"
+                "&account_id=arnold"
+            ),
+            headers=zolnode_headers,
+        )
+        assert forbidden_deposit.status_code == 403
+
         own_raw = client.get(f"/api/bots/{zolnode_bot['id']}/raw", headers=zolnode_headers)
         assert own_raw.status_code == 200
         assert "raw_detail" in own_raw.json()["bot"]

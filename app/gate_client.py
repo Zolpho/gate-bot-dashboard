@@ -305,6 +305,38 @@ class GateClient:
             signed=False,
         )
 
+    async def list_spot_currencies(
+        self,
+        name: str | None = None,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/spot/currencies",
+            params={"name": name},
+            signed=False,
+        )
+
+    async def list_currency_chains(
+        self,
+        currency: str,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/wallet/currency_chains",
+            params={"currency": currency.upper()},
+            signed=False,
+        )
+
+    async def get_deposit_address(
+        self,
+        currency: str,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/wallet/deposit_address",
+            params={"currency": currency.upper()},
+        )
+
     async def account_snapshot(self) -> dict[str, Any]:
         results: dict[str, Any] = {}
         calls = {

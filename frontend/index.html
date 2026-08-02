@@ -7,6 +7,7 @@
   <title>Gate Bot Dashboard</title>
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./private-balance.css">
+  <link rel="stylesheet" href="./deposit.css">
 </head>
 <body>
   <div class="app-shell">
@@ -60,7 +61,10 @@
               </div>
               <p id="privateBalanceSubtitle">Sign in to view your Gate subaccount balances.</p>
             </div>
-            <button class="button secondary" id="refreshPrivateBalance">Refresh balance</button>
+            <div class="private-balance-actions">
+              <button class="button primary" id="depositButton">Deposit</button>
+              <button class="button secondary" id="refreshPrivateBalance">Refresh balance</button>
+            </div>
           </div>
 
           <div id="privateBalanceLoading" class="private-balance-message hidden">Loading private Gate balances…</div>
@@ -309,6 +313,90 @@
         >Change password</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="depositDialog" class="deposit-dialog">
+    <div class="dialog-header deposit-dialog-header">
+      <div>
+        <h2>Onchain deposit</h2>
+        <p id="depositAccountLabel">Select a coin and network for your assigned Gate subaccount.</p>
+      </div>
+      <button type="button" class="icon-button" id="closeDepositDialog" aria-label="Close">×</button>
+    </div>
+
+    <div class="deposit-dialog-content">
+      <div id="depositError" class="form-error hidden" role="alert" aria-live="assertive"></div>
+      <div id="depositLoading" class="deposit-loading hidden">Loading Gate deposit information…</div>
+
+      <section class="deposit-step">
+        <div class="deposit-step-number">1</div>
+        <div class="deposit-step-content">
+          <h3>Select coin</h3>
+          <label class="deposit-search">
+            <span class="sr-only">Search coin</span>
+            <input id="depositCurrencySearch" type="search" autocomplete="off" placeholder="Search coin name or symbol">
+          </label>
+          <div id="depositFavorites" class="deposit-favorites"></div>
+          <div id="depositCurrencyList" class="deposit-option-list" role="listbox" aria-label="Deposit currencies"></div>
+          <p id="depositCurrencyCount" class="deposit-hint"></p>
+        </div>
+      </section>
+
+      <section class="deposit-step deposit-step-disabled" id="depositNetworkStep">
+        <div class="deposit-step-number">2</div>
+        <div class="deposit-step-content">
+          <h3>Select network</h3>
+          <div id="depositNetworkList" class="deposit-option-list compact" role="listbox" aria-label="Deposit networks">
+            <div class="deposit-empty">Select a coin first.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="deposit-step deposit-step-disabled" id="depositDetailsStep">
+        <div class="deposit-step-number">3</div>
+        <div class="deposit-step-content">
+          <h3>Deposit details</h3>
+          <div id="depositDetails" class="deposit-details hidden">
+            <div class="deposit-qr-card">
+              <img id="depositQr" alt="Deposit address QR code" width="220" height="220">
+              <small>QR contains the address only.</small>
+            </div>
+            <div class="deposit-address-fields">
+              <div class="deposit-selected-summary">
+                <strong id="depositSelectedAsset">—</strong>
+                <span id="depositSelectedNetwork">—</span>
+              </div>
+
+              <label>Address</label>
+              <div class="deposit-copy-row">
+                <code id="depositAddress">—</code>
+                <button type="button" class="button secondary" data-copy-deposit="address">Copy</button>
+              </div>
+
+              <div id="depositMemoBlock" class="hidden">
+                <label id="depositMemoLabel">Memo / tag</label>
+                <div class="deposit-copy-row">
+                  <code id="depositMemo">—</code>
+                  <button type="button" class="button secondary" data-copy-deposit="memo">Copy</button>
+                </div>
+                <p class="deposit-memo-warning">The memo or tag is mandatory when shown.</p>
+              </div>
+
+              <dl class="deposit-definition-list">
+                <dt>Contract</dt><dd id="depositContract">—</dd>
+                <dt>Minimum deposit</dt><dd id="depositMinimum">—</dd>
+                <dt>Confirmations</dt><dd id="depositConfirmations">—</dd>
+              </dl>
+
+              <p id="depositWarning" class="deposit-warning"></p>
+            </div>
+          </div>
+          <div id="depositDetailsPlaceholder" class="deposit-empty">
+            Select a network to reveal the address and QR code.
+          </div>
+        </div>
+      </section>
+    </div>
   </dialog>
 
   <script src="./config.js"></script>
