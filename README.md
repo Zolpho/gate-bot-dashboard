@@ -56,6 +56,7 @@ Detailed project documentation is available in [`docs/`](docs/):
 | [`PRIVATE_ACCOUNT_BALANCE.md`](docs/PRIVATE_ACCOUNT_BALANCE.md) | Authenticated, account-scoped Gate balances, asset valuation, and bot allocation |
 | [`DEPOSIT_ADDRESSES.md`](docs/DEPOSIT_ADDRESSES.md) | Dynamic Gate currency and network selection, account-scoped deposit addresses, memos, and local QR codes |
 | [`DEPOSIT_HISTORY.md`](docs/DEPOSIT_HISTORY.md) | Persisted account-scoped deposit records, synchronization, statuses, and audit data |
+| [`WALLET_TAB.md`](docs/WALLET_TAB.md) | Authenticated Wallet navigation for balances, deposit addresses, and deposit history |
 
 For a newly created Gate subaccount, start with [`ONBOARD_GATE_SUBACCOUNT.md`](docs/ONBOARD_GATE_SUBACCOUNT.md).
 

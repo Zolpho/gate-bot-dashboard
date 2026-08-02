@@ -35,6 +35,7 @@ const state = {
   currentRawData: null,
   currentRawKey: 'metrics',
   selectedAccount: '',
+  activeTab: 'overview',
   adminAuthorization: '',
   adminUser: null,
   privateBalance: null,
@@ -166,6 +167,9 @@ function renderAdminState() {
   const button = $('#adminButton');
   const identity = $('#adminIdentity');
   const changePasswordButton = $('#changePasswordButton');
+  const walletNavItem = $('#walletNavItem');
+  const signedIn = Boolean(state.adminUser && state.adminAuthorization);
+
   if (state.adminUser) {
     button.textContent = 'Lock account';
     identity.textContent = `${state.adminUser.username} · ${state.adminUser.role.replace('_', ' ')}`;
@@ -177,18 +181,29 @@ function renderAdminState() {
     identity.classList.add('hidden');
     changePasswordButton.classList.add('hidden');
   }
-  if (state.adminUser) $('#privateBalancePanel')?.classList.remove('hidden');
-  else clearPrivateBalance();
+
+  walletNavItem?.classList.toggle('hidden', !signedIn);
+  walletNavItem?.setAttribute('aria-hidden', String(!signedIn));
+  if (walletNavItem) walletNavItem.tabIndex = signedIn ? 0 : -1;
+
+  if (signedIn) {
+    $('#privateBalancePanel')?.classList.remove('hidden');
+  } else {
+    clearPrivateBalance();
+    clearDepositHistory();
+    if (state.activeTab === 'wallet') switchTab('overview');
+  }
+
   populateFilterOptions(state.botFilters);
   renderAlerts();
   if (state.currentBotData?.bot) updateBotAdminControls(state.currentBotData.bot);
 }
-
 function lockAdmin(showMessage = true) {
   state.adminAuthorization = '';
   state.adminUser = null;
   state.currentRawData = null;
   clearPrivateBalance();
+  clearDepositHistory();
   clearDepositState({ keepCatalog: false });
   const depositDialog = $('#depositDialog');
   if (depositDialog?.open) depositDialog.close();
@@ -222,8 +237,8 @@ async function unlockAdmin(event) {
     formElement.reset();
     $('#adminDialog').close();
     renderAdminState();
+    switchTab('wallet');
     showToast(`Signed in as ${result.user.username}.`);
-    await loadPrivateBalance({ force: true, quiet: true });
     if (state.currentBotData?.bot && canManageAccount(state.currentBotData.bot.account_id)) {
       await loadCurrentBotRaw();
     }
@@ -936,19 +951,49 @@ async function syncDepositHistory() {
   }
 }
 
-function switchTab(tab) {
-  $$('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
-  $$('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `tab-${tab}`));
+function switchTab(tab, { updateHash = true } = {}) {
   const titles = {
     overview: ['Overview', 'Native Gate.io bot performance and portfolio history'],
     bots: ['Trading bots', 'Inspect every mapped field and Gate’s dynamic response data'],
     alerts: ['Alerts', 'Local rules evaluated after each bot snapshot'],
+    wallet: ['Wallet', 'Private balances, deposits and account-scoped wallet activity'],
     system: ['System', 'Connection status, collector runs and safe API inspection'],
   };
-  $('#pageTitle').textContent = titles[tab][0];
-  $('#pageSubtitle').textContent = titles[tab][1];
-}
 
+  let target = String(tab || 'overview')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '');
+
+  if (!titles[target] || !document.querySelector(`#tab-${target}`)) {
+    target = 'overview';
+  }
+  if (target === 'wallet' && (!state.adminUser || !state.adminAuthorization)) {
+    target = 'overview';
+  }
+
+  state.activeTab = target;
+  $$('.nav-item').forEach(button => {
+    button.classList.toggle('active', button.dataset.tab === target);
+  });
+  $$('.tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.id === `tab-${target}`);
+  });
+
+  $('#pageTitle').textContent = titles[target][0];
+  $('#pageSubtitle').textContent = titles[target][1];
+
+  if (updateHash && window.location.hash !== `#${target}`) {
+    history.replaceState(null, '', `#${target}`);
+  }
+
+  if (target === 'wallet' && state.adminUser && state.adminAuthorization) {
+    void Promise.all([
+      loadPrivateBalance({ quiet: true }),
+      loadDepositHistory({ quiet: true }),
+    ]);
+  }
+}
 function setMetric(selector, value, formatter = fmtMoney, classValue = value) {
   const el = $(selector);
   el.textContent = formatter(value);
@@ -1220,7 +1265,12 @@ async function loadCore() {
     populateAccountSelector(overviewData.accounts || []);
     populateFilterOptions(botData.filters);
     applyBotFilters(); renderOverview(); renderAlerts(); renderSystem();
-    if (state.adminUser) await loadPrivateBalance({ quiet: true });
+if (state.adminUser && state.activeTab === 'wallet') {
+  await Promise.all([
+    loadPrivateBalance({ quiet: true }),
+    loadDepositHistory({ quiet: true }),
+  ]);
+}
   } catch (error) {
     $('#connectionDot').className = 'offline'; $('#connectionText').textContent = 'API unavailable';
     showToast(error.message, true);
@@ -1441,6 +1491,9 @@ function bindEvents() {
   $('#closeChangePasswordDialog').addEventListener('click', () => $('#changePasswordDialog').close());
   $('#cancelChangePassword').addEventListener('click', () => $('#changePasswordDialog').close());
   $('#changePasswordDialog').addEventListener('click', event => { if (event.target === $('#changePasswordDialog')) $('#changePasswordDialog').close(); });
+  window.addEventListener('hashchange', () => {
+    switchTab(window.location.hash.slice(1), { updateHash: false });
+  });
   window.addEventListener('resize', () => { drawPortfolioChart(); if ($('#botDialog').open) drawBotChart(); });
 }
 
@@ -1452,5 +1505,6 @@ if (footerYear) {
 
 bindEvents();
 renderAdminState();
+switchTab(window.location.hash.slice(1) || 'overview', { updateHash: false });
 loadCore();
 setInterval(loadCore, 60000);

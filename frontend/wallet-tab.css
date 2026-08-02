@@ -1,0 +1,18 @@
+/* Authenticated Wallet tab */
+.wallet-tab-panel {
+  max-width: 1560px;
+}
+
+.wallet-tab-panel .private-balance-panel {
+  margin-top: 0;
+}
+
+.wallet-tab-panel .private-balance-header {
+  align-items: flex-start;
+}
+
+@media (max-width: 760px) {
+  .wallet-tab-panel .private-balance-header {
+    align-items: stretch;
+  }
+}
