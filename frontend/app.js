@@ -1334,28 +1334,6 @@ function renderBots() {
     const totalPnl = bot.total_profit ?? bot.pnl;
     const rate = bot.profit_rate ?? bot.pnl_rate;
 
-    const realizedPnl = (
-      bot.realized_pnl
-      ?? bot.grid_profit
-    );
-
-    const totalNumber = numericValue(totalPnl);
-    const realizedNumber = numericValue(realizedPnl);
-
-    const unrealizedPnl = hasValue(bot.floating_pnl)
-      ? bot.floating_pnl
-      : (
-        totalNumber !== null
-        && realizedNumber !== null
-          ? totalNumber - realizedNumber
-          : null
-      );
-
-    const apr = annualizedAprPct(
-      rate,
-      bot.runtime_seconds,
-    );
-
     return `<tr>
       <td class="strategy-cell">
         <strong>${escapeHtml(bot.strategy_name)}</strong>
@@ -1379,19 +1357,9 @@ function renderBots() {
       <td class="${valueClass(totalPnl)}">
         ${fmtMoney(totalPnl)}
       </td>
-      <td class="${valueClass(realizedPnl)}">
-        ${fmtMoney(realizedPnl)}
-      </td>
-      <td class="${valueClass(unrealizedPnl)}">
-        ${fmtMoney(unrealizedPnl)}
-      </td>
       <td class="${valueClass(rate)}">
         ${fmtRatioPct(rate)}
       </td>
-      <td class="${valueClass(apr)}">
-        ${fmtPct(apr)}
-      </td>
-      <td>${fmtNumber(bot.arbitrage_count, 0)}</td>
       <td>${fmtDuration(bot.runtime_seconds)}</td>
       <td>
         <button
@@ -1601,7 +1569,7 @@ function renderBotDialog(detail, history) {
       annualizedApr,
     ],
     [
-      'Trades / cycles',
+      'Grid records / cycles',
       fmtNumber(bot.arbitrage_count, 0),
       null,
     ],
