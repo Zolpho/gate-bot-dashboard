@@ -218,3 +218,11 @@ button:disabled { cursor:not-allowed; opacity:.48; }
   }
 }
 /* End compact desktop topbar */
+
+/* Gate trigger-waiting state inferred from bot position data. */
+.status-badge.waiting-trigger {
+  color: #f3c76a;
+  border-color: rgba(243, 199, 106, 0.45);
+  background: rgba(243, 199, 106, 0.08);
+}
+

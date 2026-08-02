@@ -1327,12 +1327,95 @@ function applyBotFilters() {
   renderBots();
 }
 
+function botDisplayStatus(bot) {
+  const sourceStatus = String(
+    bot?.source_status
+    ?? bot?.status
+    ?? ''
+  ).trim().toLowerCase();
+
+  const positionAmount = numericValue(
+    bot?.position_amount
+  );
+
+  const entryPrice = numericValue(
+    bot?.entry_price
+  );
+
+  const totalPnl = numericValue(
+    bot?.total_profit
+    ?? bot?.pnl
+  );
+
+  const realizedPnl = numericValue(
+    bot?.realized_pnl
+    ?? bot?.grid_profit
+  );
+
+  const gridRecords = numericValue(
+    bot?.arbitrage_count
+  );
+
+  const runtimeSeconds = numericValue(
+    bot?.runtime_seconds
+  ) ?? 0;
+
+  /*
+   * Gate reports trigger-waiting Spot Grid bots as "running".
+   * Infer the visible state only after the initial API startup period.
+   * The original Gate source_status remains unchanged.
+   */
+  const waitingForTrigger = (
+    bot?.strategy_type === 'spot_grid'
+    && sourceStatus === 'running'
+    && runtimeSeconds >= 60
+    && positionAmount === 0
+    && entryPrice !== null
+    && entryPrice > 0
+    && totalPnl === 0
+    && realizedPnl === 0
+    && gridRecords === 0
+  );
+
+  if (waitingForTrigger) {
+    return {
+      key: 'waiting-trigger',
+      label: 'To be triggered',
+      inferred: true,
+      title: (
+        'Gate reports running, but the bot has no position, '
+        + 'profit, or grid records yet. Trigger state inferred.'
+      ),
+    };
+  }
+
+  const labels = {
+    running: 'Running',
+    paused: 'Paused',
+    suspended: 'Suspended',
+    stopped: 'Stopped',
+    finished: 'Finished',
+    failed: 'Failed',
+  };
+
+  return {
+    key: sourceStatus.replaceAll('_', '-')
+      || 'unknown',
+    label: labels[sourceStatus]
+      || sourceStatus.replaceAll('_', ' ')
+      || 'Unknown',
+    inferred: false,
+    title: `Gate status: ${sourceStatus || 'unknown'}`,
+  };
+}
+
 function renderBots() {
   const tbody = $('#botsTableBody');
 
   tbody.innerHTML = state.filteredBots.map(bot => {
     const totalPnl = bot.total_profit ?? bot.pnl;
     const rate = bot.profit_rate ?? bot.pnl_rate;
+    const displayStatus = botDisplayStatus(bot);
 
     return `<tr>
       <td class="strategy-cell">
@@ -1348,8 +1431,11 @@ function renderBots() {
         </span>
       </td>
       <td>
-        <span class="status-badge ${escapeHtml(bot.status)}">
-          ${escapeHtml(bot.status)}
+        <span
+          class="status-badge ${escapeHtml(displayStatus.key)}"
+          title="${escapeHtml(displayStatus.title)}"
+        >
+          ${escapeHtml(displayStatus.label)}
         </span>
       </td>
       <td>${fmtMoney(bot.invest_amount)}</td>
@@ -1585,7 +1671,7 @@ function renderBotDialog(detail, history) {
     ],
     [
       'Status',
-      bot.status,
+      botDisplayStatus(bot).label,
       null,
     ],
   ];
