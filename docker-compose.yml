@@ -10,6 +10,9 @@ services:
     volumes:
       - gate_bot_data:/data
       - ./secrets:/run/config:ro
+      # Gate API credentials stay read-only. Only the dashboard-user file is
+      # mounted writable so authenticated users can change their own password.
+      - ./secrets/dashboard_users.json:/run/secrets/dashboard_users.json
     security_opt:
       - no-new-privileges:true
     cap_drop:

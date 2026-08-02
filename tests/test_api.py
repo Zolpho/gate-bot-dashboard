@@ -123,3 +123,48 @@ def test_public_dashboard_and_account_scoped_actions() -> None:
             },
         )
         assert global_rule.status_code == 200
+
+
+def test_user_can_change_only_own_password() -> None:
+    from app.config import get_settings
+
+    settings = get_settings()
+    users_path = settings.dashboard_users_file
+    original = users_path.read_bytes()
+    try:
+        with TestClient(app) as client:
+            old_headers = auth("zolnode", "zolnode-test-password")
+
+            wrong_current = client.post(
+                "/api/auth/change-password",
+                headers=old_headers,
+                json={
+                    "current_password": "not-the-current-password",
+                    "new_password": "zolnode-new-password",
+                    "confirm_password": "zolnode-new-password",
+                },
+            )
+            assert wrong_current.status_code == 400
+            assert wrong_current.json()["detail"] == "Current password is incorrect"
+
+            changed = client.post(
+                "/api/auth/change-password",
+                headers=old_headers,
+                json={
+                    "current_password": "zolnode-test-password",
+                    "new_password": "zolnode-new-password",
+                    "confirm_password": "zolnode-new-password",
+                },
+            )
+            assert changed.status_code == 200
+            assert changed.json()["user"]["username"] == "zolnode"
+
+            assert client.get("/api/auth/me", headers=old_headers).status_code == 401
+            new_headers = auth("zolnode", "zolnode-new-password")
+            assert client.get("/api/auth/me", headers=new_headers).status_code == 200
+
+            # Arnold's credentials and assignment are untouched.
+            arnold_headers = auth("arnold", "arnold-test-password")
+            assert client.get("/api/auth/me", headers=arnold_headers).status_code == 200
+    finally:
+        users_path.write_bytes(original)

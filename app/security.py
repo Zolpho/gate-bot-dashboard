@@ -4,9 +4,11 @@ import base64
 import binascii
 import hashlib
 import hmac
+import fcntl
 import json
 import os
 import re
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -25,6 +27,10 @@ _basic = HTTPBasic(auto_error=False)
 
 class UserConfigError(RuntimeError):
     """Raised when dashboard user configuration is invalid."""
+
+
+class PasswordChangeError(RuntimeError):
+    """Raised when an authenticated user cannot change their password."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,3 +255,136 @@ def resolve_authorized_account(user: DashboardUser, requested_account_id: str | 
     if len(user.account_ids) == 1:
         return user.account_ids[0]
     raise HTTPException(status_code=400, detail="account_id is required for this user")
+
+
+def _validate_user_payload(payload: Any, path: Path) -> list[dict[str, Any]]:
+    if not isinstance(payload, dict) or not isinstance(payload.get("users"), list):
+        raise PasswordChangeError(f"{path} must contain an object with a 'users' array")
+    users = payload["users"]
+    if any(not isinstance(item, dict) for item in users):
+        raise PasswordChangeError(f"{path} contains an invalid user entry")
+    return users
+
+
+def _backup_user_config(settings: Settings, username: str, original: str) -> Path:
+    backup_dir = settings.dashboard_users_backup_dir
+    try:
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(backup_dir, 0o700)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+        backup_path = backup_dir / f"dashboard_users.{username}.{timestamp}.json"
+        backup_path.write_text(original, encoding="utf-8")
+        os.chmod(backup_path, 0o600)
+    except OSError as exc:
+        raise PasswordChangeError(f"Could not create a password-file backup: {exc}") from exc
+
+    # Retain a bounded number of backups. Failure to prune an old backup must
+    # not invalidate an otherwise safe password change.
+    try:
+        backups = sorted(
+            backup_dir.glob("dashboard_users.*.json"),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+        for old_path in backups[settings.dashboard_users_backup_keep :]:
+            old_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    return backup_path
+
+
+def change_dashboard_user_password(
+    user: DashboardUser,
+    current_password: str,
+    new_password: str,
+    *,
+    settings: Settings | None = None,
+) -> Path:
+    """Change only the authenticated file-backed user's password.
+
+    The dashboard users file is a writable bind-mounted file in production, so
+    replacing the mount point atomically is not possible. Instead, the function
+    takes an exclusive OS lock, creates a persistent backup, rewrites the file
+    in place, flushes it to disk, and restores the original content on a write
+    failure.
+    """
+
+    settings = settings or get_settings()
+    if user.auth_source != "file":
+        raise PasswordChangeError(
+            "The legacy .env administrator password cannot be changed from the dashboard"
+        )
+    if not current_password:
+        raise PasswordChangeError("Current password is required")
+    if len(new_password) < 12:
+        raise PasswordChangeError("New password must contain at least 12 characters")
+    if len(new_password) > 1024:
+        raise PasswordChangeError("New password is too long")
+    if hmac.compare_digest(current_password, new_password):
+        raise PasswordChangeError("New password must be different from the current password")
+
+    path = settings.dashboard_users_file
+    try:
+        handle = path.open("r+", encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise PasswordChangeError(f"Dashboard users file not found: {path}") from exc
+    except OSError as exc:
+        raise PasswordChangeError(f"Cannot open dashboard users file for writing: {exc}") from exc
+
+    with handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            original = handle.read()
+            try:
+                payload = json.loads(original)
+            except json.JSONDecodeError as exc:
+                raise PasswordChangeError(f"Invalid JSON in {path}: {exc}") from exc
+
+            users = _validate_user_payload(payload, path)
+            record = next(
+                (
+                    item
+                    for item in users
+                    if str(item.get("username", "")).strip().lower() == user.username
+                ),
+                None,
+            )
+            if record is None or not bool(record.get("enabled", True)):
+                raise PasswordChangeError("The authenticated dashboard user is no longer enabled")
+
+            current_hash = str(record.get("password_hash", "")).strip()
+            if not current_hash or not verify_password(current_password, current_hash):
+                raise PasswordChangeError("Current password is incorrect")
+            if verify_password(new_password, current_hash):
+                raise PasswordChangeError("New password must be different from the current password")
+
+            record["password_hash"] = hash_password(new_password)
+            record["password_changed_at"] = datetime.now(timezone.utc).isoformat()
+            serialized = json.dumps(payload, indent=2, sort_keys=False) + "\n"
+
+            _backup_user_config(settings, user.username, original)
+
+            try:
+                handle.seek(0)
+                handle.write(serialized)
+                handle.truncate()
+                handle.flush()
+                os.fsync(handle.fileno())
+                os.chmod(path, 0o600)
+            except OSError as exc:
+                try:
+                    handle.seek(0)
+                    handle.write(original)
+                    handle.truncate()
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                except OSError:
+                    pass
+                raise PasswordChangeError(f"Could not save the new password: {exc}") from exc
+        finally:
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+
+    return path

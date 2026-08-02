@@ -52,13 +52,14 @@ class ApiError extends Error {
 }
 
 async function api(path, options = {}) {
+  const { headers = {}, ...fetchOptions } = options;
   const response = await fetch(apiUrl(path), {
     credentials: 'omit',
+    ...fetchOptions,
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
+      ...headers,
     },
-    ...options,
   });
   const text = await response.text();
   let payload;
@@ -116,6 +117,14 @@ function setAdminError(message = '') {
   errorBox.classList.toggle('hidden', !message);
 }
 
+
+function setChangePasswordError(message = '') {
+  const errorBox = $('#changePasswordError');
+  if (!errorBox) return;
+  errorBox.textContent = message;
+  errorBox.classList.toggle('hidden', !message);
+}
+
 function openAdminDialog() {
   const dialog = $('#adminDialog');
   setAdminError('');
@@ -123,17 +132,40 @@ function openAdminDialog() {
   setTimeout(() => $('#adminForm input[name="username"]')?.focus(), 0);
 }
 
+
+function openChangePasswordDialog() {
+  if (!state.adminUser) {
+    openAdminDialog();
+    return;
+  }
+  if (state.adminUser.auth_source !== 'file') {
+    showToast('Legacy .env administrator passwords must be changed on the server.', true);
+    return;
+  }
+
+  const dialog = $('#changePasswordDialog');
+  const form = $('#changePasswordForm');
+  form.reset();
+  setChangePasswordError('');
+  $('#changePasswordIdentity').textContent = `Signed in as ${state.adminUser.username}.`;
+  if (!dialog.open) dialog.showModal();
+  setTimeout(() => form.querySelector('input[name="current_password"]')?.focus(), 0);
+}
+
 function renderAdminState() {
   const button = $('#adminButton');
   const identity = $('#adminIdentity');
+  const changePasswordButton = $('#changePasswordButton');
   if (state.adminUser) {
     button.textContent = 'Lock admin';
     identity.textContent = `${state.adminUser.username} · ${state.adminUser.role.replace('_', ' ')}`;
     identity.classList.remove('hidden');
+    changePasswordButton.classList.toggle('hidden', state.adminUser.auth_source !== 'file');
   } else {
     button.textContent = 'Admin unlock';
     identity.textContent = '';
     identity.classList.add('hidden');
+    changePasswordButton.classList.add('hidden');
   }
   populateFilterOptions(state.botFilters);
   renderAlerts();
@@ -144,6 +176,8 @@ function lockAdmin(showMessage = true) {
   state.adminAuthorization = '';
   state.adminUser = null;
   state.currentRawData = null;
+  const passwordDialog = $('#changePasswordDialog');
+  if (passwordDialog?.open) passwordDialog.close();
   renderAdminState();
   renderBotRaw();
   if (showMessage) showToast('Admin actions locked.');
@@ -192,6 +226,76 @@ async function unlockAdmin(event) {
   } finally {
     submitButton.disabled = false;
     submitButton.textContent = 'Unlock';
+  }
+}
+
+async function changeOwnPassword(event) {
+  event.preventDefault();
+
+  if (!state.adminUser || !state.adminAuthorization) {
+    $('#changePasswordDialog').close();
+    openAdminDialog();
+    return;
+  }
+
+  const formElement = event.currentTarget;
+  const form = new FormData(formElement);
+  const currentPassword = String(form.get('current_password') || '');
+  const newPassword = String(form.get('new_password') || '');
+  const confirmPassword = String(form.get('confirm_password') || '');
+  const submitButton = $('#changePasswordSubmitButton');
+
+  setChangePasswordError('');
+  if (newPassword.length < 12) {
+    setChangePasswordError('The new password must contain at least 12 characters.');
+    formElement.querySelector('input[name="new_password"]')?.focus();
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    setChangePasswordError('The new password and confirmation do not match.');
+    formElement.querySelector('input[name="confirm_password"]')?.focus();
+    return;
+  }
+  if (currentPassword === newPassword) {
+    setChangePasswordError('The new password must be different from the current password.');
+    formElement.querySelector('input[name="new_password"]')?.focus();
+    return;
+  }
+
+  submitButton.disabled = true;
+  submitButton.textContent = 'Changing…';
+
+  try {
+    await adminApi('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      }),
+    });
+
+    // Basic authentication is stateless. Keep this browser session unlocked by
+    // replacing the in-memory Authorization value with the new password.
+    state.adminAuthorization = basicAuthorization(state.adminUser.username, newPassword);
+    formElement.reset();
+    $('#changePasswordDialog').close();
+    showToast('Password changed successfully.');
+  } catch (error) {
+    const message = error instanceof ApiError && error.status === 401
+      ? 'Your admin session is no longer valid. Unlock it again.'
+      : error instanceof TypeError
+        ? 'The dashboard could not contact the API. Check the network connection and CORS configuration.'
+        : (error.message || 'Unable to change the password.');
+    setChangePasswordError(message);
+    const currentInput = formElement.querySelector('input[name="current_password"]');
+    if (currentInput) {
+      currentInput.value = '';
+      currentInput.focus();
+    }
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = 'Change password';
   }
 }
 
@@ -736,10 +840,15 @@ function bindEvents() {
   $('#loadRecommendations').addEventListener('click', () => inspectEndpoint(scopedPath('/api/recommendations', { limit: 10 })));
   $('#clearInspector').addEventListener('click', () => { $('#apiInspector').textContent = 'Select an action above to inspect a response.'; });
   $('#adminButton').addEventListener('click', () => state.adminUser ? lockAdmin() : openAdminDialog());
+  $('#changePasswordButton').addEventListener('click', openChangePasswordDialog);
   $('#adminForm').addEventListener('submit', unlockAdmin);
   $('#closeAdminDialog').addEventListener('click', () => $('#adminDialog').close());
   $('#cancelAdmin').addEventListener('click', () => $('#adminDialog').close());
   $('#adminDialog').addEventListener('click', event => { if (event.target === $('#adminDialog')) $('#adminDialog').close(); });
+  $('#changePasswordForm').addEventListener('submit', changeOwnPassword);
+  $('#closeChangePasswordDialog').addEventListener('click', () => $('#changePasswordDialog').close());
+  $('#cancelChangePassword').addEventListener('click', () => $('#changePasswordDialog').close());
+  $('#changePasswordDialog').addEventListener('click', event => { if (event.target === $('#changePasswordDialog')) $('#changePasswordDialog').close(); });
   window.addEventListener('resize', () => { drawPortfolioChart(); if ($('#botDialog').open) drawBotChart(); });
 }
 

@@ -17,7 +17,23 @@ copy_secret() {
 }
 
 copy_secret /run/config/gate_accounts.json /run/secrets/gate_accounts.json
-copy_secret /run/config/dashboard_users.json /run/secrets/dashboard_users.json
 
+prepare_dashboard_users() {
+  source_path="/run/config/dashboard_users.json"
+  target_path="/run/secrets/dashboard_users.json"
+
+  # In the normal Compose deployment target_path is a writable bind mount of
+  # the host dashboard_users.json. Do not remove or replace the mount point.
+  if [ ! -f "$target_path" ] && [ -f "$source_path" ]; then
+    cp "$source_path" "$target_path"
+  fi
+
+  if [ -f "$target_path" ]; then
+    chmod 600 "$target_path"
+    chown dashboard:dashboard "$target_path"
+  fi
+}
+
+prepare_dashboard_users
 chown dashboard:dashboard /data
 exec gosu dashboard "$@"

@@ -34,6 +34,7 @@
           <span class="mode-badge" id="modeBadge">—</span>
           <button class="button secondary" id="refreshButton">Refresh</button>
           <span class="admin-identity hidden" id="adminIdentity"></span>
+          <button class="button secondary hidden" id="changePasswordButton">Change password</button>
           <button class="button secondary" id="adminButton">Admin unlock</button>
           <button class="button primary" id="syncButton">Sync Gate</button>
         </div>
@@ -167,6 +168,83 @@
       <div class="form-actions full"><button type="button" class="button secondary" id="cancelAdmin">Cancel</button><button type="submit" class="button primary" id="adminSubmitButton">Unlock</button></div>
     </form>
   </dialog>
+  <dialog id="changePasswordDialog" class="small-dialog">
+    <div class="dialog-header">
+      <div>
+        <h2>Change password</h2>
+        <p id="changePasswordIdentity">Update your dashboard action password.</p>
+      </div>
+      <button
+        type="button"
+        class="icon-button"
+        id="closeChangePasswordDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <form id="changePasswordForm" class="form-grid">
+      <label class="full">
+        Current password
+        <input
+          name="current_password"
+          type="password"
+          autocomplete="current-password"
+          required
+        >
+      </label>
+
+      <label class="full">
+        New password
+        <input
+          name="new_password"
+          type="password"
+          autocomplete="new-password"
+          minlength="12"
+          maxlength="1024"
+          required
+        >
+      </label>
+
+      <label class="full">
+        Confirm new password
+        <input
+          name="confirm_password"
+          type="password"
+          autocomplete="new-password"
+          minlength="12"
+          maxlength="1024"
+          required
+        >
+      </label>
+
+      <p class="full admin-help">
+        Use at least 12 characters. Changing your password immediately
+        invalidates the old password in every browser session.
+      </p>
+
+      <p
+        id="changePasswordError"
+        class="full form-error hidden"
+        role="alert"
+        aria-live="assertive"
+      ></p>
+
+      <div class="form-actions full">
+        <button
+          type="button"
+          class="button secondary"
+          id="cancelChangePassword"
+        >Cancel</button>
+
+        <button
+          type="submit"
+          class="button primary"
+          id="changePasswordSubmitButton"
+        >Change password</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="./config.js"></script>
   <script src="./app.js" defer></script>
 <footer class="site-footer">

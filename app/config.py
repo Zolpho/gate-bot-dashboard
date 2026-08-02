@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     gate_base_url: str = "https://api.gateio.ws/api/v4"
     gate_accounts_file: Path = Path("/run/secrets/gate_accounts.json")
     dashboard_users_file: Path = Path("/run/secrets/dashboard_users.json")
+    dashboard_users_backup_dir: Path = Path("/data/dashboard-user-backups")
+    dashboard_users_backup_keep: int = 20
 
     # Legacy single-account variables remain supported for a one-account install.
     # When GATE_ACCOUNTS_FILE exists and contains accounts, it takes precedence.
@@ -80,6 +82,11 @@ class Settings(BaseSettings):
     @classmethod
     def validate_concurrency(cls, value: int) -> int:
         return max(1, min(value, 20))
+
+    @field_validator("dashboard_users_backup_keep")
+    @classmethod
+    def validate_dashboard_users_backup_keep(cls, value: int) -> int:
+        return max(1, min(value, 100))
 
     @field_validator("poll_seconds")
     @classmethod
