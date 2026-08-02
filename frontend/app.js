@@ -425,7 +425,7 @@ function fmtQuoteValue(value, quoteAsset = 'USD') {
 
   const formatted = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
-    maximumFractionDigits,
+    maximumFractionDigits: maximumDigits,
   }).format(number);
 
   const quote = String(
