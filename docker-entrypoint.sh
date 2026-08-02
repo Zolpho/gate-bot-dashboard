@@ -2,19 +2,22 @@
 set -eu
 
 umask 077
-
 mkdir -p /run/secrets
-rm -f /run/secrets/gate_accounts.json
 
-if [ -f /run/config/gate_accounts.json ]; then
-  cp \
-    /run/config/gate_accounts.json \
-    /run/secrets/gate_accounts.json
+copy_secret() {
+  source_path="$1"
+  target_path="$2"
 
-  chmod 600 /run/secrets/gate_accounts.json
-  chown dashboard:dashboard /run/secrets/gate_accounts.json
-fi
+  rm -f "$target_path"
+  if [ -f "$source_path" ]; then
+    cp "$source_path" "$target_path"
+    chmod 600 "$target_path"
+    chown dashboard:dashboard "$target_path"
+  fi
+}
+
+copy_secret /run/config/gate_accounts.json /run/secrets/gate_accounts.json
+copy_secret /run/config/dashboard_users.json /run/secrets/dashboard_users.json
 
 chown dashboard:dashboard /data
-
 exec gosu dashboard "$@"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -14,6 +14,7 @@ from ..db import get_db, session_scope
 from ..gate_client import GateAPIError, GateClient
 from ..metrics import bot_to_dict, calculate_drawdown, snapshot_to_dict
 from ..models import Bot, BotSnapshot, GateAccount
+from ..security import DashboardUser, require_account_access, require_user
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
 settings = get_settings()
@@ -102,8 +103,27 @@ def get_bot(bot_id: int, db: Session = Depends(get_db)):  # type: ignore[no-unty
         if snapshot.current_value is not None
     ]
     return {
-        "bot": bot_to_dict(bot, include_raw=True),
+        "bot": bot_to_dict(bot, include_raw=False),
         "analytics": calculate_drawdown(drawdown_points),
+        "raw_data_requires_auth": True,
+    }
+
+
+@router.get("/{bot_id}/raw")
+def get_bot_raw(
+    bot_id: int,
+    user: Annotated[DashboardUser, Depends(require_user)],
+    db: Session = Depends(get_db),
+):  # type: ignore[no-untyped-def]
+    bot = db.scalar(
+        select(Bot).options(selectinload(Bot.account)).where(Bot.id == bot_id)
+    )
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    require_account_access(user, bot.account_id)
+    return {
+        "bot": bot_to_dict(bot, include_raw=True),
+        "authorization": user.safe_dict(),
     }
 
 
@@ -134,7 +154,11 @@ def get_bot_history(
 
 
 @router.post("/{bot_id}/stop")
-async def stop_bot(bot_id: int, request: StopRequest):  # type: ignore[no-untyped-def]
+async def stop_bot(
+    bot_id: int,
+    request: StopRequest,
+    user: Annotated[DashboardUser, Depends(require_user)],
+):  # type: ignore[no-untyped-def]
     if not settings.allow_bot_stop:
         raise HTTPException(status_code=403, detail="Bot stopping is disabled by ALLOW_BOT_STOP")
     if request.confirmation != settings.bot_stop_confirmation_text:
@@ -144,6 +168,7 @@ async def stop_bot(bot_id: int, request: StopRequest):  # type: ignore[no-untype
         bot = db.get(Bot, bot_id)
         if not bot:
             raise HTTPException(status_code=404, detail="Bot not found")
+        require_account_access(user, bot.account_id)
         if not bot.stop_supported:
             raise HTTPException(status_code=409, detail="Gate reports that this bot does not support stop")
         strategy_id = bot.strategy_id
@@ -161,4 +186,9 @@ async def stop_bot(bot_id: int, request: StopRequest):  # type: ignore[no-untype
             response = await client.stop_bot(strategy_id, strategy_type)
     except (GateAPIError, AccountConfigError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {"status": "submitted", "account_id": account_id, "gate": response.raw}
+    return {
+        "status": "submitted",
+        "account_id": account_id,
+        "authorized_user": user.username,
+        "gate": response.raw,
+    }

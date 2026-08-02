@@ -33,6 +33,8 @@
           <label class="account-selector">Account<select id="accountSelector" aria-label="Gate account"><option value="">All accounts</option></select></label>
           <span class="mode-badge" id="modeBadge">—</span>
           <button class="button secondary" id="refreshButton">Refresh</button>
+          <span class="admin-identity hidden" id="adminIdentity"></span>
+          <button class="button secondary" id="adminButton">Admin unlock</button>
           <button class="button primary" id="syncButton">Sync Gate</button>
         </div>
       </header>
@@ -136,7 +138,7 @@
     <div class="dialog-content">
       <div id="botDetailMetrics" class="detail-metrics"></div>
       <article class="detail-chart"><div class="panel-header"><div><h3>Equity and drawdown</h3><p id="drawdownSummary"></p></div><select id="botHistoryRange"><option value="24">24 hours</option><option value="168" selected>7 days</option><option value="720">30 days</option><option value="8760">1 year</option></select></div><div class="chart-wrap small"><canvas id="botChart"></canvas></div></article>
-      <div class="detail-columns"><section><h3>Strategy information</h3><dl id="botDefinitionList" class="definition-list"></dl></section><section><h3>Gate dynamic data</h3><div class="raw-tabs"><button class="raw-tab active" data-raw="metrics">Metrics</button><button class="raw-tab" data-raw="position">Position</button><button class="raw-tab" data-raw="base_info">Base info</button><button class="raw-tab" data-raw="raw_detail">Raw</button></div><pre id="botRaw"></pre></section></div>
+      <div class="detail-columns"><section><h3>Strategy information</h3><dl id="botDefinitionList" class="definition-list"></dl></section><section><h3>Gate dynamic data <span class="admin-only-label">account login</span></h3><div class="raw-tabs"><button class="raw-tab active" data-raw="metrics">Metrics</button><button class="raw-tab" data-raw="position">Position</button><button class="raw-tab" data-raw="base_info">Base info</button><button class="raw-tab" data-raw="raw_detail">Raw</button></div><pre id="botRaw">Unlock the matching account to inspect Gate raw data.</pre></section></div>
       <div class="danger-zone" id="dangerZone"><div><strong>Stop strategy</strong><p>Disabled by default. The server must explicitly allow this action.</p></div><button class="button danger" id="stopBotButton">Stop bot</button></div>
     </div>
   </dialog>
@@ -154,6 +156,16 @@
     </form>
   </dialog>
 
+
+  <dialog id="adminDialog" class="small-dialog">
+    <div class="dialog-header"><div><h2>Unlock account actions</h2><p>Credentials stay in memory until this page is refreshed or locked.</p></div><button class="icon-button" id="closeAdminDialog" aria-label="Close">×</button></div>
+    <form id="adminForm" class="form-grid">
+      <label class="full">Username<input name="username" autocomplete="username" required maxlength="64" placeholder="zolnode"></label>
+      <label class="full">Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <p class="full admin-help">Account operators can change only bots and alert items belonging to their assigned Gate account.</p>
+      <div class="form-actions full"><button type="button" class="button secondary" id="cancelAdmin">Cancel</button><button type="submit" class="button primary">Unlock</button></div>
+    </form>
+  </dialog>
   <script src="./config.js"></script>
   <script src="./app.js" defer></script>
 </body>

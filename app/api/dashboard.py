@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -10,6 +11,7 @@ from ..collector import collector
 from ..db import get_db
 from ..metrics import overview, portfolio_history, sync_to_dict
 from ..models import SyncRun
+from ..security import DashboardUser, require_user, resolve_authorized_account
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -38,11 +40,14 @@ def get_portfolio_history(
 
 
 @router.post("/sync")
-async def sync_now(account_id: str | None = None):  # type: ignore[no-untyped-def]
-    return await collector.sync(
-        trigger="manual",
-        account_id=account_id.strip().lower() if account_id else None,
-    )
+async def sync_now(
+    user: Annotated[DashboardUser, Depends(require_user)],
+    account_id: str | None = None,
+):  # type: ignore[no-untyped-def]
+    authorized_account = resolve_authorized_account(user, account_id)
+    result = await collector.sync(trigger="manual", account_id=authorized_account)
+    result["authorized_user"] = user.username
+    return result
 
 
 @router.get("/sync-runs")

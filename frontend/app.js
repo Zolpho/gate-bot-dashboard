@@ -4,9 +4,7 @@ const configuredApiBaseUrl = String(
   window.GATE_DASHBOARD_CONFIG?.apiBaseUrl || ''
 ).replace(/\/+$/, '');
 
-const runningOnGitHubPages =
-  window.location.hostname.endsWith('.github.io');
-
+const runningOnGitHubPages = window.location.hostname.endsWith('.github.io');
 const API_BASE_URL = configuredApiBaseUrl || (
   runningOnGitHubPages ? '' : window.location.origin
 );
@@ -17,7 +15,6 @@ function apiUrl(path) {
       'The dashboard frontend is online, but the backend API URL is not configured yet.'
     );
   }
-
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE_URL}${normalizedPath}`;
 }
@@ -26,6 +23,7 @@ const state = {
   overview: null,
   bots: [],
   filteredBots: [],
+  botFilters: {},
   history: [],
   alertEvents: [],
   rules: [],
@@ -34,16 +32,28 @@ const state = {
   currentBot: null,
   currentBotData: null,
   currentBotHistory: [],
+  currentRawData: null,
   currentRawKey: 'metrics',
   selectedAccount: '',
+  adminAuthorization: '',
+  adminUser: null,
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
+class ApiError extends Error {
+  constructor(message, status, payload) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 async function api(path, options = {}) {
   const response = await fetch(apiUrl(path), {
-    credentials: 'include',
+    credentials: 'omit',
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
@@ -53,8 +63,104 @@ async function api(path, options = {}) {
   const text = await response.text();
   let payload;
   try { payload = text ? JSON.parse(text) : {}; } catch { payload = { detail: text }; }
-  if (!response.ok) throw new Error(payload.detail || payload.error || `Request failed (${response.status})`);
+  if (!response.ok) {
+    throw new ApiError(
+      payload.detail || payload.error || `Request failed (${response.status})`,
+      response.status,
+      payload,
+    );
+  }
   return payload;
+}
+
+function adminApi(path, options = {}) {
+  if (!state.adminAuthorization) {
+    openAdminDialog();
+    throw new ApiError('Unlock account actions first.', 401, {});
+  }
+  return api(path, {
+    ...options,
+    headers: {
+      Authorization: state.adminAuthorization,
+      ...(options.headers || {}),
+    },
+  }).catch(error => {
+    if (error.status === 401) lockAdmin(false);
+    throw error;
+  });
+}
+
+function canManageAccount(accountId) {
+  const user = state.adminUser;
+  if (!user) return false;
+  return user.role === 'super_admin' || (user.account_ids || []).includes(accountId);
+}
+
+function canManageRule(rule) {
+  if (!state.adminUser) return false;
+  if (!rule.account_id) return state.adminUser.role === 'super_admin';
+  return canManageAccount(rule.account_id);
+}
+
+function basicAuthorization(username, password) {
+  const bytes = new TextEncoder().encode(`${username}:${password}`);
+  let binary = '';
+  bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+  return `Basic ${btoa(binary)}`;
+}
+
+function openAdminDialog() {
+  const dialog = $('#adminDialog');
+  if (!dialog.open) dialog.showModal();
+  setTimeout(() => $('#adminForm input[name="username"]')?.focus(), 0);
+}
+
+function renderAdminState() {
+  const button = $('#adminButton');
+  const identity = $('#adminIdentity');
+  if (state.adminUser) {
+    button.textContent = 'Lock admin';
+    identity.textContent = `${state.adminUser.username} · ${state.adminUser.role.replace('_', ' ')}`;
+    identity.classList.remove('hidden');
+  } else {
+    button.textContent = 'Admin unlock';
+    identity.textContent = '';
+    identity.classList.add('hidden');
+  }
+  populateFilterOptions(state.botFilters);
+  renderAlerts();
+  if (state.currentBotData?.bot) updateBotAdminControls(state.currentBotData.bot);
+}
+
+function lockAdmin(showMessage = true) {
+  state.adminAuthorization = '';
+  state.adminUser = null;
+  state.currentRawData = null;
+  renderAdminState();
+  renderBotRaw();
+  if (showMessage) showToast('Admin actions locked.');
+}
+
+async function unlockAdmin(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const username = String(form.get('username') || '').trim();
+  const password = String(form.get('password') || '');
+  const authorization = basicAuthorization(username, password);
+  try {
+    const result = await api('/api/auth/me', { headers: { Authorization: authorization } });
+    state.adminAuthorization = authorization;
+    state.adminUser = result.user;
+    event.currentTarget.reset();
+    $('#adminDialog').close();
+    renderAdminState();
+    showToast(`Unlocked for ${result.user.username}.`);
+    if (state.currentBotData?.bot && canManageAccount(state.currentBotData.bot.account_id)) {
+      await loadCurrentBotRaw();
+    }
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 
 function showToast(message, error = false) {
@@ -271,9 +377,17 @@ function populateFilterOptions(filters = {}) {
   const currentType = type.value, currentMarket = market.value;
   type.innerHTML = '<option value="">All types</option>' + (filters.strategy_types || []).map(v => `<option value="${escapeHtml(v)}">${strategyLabel(v)}</option>`).join('');
   market.innerHTML = '<option value="">All markets</option>' + (filters.markets || []).map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-  type.value = currentType; market.value = currentMarket;
+  type.value = currentType;
+  market.value = currentMarket;
+
   const botSelect = $('#ruleForm select[name="bot_id"]');
-  botSelect.innerHTML = '<option value="">All bots</option>' + state.bots.map(bot => `<option value="${bot.id}">[${escapeHtml(bot.account_name)}] ${escapeHtml(bot.strategy_name)} (${escapeHtml(bot.market)})</option>`).join('');
+  if (!botSelect) return;
+  const manageableBots = state.bots.filter(bot => canManageAccount(bot.account_id));
+  const globalOption = state.adminUser?.role === 'super_admin'
+    ? '<option value="">All bots (super admin)</option>'
+    : '<option value="" disabled>Select one of your bots</option>';
+  botSelect.innerHTML = globalOption + manageableBots.map(bot => `<option value="${bot.id}">[${escapeHtml(bot.account_name)}] ${escapeHtml(bot.strategy_name)} (${escapeHtml(bot.market)})</option>`).join('');
+  if (state.adminUser?.role !== 'super_admin' && manageableBots.length) botSelect.value = String(manageableBots[0].id);
 }
 
 function applyBotFilters() {
@@ -311,13 +425,27 @@ function renderOverviewAlerts() {
 }
 
 function eventHtml(event) {
-  return `<article class="event"><i class="event-dot"></i><div><p>${escapeHtml(event.message)}</p><small>${fmtDate(event.triggered_at)}</small></div>${event.acknowledged_at ? '<span class="status-badge">Ack</span>' : `<button class="text-button ack-event" data-event-id="${event.id}">Acknowledge</button>`}</article>`;
+  let action = '<span class="status-badge">Open</span>';
+  if (event.acknowledged_at) action = '<span class="status-badge">Ack</span>';
+  else if ((event.account_id && canManageAccount(event.account_id)) || (!event.account_id && state.adminUser?.role === 'super_admin')) {
+    action = `<button class="text-button ack-event" data-event-id="${event.id}">Acknowledge</button>`;
+  }
+  return `<article class="event"><i class="event-dot"></i><div><p>${escapeHtml(event.message)}</p><small>${fmtDate(event.triggered_at)}</small></div>${action}</article>`;
 }
 
 function renderAlerts() {
-  $('#rulesList').innerHTML = state.rules.length ? state.rules.map(rule => `<article class="rule"><div><p><strong>${escapeHtml(rule.name)}</strong></p><small>${escapeHtml(rule.metric)} ${escapeHtml(rule.operator)} ${fmtNumber(rule.threshold,4)} · cooldown ${fmtDuration(rule.cooldown_seconds)}</small></div><div class="button-row"><label class="switch" title="Enable rule"><input class="rule-toggle" type="checkbox" data-rule-id="${rule.id}" ${rule.enabled ? 'checked' : ''}><span></span></label><button class="text-button delete-rule" data-rule-id="${rule.id}">Delete</button></div></article>`).join('') : '<div class="empty-state">No rules configured.</div>';
+  $('#rulesList').innerHTML = state.rules.length ? state.rules.map(rule => {
+    const scope = rule.account_name || 'All accounts';
+    const controls = canManageRule(rule)
+      ? `<div class="button-row"><label class="switch" title="Enable rule"><input class="rule-toggle" type="checkbox" data-rule-id="${rule.id}" ${rule.enabled ? 'checked' : ''}><span></span></label><button class="text-button delete-rule" data-rule-id="${rule.id}">Delete</button></div>`
+      : `<span class="status-badge">${rule.enabled ? 'Active' : 'Disabled'}</span>`;
+    return `<article class="rule"><div><p><strong>${escapeHtml(rule.name)}</strong></p><small>${escapeHtml(scope)} · ${escapeHtml(rule.metric)} ${escapeHtml(rule.operator)} ${fmtNumber(rule.threshold,4)} · cooldown ${fmtDuration(rule.cooldown_seconds)}</small></div>${controls}</article>`;
+  }).join('') : '<div class="empty-state">No rules configured.</div>';
   $('#alertEvents').innerHTML = state.alertEvents.length ? state.alertEvents.map(eventHtml).join('') : '<div class="empty-state">No alert events.</div>';
+  $('#addRuleButton').disabled = !state.adminUser;
+  $('#addRuleButton').title = state.adminUser ? 'Create a rule for an authorized bot' : 'Unlock account actions first';
 }
+
 
 function renderSystem() {
   if (!state.health) return;
@@ -336,8 +464,11 @@ function renderSystem() {
     ['Enabled accounts', health.enabled_account_count ?? 0], ['Collector', health.collector_running ? 'Synchronising' : 'Idle'],
     ['Poll interval', `${health.poll_seconds}s`], ['History retention', `${health.snapshot_retention_days} days`],
     ['Stop action', health.allow_bot_stop ? 'Enabled' : 'Disabled'],
+    ['Action users', health.action_auth?.enabled_user_count ?? 0],
+    ['Admin session', state.adminUser ? `${state.adminUser.username} (${state.adminUser.role})` : 'Locked'],
   ];
   if (health.account_config_error) details.push(['Account config error', health.account_config_error]);
+  if (health.user_config_error) details.push(['User config error', health.user_config_error]);
   $('#healthDetails').innerHTML = details.map(([k,v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('');
 
   $('#accountsList').innerHTML = accounts.length ? accounts.map(account => {
@@ -347,7 +478,6 @@ function renderSystem() {
       <i class="account-dot ${statusClass}"></i>
       <div><strong>${escapeHtml(account.name)}</strong><small>${escapeHtml(account.id)} · ${portfolio.running ?? account.bot_count ?? 0} running · ${fmtMoney(portfolio.pnl)}</small></div>
       <div class="account-status"><span class="status-badge ${statusClass}">${escapeHtml(account.sync_status || 'never')}</span><small>${fmtDate(account.last_success_at)}</small></div>
-      ${account.last_error ? `<p class="account-error">${escapeHtml(account.last_error)}</p>` : ''}
     </article>`;
   }).join('') : '<div class="empty-state">No accounts recorded yet.</div>';
 
@@ -366,7 +496,7 @@ async function loadCore() {
       api(scopedPath('/api/alerts/events', { unacknowledged_only: $('#unackedOnly').checked })),
       api(scopedPath('/api/sync-runs', { limit: 20 })),
     ]);
-    state.health = health; state.overview = overviewData; state.bots = botData.items; state.history = historyData.items; state.rules = ruleData.items; state.alertEvents = eventData.items; state.syncRuns = syncData.items;
+    state.health = health; state.overview = overviewData; state.bots = botData.items; state.botFilters = botData.filters || {}; state.history = historyData.items; state.rules = ruleData.items; state.alertEvents = eventData.items; state.syncRuns = syncData.items;
     populateAccountSelector(overviewData.accounts || []);
     populateFilterOptions(botData.filters);
     applyBotFilters(); renderOverview(); renderAlerts(); renderSystem();
@@ -377,13 +507,15 @@ async function loadCore() {
 }
 
 async function syncNow() {
+  if (!state.adminUser) { openAdminDialog(); return; }
   const button = $('#syncButton');
-  button.disabled = true; button.textContent = 'Syncing…';
+  button.disabled = true;
+  button.textContent = 'Syncing…';
   try {
-    const result = await api(scopedPath('/api/sync'), { method: 'POST' });
+    const result = await adminApi(scopedPath('/api/sync'), { method: 'POST' });
     if (result.status === 'error') throw new Error(result.error || 'Sync failed');
-    const scope = state.selectedAccount ? ` for ${state.selectedAccount}` : '';
-    showToast(result.status === 'skipped' ? 'A sync is already running.' : `Sync complete${scope}: ${result.bot_count ?? 0} bots`);
+    const scope = result.requested_account_id || state.selectedAccount || 'authorized account(s)';
+    showToast(result.status === 'skipped' ? 'A sync is already running.' : `Sync complete for ${scope}: ${result.bot_count ?? 0} bots`);
     await loadCore();
   } catch (error) { showToast(error.message, true); }
   finally { button.disabled = false; button.textContent = 'Sync Gate'; }
@@ -392,10 +524,17 @@ async function syncNow() {
 async function openBot(botId) {
   try {
     const hours = Number($('#botHistoryRange').value);
-    const [detail, history] = await Promise.all([api(`/api/bots/${botId}`), api(`/api/bots/${botId}/history?hours=${hours}`)]);
-    state.currentBot = botId; state.currentBotData = detail; state.currentBotHistory = history.items;
+    const [detail, history] = await Promise.all([
+      api(`/api/bots/${botId}`),
+      api(`/api/bots/${botId}/history?hours=${hours}`),
+    ]);
+    state.currentBot = botId;
+    state.currentBotData = detail;
+    state.currentBotHistory = history.items;
+    state.currentRawData = null;
     renderBotDialog(detail, history);
     if (!$('#botDialog').open) $('#botDialog').showModal();
+    if (canManageAccount(detail.bot.account_id)) await loadCurrentBotRaw();
   } catch (error) { showToast(error.message, true); }
 }
 
@@ -422,16 +561,51 @@ function renderBotDialog(detail, history) {
   state.currentRawKey = 'metrics';
   $$('.raw-tab').forEach(t => t.classList.toggle('active', t.dataset.raw === 'metrics'));
   renderBotRaw();
-  $('#stopBotButton').disabled = !(state.health?.allow_bot_stop && bot.stop_supported);
-  $('#dangerZone p').textContent = state.health?.allow_bot_stop ? (bot.stop_supported ? 'This sends Gate’s native stop request after typed confirmation.' : 'Gate reports stop is unavailable for this strategy.') : 'Disabled by default. Set ALLOW_BOT_STOP=true on the server to enable it.';
+  updateBotAdminControls(bot);
   drawBotChart();
+}
+
+function updateBotAdminControls(bot) {
+  const ownsBot = canManageAccount(bot.account_id);
+  const stopEnabled = Boolean(state.health?.allow_bot_stop && bot.stop_supported && ownsBot);
+  $('#stopBotButton').disabled = !stopEnabled;
+  if (!state.adminUser) $('#dangerZone p').textContent = 'Unlock the matching account before using disruptive actions.';
+  else if (!ownsBot) $('#dangerZone p').textContent = `Signed in as ${state.adminUser.username}; this bot belongs to ${bot.account_name}.`;
+  else if (!state.health?.allow_bot_stop) $('#dangerZone p').textContent = 'Stopping is disabled by ALLOW_BOT_STOP on the server.';
+  else if (!bot.stop_supported) $('#dangerZone p').textContent = 'Gate reports stop is unavailable for this strategy.';
+  else $('#dangerZone p').textContent = 'This sends Gate’s native stop request after typed confirmation.';
+}
+
+async function loadCurrentBotRaw() {
+  const bot = state.currentBotData?.bot;
+  if (!bot || !canManageAccount(bot.account_id)) { renderBotRaw(); return; }
+  try {
+    const result = await adminApi(`/api/bots/${bot.id}/raw`);
+    state.currentRawData = result.bot;
+    renderBotRaw();
+  } catch (error) {
+    $('#botRaw').textContent = error.message;
+  }
 }
 
 function renderBotRaw() {
   const bot = state.currentBotData?.bot;
   if (!bot) return;
-  $('#botRaw').textContent = JSON.stringify(bot[state.currentRawKey] ?? {}, null, 2);
+  if (!state.adminUser) {
+    $('#botRaw').textContent = 'Unlock the matching account to inspect Gate raw data.';
+    return;
+  }
+  if (!canManageAccount(bot.account_id)) {
+    $('#botRaw').textContent = `This login cannot inspect data for ${bot.account_name}.`;
+    return;
+  }
+  if (!state.currentRawData) {
+    $('#botRaw').textContent = 'Loading authorized Gate data…';
+    return;
+  }
+  $('#botRaw').textContent = JSON.stringify(state.currentRawData[state.currentRawKey] ?? {}, null, 2);
 }
+
 
 function drawBotChart() {
   const css = getComputedStyle(document.documentElement);
@@ -447,7 +621,8 @@ async function stopCurrentBot() {
   const confirmation = prompt(`Type STOP to stop ${bot.strategy_name}. Gate may close/cancel strategy orders according to its bot rules.`);
   if (confirmation !== 'STOP') { showToast('Stop cancelled: confirmation did not match.'); return; }
   try {
-    const result = await api(`/api/bots/${bot.id}/stop`, { method: 'POST', body: JSON.stringify({ confirmation }) });
+    if (!canManageAccount(bot.account_id)) { openAdminDialog(); return; }
+    const result = await adminApi(`/api/bots/${bot.id}/stop`, { method: 'POST', body: JSON.stringify({ confirmation }) });
     showToast('Stop request submitted to Gate.');
     $('#apiInspector').textContent = JSON.stringify(result, null, 2);
     switchTab('system'); $('#botDialog').close();
@@ -463,18 +638,21 @@ function exportCsv() {
 }
 
 async function acknowledgeEvent(id) {
-  try { await api(`/api/alerts/events/${id}/acknowledge`, { method:'POST' }); await loadCore(); showToast('Alert acknowledged.'); }
+  if (!state.adminUser) { openAdminDialog(); return; }
+  try { await adminApi(`/api/alerts/events/${id}/acknowledge`, { method:'POST' }); await loadCore(); showToast('Alert acknowledged.'); }
   catch (error) { showToast(error.message, true); }
 }
 
 async function toggleRule(id, enabled) {
-  try { await api(`/api/alerts/rules/${id}`, { method:'PATCH', body:JSON.stringify({ enabled }) }); showToast(`Rule ${enabled ? 'enabled' : 'disabled'}.`); }
+  if (!state.adminUser) { openAdminDialog(); return; }
+  try { await adminApi(`/api/alerts/rules/${id}`, { method:'PATCH', body:JSON.stringify({ enabled }) }); showToast(`Rule ${enabled ? 'enabled' : 'disabled'}.`); }
   catch (error) { showToast(error.message, true); await loadCore(); }
 }
 
 async function deleteRule(id) {
   if (!confirm('Delete this alert rule?')) return;
-  try { await api(`/api/alerts/rules/${id}`, { method:'DELETE' }); await loadCore(); showToast('Rule deleted.'); }
+  if (!state.adminUser) { openAdminDialog(); return; }
+  try { await adminApi(`/api/alerts/rules/${id}`, { method:'DELETE' }); await loadCore(); showToast('Rule deleted.'); }
   catch (error) { showToast(error.message, true); }
 }
 
@@ -483,13 +661,15 @@ async function createRule(event) {
   const form = new FormData(event.currentTarget);
   const payload = Object.fromEntries(form.entries());
   payload.threshold = Number(payload.threshold); payload.cooldown_seconds = Number(payload.cooldown_seconds); payload.bot_id = payload.bot_id ? Number(payload.bot_id) : null;
-  try { await api('/api/alerts/rules', { method:'POST', body:JSON.stringify(payload) }); $('#ruleDialog').close(); event.currentTarget.reset(); await loadCore(); showToast('Alert rule created.'); }
+  if (!state.adminUser) { openAdminDialog(); return; }
+  try { await adminApi('/api/alerts/rules', { method:'POST', body:JSON.stringify(payload) }); $('#ruleDialog').close(); event.currentTarget.reset(); await loadCore(); showToast('Alert rule created.'); }
   catch (error) { showToast(error.message, true); }
 }
 
 async function inspectEndpoint(endpoint) {
   const inspector = $('#apiInspector'); inspector.textContent = 'Loading…';
-  try { inspector.textContent = JSON.stringify(await api(endpoint), null, 2); }
+  if (!state.adminUser) { openAdminDialog(); inspector.textContent = 'Unlock account actions first.'; return; }
+  try { inspector.textContent = JSON.stringify(await adminApi(endpoint), null, 2); }
   catch (error) { inspector.textContent = error.message; showToast(error.message, true); }
 }
 
@@ -511,17 +691,23 @@ function bindEvents() {
   $('#closeDialog').addEventListener('click', () => $('#botDialog').close());
   $('#botDialog').addEventListener('click', event => { if (event.target === $('#botDialog')) $('#botDialog').close(); });
   $('#botHistoryRange').addEventListener('change', () => state.currentBot && openBot(state.currentBot));
-  $$('.raw-tab').forEach(button => button.addEventListener('click', () => { state.currentRawKey = button.dataset.raw; $$('.raw-tab').forEach(t => t.classList.toggle('active', t === button)); renderBotRaw(); }));
+  $$('.raw-tab').forEach(button => button.addEventListener('click', async () => { state.currentRawKey = button.dataset.raw; $$('.raw-tab').forEach(t => t.classList.toggle('active', t === button)); if (!state.currentRawData && state.currentBotData?.bot && canManageAccount(state.currentBotData.bot.account_id)) await loadCurrentBotRaw(); else renderBotRaw(); }));
   $('#stopBotButton').addEventListener('click', stopCurrentBot);
-  $('#addRuleButton').addEventListener('click', () => $('#ruleDialog').showModal());
+  $('#addRuleButton').addEventListener('click', () => { if (!state.adminUser) { openAdminDialog(); return; } populateFilterOptions(); $('#ruleDialog').showModal(); });
   $('#closeRuleDialog').addEventListener('click', () => $('#ruleDialog').close()); $('#cancelRule').addEventListener('click', () => $('#ruleDialog').close());
   $('#ruleForm').addEventListener('submit', createRule);
   $('#testAccountButton').addEventListener('click', () => inspectEndpoint(scopedPath('/api/account')));
   $('#loadRecommendations').addEventListener('click', () => inspectEndpoint(scopedPath('/api/recommendations', { limit: 10 })));
   $('#clearInspector').addEventListener('click', () => { $('#apiInspector').textContent = 'Select an action above to inspect a response.'; });
+  $('#adminButton').addEventListener('click', () => state.adminUser ? lockAdmin() : openAdminDialog());
+  $('#adminForm').addEventListener('submit', unlockAdmin);
+  $('#closeAdminDialog').addEventListener('click', () => $('#adminDialog').close());
+  $('#cancelAdmin').addEventListener('click', () => $('#adminDialog').close());
+  $('#adminDialog').addEventListener('click', event => { if (event.target === $('#adminDialog')) $('#adminDialog').close(); });
   window.addEventListener('resize', () => { drawPortfolioChart(); if ($('#botDialog').open) drawBotChart(); });
 }
 
 bindEvents();
+renderAdminState();
 loadCore();
 setInterval(loadCore, 60000);

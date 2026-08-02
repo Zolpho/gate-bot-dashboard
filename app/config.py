@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     gate_base_url: str = "https://api.gateio.ws/api/v4"
     gate_accounts_file: Path = Path("/run/secrets/gate_accounts.json")
+    dashboard_users_file: Path = Path("/run/secrets/dashboard_users.json")
 
     # Legacy single-account variables remain supported for a one-account install.
     # When GATE_ACCOUNTS_FILE exists and contains accounts, it takes precedence.
@@ -53,8 +54,12 @@ class Settings(BaseSettings):
     allow_bot_stop: bool = False
     bot_stop_confirmation_text: str = "STOP"
 
+    # Optional legacy super-admin credentials. They no longer protect public GET routes.
     dashboard_username: str = ""
     dashboard_password: str = ""
+
+    # Comma-separated browser origins allowed to call the API.
+    cors_origins: str = "https://zolpho.github.io"
 
     default_drawdown_alert_pct: float = 12.0
     default_loss_alert_usdt: float = 100.0
@@ -86,8 +91,16 @@ class Settings(BaseSettings):
         return bool(self.gate_api_key and self.gate_api_secret)
 
     @property
-    def auth_enabled(self) -> bool:
+    def legacy_admin_enabled(self) -> bool:
         return bool(self.dashboard_username and self.dashboard_password)
+
+    @property
+    def auth_enabled(self) -> bool:
+        return self.legacy_admin_enabled or self.dashboard_users_file.exists()
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip().rstrip("/") for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache(maxsize=1)

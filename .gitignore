@@ -18,7 +18,4 @@ secrets/*
 !secrets/.gitkeep
 !secrets/gate_accounts.example.json
 
-# Local Gate credentials
-!secrets/
-secrets/*
-!secrets/gate_accounts.example.json
+!secrets/dashboard_users.example.json

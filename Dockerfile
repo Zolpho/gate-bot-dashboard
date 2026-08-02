@@ -26,6 +26,7 @@ COPY frontend ./frontend
 COPY scripts ./scripts
 COPY README.md LICENSE ./
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 8080
 

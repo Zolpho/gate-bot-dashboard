@@ -39,21 +39,28 @@ def _bot_profit(bot: Bot) -> Decimal | None:
     return bot.total_profit if bot.total_profit is not None else bot.pnl
 
 
-def account_to_dict(account: GateAccount, bots: list[Bot] | None = None) -> dict[str, Any]:
+def account_to_dict(
+    account: GateAccount,
+    bots: list[Bot] | None = None,
+    *,
+    include_sensitive: bool = False,
+) -> dict[str, Any]:
     result: dict[str, Any] = {
         "id": account.id,
         "name": account.name,
         "account_type": account.account_type,
-        "gate_uid": account.gate_uid,
         "enabled": account.enabled,
         "configured": account.configured,
         "sync_status": account.sync_status,
         "last_sync_at": as_utc(account.last_sync_at).isoformat() if account.last_sync_at else None,
         "last_success_at": as_utc(account.last_success_at).isoformat() if account.last_success_at else None,
-        "last_error": account.last_error,
         "bot_count": account.bot_count,
         "updated_at": as_utc(account.updated_at).isoformat(),
     }
+    if include_sensitive:
+        result["gate_uid"] = account.gate_uid
+        result["last_error"] = account.last_error
+
     if bots is not None:
         running = [bot for bot in bots if bot.status == "running"]
         invest = _sum(bot.invest_amount for bot in running)

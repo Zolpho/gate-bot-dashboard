@@ -11,3 +11,5 @@ exports
 backups
 secrets/gate_accounts.json
 gate_probe_output*.json
+
+secrets/dashboard_users.json

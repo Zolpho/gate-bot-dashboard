@@ -54,7 +54,7 @@ docker compose logs --tail=100
 curl -s http://127.0.0.1:8080/api/health
 ```
 
-The Compose port is bound to `127.0.0.1:8080`; place Caddy or Nginx in front of it for public HTTPS access.
+The supplied deployment binds the backend to `192.168.1.221:8080` for the internal Nginx proxy at `192.168.1.111`. Adjust this private address for another network.
 
 ## Configure `zolnode` and `arnold`
 
@@ -233,11 +233,54 @@ PYTHONPATH=. pytest -q
 node --check frontend/app.js
 ```
 
+## Public dashboard and account-scoped actions
+
+All normal monitoring `GET` routes are public so GitHub Pages can display the portfolio without a login. State-changing or sensitive routes require HTTP Basic credentials from `secrets/dashboard_users.json`.
+
+Each account operator is assigned one or more Gate account IDs. The backend loads the target bot or rule from SQLite and verifies its `account_id` against the authenticated user's assignments. A browser-supplied account ID is never trusted as proof of ownership.
+
+Create the two initial users on Ubuntu:
+
+```bash
+install -d -m 700 secrets
+
+python3 scripts/manage_dashboard_users.py add \
+  --username zolnode \
+  --account zolnode
+
+python3 scripts/manage_dashboard_users.py add \
+  --username arnold \
+  --account arnold
+
+chmod 600 secrets/dashboard_users.json
+python3 scripts/manage_dashboard_users.py list
+```
+
+Optional global administrator:
+
+```bash
+python3 scripts/manage_dashboard_users.py add \
+  --username lorenzo \
+  --role super_admin
+```
+
+The generated file contains PBKDF2-SHA256 password hashes, never plaintext passwords. After creating it, recreate the container so the entrypoint copies it into `/run/secrets/dashboard_users.json`:
+
+```bash
+docker compose up -d --build --force-recreate
+```
+
+The frontend keeps the Basic Authorization value only in JavaScript memory. It is not written to local storage, session storage, cookies, URLs, or GitHub Pages. Refreshing the page or choosing **Lock admin** clears it.
+
+Public routes include overview, bot lists, normalized bot details, history, alerts, and sync history. Protected routes include manual sync, raw Gate details, account snapshots, recommendations, alert mutations, and bot stop. `zolnode` receives `403 Forbidden` when attempting an action against an `arnold` resource, and vice versa.
+
 ## Security
 
-- Gate API secrets are never returned by an API route or sent to the browser.
-- The safe account representations contain only IDs, labels, account type, UID, enabled state, and configured state.
-- The credentials directory and real JSON file are excluded from Git and Docker build context.
-- FastAPI runs as the unprivileged `dashboard` user after the entrypoint copies the secret.
-- The application port is localhost-only by default.
-- Optional Basic Authentication protects the dashboard and all routes except `/api/health`.
+- Gate API secrets and dashboard password hashes remain only on Ubuntu.
+- Public account representations omit Gate UID and internal error details.
+- Public bot details omit Gate raw responses; raw data requires the matching account login.
+- Real secret files are excluded from Git and Docker build context.
+- FastAPI runs as the unprivileged `dashboard` user after the entrypoint copies both secret files.
+- CORS is restricted by `CORS_ORIGINS`; initially use `https://zolpho.github.io`.
+- Existing `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD` values are supported only as an optional legacy super-admin for protected actions. Clear them after creating per-account users if no global administrator is required.
+- Keep `ALLOW_BOT_STOP=false` until separate minimum-permission Gate management keys are configured.

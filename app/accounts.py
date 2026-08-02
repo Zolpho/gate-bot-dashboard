@@ -30,15 +30,17 @@ class GateAccountConfig:
     def configured(self) -> bool:
         return bool(self.api_key and self.api_secret)
 
-    def safe_dict(self) -> dict[str, Any]:
-        return {
+    def safe_dict(self, *, include_uid: bool = False) -> dict[str, Any]:
+        result = {
             "id": self.id,
             "name": self.name,
             "account_type": self.account_type,
-            "gate_uid": self.gate_uid,
             "enabled": self.enabled,
             "configured": self.configured,
         }
+        if include_uid:
+            result["gate_uid"] = self.gate_uid
+        return result
 
 
 def _parse_bool(value: Any, *, default: bool = True) -> bool:
