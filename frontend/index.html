@@ -52,7 +52,7 @@
           <article class="metric-card"><span>Capital in active bots</span><strong id="totalInvest">—</strong><small id="activeBotCount">—</small></article>
           <article class="metric-card"><span>Current bot value</span><strong id="currentValue">—</strong><small id="portfolioDelta">—</small></article>
           <article class="metric-card"><span>Total PnL</span><strong id="totalPnl">—</strong><small id="totalRoi">—</small></article>
-          <article class="metric-card"><span>Grid / floating</span><strong id="gridProfit">—</strong><small id="floatingPnl">—</small></article>
+          <article class="metric-card"><span>Realized / unrealized</span><strong id="gridProfit">—</strong><small id="floatingPnl">—</small></article>
         </div>
 
 
@@ -189,7 +189,23 @@
         <article class="panel table-panel">
           <div class="table-scroll">
             <table>
-              <thead><tr><th>Strategy</th><th>Account</th><th>Status</th><th>Invested</th><th>Current value</th><th>PnL</th><th>ROI</th><th>Grid profit</th><th>Runtime</th><th></th></tr></thead>
+              <thead>
+  <tr>
+    <th>Strategy</th>
+    <th>Account</th>
+    <th>Status</th>
+    <th>Invested</th>
+    <th>Current value</th>
+    <th>Total PnL</th>
+    <th>Realized PnL</th>
+    <th>Unrealized PnL</th>
+    <th>ROI</th>
+    <th>APR</th>
+    <th>Trades</th>
+    <th>Runtime</th>
+    <th></th>
+  </tr>
+</thead>
               <tbody id="botsTableBody"></tbody>
             </table>
           </div>

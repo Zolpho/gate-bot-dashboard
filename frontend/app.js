@@ -481,6 +481,41 @@ function fmtPct(value, digits = 2) {
   return `${n > 0 ? '+' : ''}${fmtNumber(n, digits)}%`;
 }
 
+function ratioPct(value) {
+  const ratio = numericValue(value);
+
+  return ratio === null
+    ? null
+    : ratio * 100;
+}
+
+function fmtRatioPct(value, digits = 2) {
+  const percentage = ratioPct(value);
+
+  return percentage === null
+    ? '—'
+    : fmtPct(percentage, digits);
+}
+
+function annualizedAprPct(rate, runtimeSeconds) {
+  const ratio = numericValue(rate);
+  const seconds = numericValue(runtimeSeconds);
+
+  if (
+    ratio === null
+    || seconds === null
+    || seconds <= 0
+  ) {
+    return null;
+  }
+
+  return (
+    ratio
+    * (365 * 24 * 60 * 60 / seconds)
+    * 100
+  );
+}
+
 function fmtDate(value) {
   if (!value) return '—';
   const date = new Date(value);
@@ -1144,7 +1179,7 @@ function renderOverview() {
   $('#portfolioDelta').className = valueClass(day.value_change);
   $('#totalRoi').textContent = `ROI ${fmtPct(totals.roi_pct)}`;
   $('#totalRoi').className = valueClass(totals.roi_pct);
-  $('#floatingPnl').textContent = `Floating ${fmtMoney(totals.floating_pnl)}`;
+  $('#floatingPnl').textContent = `Unrealized ${fmtMoney(totals.floating_pnl)}`;
   $('#floatingPnl').className = valueClass(totals.floating_pnl);
   $('#ringTotal').textContent = counts.all;
 
@@ -1162,7 +1197,7 @@ function renderOverview() {
   $('#statusList').innerHTML = statuses.map(([label, count, color]) => `<div class="status-row"><span><i class="dot" style="background:${color}"></i>${label}</span><b>${count}</b></div>`).join('');
 
   const leaders = [...state.bots].filter(b => b.status === 'running').sort((a,b) => (b.profit_rate ?? b.pnl_rate ?? -Infinity) - (a.profit_rate ?? a.pnl_rate ?? -Infinity)).slice(0,4);
-  $('#leaderCards').innerHTML = leaders.length ? leaders.map(bot => `<button class="leader row-button" data-bot-id="${bot.id}"><span><b>${escapeHtml(bot.strategy_name)}</b><small>${escapeHtml(bot.account_name)} · ${escapeHtml(bot.market)} · ${strategyLabel(bot.strategy_type)}</small></span><strong class="${valueClass(bot.profit_rate ?? bot.pnl_rate)}">${fmtPct(bot.profit_rate ?? bot.pnl_rate)}<small>${fmtMoney(bot.total_profit ?? bot.pnl)}</small></strong></button>`).join('') : '<div class="empty-state">No running bots yet.</div>';
+  $('#leaderCards').innerHTML = leaders.length ? leaders.map(bot => `<button class="leader row-button" data-bot-id="${bot.id}"><span><b>${escapeHtml(bot.strategy_name)}</b><small>${escapeHtml(bot.account_name)} · ${escapeHtml(bot.market)} · ${strategyLabel(bot.strategy_type)}</small></span><strong class="${valueClass(bot.profit_rate ?? bot.pnl_rate)}">${fmtRatioPct(bot.profit_rate ?? bot.pnl_rate)}<small>${fmtMoney(bot.total_profit ?? bot.pnl)}</small></strong></button>`).join('') : '<div class="empty-state">No running bots yet.</div>';
 
   const accountLabel = state.selectedAccount ? (state.overview.selected_account?.name || state.selectedAccount) : 'All accounts';
   $('#lastSyncSidebar').textContent = latest ? `${accountLabel} · ${fmtDate(latest.finished_at || latest.started_at)}` : `${accountLabel} · no sync yet`;
@@ -1294,19 +1329,83 @@ function applyBotFilters() {
 
 function renderBots() {
   const tbody = $('#botsTableBody');
+
   tbody.innerHTML = state.filteredBots.map(bot => {
-    const pnl = bot.total_profit ?? bot.pnl;
-    const roi = bot.profit_rate ?? bot.pnl_rate;
+    const totalPnl = bot.total_profit ?? bot.pnl;
+    const rate = bot.profit_rate ?? bot.pnl_rate;
+
+    const realizedPnl = (
+      bot.realized_pnl
+      ?? bot.grid_profit
+    );
+
+    const totalNumber = numericValue(totalPnl);
+    const realizedNumber = numericValue(realizedPnl);
+
+    const unrealizedPnl = hasValue(bot.floating_pnl)
+      ? bot.floating_pnl
+      : (
+        totalNumber !== null
+        && realizedNumber !== null
+          ? totalNumber - realizedNumber
+          : null
+      );
+
+    const apr = annualizedAprPct(
+      rate,
+      bot.runtime_seconds,
+    );
+
     return `<tr>
-      <td class="strategy-cell"><strong>${escapeHtml(bot.strategy_name)}</strong><small>${escapeHtml(bot.market)} · ${strategyLabel(bot.strategy_type)}</small></td>
-      <td><span class="account-badge">${escapeHtml(bot.account_name)}</span></td>
-      <td><span class="status-badge ${escapeHtml(bot.status)}">${escapeHtml(bot.status)}</span></td>
-      <td>${fmtMoney(bot.invest_amount)}</td><td>${fmtMoney(bot.current_value)}</td>
-      <td class="${valueClass(pnl)}">${fmtMoney(pnl)}</td><td class="${valueClass(roi)}">${fmtPct(roi)}</td>
-      <td class="${valueClass(bot.grid_profit)}">${fmtMoney(bot.grid_profit)}</td><td>${fmtDuration(bot.runtime_seconds)}</td>
-      <td><button class="row-button" data-bot-id="${bot.id}">Details →</button></td></tr>`;
+      <td class="strategy-cell">
+        <strong>${escapeHtml(bot.strategy_name)}</strong>
+        <small>
+          ${escapeHtml(bot.market)}
+          · ${strategyLabel(bot.strategy_type)}
+        </small>
+      </td>
+      <td>
+        <span class="account-badge">
+          ${escapeHtml(bot.account_name)}
+        </span>
+      </td>
+      <td>
+        <span class="status-badge ${escapeHtml(bot.status)}">
+          ${escapeHtml(bot.status)}
+        </span>
+      </td>
+      <td>${fmtMoney(bot.invest_amount)}</td>
+      <td>${fmtMoney(bot.current_value)}</td>
+      <td class="${valueClass(totalPnl)}">
+        ${fmtMoney(totalPnl)}
+      </td>
+      <td class="${valueClass(realizedPnl)}">
+        ${fmtMoney(realizedPnl)}
+      </td>
+      <td class="${valueClass(unrealizedPnl)}">
+        ${fmtMoney(unrealizedPnl)}
+      </td>
+      <td class="${valueClass(rate)}">
+        ${fmtRatioPct(rate)}
+      </td>
+      <td class="${valueClass(apr)}">
+        ${fmtPct(apr)}
+      </td>
+      <td>${fmtNumber(bot.arbitrage_count, 0)}</td>
+      <td>${fmtDuration(bot.runtime_seconds)}</td>
+      <td>
+        <button
+          class="row-button"
+          data-bot-id="${bot.id}"
+        >Details →</button>
+      </td>
+    </tr>`;
   }).join('');
-  $('#botsEmpty').classList.toggle('hidden', state.filteredBots.length > 0);
+
+  $('#botsEmpty').classList.toggle(
+    'hidden',
+    state.filteredBots.length > 0,
+  );
 }
 
 function renderOverviewAlerts() {
@@ -1440,14 +1539,100 @@ function renderBotDialog(detail, history) {
   const bot = detail.bot;
   $('#dialogTitle').textContent = bot.strategy_name;
   $('#dialogSubtitle').textContent = `${bot.account_name} · ${bot.market} · ${strategyLabel(bot.strategy_type)} · ${bot.strategy_id}`;
+  const totalPnl = bot.total_profit ?? bot.pnl;
+  const rate = bot.profit_rate ?? bot.pnl_rate;
+
+  const realizedPnl = (
+    bot.realized_pnl
+    ?? bot.grid_profit
+  );
+
+  const totalPnlNumber = numericValue(totalPnl);
+  const realizedPnlNumber = numericValue(realizedPnl);
+
+  const unrealizedPnl = hasValue(bot.floating_pnl)
+    ? bot.floating_pnl
+    : (
+      totalPnlNumber !== null
+      && realizedPnlNumber !== null
+        ? totalPnlNumber - realizedPnlNumber
+        : null
+    );
+
+  const annualizedApr = annualizedAprPct(
+    rate,
+    bot.runtime_seconds,
+  );
+
   const stats = [
-    ['Invested', fmtMoney(bot.invest_amount), null], ['Current value', fmtMoney(bot.current_value), bot.total_profit],
-    ['Total PnL', fmtMoney(bot.total_profit ?? bot.pnl), bot.total_profit ?? bot.pnl], ['ROI', fmtPct(bot.profit_rate ?? bot.pnl_rate), bot.profit_rate ?? bot.pnl_rate],
-    ['Grid profit', fmtMoney(bot.grid_profit), bot.grid_profit], ['Floating PnL', fmtMoney(bot.floating_pnl), bot.floating_pnl],
-    ['Arbitrages', fmtNumber(bot.arbitrage_count,0), null], ['Runtime', fmtDuration(bot.runtime_seconds), null],
-    ['Max drawdown', fmtPct(history.analytics?.max_drawdown_pct), -(history.analytics?.max_drawdown_pct || 0)], ['Status', bot.status, null],
+    [
+      'Invested',
+      fmtMoney(bot.invest_amount),
+      null,
+    ],
+    [
+      'Current value',
+      fmtMoney(bot.current_value),
+      totalPnl,
+    ],
+    [
+      'Total PnL',
+      fmtMoney(totalPnl),
+      totalPnl,
+    ],
+    [
+      'Realized PnL',
+      fmtMoney(realizedPnl),
+      realizedPnl,
+    ],
+    [
+      'Unrealized PnL',
+      fmtMoney(unrealizedPnl),
+      unrealizedPnl,
+    ],
+    [
+      'ROI',
+      fmtRatioPct(rate),
+      rate,
+    ],
+    [
+      'Annualized APR',
+      fmtPct(annualizedApr),
+      annualizedApr,
+    ],
+    [
+      'Trades / cycles',
+      fmtNumber(bot.arbitrage_count, 0),
+      null,
+    ],
+    [
+      'Runtime',
+      fmtDuration(bot.runtime_seconds),
+      null,
+    ],
+    [
+      'Max drawdown',
+      fmtPct(history.analytics?.max_drawdown_pct),
+      -(history.analytics?.max_drawdown_pct || 0),
+    ],
+    [
+      'Status',
+      bot.status,
+      null,
+    ],
   ];
-  $('#botDetailMetrics').innerHTML = stats.map(([label,value,cls]) => `<div class="detail-stat"><span>${label}</span><strong class="${cls === null ? '' : valueClass(cls)}">${escapeHtml(value)}</strong></div>`).join('');
+
+  $('#botDetailMetrics').innerHTML = stats
+    .map(([label, value, cls]) => (
+      `<div class="detail-stat">`
+      + `<span>${label}</span>`
+      + `<strong class="${
+        cls === null ? '' : valueClass(cls)
+      }">${escapeHtml(value)}</strong>`
+      + `</div>`
+    ))
+    .join('');
+
   $('#drawdownSummary').textContent = `Max ${fmtPct(history.analytics?.max_drawdown_pct)} · Current ${fmtPct(history.analytics?.current_drawdown_pct)} · Peak ${fmtMoney(history.analytics?.peak_value)}`;
   const {
     base: baseAsset,
@@ -1712,7 +1897,7 @@ async function stopCurrentBot() {
 }
 
 function exportCsv() {
-  const headers = ['account_id','account_name','strategy_id','strategy_name','strategy_type','market','status','invest_amount','current_value','total_profit','profit_rate','grid_profit','floating_pnl','runtime_seconds','last_seen_at'];
+  const headers = ['account_id','account_name','strategy_id','strategy_name','strategy_type','market','status','invest_amount','current_value','total_profit','profit_rate','realized_pnl','grid_profit','floating_pnl','arbitrage_count','runtime_seconds','last_seen_at'];
   const quote = value => `"${String(value ?? '').replaceAll('"','""')}"`;
   const rows = [headers.join(','), ...state.filteredBots.map(bot => headers.map(key => quote(bot[key])).join(','))];
   const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' });

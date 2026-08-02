@@ -70,3 +70,41 @@ def test_spot_position_value_is_derived_from_amount_and_entry_price() -> None:
         "320.27785466918"
     )
 
+
+
+def test_spot_grid_derives_realized_and_unrealized_pnl() -> None:
+    item = {
+        "strategy_id": "5264184",
+        "strategy_type": "spot_grid",
+        "strategy_name": "EQTY/USDT Spot Grid",
+        "market": "EQTY_USDT",
+        "status": "running",
+        "pnl": "4.3872257246",
+        "pnl_rate": "0.008774",
+        "invest_amount": "500",
+    }
+
+    detail = {
+        "strategy_id": "5264184",
+        "strategy_type": "spot_grid",
+        "market": "EQTY_USDT",
+        "status": "running",
+        "base_info": {
+            "total_profit": "4.3872257246",
+            "profit_rate": "0.008774",
+        },
+        "metrics": {
+            "grid_profit": "0",
+            "floating_pnl": "",
+            "arbitrage_count": 10,
+        },
+    }
+
+    bot = normalize_bot(item, detail)
+
+    assert bot.grid_profit == Decimal("0")
+    assert bot.realized_pnl == Decimal("0")
+    assert bot.floating_pnl == Decimal(
+        "4.3872257246"
+    )
+    assert bot.arbitrage_count == 10

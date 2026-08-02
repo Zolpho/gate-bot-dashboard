@@ -73,7 +73,12 @@ def _bot_metric(session: Session, bot: Bot, metric: str, now: datetime) -> Decim
     if metric == "pnl":
         return bot.total_profit if bot.total_profit is not None else bot.pnl
     if metric == "pnl_rate":
-        return bot.profit_rate if bot.profit_rate is not None else bot.pnl_rate
+        rate = (
+            bot.profit_rate
+            if bot.profit_rate is not None
+            else bot.pnl_rate
+        )
+        return rate * Decimal("100") if rate is not None else None
     if metric == "floating_pnl":
         return bot.floating_pnl
     if metric == "current_value":

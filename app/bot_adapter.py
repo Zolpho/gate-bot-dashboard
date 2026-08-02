@@ -213,6 +213,40 @@ def normalize_bot(list_item: Mapping[str, Any], detail: Mapping[str, Any] | None
     ):
         position_value = position_amount * entry_price
 
+    grid_profit = decimal_or_none(
+        pick(metrics, "grid_profit")
+    )
+
+    floating_pnl = decimal_or_none(
+        pick(
+            metrics,
+            "floating_pnl",
+            "unrealized_pnl",
+            "unrealised_pnl",
+        )
+    )
+
+    realized_pnl = decimal_or_none(
+        pick(
+            metrics,
+            "realized_pnl",
+            "realised_pnl",
+        )
+    )
+
+    # Gate Spot Grid calls grid_profit the realized PnL in its web UI.
+    # The Bot API may leave both realized_pnl and floating_pnl empty.
+    if strategy_type == "spot_grid":
+        if realized_pnl is None:
+            realized_pnl = grid_profit
+
+        if (
+            floating_pnl is None
+            and total_profit is not None
+            and realized_pnl is not None
+        ):
+            floating_pnl = total_profit - realized_pnl
+
     normalized = NormalizedBot(
         strategy_id=strategy_id,
         strategy_type=strategy_type,
@@ -225,9 +259,9 @@ def normalize_bot(list_item: Mapping[str, Any], detail: Mapping[str, Any] | None
         pnl_rate=list_pnl_rate if list_pnl_rate is not None else profit_rate,
         total_profit=total_profit,
         profit_rate=profit_rate,
-        grid_profit=decimal_or_none(pick(metrics, "grid_profit")),
-        floating_pnl=decimal_or_none(pick(metrics, "floating_pnl", "unrealized_pnl", "unrealised_pnl")),
-        realized_pnl=decimal_or_none(pick(metrics, "realized_pnl", "realised_pnl")),
+        grid_profit=grid_profit,
+        floating_pnl=floating_pnl,
+        realized_pnl=realized_pnl,
         current_value=current_value,
         arbitrage_count=int_or_none(pick(metrics, "arbitrage_count", "arbitrage_times")),
         grid_count=int_or_none(pick(metrics, "grid_count", "grids")),
