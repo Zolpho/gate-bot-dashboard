@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .alerts import seed_default_rules
-from .api import alerts, auth, bots, dashboard, system
+from .api import alerts, auth, bots, dashboard, me, system
 from .collector import collector
 from .config import get_settings
 from .db import init_db, session_scope
@@ -83,6 +83,7 @@ app.include_router(bots.router)
 app.include_router(alerts.router)
 app.include_router(system.router)
 app.include_router(auth.router)
+app.include_router(me.router)
 
 # Keep this last so /api routes take precedence.
 app.mount("/", StaticFiles(directory=str(settings.frontend_dir), html=True), name="frontend")

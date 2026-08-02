@@ -287,6 +287,24 @@ class GateClient:
             json_body={"strategy_id": strategy_id, "strategy_type": strategy_type},
         )
 
+    async def get_total_balance(self, currency: str = "USDT") -> GateResponse:
+        return await self.request(
+            "GET",
+            "/wallet/total_balance",
+            params={"currency": currency.upper()},
+        )
+
+    async def list_spot_accounts(self) -> GateResponse:
+        return await self.request("GET", "/spot/accounts")
+
+    async def list_spot_tickers(self, currency_pair: str | None = None) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/spot/tickers",
+            params={"currency_pair": currency_pair},
+            signed=False,
+        )
+
     async def account_snapshot(self) -> dict[str, Any]:
         results: dict[str, Any] = {}
         calls = {

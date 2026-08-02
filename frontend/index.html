@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0b1110">
   <title>Gate Bot Dashboard</title>
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./private-balance.css">
 </head>
 <body>
   <div class="app-shell">
@@ -35,7 +36,7 @@
           <button class="button secondary" id="refreshButton">Refresh</button>
           <span class="admin-identity hidden" id="adminIdentity"></span>
           <button class="button secondary hidden" id="changePasswordButton">Change password</button>
-          <button class="button secondary" id="adminButton">Admin unlock</button>
+          <button class="button secondary" id="adminButton">Account login</button>
           <button class="button primary" id="syncButton">Sync Gate</button>
         </div>
       </header>
@@ -49,6 +50,71 @@
           <article class="metric-card"><span>Total PnL</span><strong id="totalPnl">—</strong><small id="totalRoi">—</small></article>
           <article class="metric-card"><span>Grid / floating</span><strong id="gridProfit">—</strong><small id="floatingPnl">—</small></article>
         </div>
+
+        <article class="panel private-balance-panel hidden" id="privateBalancePanel">
+          <div class="panel-header private-balance-header">
+            <div>
+              <div class="private-balance-title-row">
+                <h2>My subaccount balance</h2>
+                <span class="private-badge">Private account data</span>
+              </div>
+              <p id="privateBalanceSubtitle">Sign in to view your Gate subaccount balances.</p>
+            </div>
+            <button class="button secondary" id="refreshPrivateBalance">Refresh balance</button>
+          </div>
+
+          <div id="privateBalanceLoading" class="private-balance-message hidden">Loading private Gate balances…</div>
+          <div id="privateBalanceError" class="private-balance-message error hidden" role="alert"></div>
+          <div id="privateBalanceSelect" class="private-balance-message hidden">Select one of your assigned accounts above to view its private balance.</div>
+
+          <div id="privateBalanceContent" class="hidden">
+            <div class="private-balance-grid">
+              <section class="private-balance-card">
+                <span>Total account value</span>
+                <strong id="privateTotalValue">—</strong>
+                <small id="privateTotalNote">Gate wallet estimate</small>
+              </section>
+              <section class="private-balance-card">
+                <span>Spot USDT</span>
+                <strong id="privateUsdtTotal">—</strong>
+                <small id="privateUsdtNote">—</small>
+              </section>
+              <section class="private-balance-card">
+                <span>Spot EQTY</span>
+                <strong id="privateEqtyTotal">—</strong>
+                <small id="privateEqtyNote">—</small>
+              </section>
+              <section class="private-balance-card">
+                <span>Funds in Gate bots</span>
+                <strong id="privateQuantValue">—</strong>
+                <small id="privateQuantNote">Gate quant account</small>
+              </section>
+              <section class="private-balance-card">
+                <span>Other spot tokens</span>
+                <strong id="privateOtherValue">—</strong>
+                <small id="privateOtherNote">—</small>
+              </section>
+            </div>
+
+            <div class="private-balance-meta">
+              <span id="privateBalanceUpdated">—</span>
+              <span id="privateBalanceCoverage">—</span>
+            </div>
+
+            <div id="privateAccountBreakdown" class="private-account-breakdown"></div>
+
+            <details class="private-assets-details">
+              <summary>View spot asset details</summary>
+              <div class="table-scroll">
+                <table class="private-assets-table">
+                  <thead><tr><th>Asset</th><th>Available</th><th>Locked</th><th>Total</th><th>Price USDT</th><th>Value USDT</th></tr></thead>
+                  <tbody id="privateAssetsBody"></tbody>
+                </table>
+              </div>
+              <p class="private-balance-footnote">Token quantities are spot-account balances. Gate bot funds are shown separately as the quant-account value and are not added twice.</p>
+            </details>
+          </div>
+        </article>
 
         <div class="dashboard-grid wide-left">
           <article class="panel chart-panel">
@@ -159,11 +225,11 @@
 
 
   <dialog id="adminDialog" class="small-dialog">
-    <div class="dialog-header"><div><h2>Unlock account actions</h2><p>Credentials stay in memory until this page is refreshed or locked.</p></div><button class="icon-button" id="closeAdminDialog" aria-label="Close">×</button></div>
+    <div class="dialog-header"><div><h2>Account login</h2><p>Credentials stay in memory until this page is refreshed or locked.</p></div><button class="icon-button" id="closeAdminDialog" aria-label="Close">×</button></div>
     <form id="adminForm" class="form-grid">
       <label class="full">Username<input name="username" autocomplete="username" required maxlength="64" placeholder="zolnode"></label>
       <label class="full">Password<input name="password" type="password" autocomplete="current-password" required></label>
-      <p class="full admin-help">Account operators can change only bots and alert items belonging to their assigned Gate account.</p>
+      <p class="full admin-help">Your login reveals private balances and authorizes actions only for assigned Gate accounts.</p>
       <p id="adminError" class="full form-error hidden" role="alert" aria-live="assertive"></p>
       <div class="form-actions full"><button type="button" class="button secondary" id="cancelAdmin">Cancel</button><button type="submit" class="button primary" id="adminSubmitButton">Unlock</button></div>
     </form>

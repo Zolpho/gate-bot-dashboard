@@ -55,6 +55,21 @@ def test_public_dashboard_and_account_scoped_actions() -> None:
         assert me.status_code == 200
         assert me.json()["user"]["account_ids"] == ["zolnode"]
 
+        assert client.get("/api/me/balance").status_code == 401
+        own_balance = client.get("/api/me/balance", headers=zolnode_headers)
+        assert own_balance.status_code == 200
+        own_balance_json = own_balance.json()
+        assert own_balance_json["account_id"] == "zolnode"
+        assert own_balance_json["authorized_user"]["username"] == "zolnode"
+        assert own_balance_json["bot_allocation"]["running_bots"] >= 1
+        assert own_balance_json["total_value"] >= own_balance_json["bot_allocation"]["current_value"]
+
+        forbidden_balance = client.get(
+            "/api/me/balance?account_id=arnold",
+            headers=zolnode_headers,
+        )
+        assert forbidden_balance.status_code == 403
+
         own_raw = client.get(f"/api/bots/{zolnode_bot['id']}/raw", headers=zolnode_headers)
         assert own_raw.status_code == 200
         assert "raw_detail" in own_raw.json()["bot"]

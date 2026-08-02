@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     gate_bot_page_size: int = 50
     gate_details_concurrency: int = 4
     gate_account_concurrency: int = 4
+    balance_cache_seconds: int = 30
+    balance_dust_usdt: float = 0.01
 
     poll_seconds: int = 60
     stale_after_minutes: int = 5
@@ -87,6 +89,16 @@ class Settings(BaseSettings):
     @classmethod
     def validate_dashboard_users_backup_keep(cls, value: int) -> int:
         return max(1, min(value, 100))
+
+    @field_validator("balance_cache_seconds")
+    @classmethod
+    def validate_balance_cache_seconds(cls, value: int) -> int:
+        return max(0, min(value, 300))
+
+    @field_validator("balance_dust_usdt")
+    @classmethod
+    def validate_balance_dust_usdt(cls, value: float) -> float:
+        return max(0.0, min(value, 100.0))
 
     @field_validator("poll_seconds")
     @classmethod

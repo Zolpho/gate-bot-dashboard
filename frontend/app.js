@@ -37,6 +37,9 @@ const state = {
   selectedAccount: '',
   adminAuthorization: '',
   adminUser: null,
+  privateBalance: null,
+  privateBalanceAccountId: '',
+  privateBalanceFetchedAt: 0,
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -77,7 +80,7 @@ async function api(path, options = {}) {
 function adminApi(path, options = {}) {
   if (!state.adminAuthorization) {
     openAdminDialog();
-    throw new ApiError('Unlock account actions first.', 401, {});
+    throw new ApiError('Sign in to your account first.', 401, {});
   }
   return api(path, {
     ...options,
@@ -157,16 +160,18 @@ function renderAdminState() {
   const identity = $('#adminIdentity');
   const changePasswordButton = $('#changePasswordButton');
   if (state.adminUser) {
-    button.textContent = 'Lock admin';
+    button.textContent = 'Lock account';
     identity.textContent = `${state.adminUser.username} · ${state.adminUser.role.replace('_', ' ')}`;
     identity.classList.remove('hidden');
     changePasswordButton.classList.toggle('hidden', state.adminUser.auth_source !== 'file');
   } else {
-    button.textContent = 'Admin unlock';
+    button.textContent = 'Account login';
     identity.textContent = '';
     identity.classList.add('hidden');
     changePasswordButton.classList.add('hidden');
   }
+  if (state.adminUser) $('#privateBalancePanel')?.classList.remove('hidden');
+  else clearPrivateBalance();
   populateFilterOptions(state.botFilters);
   renderAlerts();
   if (state.currentBotData?.bot) updateBotAdminControls(state.currentBotData.bot);
@@ -176,11 +181,12 @@ function lockAdmin(showMessage = true) {
   state.adminAuthorization = '';
   state.adminUser = null;
   state.currentRawData = null;
+  clearPrivateBalance();
   const passwordDialog = $('#changePasswordDialog');
   if (passwordDialog?.open) passwordDialog.close();
   renderAdminState();
   renderBotRaw();
-  if (showMessage) showToast('Admin actions locked.');
+  if (showMessage) showToast('Account session locked.');
 }
 
 async function unlockAdmin(event) {
@@ -206,7 +212,8 @@ async function unlockAdmin(event) {
     formElement.reset();
     $('#adminDialog').close();
     renderAdminState();
-    showToast(`Unlocked for ${result.user.username}.`);
+    showToast(`Signed in as ${result.user.username}.`);
+    await loadPrivateBalance({ force: true, quiet: true });
     if (state.currentBotData?.bot && canManageAccount(state.currentBotData.bot.account_id)) {
       await loadCurrentBotRaw();
     }
@@ -354,6 +361,145 @@ function withParams(path, params = {}) {
 
 function scopedPath(path, params = {}) {
   return withParams(path, { ...params, account_id: state.selectedAccount || undefined });
+}
+
+function privateBalanceTargetAccount() {
+  const user = state.adminUser;
+  if (!user) return '';
+  if (state.selectedAccount && canManageAccount(state.selectedAccount)) return state.selectedAccount;
+  const assigned = user.account_ids || [];
+  if (assigned.length === 1) return assigned[0];
+  return '';
+}
+
+function clearPrivateBalance() {
+  state.privateBalance = null;
+  state.privateBalanceAccountId = '';
+  state.privateBalanceFetchedAt = 0;
+  $('#privateBalancePanel')?.classList.add('hidden');
+  $('#privateBalanceContent')?.classList.add('hidden');
+  $('#privateBalanceLoading')?.classList.add('hidden');
+  $('#privateBalanceError')?.classList.add('hidden');
+  $('#privateBalanceSelect')?.classList.add('hidden');
+  if ($('#privateAssetsBody')) $('#privateAssetsBody').innerHTML = '';
+  if ($('#privateAccountBreakdown')) $('#privateAccountBreakdown').innerHTML = '';
+}
+
+function setPrivateBalanceView(view, message = '') {
+  const panel = $('#privateBalancePanel');
+  if (!panel) return;
+  panel.classList.toggle('hidden', !state.adminUser);
+  $('#privateBalanceLoading').classList.toggle('hidden', view !== 'loading');
+  $('#privateBalanceError').classList.toggle('hidden', view !== 'error');
+  $('#privateBalanceSelect').classList.toggle('hidden', view !== 'select');
+  $('#privateBalanceContent').classList.toggle('hidden', view !== 'content');
+  if (view === 'error') $('#privateBalanceError').textContent = message;
+  if (view === 'select' && message) $('#privateBalanceSelect').textContent = message;
+}
+
+function fmtAssetQuantity(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+  const absolute = Math.abs(Number(value));
+  const digits = absolute >= 1_000_000 ? 0 : absolute >= 1_000 ? 2 : absolute >= 1 ? 4 : 8;
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(Number(value));
+}
+
+function renderPrivateBalance() {
+  const data = state.privateBalance;
+  if (!state.adminUser || !data) return;
+
+  const summary = data.summary || {};
+  const usdt = summary.usdt || {};
+  const eqty = summary.eqty || {};
+  const bot = data.bot_allocation || {};
+  const quantValue = data.quant_value ?? bot.current_value;
+
+  $('#privateBalanceSubtitle').textContent = `Private · ${data.display_name} (${data.account_id})`;
+  $('#privateTotalValue').textContent = fmtMoney(data.total_value);
+  $('#privateTotalNote').textContent = data.source === 'demo'
+    ? 'Demo account estimate'
+    : 'Gate wallet estimate · may be cached up to 1 minute';
+
+  $('#privateUsdtTotal').textContent = `${fmtAssetQuantity(usdt.total || 0)} USDT`;
+  $('#privateUsdtNote').textContent = `${fmtAssetQuantity(usdt.available || 0)} available · ${fmtAssetQuantity(usdt.locked || 0)} locked`;
+
+  $('#privateEqtyTotal').textContent = `${fmtAssetQuantity(eqty.total || 0)} EQTY`;
+  $('#privateEqtyNote').textContent = eqty.value_usdt === null || eqty.value_usdt === undefined
+    ? 'No direct USDT valuation available'
+    : `${fmtMoney(eqty.value_usdt)} · ${fmtMoney(eqty.price_usdt, 8)} per EQTY`;
+
+  $('#privateQuantValue').textContent = fmtMoney(quantValue);
+  $('#privateQuantNote').textContent = `${bot.running_bots || 0} running · tracked ${fmtMoney(bot.current_value)} current / ${fmtMoney(bot.initial_capital)} initial`;
+
+  $('#privateOtherValue').textContent = fmtMoney(summary.other_value || 0);
+  $('#privateOtherNote').textContent = `${summary.other_count || 0} non-zero token${Number(summary.other_count || 0) === 1 ? '' : 's'}`;
+
+  $('#privateBalanceUpdated').textContent = `Updated ${fmtDate(data.as_of)}${data.cache?.hit ? ' · cached' : ''}`;
+  $('#privateBalanceCoverage').textContent = `${(data.assets || []).length} non-zero spot assets · ${summary.unvalued_count || 0} without USDT price`;
+
+  const breakdown = data.account_breakdown || [];
+  $('#privateAccountBreakdown').innerHTML = breakdown.length
+    ? breakdown.map(item => `<span class="private-account-chip"><span>${escapeHtml(String(item.account_type).replaceAll('_', ' '))}</span><strong>${fmtMoney(item.amount)}</strong></span>`).join('')
+    : '<span class="private-account-chip">No Gate account-type breakdown returned</span>';
+
+  const assets = data.assets || [];
+  $('#privateAssetsBody').innerHTML = assets.length
+    ? assets.map(asset => `<tr>
+        <td><strong>${escapeHtml(asset.currency)}</strong>${asset.is_dust ? ' <span class="status-badge">dust</span>' : ''}</td>
+        <td>${fmtAssetQuantity(asset.available)}</td>
+        <td>${fmtAssetQuantity(asset.locked)}</td>
+        <td>${fmtAssetQuantity(asset.total)}</td>
+        <td>${asset.price_usdt === null || asset.price_usdt === undefined ? '—' : fmtAssetQuantity(asset.price_usdt)}</td>
+        <td>${asset.value_usdt === null || asset.value_usdt === undefined ? '—' : fmtMoney(asset.value_usdt)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="6" class="empty-state">No non-zero spot assets returned.</td></tr>';
+
+  setPrivateBalanceView('content');
+}
+
+async function loadPrivateBalance({ force = false, quiet = false } = {}) {
+  if (!state.adminUser || !state.adminAuthorization) {
+    clearPrivateBalance();
+    return;
+  }
+
+  const accountId = privateBalanceTargetAccount();
+  $('#privateBalancePanel').classList.remove('hidden');
+  if (!accountId) {
+    state.privateBalance = null;
+    setPrivateBalanceView('select', 'Select one of your assigned accounts above to view its private balance.');
+    return;
+  }
+
+  const freshClientCache = state.privateBalance
+    && state.privateBalanceAccountId === accountId
+    && Date.now() - state.privateBalanceFetchedAt < 25_000;
+  if (!force && freshClientCache) {
+    renderPrivateBalance();
+    return;
+  }
+
+  const button = $('#refreshPrivateBalance');
+  button.disabled = true;
+  button.textContent = 'Loading…';
+  setPrivateBalanceView('loading');
+
+  try {
+    const result = await adminApi(withParams('/api/me/balance', {
+      account_id: accountId,
+      refresh: force ? 'true' : undefined,
+    }));
+    state.privateBalance = result;
+    state.privateBalanceAccountId = accountId;
+    state.privateBalanceFetchedAt = Date.now();
+    renderPrivateBalance();
+  } catch (error) {
+    if (state.adminUser) setPrivateBalanceView('error', error.message || 'Unable to load the private account balance.');
+    if (!quiet && state.adminUser) showToast(error.message || 'Unable to load private balance.', true);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Refresh balance';
+  }
 }
 
 function switchTab(tab) {
@@ -605,7 +751,7 @@ function renderSystem() {
     ['Poll interval', `${health.poll_seconds}s`], ['History retention', `${health.snapshot_retention_days} days`],
     ['Stop action', health.allow_bot_stop ? 'Enabled' : 'Disabled'],
     ['Action users', health.action_auth?.enabled_user_count ?? 0],
-    ['Admin session', state.adminUser ? `${state.adminUser.username} (${state.adminUser.role})` : 'Locked'],
+    ['Account session', state.adminUser ? `${state.adminUser.username} (${state.adminUser.role})` : 'Locked'],
   ];
   if (health.account_config_error) details.push(['Account config error', health.account_config_error]);
   if (health.user_config_error) details.push(['User config error', health.user_config_error]);
@@ -640,6 +786,7 @@ async function loadCore() {
     populateAccountSelector(overviewData.accounts || []);
     populateFilterOptions(botData.filters);
     applyBotFilters(); renderOverview(); renderAlerts(); renderSystem();
+    if (state.adminUser) await loadPrivateBalance({ quiet: true });
   } catch (error) {
     $('#connectionDot').className = 'offline'; $('#connectionText').textContent = 'API unavailable';
     showToast(error.message, true);
@@ -657,6 +804,7 @@ async function syncNow() {
     const scope = result.requested_account_id || state.selectedAccount || 'authorized account(s)';
     showToast(result.status === 'skipped' ? 'A sync is already running.' : `Sync complete for ${scope}: ${result.bot_count ?? 0} bots`);
     await loadCore();
+    await loadPrivateBalance({ force: true, quiet: true });
   } catch (error) { showToast(error.message, true); }
   finally { button.disabled = false; button.textContent = 'Sync Gate'; }
 }
@@ -808,7 +956,7 @@ async function createRule(event) {
 
 async function inspectEndpoint(endpoint) {
   const inspector = $('#apiInspector'); inspector.textContent = 'Loading…';
-  if (!state.adminUser) { openAdminDialog(); inspector.textContent = 'Unlock account actions first.'; return; }
+  if (!state.adminUser) { openAdminDialog(); inspector.textContent = 'Sign in to your account first.'; return; }
   try { inspector.textContent = JSON.stringify(await adminApi(endpoint), null, 2); }
   catch (error) { inspector.textContent = error.message; showToast(error.message, true); }
 }
@@ -817,6 +965,7 @@ function bindEvents() {
   $$('.nav-item').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
   $$('[data-jump]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.jump)));
   $('#refreshButton').addEventListener('click', loadCore); $('#syncButton').addEventListener('click', syncNow);
+  $('#refreshPrivateBalance').addEventListener('click', () => loadPrivateBalance({ force: true }));
   $('#accountSelector').addEventListener('change', event => { state.selectedAccount = event.target.value; loadCore(); });
   $('#historyRange').addEventListener('change', loadCore);
   ['#botSearch','#statusFilter','#typeFilter','#marketFilter','#sortFilter'].forEach(selector => $(selector).addEventListener(selector === '#botSearch' ? 'input' : 'change', applyBotFilters));
