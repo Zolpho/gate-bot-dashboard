@@ -42,6 +42,20 @@ GitHub stores source code only. These stay on Ubuntu and are ignored by Git:
 - SQLite database and backups
 - probe output
 
+## Documentation
+
+Detailed project documentation is available in [`docs/`](docs/):
+
+| Document | Purpose |
+|---|---|
+| [`API_CAPABILITIES.md`](docs/API_CAPABILITIES.md) | Gate bot API endpoints, tested capabilities, and current limitations |
+| [`SECURITY.md`](docs/SECURITY.md) | Secret handling, API-key isolation, CORS, reverse-proxy, and deployment security |
+| [`UPGRADE_MULTI_ACCOUNT.md`](docs/UPGRADE_MULTI_ACCOUNT.md) | Migration from the original single-account setup to multiple Gate accounts |
+| [`UPGRADE_ACCOUNT_SCOPED_AUTH.md`](docs/UPGRADE_ACCOUNT_SCOPED_AUTH.md) | Public monitoring with authenticated, account-scoped administrative actions |
+| [`ONBOARD_GATE_SUBACCOUNT.md`](docs/ONBOARD_GATE_SUBACCOUNT.md) | Complete onboarding of an existing Gate subaccount, its API key, and its dashboard user |
+
+For a newly created Gate subaccount, start with [`ONBOARD_GATE_SUBACCOUNT.md`](docs/ONBOARD_GATE_SUBACCOUNT.md).
+
 ## Quick start in demo mode
 
 ```bash
@@ -178,6 +192,8 @@ The first live startup automatically:
 
 ## Safe API-key permissions
 
+For the complete setup and onboarding procedure, see [`docs/ONBOARD_GATE_SUBACCOUNT.md`](docs/ONBOARD_GATE_SUBACCOUNT.md).
+
 For monitoring, use a separate read-only key on each subaccount:
 
 - Bots: Read Only
@@ -192,6 +208,8 @@ For monitoring, use a separate read-only key on each subaccount:
 Keep `ALLOW_BOT_STOP=false`. A later Telegram management service should use separate narrowly scoped write-enabled keys rather than expanding these monitoring keys.
 
 ## Dashboard API
+
+See [`docs/API_CAPABILITIES.md`](docs/API_CAPABILITIES.md) for the detailed Gate API capability review.
 
 | Method | Route | Description |
 |---|---|---|
@@ -235,6 +253,8 @@ node --check frontend/app.js
 
 ## Public dashboard and account-scoped actions
 
+See [`docs/UPGRADE_ACCOUNT_SCOPED_AUTH.md`](docs/UPGRADE_ACCOUNT_SCOPED_AUTH.md) for the implementation and upgrade procedure.
+
 All normal monitoring `GET` routes are public so GitHub Pages can display the portfolio without a login. State-changing or sensitive routes require HTTP Basic credentials from `secrets/dashboard_users.json`.
 
 Each account operator is assigned one or more Gate account IDs. The backend loads the target bot or rule from SQLite and verifies its `account_id` against the authenticated user's assignments. A browser-supplied account ID is never trusted as proof of ownership.
@@ -275,6 +295,8 @@ The frontend keeps the Basic Authorization value only in JavaScript memory. It i
 Public routes include overview, bot lists, normalized bot details, history, alerts, and sync history. Protected routes include manual sync, raw Gate details, account snapshots, recommendations, alert mutations, and bot stop. `zolnode` receives `403 Forbidden` when attempting an action against an `arnold` resource, and vice versa.
 
 ## Security
+
+See [`docs/SECURITY.md`](docs/SECURITY.md) for the complete security guidance.
 
 - Gate API secrets and dashboard password hashes remain only on Ubuntu.
 - Public account representations omit Gate UID and internal error details.
