@@ -344,6 +344,132 @@ function fmtMoney(value, digits = 2) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value));
 }
 
+function hasValue(value) {
+  return value !== null
+    && value !== undefined
+    && value !== '';
+}
+
+function numericValue(value) {
+  if (!hasValue(value)) return null;
+
+  const number = Number(
+    String(value).replaceAll(',', '')
+  );
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function marketAssets(market) {
+  const parts = String(market || '')
+    .trim()
+    .toUpperCase()
+    .split(/[_\/-]/)
+    .filter(Boolean);
+
+  return {
+    base: parts[0] || '',
+    quote: parts.slice(1).join('_') || '',
+  };
+}
+
+function fmtPrice(value, quoteAsset = 'USD') {
+  const number = numericValue(value);
+  if (number === null) return '—';
+
+  const absolute = Math.abs(number);
+
+  let maximumDigits = 2;
+
+  if (absolute > 0 && absolute < 0.0001) {
+    maximumDigits = 10;
+  } else if (absolute < 0.01) {
+    maximumDigits = 8;
+  } else if (absolute < 1) {
+    maximumDigits = 6;
+  } else if (absolute < 100) {
+    maximumDigits = 4;
+  }
+
+  const formatted = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: maximumDigits,
+  }).format(number);
+
+  const quote = String(
+    quoteAsset || 'USD'
+  ).toUpperCase();
+
+  if (
+    ['USD', 'USDT', 'USDC', 'DAI'].includes(quote)
+  ) {
+    return `$${formatted}`;
+  }
+
+  return `${formatted} ${quote}`;
+}
+
+function fmtQuoteValue(value, quoteAsset = 'USD') {
+  const number = numericValue(value);
+  if (number === null) return '—';
+
+  const absolute = Math.abs(number);
+
+  const maximumDigits = (
+    absolute > 0 && absolute < 0.01
+      ? 8
+      : absolute < 1
+        ? 6
+        : 2
+  );
+
+  const formatted = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits,
+  }).format(number);
+
+  const quote = String(
+    quoteAsset || 'USD'
+  ).toUpperCase();
+
+  if (
+    ['USD', 'USDT', 'USDC', 'DAI'].includes(quote)
+  ) {
+    return `$${formatted}`;
+  }
+
+  return `${formatted} ${quote}`;
+}
+
+function fmtPriceRange(value, quoteAsset = 'USD') {
+  if (!value) return '—';
+
+  const match = String(value)
+    .trim()
+    .match(
+      /^([0-9.,]+)\s*[-–]\s*([0-9.,]+)$/
+    );
+
+  if (!match) return String(value);
+
+  return (
+    `${fmtPrice(match[1], quoteAsset)}`
+    + ` – ${fmtPrice(match[2], quoteAsset)}`
+  );
+}
+
+function sameNumericValue(left, right) {
+  const a = numericValue(left);
+  const b = numericValue(right);
+
+  if (a === null || b === null) return false;
+
+  return Math.abs(a - b) <= (
+    Math.max(1, Math.abs(a), Math.abs(b))
+    * 1e-12
+  );
+}
+
 function fmtNumber(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(Number(value));
@@ -1323,13 +1449,197 @@ function renderBotDialog(detail, history) {
   ];
   $('#botDetailMetrics').innerHTML = stats.map(([label,value,cls]) => `<div class="detail-stat"><span>${label}</span><strong class="${cls === null ? '' : valueClass(cls)}">${escapeHtml(value)}</strong></div>`).join('');
   $('#drawdownSummary').textContent = `Max ${fmtPct(history.analytics?.max_drawdown_pct)} · Current ${fmtPct(history.analytics?.current_drawdown_pct)} · Peak ${fmtMoney(history.analytics?.peak_value)}`;
+  const {
+    base: baseAsset,
+    quote: quoteAsset,
+  } = marketAssets(bot.market);
+
+  const leveragedStrategies = new Set([
+    'futures_grid',
+    'margin_grid',
+    'contract_martingale',
+  ]);
+
+  const isLeveraged = leveragedStrategies.has(
+    bot.strategy_type
+  );
+
+  const amountNumber = numericValue(
+    bot.position_amount
+  );
+
+  const entryNumber = numericValue(
+    bot.entry_price
+  );
+
+  const calculatedPositionValue = (
+    amountNumber !== null
+    && entryNumber !== null
+  )
+    ? amountNumber * entryNumber
+    : null;
+
+  const positionValue = hasValue(
+    bot.position_value
+  )
+    ? bot.position_value
+    : calculatedPositionValue;
+
   const definitions = [
-    ['Account', bot.account_name], ['Account ID', bot.account_id], ['Strategy ID', bot.strategy_id], ['Type', strategyLabel(bot.strategy_type)], ['Gate status', bot.source_status], ['Created', fmtDate(bot.created_at_gate)], ['Last seen', fmtDate(bot.last_seen_at)],
-    ['Price range', bot.price_range || '—'], ['Grid count', fmtNumber(bot.grid_count,0)], ['Finished rounds', fmtNumber(bot.finished_rounds,0)], ['Position side', bot.position_side || '—'],
-    ['Position amount', fmtNumber(bot.position_amount,8)], ['Entry price', fmtMoney(bot.entry_price)], ['Position value', fmtMoney(bot.position_value)], ['Margin', fmtMoney(bot.margin)],
-    ['Liquidation price', fmtMoney(bot.estimated_liquidation_price)], ['Maintenance margin', fmtPct(bot.maintenance_margin_ratio)], ['Stop supported', bot.stop_supported ? 'Yes' : 'No'],
+    ['Account', bot.account_name],
+    ['Account ID', bot.account_id],
+    ['Strategy ID', bot.strategy_id],
+    ['Type', strategyLabel(bot.strategy_type)],
+    ['Market', bot.market || '—'],
+    ['Gate status', bot.source_status],
+    ['Created', fmtDate(bot.created_at_gate)],
+    ['Last seen', fmtDate(bot.last_seen_at)],
   ];
-  $('#botDefinitionList').innerHTML = definitions.map(([k,v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('');
+
+  const addDefinition = (
+    label,
+    value,
+    present = true,
+  ) => {
+    if (present) {
+      definitions.push([label, value]);
+    }
+  };
+
+  addDefinition(
+    'Base asset',
+    baseAsset,
+    Boolean(baseAsset),
+  );
+
+  addDefinition(
+    'Quote asset',
+    quoteAsset,
+    Boolean(quoteAsset),
+  );
+
+  addDefinition(
+    'Price range',
+    fmtPriceRange(bot.price_range, quoteAsset),
+    Boolean(bot.price_range),
+  );
+
+  addDefinition(
+    'Grid count',
+    fmtNumber(bot.grid_count, 0),
+    hasValue(bot.grid_count),
+  );
+
+  addDefinition(
+    'Finished rounds',
+    fmtNumber(bot.finished_rounds, 0),
+    hasValue(bot.finished_rounds),
+  );
+
+  addDefinition(
+    'Position amount',
+    (
+      `${fmtNumber(bot.position_amount, 8)}`
+      + `${baseAsset ? ` ${baseAsset}` : ''}`
+    ),
+    hasValue(bot.position_amount),
+  );
+
+  addDefinition(
+    'Entry price',
+    fmtPrice(bot.entry_price, quoteAsset),
+    hasValue(bot.entry_price),
+  );
+
+  addDefinition(
+    'Position value',
+    fmtQuoteValue(positionValue, quoteAsset),
+    hasValue(positionValue),
+  );
+
+  addDefinition(
+    'Quote amount',
+    fmtQuoteValue(bot.quote_amount, quoteAsset),
+    (
+      hasValue(bot.quote_amount)
+      && !sameNumericValue(
+        bot.quote_amount,
+        positionValue,
+      )
+    ),
+  );
+
+  addDefinition(
+    'Average cost',
+    fmtPrice(bot.avg_cost, quoteAsset),
+    (
+      hasValue(bot.avg_cost)
+      && !sameNumericValue(
+        bot.avg_cost,
+        bot.entry_price,
+      )
+    ),
+  );
+
+  addDefinition(
+    'Price floor',
+    fmtPrice(bot.price_floor, quoteAsset),
+    hasValue(bot.price_floor),
+  );
+
+  addDefinition(
+    'Take-profit price',
+    fmtPrice(
+      bot.take_profit_price,
+      quoteAsset,
+    ),
+    hasValue(bot.take_profit_price),
+  );
+
+  if (isLeveraged) {
+    addDefinition(
+      'Position side',
+      bot.position_side,
+      Boolean(bot.position_side),
+    );
+
+    addDefinition(
+      'Margin',
+      fmtQuoteValue(bot.margin, quoteAsset),
+      hasValue(bot.margin),
+    );
+
+    addDefinition(
+      'Liquidation price',
+      fmtPrice(
+        bot.estimated_liquidation_price,
+        quoteAsset,
+      ),
+      hasValue(
+        bot.estimated_liquidation_price
+      ),
+    );
+
+    addDefinition(
+      'Maintenance margin',
+      fmtPct(bot.maintenance_margin_ratio),
+      hasValue(
+        bot.maintenance_margin_ratio
+      ),
+    );
+  }
+
+  definitions.push([
+    'Stop supported',
+    bot.stop_supported ? 'Yes' : 'No',
+  ]);
+
+  $('#botDefinitionList').innerHTML = definitions
+    .map(([key, value]) => (
+      `<dt>${escapeHtml(key)}</dt>`
+      + `<dd>${escapeHtml(value)}</dd>`
+    ))
+    .join('');
   state.currentRawKey = 'metrics';
   $$('.raw-tab').forEach(t => t.classList.toggle('active', t.dataset.raw === 'metrics'));
   renderBotRaw();

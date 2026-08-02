@@ -168,6 +168,51 @@ def normalize_bot(list_item: Mapping[str, Any], detail: Mapping[str, Any] | None
 
     market = str(pick(detail, "market") or pick(list_item, "market") or "")
 
+    position_amount = decimal_or_none(
+        pick(position, "amount", "size", "position_amount")
+    )
+    if position_amount is None:
+        position_amount = decimal_or_none(
+            pick(metrics, "position_amount", "position_size")
+        )
+
+    entry_price = decimal_or_none(
+        pick(position, "entry_price", "avg_entry_price")
+    )
+    if entry_price is None:
+        entry_price = decimal_or_none(
+            pick(metrics, "entry_price", "avg_entry_price")
+        )
+
+    quote_amount = decimal_or_none(
+        pick(position, "quote_amount", "quote_size")
+    )
+    if quote_amount is None:
+        quote_amount = decimal_or_none(
+            pick(metrics, "quote_amount", "quote_size")
+        )
+
+    position_value = decimal_or_none(
+        pick(position, "position_value", "value")
+    )
+    if position_value is None:
+        position_value = decimal_or_none(
+            pick(
+                metrics,
+                "position_value",
+                "position_value_usdt",
+            )
+        )
+
+    # Gate Spot Grid commonly returns amount and entry_price without
+    # an explicit position value. Decimal arithmetic avoids float loss.
+    if (
+        position_value is None
+        and position_amount is not None
+        and entry_price is not None
+    ):
+        position_value = position_amount * entry_price
+
     normalized = NormalizedBot(
         strategy_id=strategy_id,
         strategy_type=strategy_type,
@@ -199,10 +244,10 @@ def normalize_bot(list_item: Mapping[str, Any], detail: Mapping[str, Any] | None
             pick(metrics, "maintenance_margin_ratio", "maintenance_rate")
         ),
         position_side=str(pick(position, "side", "direction") or ""),
-        position_amount=decimal_or_none(pick(position, "amount", "size")),
-        quote_amount=decimal_or_none(pick(position, "quote_amount")),
-        entry_price=decimal_or_none(pick(position, "entry_price", "avg_entry_price")),
-        position_value=decimal_or_none(pick(position, "position_value", "value")),
+        position_amount=position_amount,
+        quote_amount=quote_amount,
+        entry_price=entry_price,
+        position_value=position_value,
         margin=decimal_or_none(pick(position, "margin")),
         stop_supported=bool(detail.get("stop_supported", False)),
         created_at_gate=parse_datetime(

@@ -34,3 +34,39 @@ def test_normalize_flexible_gate_maps() -> None:
     assert bot.grid_count == 20
     assert bot.position_side == "long"
     assert bot.stop_supported is True
+
+def test_spot_position_value_is_derived_from_amount_and_entry_price() -> None:
+    item = {
+        "strategy_id": "5264184",
+        "strategy_type": "spot_grid",
+        "strategy_name": "EQTY/USDT Spot Grid",
+        "market": "EQTY_USDT",
+        "status": "running",
+    }
+
+    detail = {
+        "strategy_id": "5264184",
+        "strategy_type": "spot_grid",
+        "market": "EQTY_USDT",
+        "status": "running",
+        "position": {
+            "amount": "177833.34518",
+            "entry_price": "0.001801",
+        },
+    }
+
+    bot = normalize_bot(item, detail)
+
+    assert bot.position_amount == Decimal(
+        "177833.34518"
+    )
+    assert bot.entry_price == Decimal(
+        "0.001801"
+    )
+    assert bot.position_value == Decimal(
+        "320.27785466918"
+    )
+    assert bot.to_jsonable()["position_value"] == (
+        "320.27785466918"
+    )
+
