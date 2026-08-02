@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,7 +18,22 @@ def main() -> None:
     if not source.exists():
         raise SystemExit(f"Database not found: {source}")
     directory = Path(args.directory)
+    try:
     directory.mkdir(parents=True, exist_ok=True)
+except PermissionError as exc:
+    raise SystemExit(
+        f"Cannot create backup directory {directory}. "
+        "Run this script inside Docker as the dashboard user."
+    ) from exc
+
+if not directory.is_dir():
+    raise SystemExit(f"Backup destination is not a directory: {directory}")
+
+if not os.access(directory, os.W_OK | os.X_OK):
+    raise SystemExit(
+        f"Backup directory is not writable: {directory}. "
+        "Use: docker compose exec --user dashboard ..."
+    )
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     destination = directory / f"gate_bots_{stamp}.db"
     with sqlite3.connect(source) as source_db, sqlite3.connect(destination) as backup_db:
