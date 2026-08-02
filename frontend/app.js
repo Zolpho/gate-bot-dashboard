@@ -46,6 +46,7 @@ const state = {
   depositNetworks: [],
   depositChain: '',
   depositDetails: null,
+  depositHistory: [],
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -837,6 +838,104 @@ async function copyDepositValue(kind) {
   );
 }
 
+function depositHistoryTargetAccount() {
+  return privateBalanceTargetAccount();
+}
+
+function depositStatusClass(status) {
+  return String(status || 'unknown').toLowerCase().replace(/_/g, '-');
+}
+
+function clearDepositHistory() {
+  state.depositHistory = [];
+  $('#depositHistoryBody') && ($('#depositHistoryBody').innerHTML = '');
+  $('#depositHistoryTableWrap')?.classList.add('hidden');
+  $('#depositHistoryEmpty')?.classList.add('hidden');
+  $('#depositHistoryError')?.classList.add('hidden');
+  if ($('#depositHistoryCount')) $('#depositHistoryCount').textContent = '0 records';
+  if ($('#depositHistorySyncState')) $('#depositHistorySyncState').textContent = 'Not synchronized yet';
+}
+
+function renderDepositHistory(payload) {
+  const items = payload.items || [];
+  state.depositHistory = items;
+  $('#depositHistoryBody').innerHTML = items.map(item => `
+    <tr>
+      <td>${escapeHtml(fmtDate(item.deposited_at))}</td>
+      <td><strong>${escapeHtml(item.currency)}</strong></td>
+      <td>${escapeHtml(item.chain || '—')}</td>
+      <td>${escapeHtml(item.amount)}</td>
+      <td><span class="deposit-status ${depositStatusClass(item.status)}">${escapeHtml(item.status)}</span></td>
+      <td>${item.txid ? `<code title="${escapeHtml(item.txid)}">${escapeHtml(item.txid)}</code>` : '—'}</td>
+    </tr>
+  `).join('');
+  $('#depositHistoryTableWrap').classList.toggle('hidden', !items.length);
+  $('#depositHistoryEmpty').classList.toggle('hidden', Boolean(items.length));
+  $('#depositHistoryCount').textContent = `${payload.total || 0} record${payload.total === 1 ? '' : 's'}`;
+  const sync = payload.sync || {};
+  const syncText = sync.last_success_at
+    ? `Last Gate sync ${fmtDate(sync.last_success_at)} · ${sync.status}`
+    : sync.last_error
+      ? `Sync error: ${sync.last_error}`
+      : 'Not synchronized yet';
+  $('#depositHistorySyncState').textContent = syncText;
+}
+
+async function loadDepositHistory({ quiet = false } = {}) {
+  if (!state.adminUser || !state.adminAuthorization) {
+    clearDepositHistory();
+    return;
+  }
+  const accountId = depositHistoryTargetAccount();
+  if (!accountId) {
+    clearDepositHistory();
+    return;
+  }
+  if (!quiet) $('#depositHistoryLoading').classList.remove('hidden');
+  $('#depositHistoryError').classList.add('hidden');
+  try {
+    const payload = await adminApi(withParams('/api/me/deposits', {
+      account_id: accountId,
+      limit: 25,
+      offset: 0,
+    }));
+    renderDepositHistory(payload);
+  } catch (error) {
+    $('#depositHistoryError').textContent = error.message || 'Unable to load deposit history.';
+    $('#depositHistoryError').classList.remove('hidden');
+  } finally {
+    $('#depositHistoryLoading').classList.add('hidden');
+  }
+}
+
+async function syncDepositHistory() {
+  if (!state.adminUser || !state.adminAuthorization) {
+    openAdminDialog();
+    return;
+  }
+  const accountId = depositHistoryTargetAccount();
+  if (!accountId) {
+    showToast('Select one assigned account first.', true);
+    return;
+  }
+  const button = $('#syncDepositHistory');
+  button.disabled = true;
+  button.textContent = 'Syncing…';
+  try {
+    const result = await adminApi(withParams('/api/me/deposits/sync', {
+      account_id: accountId,
+    }), { method: 'POST' });
+    showToast(`Deposit sync complete: ${result.record_count || 0} Gate record(s).`);
+    await loadDepositHistory();
+  } catch (error) {
+    showToast(error.message || 'Deposit sync failed.', true);
+    await loadDepositHistory({ quiet: true });
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Sync Gate deposits';
+  }
+}
+
 function switchTab(tab) {
   $$('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
   $$('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `tab-${tab}`));
@@ -1302,6 +1401,8 @@ function bindEvents() {
   $('#refreshButton').addEventListener('click', loadCore); $('#syncButton').addEventListener('click', syncNow);
   $('#refreshPrivateBalance').addEventListener('click', () => loadPrivateBalance({ force: true }));
   $('#depositButton').addEventListener('click', openDepositDialog);
+  $('#refreshDepositHistory').addEventListener('click', () => loadDepositHistory());
+  $('#syncDepositHistory').addEventListener('click', syncDepositHistory);
   $('#closeDepositDialog').addEventListener('click', closeDepositDialog);
   $('#depositDialog').addEventListener('click', event => { if (event.target === $('#depositDialog')) closeDepositDialog(); });
   $('#depositCurrencySearch').addEventListener('input', renderDepositCurrencies);

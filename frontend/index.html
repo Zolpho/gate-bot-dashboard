@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./private-balance.css">
   <link rel="stylesheet" href="./deposit.css">
+  <link rel="stylesheet" href="./deposit-history.css">
 </head>
 <body>
   <div class="app-shell">
@@ -117,6 +118,31 @@
               </div>
               <p class="private-balance-footnote">Token quantities are spot-account balances. Gate bot funds are shown separately as the quant-account value and are not added twice.</p>
             </details>
+            <section class="deposit-history" id="depositHistorySection">
+              <div class="deposit-history-header">
+                <div>
+                  <h3>Recent deposits</h3>
+                  <p id="depositHistorySubtitle">Gate-confirmed onchain deposits stored locally.</p>
+                </div>
+                <div class="deposit-history-actions">
+                  <button type="button" class="button secondary" id="refreshDepositHistory">Refresh list</button>
+                  <button type="button" class="button secondary" id="syncDepositHistory">Sync Gate deposits</button>
+                </div>
+              </div>
+              <div id="depositHistoryLoading" class="deposit-history-message hidden">Loading deposit history…</div>
+              <div id="depositHistoryError" class="deposit-history-message error hidden" role="alert"></div>
+              <div id="depositHistoryEmpty" class="deposit-history-message hidden">No Gate deposit records have been stored for this account.</div>
+              <div class="table-scroll" id="depositHistoryTableWrap">
+                <table class="deposit-history-table">
+                  <thead><tr><th>Time</th><th>Asset</th><th>Network</th><th>Amount</th><th>Status</th><th>TXID</th></tr></thead>
+                  <tbody id="depositHistoryBody"></tbody>
+                </table>
+              </div>
+              <div class="deposit-history-footer">
+                <span id="depositHistorySyncState">Not synchronized yet</span>
+                <span id="depositHistoryCount">0 records</span>
+              </div>
+            </section>
           </div>
         </article>
 

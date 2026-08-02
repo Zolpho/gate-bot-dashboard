@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     deposit_catalog_cache_seconds: int = 900
     deposit_address_cache_seconds: int = 300
     deposit_favorites: str = "USDT,EQTY,BTC,ETH"
+    deposit_history_sync_enabled: bool = True
+    deposit_initial_lookback_days: int = 30
+    deposit_sync_overlap_seconds: int = 3600
+    deposit_reconcile_hours: int = 24
+    deposit_page_limit: int = 100
+    deposit_max_records_per_sync: int = 500
 
     poll_seconds: int = 60
     stale_after_minutes: int = 5
@@ -110,6 +116,31 @@ class Settings(BaseSettings):
     @classmethod
     def validate_deposit_cache_seconds(cls, value: int) -> int:
         return max(0, min(value, 3600))
+
+    @field_validator("deposit_initial_lookback_days")
+    @classmethod
+    def validate_deposit_lookback_days(cls, value: int) -> int:
+        return max(1, min(value, 30))
+
+    @field_validator("deposit_sync_overlap_seconds")
+    @classmethod
+    def validate_deposit_overlap_seconds(cls, value: int) -> int:
+        return max(0, min(value, 86400))
+
+    @field_validator("deposit_reconcile_hours")
+    @classmethod
+    def validate_deposit_reconcile_hours(cls, value: int) -> int:
+        return max(1, min(value, 24 * 30))
+
+    @field_validator("deposit_page_limit")
+    @classmethod
+    def validate_deposit_page_limit(cls, value: int) -> int:
+        return max(1, min(value, 100))
+
+    @field_validator("deposit_max_records_per_sync")
+    @classmethod
+    def validate_deposit_history_limits(cls, value: int) -> int:
+        return max(1, min(value, 500))
 
     @field_validator("poll_seconds")
     @classmethod

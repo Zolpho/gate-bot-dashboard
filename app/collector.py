@@ -14,6 +14,7 @@ from .bot_adapter import NormalizedBot, dumps_json, normalize_bot
 from .config import Settings, get_settings
 from .db import session_scope
 from .demo import advance_demo_data
+from .deposit_history import DepositHistoryService
 from .gate_client import GateAPIError, GateClient
 from .models import Bot, BotSnapshot, GateAccount, SyncRun
 
@@ -204,6 +205,20 @@ class BotCollector:
 
         try:
             summary = await self._sync_live_account(account, now=now)
+            if self.settings.deposit_history_sync_enabled:
+                try:
+                    summary["deposit_sync"] = await DepositHistoryService(
+                        self.settings
+                    ).sync_account(account, trigger=trigger)
+                except Exception as deposit_exc:
+                    logger.exception(
+                        "Gate deposit sync failed for account=%s", account.id
+                    )
+                    summary["deposit_sync"] = {
+                        "status": "error",
+                        "account_id": account.id,
+                        "error": str(deposit_exc),
+                    }
             finished = datetime.now(timezone.utc)
             self._finish_run(run_id, summary=summary)
             with session_scope() as session:

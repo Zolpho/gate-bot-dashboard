@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..accounts import AccountConfigError, get_gate_account
 from ..config import Settings, get_settings
-from ..db import get_db
+from ..db import get_db, session_scope
 from ..deposits import (
     DEMO_CURRENCIES,
     build_deposit_details,
@@ -20,6 +20,7 @@ from ..deposits import (
     normalize_currency_symbol,
     utc_now_iso,
 )
+from ..deposit_history import persist_deposit_address
 from ..gate_client import GateAPIError, GateClient
 from ..models import GateAccount
 from ..security import DashboardUser, require_user, resolve_authorized_account
@@ -290,6 +291,15 @@ async def my_deposit_address(
                 status_code=502,
                 detail=str(exc),
             ) from exc
+
+        with session_scope() as address_session:
+            persist_deposit_address(
+                address_session,
+                account_id=selected_account_id,
+                currency=symbol,
+                network=payload["network"],
+                minimum_deposit_amount=payload.get("minimum_deposit_amount"),
+            )
 
         payload["cache"] = {
             "hit": False,

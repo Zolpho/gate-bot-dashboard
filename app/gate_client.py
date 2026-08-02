@@ -337,6 +337,58 @@ class GateClient:
             params={"currency": currency.upper()},
         )
 
+    async def list_deposits(
+        self,
+        *,
+        currency: str | None = None,
+        from_timestamp: int | None = None,
+        to_timestamp: int | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/wallet/deposits",
+            params=[
+                ("currency", currency),
+                ("from", from_timestamp),
+                ("to", to_timestamp),
+                ("limit", max(1, min(limit, 100))),
+                ("offset", max(0, offset)),
+            ],
+        )
+
+    async def list_all_deposits(
+        self,
+        *,
+        currency: str | None = None,
+        from_timestamp: int | None = None,
+        to_timestamp: int | None = None,
+        page_limit: int = 100,
+        max_records: int = 500,
+    ) -> tuple[list[dict[str, Any]], int]:
+        limit = max(1, min(page_limit, 100))
+        maximum = max(1, min(max_records, 500))
+        items: list[dict[str, Any]] = []
+        page_count = 0
+        offset = 0
+        while len(items) < maximum:
+            response = await self.list_deposits(
+                currency=currency,
+                from_timestamp=from_timestamp,
+                to_timestamp=to_timestamp,
+                limit=min(limit, maximum - len(items)),
+                offset=offset,
+            )
+            page = response.data if isinstance(response.data, list) else []
+            clean = [item for item in page if isinstance(item, dict)]
+            items.extend(clean)
+            page_count += 1
+            if len(clean) < limit or not clean:
+                break
+            offset += len(clean)
+        return items[:maximum], page_count
+
     async def account_snapshot(self) -> dict[str, Any]:
         results: dict[str, Any] = {}
         calls = {

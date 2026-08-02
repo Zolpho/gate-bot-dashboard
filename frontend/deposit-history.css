@@ -1,0 +1,18 @@
+/* Persisted Gate deposit history */
+.deposit-history { margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+.deposit-history-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px; }
+.deposit-history-header h3 { margin:0 0 3px; }
+.deposit-history-header p { margin:0; color:var(--muted); font-size:.78rem; }
+.deposit-history-actions { display:flex; gap:7px; }
+.deposit-history-message { padding:12px; border:1px solid var(--border); border-radius:10px; color:var(--muted); background:var(--surface-2); }
+.deposit-history-message.error { color:var(--negative); border-color:rgba(255,110,124,.45); background:rgba(255,110,124,.06); }
+.deposit-history-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+.deposit-history-table th,.deposit-history-table td { padding:9px 8px; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap; }
+.deposit-history-table th { color:var(--muted); font-weight:600; }
+.deposit-history-table code { display:inline-block; max-width:190px; overflow:hidden; text-overflow:ellipsis; vertical-align:middle; }
+.deposit-status { display:inline-flex; align-items:center; border:1px solid var(--border); border-radius:999px; padding:3px 7px; font-size:.68rem; }
+.deposit-status.done,.deposit-status.dep-credited { color:var(--accent); border-color:rgba(23,211,154,.4); }
+.deposit-status.track,.deposit-status.pend,.deposit-status.review { color:var(--warning); border-color:rgba(250,190,80,.4); }
+.deposit-status.blocked,.deposit-status.invalid { color:var(--negative); border-color:rgba(255,110,124,.4); }
+.deposit-history-footer { display:flex; justify-content:space-between; gap:10px; margin-top:8px; color:var(--muted); font-size:.72rem; }
+@media (max-width:760px) { .deposit-history-header { flex-direction:column; } .deposit-history-actions { width:100%; } .deposit-history-actions .button { flex:1; } }

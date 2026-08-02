@@ -155,6 +155,88 @@ class SyncRun(Base):
     account: Mapped[Optional[GateAccount]] = relationship(back_populates="sync_runs")
 
 
+DEPOSIT_AMOUNT = Numeric(48, 24)
+
+
+class DepositAddress(Base):
+    __tablename__ = "deposit_addresses"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id", "currency", "chain", "address", "memo",
+            name="uq_deposit_address_account_currency_chain_address_memo",
+        ),
+        Index("ix_deposit_addresses_account_currency", "account_id", "currency"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("gate_accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    currency: Mapped[str] = mapped_column(String(32), nullable=False)
+    chain: Mapped[str] = mapped_column(String(64), nullable=False)
+    address: Mapped[str] = mapped_column(Text, nullable=False)
+    memo: Mapped[str] = mapped_column(Text, default="")
+    payment_name: Mapped[str] = mapped_column(String(128), default="")
+    contract_address: Mapped[str] = mapped_column(Text, default="")
+    minimum_deposit_amount: Mapped[str] = mapped_column(String(128), default="")
+    minimum_confirmations: Mapped[Optional[int]] = mapped_column(Integer)
+    deposit_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    raw_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class DepositRecord(Base):
+    __tablename__ = "deposit_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id", "gate_deposit_id", name="uq_deposit_account_gate_id"
+        ),
+        Index("ix_deposits_account_time", "account_id", "deposited_at"),
+        Index("ix_deposits_account_status", "account_id", "status"),
+        Index("ix_deposits_txid", "txid"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("gate_accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    gate_deposit_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    txid: Mapped[str] = mapped_column(Text, default="")
+    reference_id: Mapped[str] = mapped_column(String(128), default="")
+    currency: Mapped[str] = mapped_column(String(32), nullable=False)
+    chain: Mapped[str] = mapped_column(String(64), default="")
+    amount: Mapped[Decimal] = mapped_column(DEPOSIT_AMOUNT, nullable=False, default=Decimal("0"))
+    address: Mapped[str] = mapped_column(Text, default="")
+    memo: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="UNKNOWN")
+    refund_status: Mapped[str] = mapped_column(String(32), default="")
+    deposited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    raw_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class DepositSyncState(Base):
+    __tablename__ = "deposit_sync_states"
+
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("gate_accounts.id", ondelete="CASCADE"), primary_key=True
+    )
+    status: Mapped[str] = mapped_column(String(32), default="never")
+    last_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_reconciliation_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    window_from: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    window_to: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    record_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class AlertRule(Base):
     __tablename__ = "alert_rules"
     __table_args__ = (Index("ix_alert_rule_enabled", "enabled"),)

@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .alerts import seed_default_rules
-from .api import alerts, auth, bots, dashboard, deposit, me, system
+from .api import alerts, auth, bots, dashboard, deposit, deposit_history, me, system
 from .collector import collector
 from .config import get_settings
 from .db import init_db, session_scope
@@ -85,6 +85,7 @@ app.include_router(system.router)
 app.include_router(auth.router)
 app.include_router(deposit.router)
 app.include_router(deposit.private_router)
+app.include_router(deposit_history.router)
 app.include_router(me.router)
 
 # Keep this last so /api routes take precedence.
