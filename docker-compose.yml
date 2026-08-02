@@ -19,6 +19,7 @@ services:
       - ALL
     cap_add:
       - CHOWN
+      - FOWNER
       - SETUID
       - SETGID
 
