@@ -163,7 +163,8 @@
       <label class="full">Username<input name="username" autocomplete="username" required maxlength="64" placeholder="zolnode"></label>
       <label class="full">Password<input name="password" type="password" autocomplete="current-password" required></label>
       <p class="full admin-help">Account operators can change only bots and alert items belonging to their assigned Gate account.</p>
-      <div class="form-actions full"><button type="button" class="button secondary" id="cancelAdmin">Cancel</button><button type="submit" class="button primary">Unlock</button></div>
+      <p id="adminError" class="full form-error hidden" role="alert" aria-live="assertive"></p>
+      <div class="form-actions full"><button type="button" class="button secondary" id="cancelAdmin">Cancel</button><button type="submit" class="button primary" id="adminSubmitButton">Unlock</button></div>
     </form>
   </dialog>
   <script src="./config.js"></script>

@@ -109,8 +109,16 @@ function basicAuthorization(username, password) {
   return `Basic ${btoa(binary)}`;
 }
 
+function setAdminError(message = '') {
+  const errorBox = $('#adminError');
+  if (!errorBox) return;
+  errorBox.textContent = message;
+  errorBox.classList.toggle('hidden', !message);
+}
+
 function openAdminDialog() {
   const dialog = $('#adminDialog');
+  setAdminError('');
   if (!dialog.open) dialog.showModal();
   setTimeout(() => $('#adminForm input[name="username"]')?.focus(), 0);
 }
@@ -143,15 +151,25 @@ function lockAdmin(showMessage = true) {
 
 async function unlockAdmin(event) {
   event.preventDefault();
-  const form = new FormData(event.currentTarget);
+
+  // Event.currentTarget is not reliable after an await. Keep the form reference
+  // before making the API request so a successful login can reset and close it.
+  const formElement = event.currentTarget;
+  const form = new FormData(formElement);
   const username = String(form.get('username') || '').trim();
   const password = String(form.get('password') || '');
   const authorization = basicAuthorization(username, password);
+  const submitButton = $('#adminSubmitButton');
+
+  setAdminError('');
+  submitButton.disabled = true;
+  submitButton.textContent = 'Unlocking…';
+
   try {
     const result = await api('/api/auth/me', { headers: { Authorization: authorization } });
     state.adminAuthorization = authorization;
     state.adminUser = result.user;
-    event.currentTarget.reset();
+    formElement.reset();
     $('#adminDialog').close();
     renderAdminState();
     showToast(`Unlocked for ${result.user.username}.`);
@@ -159,7 +177,21 @@ async function unlockAdmin(event) {
       await loadCurrentBotRaw();
     }
   } catch (error) {
-    showToast(error.message, true);
+    const message = error instanceof ApiError && error.status === 401
+      ? 'Invalid username or password.'
+      : error instanceof TypeError
+        ? 'The dashboard could not contact the API. Check the network connection and CORS configuration.'
+        : (error.message || 'Unable to unlock account actions.');
+
+    setAdminError(message);
+    const passwordInput = formElement.querySelector('input[name="password"]');
+    if (passwordInput) {
+      passwordInput.value = '';
+      passwordInput.focus();
+    }
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = 'Unlock';
   }
 }
 
