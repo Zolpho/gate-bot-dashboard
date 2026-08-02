@@ -53,6 +53,7 @@ Detailed project documentation is available in [`docs/`](docs/):
 | [`UPGRADE_MULTI_ACCOUNT.md`](docs/UPGRADE_MULTI_ACCOUNT.md) | Migration from the original single-account setup to multiple Gate accounts |
 | [`UPGRADE_ACCOUNT_SCOPED_AUTH.md`](docs/UPGRADE_ACCOUNT_SCOPED_AUTH.md) | Public monitoring with authenticated, account-scoped administrative actions |
 | [`ONBOARD_GATE_SUBACCOUNT.md`](docs/ONBOARD_GATE_SUBACCOUNT.md) | Complete onboarding of an existing Gate subaccount, its API key, and its dashboard user |
+| [`PRIVATE_ACCOUNT_BALANCE.md`](docs/PRIVATE_ACCOUNT_BALANCE.md) | Authenticated, account-scoped Gate balances, asset valuation, and bot allocation |
 
 For a newly created Gate subaccount, start with [`ONBOARD_GATE_SUBACCOUNT.md`](docs/ONBOARD_GATE_SUBACCOUNT.md).
 
