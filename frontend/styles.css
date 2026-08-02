@@ -226,3 +226,19 @@ button:disabled { cursor:not-allowed; opacity:.48; }
   background: rgba(243, 199, 106, 0.08);
 }
 
+/* Portfolio status donut including trigger-waiting strategies. */
+.status-ring {
+  --run: 0deg;
+  --wait: 0deg;
+  --pause: 0deg;
+  --stop: 0deg;
+
+  background: conic-gradient(
+    var(--positive) 0 var(--run),
+    #f3c76a var(--run) var(--wait),
+    var(--warning) var(--wait) var(--pause),
+    #53655e var(--pause) var(--stop),
+    var(--negative) var(--stop) 360deg
+  );
+}
+

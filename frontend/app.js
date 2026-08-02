@@ -1173,30 +1173,181 @@ function renderOverview() {
   setMetric('#currentValue', totals.current_value, fmtMoney, totals.pnl);
   setMetric('#totalPnl', totals.pnl, fmtMoney, totals.pnl);
   setMetric('#gridProfit', totals.grid_profit, fmtMoney, totals.grid_profit);
-  $('#activeBotCount').textContent = `${counts.running} running · ${counts.all} tracked`;
-  const day = periods['24h'] || {};
-  $('#portfolioDelta').textContent = day.value_change === null || day.value_change === undefined ? `Invested ${fmtMoney(totals.invest_amount)}` : `24h ${fmtMoney(day.value_change)} (${fmtPct(day.value_change_pct)})`;
-  $('#portfolioDelta').className = valueClass(day.value_change);
-  $('#totalRoi').textContent = `ROI ${fmtPct(totals.roi_pct)}`;
-  $('#totalRoi').className = valueClass(totals.roi_pct);
-  $('#floatingPnl').textContent = `Unrealized ${fmtMoney(totals.floating_pnl)}`;
-  $('#floatingPnl').className = valueClass(totals.floating_pnl);
-  $('#ringTotal').textContent = counts.all;
+  const displayCounts = {
+    running: 0,
+    waiting: 0,
+    paused: 0,
+    stopped: 0,
+    other: 0,
+  };
 
-  const total = Math.max(1, counts.all);
-  const runDegrees = counts.running / total * 360;
-  const pauseDegrees = runDegrees + counts.paused / total * 360;
-  $('#statusRing').style.setProperty('--run', `${runDegrees}deg`);
-  $('#statusRing').style.setProperty('--pause', `${pauseDegrees}deg`);
-  const statuses = [
-    ['Running', counts.running, 'var(--positive)'],
-    ['Paused', counts.paused, 'var(--warning)'],
-    ['Stopped', counts.stopped, '#53655e'],
-    ['Other', counts.other, 'var(--negative)'],
+  state.bots.forEach(bot => {
+    const displayStatus = botDisplayStatus(bot).key;
+
+    if (displayStatus === 'running') {
+      displayCounts.running += 1;
+    } else if (displayStatus === 'waiting-trigger') {
+      displayCounts.waiting += 1;
+    } else if (
+      displayStatus === 'paused'
+      || displayStatus === 'suspended'
+    ) {
+      displayCounts.paused += 1;
+    } else if (
+      displayStatus === 'stopped'
+      || displayStatus === 'finished'
+    ) {
+      displayCounts.stopped += 1;
+    } else {
+      displayCounts.other += 1;
+    }
+  });
+
+  const displayTotal = Object.values(
+    displayCounts
+  ).reduce(
+    (totalCount, count) => totalCount + count,
+    0,
+  );
+
+  const activeSummary = [
+    `${displayCounts.running} running`,
   ];
-  $('#statusList').innerHTML = statuses.map(([label, count, color]) => `<div class="status-row"><span><i class="dot" style="background:${color}"></i>${label}</span><b>${count}</b></div>`).join('');
 
-  const leaders = [...state.bots].filter(b => b.status === 'running').sort((a,b) => (b.profit_rate ?? b.pnl_rate ?? -Infinity) - (a.profit_rate ?? a.pnl_rate ?? -Infinity)).slice(0,4);
+  if (displayCounts.waiting > 0) {
+    activeSummary.push(
+      `${displayCounts.waiting} waiting`,
+    );
+  }
+
+  activeSummary.push(`${displayTotal} tracked`);
+
+  $('#activeBotCount').textContent =
+    activeSummary.join(' · ');
+
+  const day = periods['24h'] || {};
+
+  $('#portfolioDelta').textContent =
+    day.value_change === null
+    || day.value_change === undefined
+      ? `Invested ${fmtMoney(totals.invest_amount)}`
+      : (
+        `24h ${fmtMoney(day.value_change)} `
+        + `(${fmtPct(day.value_change_pct)})`
+      );
+
+  $('#portfolioDelta').className =
+    valueClass(day.value_change);
+
+  $('#totalRoi').textContent =
+    `ROI ${fmtPct(totals.roi_pct)}`;
+
+  $('#totalRoi').className =
+    valueClass(totals.roi_pct);
+
+  $('#floatingPnl').textContent =
+    `Unrealized ${fmtMoney(totals.floating_pnl)}`;
+
+  $('#floatingPnl').className =
+    valueClass(totals.floating_pnl);
+
+  $('#ringTotal').textContent = displayTotal;
+
+  const ringTotal = Math.max(1, displayTotal);
+
+  const runDegrees =
+    displayCounts.running / ringTotal * 360;
+
+  const waitDegrees =
+    runDegrees
+    + displayCounts.waiting / ringTotal * 360;
+
+  const pauseDegrees =
+    waitDegrees
+    + displayCounts.paused / ringTotal * 360;
+
+  const stopDegrees =
+    pauseDegrees
+    + displayCounts.stopped / ringTotal * 360;
+
+  const statusRing = $('#statusRing');
+
+  statusRing.style.setProperty(
+    '--run',
+    `${runDegrees}deg`,
+  );
+
+  statusRing.style.setProperty(
+    '--wait',
+    `${waitDegrees}deg`,
+  );
+
+  statusRing.style.setProperty(
+    '--pause',
+    `${pauseDegrees}deg`,
+  );
+
+  statusRing.style.setProperty(
+    '--stop',
+    `${stopDegrees}deg`,
+  );
+
+  const statuses = [
+    [
+      'Running',
+      displayCounts.running,
+      'var(--positive)',
+    ],
+    [
+      'Waiting',
+      displayCounts.waiting,
+      '#f3c76a',
+    ],
+    [
+      'Paused',
+      displayCounts.paused,
+      'var(--warning)',
+    ],
+    [
+      'Stopped',
+      displayCounts.stopped,
+      '#53655e',
+    ],
+    [
+      'Other',
+      displayCounts.other,
+      'var(--negative)',
+    ],
+  ];
+
+  $('#statusList').innerHTML = statuses
+    .map(([label, count, color]) => (
+      `<div class="status-row">`
+      + `<span>`
+      + `<i class="dot" style="background:${color}"></i>`
+      + `${label}`
+      + `</span>`
+      + `<b>${count}</b>`
+      + `</div>`
+    ))
+    .join('');
+
+  const leaders = [...state.bots]
+    .filter(
+      bot => botDisplayStatus(bot).key === 'running'
+    )
+    .sort(
+      (a, b) => (
+        b.profit_rate
+        ?? b.pnl_rate
+        ?? -Infinity
+      ) - (
+        a.profit_rate
+        ?? a.pnl_rate
+        ?? -Infinity
+      )
+    )
+    .slice(0, 4);
   $('#leaderCards').innerHTML = leaders.length ? leaders.map(bot => `<button class="leader row-button" data-bot-id="${bot.id}"><span><b>${escapeHtml(bot.strategy_name)}</b><small>${escapeHtml(bot.account_name)} · ${escapeHtml(bot.market)} · ${strategyLabel(bot.strategy_type)}</small></span><strong class="${valueClass(bot.profit_rate ?? bot.pnl_rate)}">${fmtRatioPct(bot.profit_rate ?? bot.pnl_rate)}<small>${fmtMoney(bot.total_profit ?? bot.pnl)}</small></strong></button>`).join('') : '<div class="empty-state">No running bots yet.</div>';
 
   const accountLabel = state.selectedAccount ? (state.overview.selected_account?.name || state.selectedAccount) : 'All accounts';
