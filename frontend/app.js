@@ -1356,86 +1356,635 @@ function renderOverview() {
   drawPortfolioChart();
 }
 
-function drawSeriesChart(canvas, points, series) {
+function chartAxisMoney(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return '—';
+
+  const absolute = Math.abs(number);
+  const digits = absolute < 10 ? 2 : absolute < 100 ? 1 : 0;
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(number);
+}
+
+function chartScaleRange(values, includeZero = false) {
+  const valid = values
+    .map(Number)
+    .filter(Number.isFinite);
+
+  if (!valid.length) {
+    return { min: 0, max: 1 };
+  }
+
+  let min = Math.min(...valid);
+  let max = Math.max(...valid);
+
+  if (includeZero) {
+    min = Math.min(min, 0);
+    max = Math.max(max, 0);
+  }
+
+  if (min === max) {
+    const expansion = Math.abs(min) * 0.05 || 1;
+    min -= expansion;
+    max += expansion;
+  }
+
+  const margin = (max - min) * 0.08;
+
+  return {
+    min: min - margin,
+    max: max + margin,
+  };
+}
+
+function chartTimeLabel(timestamp, totalSpan) {
+  const date = new Date(timestamp);
+
+  let options;
+
+  if (totalSpan <= 48 * 60 * 60 * 1000) {
+    options = {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    };
+  } else if (totalSpan >= 180 * 24 * 60 * 60 * 1000) {
+    options = {
+      month: 'short',
+      year: '2-digit',
+    };
+  } else {
+    options = {
+      month: 'short',
+      day: 'numeric',
+    };
+  }
+
+  return new Intl.DateTimeFormat(
+    undefined,
+    options,
+  ).format(date);
+}
+
+function drawSeriesChart(
+  canvas,
+  points,
+  series,
+  options = {},
+) {
   const rect = canvas.getBoundingClientRect();
+
   if (!rect.width || !rect.height) return;
+
   const ratio = window.devicePixelRatio || 1;
+
   canvas.width = Math.round(rect.width * ratio);
   canvas.height = Math.round(rect.height * ratio);
+
   const ctx = canvas.getContext('2d');
   ctx.scale(ratio, ratio);
+
   const width = rect.width;
   const height = rect.height;
-  const pad = { left: 52, right: 18, top: 14, bottom: 27 };
-  const plotW = width - pad.left - pad.right;
-  const plotH = height - pad.top - pad.bottom;
-  const css = getComputedStyle(document.documentElement);
-  const muted = css.getPropertyValue('--muted').trim();
-  const border = css.getPropertyValue('--border').trim();
-  const surface = css.getPropertyValue('--surface').trim();
+
+  const pad = {
+    left: 86,
+    right: 86,
+    top: 20,
+    bottom: 52,
+  };
+
+  const plotW = Math.max(
+    1,
+    width - pad.left - pad.right,
+  );
+
+  const plotH = Math.max(
+    1,
+    height - pad.top - pad.bottom,
+  );
+
+  const css = getComputedStyle(
+    document.documentElement,
+  );
+
+  const muted = css
+    .getPropertyValue('--muted')
+    .trim();
+
+  const border = css
+    .getPropertyValue('--border')
+    .trim();
+
+  const surface = css
+    .getPropertyValue('--surface')
+    .trim();
+
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = surface;
   ctx.fillRect(0, 0, width, height);
-  if (!points.length) return;
 
-  ctx.strokeStyle = border;
-  ctx.lineWidth = 1;
-  ctx.fillStyle = muted;
-  ctx.font = '11px system-ui';
-  ctx.textAlign = 'right';
-  for (let i = 0; i <= 4; i++) {
-    const y = pad.top + plotH * i / 4;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(width - pad.right, y); ctx.stroke();
+  const chartPoints = points
+    .filter(point => {
+      const timestamp = new Date(
+        point.captured_at,
+      ).valueOf();
+
+      return Number.isFinite(timestamp);
+    })
+    .sort(
+      (a, b) => (
+        new Date(a.captured_at).valueOf()
+        - new Date(b.captured_at).valueOf()
+      ),
+    );
+
+  if (!chartPoints.length) {
+    canvas._chartMeta = null;
+    return;
   }
 
-  const timestamps = points.map(p => new Date(p.captured_at).valueOf());
-  const xMin = Math.min(...timestamps), xMax = Math.max(...timestamps);
-  const x = ts => pad.left + ((ts - xMin) / Math.max(1, xMax - xMin)) * plotW;
+  const timestamps = chartPoints.map(
+    point => new Date(
+      point.captured_at,
+    ).valueOf(),
+  );
 
-  series.forEach((s, index) => {
-    const values = points.map(p => Number(p[s.key])).filter(Number.isFinite);
-    if (!values.length) return;
-    let min = Math.min(...values), max = Math.max(...values);
-    if (min === max) { min -= 1; max += 1; }
-    const margin = (max - min) * .12;
-    min -= margin; max += margin;
-    const y = value => pad.top + (1 - (value - min) / (max - min)) * plotH;
-    ctx.beginPath();
-    let started = false;
-    points.forEach((point, i) => {
-      const value = Number(point[s.key]);
+  const xMin = Math.min(...timestamps);
+  const xMax = Math.max(...timestamps);
+  const xSpan = Math.max(1, xMax - xMin);
+
+  const x = timestamp => (
+    pad.left
+    + ((timestamp - xMin) / xSpan) * plotW
+  );
+
+  const normalizedSeries = series.map(
+    (item, index) => ({
+      ...item,
+      axis: item.axis
+        || (index === 0 ? 'left' : 'right'),
+    }),
+  );
+
+  const leftValues = [];
+  const rightValues = [];
+
+  normalizedSeries.forEach(item => {
+    chartPoints.forEach(point => {
+      const value = Number(point[item.key]);
+
       if (!Number.isFinite(value)) return;
-      const px = x(timestamps[i]), py = y(value);
-      if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+
+      if (item.axis === 'right') {
+        rightValues.push(value);
+      } else {
+        leftValues.push(value);
+      }
     });
-    ctx.strokeStyle = s.color;
-    ctx.lineWidth = index === 0 ? 2.2 : 1.6;
-    ctx.stroke();
-    if (s.fill && started) {
-      const lastX = x(timestamps[timestamps.length - 1]);
-      ctx.lineTo(lastX, pad.top + plotH); ctx.lineTo(x(timestamps[0]), pad.top + plotH); ctx.closePath();
-      const gradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
-      gradient.addColorStop(0, s.fill); gradient.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = gradient; ctx.fill();
-    }
   });
 
+  const leftRange = chartScaleRange(
+    leftValues,
+    Boolean(options.leftIncludeZero),
+  );
+
+  const rightRange = chartScaleRange(
+    rightValues,
+    options.rightIncludeZero !== false,
+  );
+
+  const yFor = (value, axis) => {
+    const range = axis === 'right'
+      ? rightRange
+      : leftRange;
+
+    return (
+      pad.top
+      + (
+        1
+        - (value - range.min)
+        / (range.max - range.min)
+      ) * plotH
+    );
+  };
+
+  ctx.font = '11px system-ui';
+  ctx.lineWidth = 1;
+
+  const tickCount = 4;
+
+  for (let index = 0; index <= tickCount; index++) {
+    const fraction = index / tickCount;
+    const yPosition = pad.top + plotH * fraction;
+
+    ctx.strokeStyle = border;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, yPosition);
+    ctx.lineTo(
+      width - pad.right,
+      yPosition,
+    );
+    ctx.stroke();
+
+    const leftValue = (
+      leftRange.max
+      - (leftRange.max - leftRange.min)
+      * fraction
+    );
+
+    const rightValue = (
+      rightRange.max
+      - (rightRange.max - rightRange.min)
+      * fraction
+    );
+
+    ctx.fillStyle = muted;
+    ctx.textBaseline = 'middle';
+
+    ctx.textAlign = 'right';
+    ctx.fillText(
+      chartAxisMoney(leftValue),
+      pad.left - 10,
+      yPosition,
+    );
+
+    ctx.textAlign = 'left';
+    ctx.fillText(
+      chartAxisMoney(rightValue),
+      width - pad.right + 10,
+      yPosition,
+    );
+  }
+
+  const xTicks = 4;
+
+  for (let index = 0; index <= xTicks; index++) {
+    const fraction = index / xTicks;
+    const timestamp = xMin + xSpan * fraction;
+    const xPosition = x(timestamp);
+
+    ctx.fillStyle = muted;
+    ctx.textBaseline = 'top';
+
+    if (index === 0) {
+      ctx.textAlign = 'left';
+    } else if (index === xTicks) {
+      ctx.textAlign = 'right';
+    } else {
+      ctx.textAlign = 'center';
+    }
+
+    ctx.fillText(
+      chartTimeLabel(timestamp, xSpan),
+      xPosition,
+      pad.top + plotH + 10,
+    );
+  }
+
+  const leftColor = normalizedSeries.find(
+    item => item.axis !== 'right',
+  )?.color || muted;
+
+  const rightColor = normalizedSeries.find(
+    item => item.axis === 'right',
+  )?.color || muted;
+
+  ctx.save();
+  ctx.translate(
+    14,
+    pad.top + plotH / 2,
+  );
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = leftColor;
+  ctx.font = '600 11px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(
+    options.leftAxisLabel
+      || 'Current value (USDT)',
+    0,
+    0,
+  );
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(
+    width - 14,
+    pad.top + plotH / 2,
+  );
+  ctx.rotate(Math.PI / 2);
+  ctx.fillStyle = rightColor;
+  ctx.font = '600 11px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(
+    options.rightAxisLabel
+      || 'PnL (USDT)',
+    0,
+    0,
+  );
+  ctx.restore();
+
   ctx.fillStyle = muted;
-  ctx.textAlign = 'left';
-  const first = new Date(xMin), last = new Date(xMax);
-  ctx.fillText(first.toLocaleDateString(), pad.left, height - 7);
-  ctx.textAlign = 'right';
-  ctx.fillText(last.toLocaleDateString(), width - pad.right, height - 7);
+  ctx.font = '600 11px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(
+    options.xAxisLabel || 'Snapshot time',
+    pad.left + plotW / 2,
+    height - 2,
+  );
+
+  normalizedSeries.forEach((item, index) => {
+    const coordinates = [];
+
+    chartPoints.forEach((point, pointIndex) => {
+      const value = Number(point[item.key]);
+
+      if (!Number.isFinite(value)) return;
+
+      coordinates.push({
+        x: x(timestamps[pointIndex]),
+        y: yFor(value, item.axis),
+      });
+    });
+
+    if (!coordinates.length) return;
+
+    if (item.fill) {
+      ctx.beginPath();
+      ctx.moveTo(
+        coordinates[0].x,
+        pad.top + plotH,
+      );
+
+      coordinates.forEach((coordinate, pointIndex) => {
+        if (pointIndex === 0) {
+          ctx.lineTo(
+            coordinate.x,
+            coordinate.y,
+          );
+        } else {
+          ctx.lineTo(
+            coordinate.x,
+            coordinate.y,
+          );
+        }
+      });
+
+      ctx.lineTo(
+        coordinates[coordinates.length - 1].x,
+        pad.top + plotH,
+      );
+
+      ctx.closePath();
+
+      const gradient = ctx.createLinearGradient(
+        0,
+        pad.top,
+        0,
+        pad.top + plotH,
+      );
+
+      gradient.addColorStop(0, item.fill);
+      gradient.addColorStop(
+        1,
+        'rgba(0,0,0,0)',
+      );
+
+      ctx.fillStyle = gradient;
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+
+    coordinates.forEach((coordinate, pointIndex) => {
+      if (pointIndex === 0) {
+        ctx.moveTo(
+          coordinate.x,
+          coordinate.y,
+        );
+      } else {
+        ctx.lineTo(
+          coordinate.x,
+          coordinate.y,
+        );
+      }
+    });
+
+    ctx.strokeStyle = item.color;
+    ctx.lineWidth = index === 0 ? 2.2 : 1.8;
+    ctx.stroke();
+  });
+
+  canvas._chartMeta = {
+    points: chartPoints,
+    timestamps,
+    xMin,
+    xMax,
+    xSpan,
+    pad,
+    plotW,
+    plotH,
+  };
+}
+
+function bindPortfolioChartTooltip() {
+  const canvas = $('#portfolioChart');
+  const tooltip = $('#portfolioChartTooltip');
+  const crosshair = $('#portfolioChartCrosshair');
+
+  if (
+    !canvas
+    || !tooltip
+    || !crosshair
+    || canvas.dataset.tooltipBound
+  ) {
+    return;
+  }
+
+  canvas.dataset.tooltipBound = 'true';
+
+  const hide = () => {
+    tooltip.classList.add('hidden');
+    crosshair.classList.add('hidden');
+  };
+
+  canvas.addEventListener(
+    'pointerleave',
+    hide,
+  );
+
+  canvas.addEventListener(
+    'pointermove',
+    event => {
+      const meta = canvas._chartMeta;
+
+      if (!meta || !meta.points.length) {
+        hide();
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
+
+      const plotRight = (
+        meta.pad.left + meta.plotW
+      );
+
+      const plotBottom = (
+        meta.pad.top + meta.plotH
+      );
+
+      if (
+        mouseX < meta.pad.left
+        || mouseX > plotRight
+        || mouseY < meta.pad.top
+        || mouseY > plotBottom
+      ) {
+        hide();
+        return;
+      }
+
+      const targetTimestamp = (
+        meta.xMin
+        + (
+          (mouseX - meta.pad.left)
+          / meta.plotW
+        ) * meta.xSpan
+      );
+
+      let nearestIndex = 0;
+      let nearestDistance = Infinity;
+
+      meta.timestamps.forEach(
+        (timestamp, index) => {
+          const distance = Math.abs(
+            timestamp - targetTimestamp,
+          );
+
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestIndex = index;
+          }
+        },
+      );
+
+      const point = meta.points[nearestIndex];
+      const timestamp = meta.timestamps[nearestIndex];
+
+      const pointX = (
+        meta.pad.left
+        + (
+          (timestamp - meta.xMin)
+          / meta.xSpan
+        ) * meta.plotW
+      );
+
+      tooltip.innerHTML = (
+        `<strong class="chart-tooltip-time">`
+        + `${escapeHtml(fmtDate(point.captured_at))}`
+        + `</strong>`
+        + `<span>`
+        + `<i class="tooltip-dot value"></i>`
+        + `Current value`
+        + `<b>${escapeHtml(fmtMoney(point.current_value))}</b>`
+        + `</span>`
+        + `<span>`
+        + `<i class="tooltip-dot pnl"></i>`
+        + `Total PnL`
+        + `<b>${escapeHtml(fmtMoney(point.pnl))}</b>`
+        + `</span>`
+      );
+
+      tooltip.classList.remove('hidden');
+      crosshair.classList.remove('hidden');
+
+      crosshair.style.left = `${pointX}px`;
+      crosshair.style.top = `${meta.pad.top}px`;
+      crosshair.style.height = `${meta.plotH}px`;
+
+      const tooltipWidth = tooltip.offsetWidth;
+      const tooltipHeight = tooltip.offsetHeight;
+
+      let tooltipLeft = pointX + 14;
+
+      if (
+        tooltipLeft + tooltipWidth
+        > rect.width - 8
+      ) {
+        tooltipLeft = pointX - tooltipWidth - 14;
+      }
+
+      tooltipLeft = Math.max(
+        8,
+        tooltipLeft,
+      );
+
+      let tooltipTop = mouseY - tooltipHeight - 14;
+
+      if (tooltipTop < 8) {
+        tooltipTop = mouseY + 14;
+      }
+
+      tooltip.style.left = `${tooltipLeft}px`;
+      tooltip.style.top = `${tooltipTop}px`;
+    },
+  );
 }
 
 function drawPortfolioChart() {
   const empty = $('#chartEmpty');
-  empty.classList.toggle('hidden', state.history.length > 1);
-  const css = getComputedStyle(document.documentElement);
-  drawSeriesChart($('#portfolioChart'), state.history, [
-    { key: 'current_value', color: css.getPropertyValue('--accent').trim(), fill: 'rgba(23,211,154,.16)' },
-    { key: 'pnl', color: css.getPropertyValue('--blue').trim() },
-  ]);
+
+  empty.classList.toggle(
+    'hidden',
+    state.history.length > 1,
+  );
+
+  const css = getComputedStyle(
+    document.documentElement,
+  );
+
+  drawSeriesChart(
+    $('#portfolioChart'),
+    state.history,
+    [
+      {
+        key: 'current_value',
+        label: 'Current value',
+        axis: 'left',
+        color: css
+          .getPropertyValue('--accent')
+          .trim(),
+        fill: 'rgba(23,211,154,.16)',
+      },
+      {
+        key: 'pnl',
+        label: 'Total PnL',
+        axis: 'right',
+        color: css
+          .getPropertyValue('--blue')
+          .trim(),
+      },
+    ],
+    {
+      leftAxisLabel: 'Current value (USDT)',
+      rightAxisLabel: 'Total PnL (USDT)',
+      xAxisLabel: 'Snapshot date and time',
+      rightIncludeZero: true,
+    },
+  );
+
+  bindPortfolioChartTooltip();
 }
 
 function populateAccountSelector(accounts = []) {
@@ -2148,7 +2697,7 @@ async function inspectEndpoint(endpoint) {
 function bindEvents() {
   $$('.nav-item').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
   $$('[data-jump]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.jump)));
-  $('#refreshButton').addEventListener('click', loadCore); $('#syncButton').addEventListener('click', syncNow);
+  $('#syncButton').addEventListener('click', syncNow);
   $('#refreshPrivateBalance').addEventListener('click', () => loadPrivateBalance({ force: true }));
   $('#depositButton').addEventListener('click', openDepositDialog);
   $('#refreshDepositHistory').addEventListener('click', () => loadDepositHistory());

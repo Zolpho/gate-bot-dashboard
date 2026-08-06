@@ -37,7 +37,6 @@
         <div class="top-actions">
           <label class="account-selector">Account<select id="accountSelector" aria-label="Gate account"><option value="">All accounts</option></select></label>
           <span class="mode-badge" id="modeBadge">—</span>
-          <button class="button secondary" id="refreshButton">Refresh</button>
           <span class="admin-identity hidden" id="adminIdentity"></span>
           <button class="button secondary hidden" id="changePasswordButton">Change password</button>
           <button class="button secondary" id="adminButton">Account login</button>
@@ -59,8 +58,30 @@
         <div class="dashboard-grid wide-left">
           <article class="panel chart-panel">
             <div class="panel-header"><div><h2>Portfolio performance</h2><p>Locally recorded snapshots</p></div><select id="historyRange" aria-label="History range"><option value="24">24 hours</option><option value="168" selected>7 days</option><option value="720">30 days</option><option value="8760">1 year</option></select></div>
-            <div class="chart-wrap"><canvas id="portfolioChart" aria-label="Portfolio value and PnL chart"></canvas><div id="chartEmpty" class="empty-state hidden">History appears after snapshots are collected.</div></div>
-            <div class="chart-legend"><span><i class="legend-value"></i>Current value</span><span><i class="legend-pnl"></i>PnL</span></div>
+            <div class="chart-wrap">
+  <canvas
+    id="portfolioChart"
+    aria-label="Portfolio current value and profit and loss over time"
+  ></canvas>
+  <div
+    id="portfolioChartCrosshair"
+    class="chart-crosshair hidden"
+    aria-hidden="true"
+  ></div>
+  <div
+    id="portfolioChartTooltip"
+    class="chart-tooltip hidden"
+    role="tooltip"
+  ></div>
+  <div id="chartEmpty" class="empty-state hidden">
+    History appears after snapshots are collected.
+  </div>
+</div>
+            <div class="chart-legend">
+  <span><i class="legend-value"></i>Current value · left axis</span>
+  <span><i class="legend-pnl"></i>Total PnL · right axis</span>
+  <small>Hover over the graph for exact values.</small>
+</div>
           </article>
           <article class="panel">
             <div class="panel-header"><div><h2>Portfolio status</h2><p>Current Gate strategies</p></div></div>

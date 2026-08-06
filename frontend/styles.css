@@ -242,3 +242,85 @@ button:disabled { cursor:not-allowed; opacity:.48; }
   );
 }
 
+/* Readable dual-axis portfolio chart and hover values. */
+.chart-wrap {
+  height: 310px;
+}
+
+.chart-legend {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.chart-legend small {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 190px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(8, 18, 15, 0.97);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .34);
+  color: var(--text);
+  font-size: .78rem;
+  pointer-events: none;
+}
+
+.chart-tooltip-time {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.chart-tooltip span {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 7px;
+  margin-top: 5px;
+}
+
+.chart-tooltip b {
+  color: var(--text);
+}
+
+.tooltip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.tooltip-dot.value {
+  background: var(--accent);
+}
+
+.tooltip-dot.pnl {
+  background: var(--blue);
+}
+
+.chart-crosshair {
+  position: absolute;
+  z-index: 3;
+  width: 1px;
+  border-left: 1px dashed rgba(255, 255, 255, .42);
+  pointer-events: none;
+  transform: translateX(-.5px);
+}
+
+@media (max-width: 700px) {
+  .chart-wrap {
+    height: 285px;
+  }
+
+  .chart-legend small {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
