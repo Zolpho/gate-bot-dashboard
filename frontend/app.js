@@ -1490,6 +1490,153 @@ async function loadBotControlAttention(
 }
 
 
+
+async function downloadBotControlAuditExport(
+  format,
+) {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    openAdminDialog();
+    return;
+  }
+
+  const extension = (
+    format === 'csv'
+      ? 'csv'
+      : 'json'
+  );
+
+  const button = (
+    extension === 'csv'
+      ? $('#exportBotControlCsv')
+      : $('#exportBotControlJson')
+  );
+
+  const originalText = (
+    button?.textContent
+    || ''
+  );
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Exporting…';
+  }
+
+  try {
+    const response = await fetch(
+      apiUrl(
+        `/api/bot-control/export/${
+          extension
+        }?limit=1000`
+      ),
+      {
+        method: 'GET',
+        credentials: 'omit',
+        headers: {
+          Authorization:
+            state.adminAuthorization,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      let payload = null;
+
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+
+      let message = (
+        payload?.detail?.message
+        || payload?.detail
+        || `Export failed (${response.status})`
+      );
+
+      if (
+        typeof message
+        !== 'string'
+      ) {
+        message = JSON.stringify(
+          message
+        );
+      }
+
+      throw new ApiError(
+        message,
+        response.status,
+        payload,
+      );
+    }
+
+    const blob = (
+      await response.blob()
+    );
+
+    const url = (
+      URL.createObjectURL(
+        blob
+      )
+    );
+
+    const stamp = (
+      new Date()
+        .toISOString()
+        .replaceAll('-', '')
+        .replaceAll(':', '')
+        .replace(/\.\d{3}Z$/, 'Z')
+    );
+
+    const anchor = (
+      document.createElement('a')
+    );
+
+    anchor.href = url;
+
+    anchor.download = (
+      `bot_control_audit_${stamp}.`
+      + extension
+    );
+
+    document.body.appendChild(
+      anchor
+    );
+
+    anchor.click();
+    anchor.remove();
+
+    URL.revokeObjectURL(
+      url
+    );
+
+    showToast(
+      `Bot Control audit exported as ${
+        extension.toUpperCase()
+      }.`
+    );
+
+  } catch (error) {
+    showToast(
+      botControlErrorMessage(
+        error
+      ),
+      true,
+    );
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = (
+        originalText
+      );
+    }
+  }
+}
+
+
 function renderBotControlActivity() {
   const body = $('#botControlActivityBody');
 
@@ -5107,6 +5254,21 @@ function bindEvents() {
           .botControlAttentionRequest
       );
     },
+  );
+
+
+  $('#exportBotControlJson')?.addEventListener(
+    'click',
+    () => downloadBotControlAuditExport(
+      'json'
+    ),
+  );
+
+  $('#exportBotControlCsv')?.addEventListener(
+    'click',
+    () => downloadBotControlAuditExport(
+      'csv'
+    ),
   );
 
   $('#refreshBotControlActivity')?.addEventListener(

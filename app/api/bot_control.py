@@ -10,9 +10,17 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
+from fastapi.responses import Response
+
 from ..accounts import (
     AccountConfigError,
     get_gate_account,
+)
+from ..bot_control_export import (
+    build_bot_control_csv,
+    build_bot_control_export,
+    build_bot_control_json,
+    export_filename,
 )
 from ..bot_control_audit import (
     IdempotencyConflict,
@@ -1517,6 +1525,87 @@ async def stop_bot_control(
 
     return result
 
+
+
+
+@router.get("/export/json")
+def export_bot_control_json(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    limit: int = 1000,
+):
+    account_ids = (
+        None
+        if user.is_super_admin
+        else set(user.account_ids)
+    )
+
+    document = (
+        build_bot_control_export(
+            account_ids=account_ids,
+            limit=limit,
+        )
+    )
+
+    filename = export_filename(
+        "json"
+    )
+
+    return Response(
+        content=build_bot_control_json(
+            document
+        ),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"'
+            ),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/export/csv")
+def export_bot_control_csv(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    limit: int = 1000,
+):
+    account_ids = (
+        None
+        if user.is_super_admin
+        else set(user.account_ids)
+    )
+
+    document = (
+        build_bot_control_export(
+            account_ids=account_ids,
+            limit=limit,
+        )
+    )
+
+    filename = export_filename(
+        "csv"
+    )
+
+    return Response(
+        content=build_bot_control_csv(
+            document
+        ),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"'
+            ),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.get("/locks")
