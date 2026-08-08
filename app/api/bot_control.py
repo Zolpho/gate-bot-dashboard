@@ -18,6 +18,7 @@ from ..bot_control_audit import (
     IdempotencyConflict,
     find_matching_request,
     get_request,
+    list_requests,
     mark_request,
     reserve_request,
 )
@@ -828,6 +829,135 @@ async def create_spot_grid(
     )
 
     return result
+
+
+@router.get("/requests")
+def list_bot_control_activity(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    limit: int = 50,
+    account_id: str | None = None,
+):
+    limit = max(
+        1,
+        min(int(limit), 200),
+    )
+
+    if account_id:
+        normalized = require_account_access(
+            user,
+            account_id,
+        )
+
+        visible_account_ids = {
+            normalized
+        }
+
+    elif user.is_super_admin:
+        visible_account_ids = None
+
+    else:
+        visible_account_ids = set(
+            user.account_ids
+        )
+
+    records = list_requests(
+        limit=limit,
+        account_ids=visible_account_ids,
+    )
+
+    items = []
+
+    for record in records:
+        request_data = (
+            record.get("request")
+            or {}
+        )
+
+        gate_payload = (
+            request_data.get("gate_payload")
+            or {}
+        )
+
+        params = (
+            gate_payload.get("create_params")
+            or {}
+        )
+
+        response = (
+            record.get("response")
+            or {}
+        )
+
+        status = str(
+            record.get("status")
+            or ""
+        )
+
+        simulation = bool(
+            response.get("simulation")
+            or status == "simulated"
+        )
+
+        write_performed = bool(
+            response.get("write_performed")
+        )
+
+        if simulation:
+            mode = "simulation"
+
+        elif (
+            write_performed
+            or status in {
+                "submitting",
+                "succeeded",
+                "rejected",
+                "uncertain",
+            }
+        ):
+            mode = "live"
+
+        else:
+            mode = "pending"
+
+        items.append({
+            "request_id": record["request_id"],
+            "action": record["action"],
+            "account_id": record["account_id"],
+            "username": record["username"],
+            "status": status,
+            "mode": mode,
+            "write_performed": write_performed,
+            "market": gate_payload.get("market"),
+            "investment": params.get("money"),
+            "grid_num": params.get("grid_num"),
+            "price_type": params.get("price_type"),
+            "strategy_id": (
+                record.get("strategy_id")
+                or None
+            ),
+            "gate_status_code": (
+                record.get("gate_status_code")
+            ),
+            "gate_label": (
+                record.get("gate_label")
+            ),
+            "error": (
+                record.get("error")
+                or ""
+            ),
+            "created_at": record["created_at"],
+            "completed_at": (
+                record.get("completed_at")
+            ),
+        })
+
+    return {
+        "count": len(items),
+        "items": items,
+    }
 
 
 @router.get("/requests/{request_id}")

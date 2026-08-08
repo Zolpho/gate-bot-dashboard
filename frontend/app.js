@@ -52,6 +52,7 @@ const state = {
   botControlPrepared: null,
   botControlDraft: null,
   botControlRequestId: '',
+  botControlActivity: [],
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -1120,6 +1121,202 @@ async function syncDepositHistory() {
 }
 
 
+
+function shortBotControlRequestId(value) {
+  const text = String(value || '');
+
+  if (text.length <= 26) {
+    return text;
+  }
+
+  return (
+    `${text.slice(0, 14)}…`
+    + `${text.slice(-9)}`
+  );
+}
+
+function botControlActivityStatusClass(status) {
+  const normalized = String(
+    status || ''
+  ).toLowerCase();
+
+  if (
+    [
+      'simulated',
+      'succeeded',
+      'rejected',
+      'uncertain',
+      'reserved',
+      'submitting',
+    ].includes(normalized)
+  ) {
+    return normalized;
+  }
+
+  return 'other';
+}
+
+function renderBotControlActivity() {
+  const body = $('#botControlActivityBody');
+
+  if (!body) {
+    return;
+  }
+
+  const rows = (
+    state.botControlActivity
+    || []
+  );
+
+  if (!rows.length) {
+    body.innerHTML = (
+      '<tr>'
+      + '<td colspan="9" class="empty-state">'
+      + 'No Bot Control activity recorded.'
+      + '</td>'
+      + '</tr>'
+    );
+
+    const footer = $('#botControlActivityFooter');
+
+    if (footer) {
+      footer.textContent = '0 activity records';
+    }
+
+    return;
+  }
+
+  body.innerHTML = rows.map(item => {
+    const mode = String(
+      item.mode || 'pending'
+    ).toLowerCase();
+
+    const status = String(
+      item.status || 'unknown'
+    ).toLowerCase();
+
+    const requestId = String(
+      item.request_id || ''
+    );
+
+    const investment = (
+      item.investment !== null
+      && item.investment !== undefined
+    )
+      ? `${item.investment} USDT`
+      : '—';
+
+    return (
+      '<tr>'
+      + `<td>${escapeHtml(fmtDate(item.created_at))}</td>`
+      + `<td><strong>${escapeHtml(item.account_id || '—')}</strong></td>`
+      + `<td>${escapeHtml(item.username || '—')}</td>`
+      + `<td>${escapeHtml(item.market || '—')}</td>`
+      + `<td>${escapeHtml(investment)}</td>`
+      + '<td>'
+      + (
+        `<span class="bot-control-activity-mode ${escapeHtml(mode)}">`
+        + `${escapeHtml(mode)}`
+        + '</span>'
+      )
+      + '</td>'
+      + '<td>'
+      + (
+        `<span class="bot-control-activity-status ${
+          escapeHtml(
+            botControlActivityStatusClass(status)
+          )
+        }">`
+        + `${escapeHtml(status)}`
+        + '</span>'
+      )
+      + '</td>'
+      + `<td>${escapeHtml(item.strategy_id || '—')}</td>`
+      + '<td>'
+      + (
+        `<span class="bot-control-activity-request" `
+        + `title="${escapeHtml(requestId)}">`
+        + `${escapeHtml(shortBotControlRequestId(requestId))}`
+        + '</span>'
+      )
+      + '</td>'
+      + '</tr>'
+    );
+  }).join('');
+
+  const footer = $('#botControlActivityFooter');
+
+  if (footer) {
+    footer.textContent = (
+      `${rows.length} most recent `
+      + `Bot Control record${rows.length === 1 ? '' : 's'}`
+    );
+  }
+}
+
+async function loadBotControlActivity(
+  {
+    quiet = false,
+  } = {},
+) {
+  if (!botControlAvailable()) {
+    state.botControlActivity = [];
+    renderBotControlActivity();
+    return;
+  }
+
+  const button = $('#refreshBotControlActivity');
+  const errorBox = $('#botControlActivityError');
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Loading…';
+  }
+
+  if (errorBox) {
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+
+  try {
+    const result = await adminApi(
+      '/api/bot-control/requests?limit=50'
+    );
+
+    state.botControlActivity = (
+      result.items
+      || []
+    );
+
+    renderBotControlActivity();
+
+  } catch (error) {
+    if (errorBox) {
+      errorBox.textContent = (
+        botControlErrorMessage(error)
+      );
+
+      errorBox.classList.remove(
+        'hidden'
+      );
+    }
+
+    if (!quiet) {
+      showToast(
+        botControlErrorMessage(error),
+        true,
+      );
+    }
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Refresh activity';
+    }
+  }
+}
+
+
 function botControlAvailable() {
   return Boolean(
     state.adminUser
@@ -1169,6 +1366,7 @@ function clearBotControlSession() {
   state.botControlPrepared = null;
   state.botControlDraft = null;
   state.botControlRequestId = '';
+  state.botControlActivity = [];
 
   $('#spotGridReview')?.classList.add('hidden');
   $('#spotGridReviewEmpty')?.classList.remove('hidden');
@@ -1179,6 +1377,7 @@ function clearBotControlSession() {
     dialog.close();
   }
 
+  renderBotControlActivity();
   renderBotControlAccess();
 }
 
@@ -1206,6 +1405,11 @@ async function loadBotControlCapabilities() {
   }
 
   renderBotControlAccess();
+
+  if (botControlAvailable()) {
+    await loadBotControlActivity({ quiet: true });
+  }
+
 }
 
 function botControlAccounts() {
@@ -1926,6 +2130,10 @@ async function submitSpotGridCreate() {
         ? 'Spot Grid simulation completed.'
         : 'Spot Grid creation submitted to Gate.'
     );
+
+    await loadBotControlActivity({
+      quiet: true,
+    });
 
     await loadCore();
 
@@ -3541,6 +3749,11 @@ function bindEvents() {
   $$('.nav-item').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
   $$('[data-jump]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.jump)));
   $('#syncButton').addEventListener('click', syncNow);
+
+  $('#refreshBotControlActivity')?.addEventListener(
+    'click',
+    () => loadBotControlActivity(),
+  );
 
   $('#spotGridForm')?.addEventListener(
     'submit',

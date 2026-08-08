@@ -461,7 +461,69 @@
           </article>
 
         </div>
-      </section>
+      
+
+        <article class="panel bot-control-activity-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Bot Control Activity</h2>
+              <p>
+                Persistent audit trail for Bot Control
+                create and simulation requests.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="button secondary"
+              id="refreshBotControlActivity"
+            >
+              Refresh activity
+            </button>
+          </div>
+
+          <div
+            id="botControlActivityError"
+            class="form-error hidden"
+            role="alert"
+          ></div>
+
+          <div class="bot-control-activity-wrap">
+            <table class="bot-control-activity-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Account</th>
+                  <th>User</th>
+                  <th>Market</th>
+                  <th>Investment</th>
+                  <th>Mode</th>
+                  <th>Status</th>
+                  <th>Strategy</th>
+                  <th>Request ID</th>
+                </tr>
+              </thead>
+
+              <tbody id="botControlActivityBody">
+                <tr>
+                  <td
+                    colspan="9"
+                    class="empty-state"
+                  >
+                    No Bot Control activity loaded.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div
+            id="botControlActivityFooter"
+            class="bot-control-activity-footer"
+          ></div>
+        </article>
+
+</section>
 
 <section class="tab-panel" id="tab-alerts">
         <div class="dashboard-grid equal">
