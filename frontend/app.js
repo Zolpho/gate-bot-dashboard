@@ -2364,6 +2364,32 @@ function botCreationSimulation() {
   );
 }
 
+function botCreationLive() {
+  return Boolean(
+    botCreationEnabled()
+    && !botCreationSimulation()
+  );
+}
+
+function botCreationMode() {
+  if (botCreationLive()) {
+    return 'live';
+  }
+
+  if (botCreationSimulation()) {
+    return 'simulation';
+  }
+
+  return 'disabled';
+}
+
+function botCreationRequiredConfirmation() {
+  return botCreationLive()
+    ? 'LIVE CREATE'
+    : 'CREATE';
+}
+
+
 function botCreationAvailable() {
   return (
     botCreationEnabled()
@@ -3098,14 +3124,15 @@ function openSpotGridConfirmation() {
 
   const enabled = botCreationEnabled();
   const simulation = botCreationSimulation();
+  const live = botCreationLive();
   const notice = $('#botCreateDisabledNotice');
 
   notice.classList.toggle(
     'enabled',
-    enabled,
+    live,
   );
 
-  notice.textContent = enabled
+  notice.textContent = live
     ? (
       'LIVE Bot creation is ENABLED. Submitting this '
       + 'confirmation can create a real Gate Spot Grid.'
@@ -3120,6 +3147,15 @@ function openSpotGridConfirmation() {
         'Bot creation is currently disabled on the server. '
         + 'No Gate write can be submitted.'
       );
+
+  const requiredConfirmation =
+    botCreationRequiredConfirmation();
+
+  $('#spotGridRequiredConfirmation').textContent =
+    requiredConfirmation;
+
+  $('#spotGridConfirmText').placeholder =
+    requiredConfirmation;
 
   $('#spotGridConfirmText').value = '';
   $('#spotGridConfirmError').textContent = '';
@@ -3149,7 +3185,8 @@ function updateSpotGridConfirmButton() {
   button.disabled = !(
     botCreationAvailable()
     && state.botControlPrepared?.can_create
-    && $('#spotGridConfirmText')?.value === 'CREATE'
+    && $('#spotGridConfirmText')?.value
+      === botCreationRequiredConfirmation()
   );
 
   button.textContent = botCreationSimulation()
@@ -3182,20 +3219,76 @@ async function submitSpotGridCreate() {
     return;
   }
 
+  const button =
+    $('#confirmSpotGridCreate');
+
+  const errorBox =
+    $('#spotGridConfirmError');
+
+  /*
+   * Re-read server safety state immediately before
+   * submission. An already-open CREATE dialog must
+   * never retain stale live/simulation state.
+   */
+  const modeBefore =
+    botCreationMode();
+
+  try {
+    await refreshBotControlRuntimeHealth();
+
+  } catch (error) {
+    errorBox.textContent = (
+      'Unable to refresh Bot Control safety state. '
+      + 'No Create request was submitted.'
+    );
+
+    errorBox.classList.remove(
+      'hidden'
+    );
+
+    return;
+  }
+
+  const modeAfter =
+    botCreationMode();
+
+  if (modeAfter !== modeBefore) {
+    /*
+     * Stronger than trying to mutate an already-open
+     * confirmation: close it and force the operator to
+     * prepare/review again.
+     */
+    $('#spotGridConfirmDialog').close();
+
+    showToast(
+      'Bot Control mode changed on the server. '
+      + 'No Create request was submitted. '
+      + 'Review and open confirmation again.',
+      true,
+    );
+
+    return;
+  }
+
   if (!botCreationAvailable()) {
     return;
   }
 
+  const requiredConfirmation =
+    botCreationRequiredConfirmation();
+
   if (
     $('#spotGridConfirmText').value
-    !== 'CREATE'
+    !== requiredConfirmation
   ) {
     return;
   }
 
   if (!state.botControlRequestId) {
     state.botControlRequestId =
-      generateBotControlRequestId('spot-grid');
+      generateBotControlRequestId(
+        'spot-grid'
+      );
   }
 
   const requestId =
@@ -3204,20 +3297,35 @@ async function submitSpotGridCreate() {
   const payload = {
     ...state.botControlDraft,
     request_id: requestId,
-    confirmation: 'CREATE',
+    confirmation: requiredConfirmation,
   };
 
-  const button = $('#confirmSpotGridCreate');
-  const errorBox = $('#spotGridConfirmError');
-
   button.disabled = true;
-  button.textContent = 'Submitting to Gate…';
+
+  button.textContent = (
+    botCreationLive()
+      ? 'Submitting to Gate…'
+      : 'Simulating…'
+  );
 
   errorBox.textContent = '';
-  errorBox.classList.add('hidden');
 
+  errorBox.classList.add(
+    'hidden'
+  );
+
+  let result;
+
+  /*
+   * ONLY the actual Create mutation belongs in this
+   * try/catch.
+   *
+   * Once adminApi() returns successfully, later UI
+   * refresh failures must never make the operator
+   * believe the Gate submission itself failed.
+   */
   try {
-    const result = await adminApi(
+    result = await adminApi(
       '/api/bot-control/spot-grid/create',
       {
         method: 'POST',
@@ -3225,67 +3333,128 @@ async function submitSpotGridCreate() {
       },
     );
 
-    $('#spotGridConfirmDialog').close();
-
-    const resultBox = $('#spotGridCreateResult');
-
-    const simulated = Boolean(
-      result.simulation
-      || result.status === 'simulated'
-    );
-
-    resultBox.innerHTML = (
-      `<strong>${
-        simulated
-          ? 'Simulation completed. No Gate write performed.'
-          : 'Gate submission completed.'
-      }</strong>`
-      + '<br>'
-      + `Request ID: ${escapeHtml(requestId)}`
-      + '<br>'
-      + (
-        simulated
-          ? 'Strategy ID: none · simulation only'
-          : (
-            `Strategy ID: ${
-              escapeHtml(
-                result.strategy?.strategy_id
-                || 'pending'
-              )
-            }`
-          )
-      )
-    );
-
-    resultBox.classList.remove('hidden');
-
-    showToast(
-      simulated
-        ? 'Spot Grid simulation completed.'
-        : 'Spot Grid creation submitted to Gate.'
-    );
-
-    await loadBotControlActivity({
-      quiet: true,
-    });
-
-    await loadCore();
-
   } catch (error) {
     /*
-     * Keep the SAME request ID after any failure.
-     * A retry must never generate another create request.
-     * The backend audit/idempotency layer decides whether
-     * replay is safe.
+     * Keep the SAME request ID. The backend audit and
+     * idempotency layer decides whether replay is safe.
      */
     errorBox.textContent =
       botControlErrorMessage(error);
 
-    errorBox.classList.remove('hidden');
+    errorBox.classList.remove(
+      'hidden'
+    );
 
-  } finally {
     updateSpotGridConfirmButton();
+    return;
   }
+
+  const simulated = Boolean(
+    result.simulation
+    || result.status === 'simulated'
+  );
+
+  $('#spotGridConfirmDialog').close();
+
+  /*
+   * Persist the raw result immediately.
+   */
+  $('#apiInspector').textContent =
+    JSON.stringify(
+      result,
+      null,
+      2,
+    );
+
+  const resultBox =
+    $('#spotGridCreateResult');
+
+  resultBox.innerHTML = (
+    `<strong>${
+      simulated
+        ? (
+          'Simulation completed. '
+          + 'No Gate write performed.'
+        )
+        : 'Gate submission completed.'
+    }</strong>`
+    + '<br>'
+    + `Request ID: ${
+      escapeHtml(requestId)
+    }`
+    + '<br>'
+    + (
+      simulated
+        ? 'Strategy ID: none · simulation only'
+        : (
+          `Strategy ID: ${
+            escapeHtml(
+              result.strategy?.strategy_id
+              || result.gate?.data?.strategy_id
+              || 'pending'
+            )
+          }`
+        )
+    )
+  );
+
+  resultBox.classList.remove(
+    'hidden'
+  );
+
+  showToast(
+    simulated
+      ? (
+        'Spot Grid simulation completed. '
+        + `Request ${requestId}.`
+      )
+      : (
+        'Spot Grid creation submitted to Gate. '
+        + `Request ${requestId}.`
+      )
+  );
+
+  /*
+   * Open the persistent audit record immediately.
+   * The dialog now also resets its scroll position to
+   * the top when opened.
+   */
+  await openBotControlRequestDetail(
+    requestId
+  );
+
+  /*
+   * Everything below is secondary refresh work.
+   * Failure here must NOT be reported as Create
+   * submission failure.
+   */
+  try {
+    await loadBotControlActivity({
+      quiet: true,
+    });
+
+  } catch (error) {
+    showToast(
+      'Create was submitted successfully, but Bot '
+      + 'Control Activity could not be refreshed. '
+      + `Request ${requestId}.`,
+      true,
+    );
+  }
+
+  try {
+    await loadCore();
+
+  } catch (error) {
+    showToast(
+      'Create was submitted successfully, but the '
+      + 'dashboard could not be refreshed. '
+      + `Request ${requestId}.`,
+      true,
+    );
+  }
+
+  updateSpotGridConfirmButton();
 }
 
 function switchTab(tab, { updateHash = true } = {}) {
