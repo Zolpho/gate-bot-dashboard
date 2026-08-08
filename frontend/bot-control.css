@@ -1115,7 +1115,17 @@
   border: 1px solid var(--border);
   border-radius: 999px;
   font-size: 0.82rem !important;
-  text-transform: capitalize;
+  text-transform: none;
+}
+
+/*
+ * Keep the reconciliation action visually attached to
+ * its read-only safety notice.
+ */
+.bot-control-request-content
+  > #botControlReconcileNotice
+  + .form-actions {
+  margin-top: -10px;
 }
 
 .bot-control-request-times {
