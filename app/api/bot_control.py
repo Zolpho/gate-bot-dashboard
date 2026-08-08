@@ -44,6 +44,10 @@ from ..bot_control_lock_resolution import (
     list_lock_resolutions,
     manual_release_operation_lock,
 )
+from ..bot_control_live_policy import (
+    evaluate_live_create_policy,
+    evaluate_live_stop_policy,
+)
 from ..bot_control_locks import (
     OperationLocked,
     acquire_operation_lock,
@@ -615,15 +619,35 @@ async def create_spot_grid(
             ),
         )
 
+    live_execution = (
+        not settings.bot_create_simulation
+    )
+
+    required_confirmation = (
+        settings.bot_control_live_create_confirmation_text
+        if live_execution
+        else settings.bot_create_confirmation_text
+    )
+
     if (
         request.confirmation
-        != settings.bot_create_confirmation_text
+        != required_confirmation
     ):
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Invalid Bot Control confirmation text"
-            ),
+            detail={
+                "message": (
+                    "Invalid Bot Control confirmation text"
+                ),
+                "mode": (
+                    "live"
+                    if live_execution
+                    else "simulation"
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+            },
         )
 
     account_id = require_account_access(
@@ -693,6 +717,56 @@ async def create_spot_grid(
                 "warnings": prepared["warnings"],
             },
         )
+
+    if live_execution:
+        available_quote = as_decimal(
+            prepared["balance"].get(
+                "available"
+            )
+        )
+
+        if available_quote is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "Live safety policy could not "
+                        "determine the available quote "
+                        "balance. No Gate write was "
+                        "performed."
+                    ),
+                    "reason": (
+                        "available_balance_unknown"
+                    ),
+                    "write_performed": False,
+                },
+            )
+
+        live_decision = (
+            evaluate_live_create_policy(
+                settings=settings,
+                account_id=account_id,
+                market=prepared["market"]["id"],
+                quote_currency=(
+                    prepared["market"]["quote"]
+                ),
+                requested_investment=request.money,
+                available_quote=available_quote,
+            )
+        )
+
+        if not live_decision.allowed:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "message": (
+                        "Bot Control live safety policy "
+                        "rejected this request."
+                    ),
+                    **live_decision.safe_dict(),
+                    "write_performed": False,
+                },
+            )
 
     try:
         control_account = (
@@ -1201,15 +1275,35 @@ async def stop_bot_control(
             ),
         )
 
+    live_execution = (
+        not settings.bot_stop_simulation
+    )
+
+    required_confirmation = (
+        settings.bot_control_live_stop_confirmation_text
+        if live_execution
+        else settings.bot_stop_confirmation_text
+    )
+
     if (
         request.confirmation
-        != settings.bot_stop_confirmation_text
+        != required_confirmation
     ):
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Invalid Bot Stop confirmation text"
-            ),
+            detail={
+                "message": (
+                    "Invalid Bot Stop confirmation text"
+                ),
+                "mode": (
+                    "live"
+                    if live_execution
+                    else "simulation"
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+            },
         )
 
     bot = _load_bot_control_target(
@@ -1275,6 +1369,29 @@ async def stop_bot_control(
                 "warnings": prepared["warnings"],
             },
         )
+
+    if live_execution:
+        live_decision = (
+            evaluate_live_stop_policy(
+                settings=settings,
+                account_id=bot["account_id"],
+                market=bot["market"],
+                strategy_id=bot["strategy_id"],
+            )
+        )
+
+        if not live_decision.allowed:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "message": (
+                        "Bot Control live safety policy "
+                        "rejected this Stop request."
+                    ),
+                    **live_decision.safe_dict(),
+                    "write_performed": False,
+                },
+            )
 
     try:
         control_account = (

@@ -75,6 +75,19 @@ class Settings(BaseSettings):
     bot_create_confirmation_text: str = "CREATE"
     bot_create_duplicate_cooldown_seconds: int = 600
 
+    # Live Bot Control requires an additional explicit arm.
+    #
+    # Accounts may be a comma-separated list or "*".
+    # There is deliberately NO permanent market allowlist
+    # and NO static investment cap. Spot Grid investment
+    # is bounded dynamically by the available balance of
+    # the market's quote currency.
+    bot_control_live_armed: bool = False
+    bot_control_live_accounts: str = ""
+
+    bot_control_live_create_confirmation_text: str = "LIVE CREATE"
+    bot_control_live_stop_confirmation_text: str = "LIVE STOP"
+
     # Persistent Bot Control rate limiting.
     bot_control_rate_limit_enabled: bool = True
 
@@ -179,6 +192,25 @@ class Settings(BaseSettings):
     @classmethod
     def validate_poll_seconds(cls, value: int) -> int:
         return max(15, value)
+
+    @property
+    def bot_control_live_account_list(self) -> set[str]:
+        return {
+            item.strip()
+            for item in self.bot_control_live_accounts.split(",")
+            if item.strip()
+        }
+
+    def bot_control_live_account_allowed(
+        self,
+        account_id: str,
+    ) -> bool:
+        allowed = self.bot_control_live_account_list
+
+        return (
+            "*" in allowed
+            or account_id in allowed
+        )
 
     @property
     def legacy_gate_configured(self) -> bool:
