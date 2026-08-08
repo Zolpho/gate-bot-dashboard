@@ -4381,6 +4381,51 @@ function applyBotFilters() {
 }
 
 function botDisplayStatus(bot) {
+  const localStatus = String(
+    bot?.status
+    ?? ''
+  ).trim().toLowerCase();
+
+  /*
+   * The Gate running-portfolio feed stops returning a
+   * strategy after it finishes/stops. source_status may
+   * therefore retain the last value observed from Gate,
+   * e.g. "running", while our collector has correctly
+   * transitioned the canonical local status to
+   * "stopped".
+   *
+   * Preserve source_status as evidence, but use the
+   * terminal local state for effective UI display.
+   */
+  const terminalLocalStates = new Set([
+    'stopped',
+    'finished',
+    'closed',
+    'cancelled',
+    'canceled',
+    'terminated',
+    'failed',
+  ]);
+
+  if (
+    terminalLocalStates.has(localStatus)
+    && String(
+      bot?.source_status
+      ?? ''
+    ).trim().toLowerCase()
+      !== localStatus
+  ) {
+    return botDisplayStatusOriginal({
+      ...bot,
+      source_status: localStatus,
+    });
+  }
+
+  return botDisplayStatusOriginal(bot);
+}
+
+
+function botDisplayStatusOriginal(bot) {
   const sourceStatus = String(
     bot?.source_status
     ?? bot?.status
