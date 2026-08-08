@@ -48,6 +48,7 @@ from ..bot_control_live_policy import (
     evaluate_live_create_policy,
     evaluate_live_stop_policy,
 )
+from ..bot_stop_estimate import estimate_stop_return
 from ..bot_control_locks import (
     OperationLocked,
     acquire_operation_lock,
@@ -1184,6 +1185,8 @@ async def prepare_bot_stop(
         )
 
     gate_detail: dict = {}
+    gate_detail_fresh = False
+    market_price = None
 
     try:
         async with GateClient(
@@ -1200,6 +1203,48 @@ async def prepare_bot_stop(
                 dict,
             ):
                 gate_detail = response.data
+                gate_detail_fresh = bool(
+                    gate_detail
+                )
+
+            # Market price is used only for the
+            # informational Stop-return estimate.
+            # Failure here must never block Stop.
+            try:
+                ticker_response = (
+                    await client.list_spot_tickers(
+                        bot["market"]
+                    )
+                )
+
+                ticker_data = ticker_response.data
+
+                if (
+                    isinstance(ticker_data, list)
+                    and ticker_data
+                    and isinstance(
+                        ticker_data[0],
+                        dict,
+                    )
+                ):
+                    market_price = (
+                        ticker_data[0].get("last")
+                    )
+
+                elif isinstance(
+                    ticker_data,
+                    dict,
+                ):
+                    market_price = (
+                        ticker_data.get("last")
+                    )
+
+            except GateAPIError as exc:
+                warnings.append(
+                    "Unable to refresh Gate market "
+                    "price for Stop-return estimate: "
+                    f"{exc}"
+                )
 
     except GateAPIError as exc:
         warnings.append(
@@ -1227,6 +1272,158 @@ async def prepare_bot_stop(
             f"'{gate_status}'. Review before stopping."
         )
 
+    def _first_gate_value(
+        source: dict,
+        *keys: str,
+    ):
+        for key in keys:
+            value = source.get(key)
+
+            if (
+                value is not None
+                and value != ""
+            ):
+                return value
+
+        return None
+
+    base_info = (
+        gate_detail.get("base_info")
+        if isinstance(
+            gate_detail.get("base_info"),
+            dict,
+        )
+        else {}
+    )
+
+    position = (
+        gate_detail.get("position")
+        if isinstance(
+            gate_detail.get("position"),
+            dict,
+        )
+        else {}
+    )
+
+    metrics = (
+        gate_detail.get("metrics")
+        if isinstance(
+            gate_detail.get("metrics"),
+            dict,
+        )
+        else {}
+    )
+
+    base_amount = _first_gate_value(
+        position,
+        "amount",
+        "size",
+        "position_amount",
+    )
+
+    if base_amount is None:
+        base_amount = _first_gate_value(
+            metrics,
+            "position_amount",
+            "position_size",
+        )
+
+    quote_amount = _first_gate_value(
+        position,
+        "quote_amount",
+        "quote_size",
+    )
+
+    if quote_amount is None:
+        quote_amount = _first_gate_value(
+            metrics,
+            "quote_amount",
+            "quote_size",
+        )
+
+    current_value = _first_gate_value(
+        base_info,
+        "current_value",
+        "strategy_value",
+        "total_value",
+        "equity",
+    )
+
+    estimate_source = (
+        "fresh_gate_detail"
+        if gate_detail_fresh
+        else "cached_bot_record"
+    )
+
+    # Gate Spot Grid currently may omit current_value
+    # while still returning fresh invest_amount and
+    # total_profit. Derive the current value from those
+    # fresh Gate values before considering cached data.
+    if (
+        current_value is None
+        and gate_detail_fresh
+    ):
+        gate_invest = as_decimal(
+            _first_gate_value(
+                base_info,
+                "invest_amount",
+                "investment",
+                "total_invest",
+            )
+        )
+
+        gate_profit = as_decimal(
+            _first_gate_value(
+                base_info,
+                "total_profit",
+                "pnl",
+                "total_pnl",
+            )
+        )
+
+        if (
+            gate_invest is not None
+            and gate_profit is not None
+        ):
+            current_value = decimal_text(
+                gate_invest + gate_profit
+            )
+            estimate_source = (
+                "fresh_gate_detail_derived"
+            )
+
+    # Last-resort fallback. If this is used, make the
+    # mixed provenance explicit rather than claiming
+    # that the complete estimate is fresh from Gate.
+    if current_value is None:
+        current_value = bot.get(
+            "current_value"
+        )
+
+        if (
+            current_value is not None
+            and gate_detail_fresh
+        ):
+            estimate_source = (
+                "fresh_gate_detail_plus_cached_value"
+            )
+
+    stop_return_estimate = estimate_stop_return(
+        market=bot["market"],
+        base_amount=base_amount,
+        quote_amount=quote_amount,
+        current_value=current_value,
+        market_price=market_price,
+        source=estimate_source,
+    )
+
+    if not stop_return_estimate["available"]:
+        warnings.append(
+            "Gate did not expose enough current "
+            "position data to estimate the assets "
+            "returned by Stop."
+        )
+
     stop_payload = {
         "strategy_id": bot["strategy_id"],
         "strategy_type": bot["strategy_type"],
@@ -1248,6 +1445,9 @@ async def prepare_bot_stop(
         "gate_snapshot": {
             "status": gate_status or None,
         },
+        "stop_return_estimate": (
+            stop_return_estimate
+        ),
         "errors": errors,
         "warnings": warnings,
         "gate_stop_payload_preview": stop_payload,
