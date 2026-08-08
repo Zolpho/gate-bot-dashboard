@@ -424,3 +424,165 @@
   color: var(--muted);
   font-size: .72rem;
 }
+
+
+/* ---------------------------------------------------------
+   Bot Control Needs Attention
+   --------------------------------------------------------- */
+
+.bot-control-nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: .67rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 110, 124, .45);
+  background: rgba(255, 110, 124, .12);
+  color: var(--negative);
+}
+
+.bot-control-attention-panel {
+  margin-top: 18px;
+}
+
+.bot-control-attention-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.bot-control-attention-title h2 {
+  margin: 0;
+}
+
+.bot-control-attention-count {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 110, 124, .10);
+  border: 1px solid rgba(255, 110, 124, .35);
+  color: var(--negative);
+  font-size: .72rem;
+  font-weight: 700;
+}
+
+.bot-control-attention-list {
+  display: grid;
+  gap: 11px;
+  margin-top: 14px;
+}
+
+.bot-control-attention-card {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 13px 14px;
+  background: var(--surface-2);
+}
+
+.bot-control-attention-card.high {
+  border-color: rgba(255, 110, 124, .35);
+}
+
+.bot-control-attention-card.medium {
+  border-color: rgba(241, 189, 100, .35);
+}
+
+.bot-control-attention-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.bot-control-attention-severity {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: .67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+}
+
+.bot-control-attention-severity.high {
+  color: var(--negative);
+  border-color: rgba(255, 110, 124, .35);
+  background: rgba(255, 110, 124, .07);
+}
+
+.bot-control-attention-severity.medium {
+  color: var(--warning);
+  border-color: rgba(241, 189, 100, .35);
+  background: rgba(241, 189, 100, .07);
+}
+
+.bot-control-attention-main {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 11px;
+}
+
+.bot-control-attention-field {
+  min-width: 0;
+}
+
+.bot-control-attention-field span,
+.bot-control-attention-field strong {
+  display: block;
+}
+
+.bot-control-attention-field span {
+  color: var(--muted);
+  font-size: .68rem;
+  margin-bottom: 3px;
+}
+
+.bot-control-attention-field strong {
+  font-size: .79rem;
+  overflow-wrap: anywhere;
+}
+
+.bot-control-attention-recommendation {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: .79rem;
+  line-height: 1.5;
+}
+
+.bot-control-attention-recommendation strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.bot-control-attention-meta {
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: .70rem;
+}
+
+@media (max-width: 850px) {
+  .bot-control-attention-main {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .bot-control-attention-main {
+    grid-template-columns: 1fr;
+  }
+}

@@ -25,7 +25,12 @@
           data-tab="bot-control"
           aria-hidden="true"
           aria-controls="tab-bot-control"
-        ><span>◆</span>Bot Control</button>
+        ><span>◆</span>Bot Control
+          <span
+            id="botControlAttentionBadge"
+            class="bot-control-nav-badge hidden"
+          >0</span>
+        </button>
         <button class="nav-item" data-tab="alerts"><span>◇</span>Alerts</button>
         <button class="nav-item hidden" id="walletNavItem" data-tab="wallet" aria-hidden="true" aria-controls="tab-wallet"><span>◈</span>Wallet</button>
         <button class="nav-item" data-tab="system"><span>⚙</span>System</button>
@@ -463,7 +468,52 @@
         </div>
       
 
-        <article class="panel bot-control-activity-panel">
+        
+        <article class="panel bot-control-attention-panel">
+          <div class="panel-header">
+            <div>
+              <div class="bot-control-attention-title">
+                <h2>Needs Attention</h2>
+
+                <span
+                  id="botControlAttentionCount"
+                  class="bot-control-attention-count"
+                >0</span>
+              </div>
+
+              <p>
+                Uncertain, blocked or rejected operations,
+                unresolved locks and reconciliation results
+                requiring operator review.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="button secondary"
+              id="refreshBotControlAttention"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div
+            id="botControlAttentionError"
+            class="form-error hidden"
+            role="alert"
+          ></div>
+
+          <div
+            id="botControlAttentionList"
+            class="bot-control-attention-list"
+          >
+            <div class="empty-state">
+              No Bot Control requests need attention.
+            </div>
+          </div>
+        </article>
+
+<article class="panel bot-control-activity-panel">
           <div class="panel-header">
             <div>
               <h2>Bot Control Activity</h2>

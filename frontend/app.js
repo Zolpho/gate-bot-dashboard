@@ -53,6 +53,8 @@ const state = {
   botControlDraft: null,
   botControlRequestId: '',
   botControlActivity: [],
+  botControlAttention: [],
+  botControlAttentionSummary: null,
   botControlRequestDetail: null,
   botStopPrepared: null,
   botStopRequestId: '',
@@ -1173,6 +1175,321 @@ function botControlActionLabel(action) {
 }
 
 
+
+function formatBotControlAttentionAge(seconds) {
+  const value = Math.max(
+    0,
+    Number(seconds || 0),
+  );
+
+  if (value < 60) {
+    return `${Math.floor(value)}s`;
+  }
+
+  if (value < 3600) {
+    return `${Math.floor(value / 60)}m`;
+  }
+
+  if (value < 86400) {
+    return `${Math.floor(value / 3600)}h`;
+  }
+
+  return `${Math.floor(value / 86400)}d`;
+}
+
+
+function renderBotControlAttention() {
+  const container = $(
+    '#botControlAttentionList'
+  );
+
+  const badge = $(
+    '#botControlAttentionBadge'
+  );
+
+  const countElement = $(
+    '#botControlAttentionCount'
+  );
+
+  const rows = (
+    state.botControlAttention
+    || []
+  );
+
+  if (badge) {
+    badge.textContent = String(
+      rows.length
+    );
+
+    badge.classList.toggle(
+      'hidden',
+      rows.length === 0,
+    );
+  }
+
+  if (countElement) {
+    countElement.textContent = String(
+      rows.length
+    );
+  }
+
+  if (!container) {
+    return;
+  }
+
+  if (!rows.length) {
+    container.innerHTML = (
+      '<div class="empty-state">'
+      + 'No Bot Control requests need attention.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  container.innerHTML = rows.map(item => {
+    const lock = (
+      item.operation_lock
+      || {}
+    );
+
+    const reconciliation = (
+      item.latest_reconciliation
+      || {}
+    );
+
+    const requestId = String(
+      item.request_id
+      || ''
+    );
+
+    const severity = String(
+      item.severity
+      || 'medium'
+    );
+
+    const lockText = (
+      lock.state
+        ? (
+          `${lock.state} · `
+          + `${lock.lock_type || 'lock'}`
+        )
+        : 'none'
+    );
+
+    const reconciliationText = (
+      reconciliation.outcome
+        ? reconciliationLabel(
+            reconciliation.outcome
+          )
+        : 'not run'
+    );
+
+    return (
+      `<article class="bot-control-attention-card ${
+        escapeHtml(severity)
+      }">`
+
+      + '<div class="bot-control-attention-head">'
+
+      + `<span class="bot-control-attention-severity ${
+        escapeHtml(severity)
+      }">${escapeHtml(severity)}</span>`
+
+      + `<strong>${
+        escapeHtml(
+          item.account_id || '—'
+        )
+      } · ${
+        escapeHtml(
+          botControlActionLabel(
+            item.action
+          )
+        )
+      }</strong>`
+
+      + '</div>'
+
+      + '<div class="bot-control-attention-main">'
+
+      + '<div class="bot-control-attention-field">'
+      + '<span>Market</span>'
+      + `<strong>${escapeHtml(
+          item.market || '—'
+        )}</strong>`
+      + '</div>'
+
+      + '<div class="bot-control-attention-field">'
+      + '<span>Status</span>'
+      + `<strong>${escapeHtml(
+          item.status || '—'
+        )}</strong>`
+      + '</div>'
+
+      + '<div class="bot-control-attention-field">'
+      + '<span>Operation lock</span>'
+      + `<strong>${escapeHtml(
+          lockText
+        )}</strong>`
+      + '</div>'
+
+      + '<div class="bot-control-attention-field">'
+      + '<span>Reconciliation</span>'
+      + `<strong>${escapeHtml(
+          reconciliationText
+        )}</strong>`
+      + '</div>'
+
+      + '<div class="bot-control-attention-field">'
+      + '<span>Strategy ID</span>'
+      + `<strong>${escapeHtml(
+          item.strategy_id || '—'
+        )}</strong>`
+      + '</div>'
+
+      + '<div class="bot-control-attention-field">'
+      + '<span>Operator</span>'
+      + `<strong>${escapeHtml(
+          item.username || '—'
+        )}</strong>`
+      + '</div>'
+
+      + '<div class="bot-control-attention-field">'
+      + '<span>Age</span>'
+      + `<strong>${escapeHtml(
+          formatBotControlAttentionAge(
+            item.age_seconds
+          )
+        )}</strong>`
+      + '</div>'
+
+      + '<div class="bot-control-attention-field">'
+      + '<span>Request</span>'
+
+      + `<button
+          type="button"
+          class="bot-control-activity-request-button bot-control-activity-request"
+          data-bot-control-attention-request="${escapeHtml(requestId)}"
+          title="${escapeHtml(requestId)}"
+        >${escapeHtml(
+          shortBotControlRequestId(
+            requestId
+          )
+        )}</button>`
+
+      + '</div>'
+
+      + '</div>'
+
+      + '<div class="bot-control-attention-recommendation">'
+      + '<strong>Recommended action</strong>'
+      + `${escapeHtml(
+          item.recommended_action
+          || 'Review this request.'
+        )}`
+      + '</div>'
+
+      + '<div class="bot-control-attention-meta">'
+      + `Created ${escapeHtml(
+          fmtDate(item.created_at)
+        )}`
+
+      + (
+        item.manual_release_available
+          ? ' · Manual release available after review'
+          : ''
+      )
+
+      + '</div>'
+
+      + '</article>'
+    );
+  }).join('');
+}
+
+
+async function loadBotControlAttention(
+  {
+    quiet = false,
+  } = {},
+) {
+  if (!botControlAvailable()) {
+    state.botControlAttention = [];
+    state.botControlAttentionSummary = null;
+
+    renderBotControlAttention();
+
+    return;
+  }
+
+  const button = $(
+    '#refreshBotControlAttention'
+  );
+
+  const errorBox = $(
+    '#botControlAttentionError'
+  );
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Loading…';
+  }
+
+  if (errorBox) {
+    errorBox.textContent = '';
+    errorBox.classList.add(
+      'hidden'
+    );
+  }
+
+  try {
+    const result = await adminApi(
+      '/api/bot-control/attention?limit=50'
+    );
+
+    state.botControlAttention = (
+      result.items
+      || []
+    );
+
+    state.botControlAttentionSummary = (
+      result.summary
+      || null
+    );
+
+    renderBotControlAttention();
+
+  } catch (error) {
+    if (errorBox) {
+      errorBox.textContent = (
+        botControlErrorMessage(
+          error
+        )
+      );
+
+      errorBox.classList.remove(
+        'hidden'
+      );
+    }
+
+    if (!quiet) {
+      showToast(
+        botControlErrorMessage(
+          error
+        ),
+        true,
+      );
+    }
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Refresh';
+    }
+  }
+}
+
+
 function renderBotControlActivity() {
   const body = $('#botControlActivityBody');
 
@@ -1282,9 +1599,12 @@ async function loadBotControlActivity(
 ) {
   if (!botControlAvailable()) {
     state.botControlActivity = [];
+    state.botControlAttention = [];
+    state.botControlAttentionSummary = null;
   state.botStopPrepared = null;
   state.botStopRequestId = '';
     renderBotControlActivity();
+    renderBotControlAttention();
     return;
   }
 
@@ -1312,6 +1632,10 @@ async function loadBotControlActivity(
     );
 
     renderBotControlActivity();
+
+    await loadBotControlAttention({
+      quiet: true,
+    });
 
   } catch (error) {
     if (errorBox) {
@@ -4724,6 +5048,30 @@ function bindEvents() {
       ) {
         $('#botControlRequestDialog').close();
       }
+    },
+  );
+
+
+  $('#refreshBotControlAttention')?.addEventListener(
+    'click',
+    () => loadBotControlAttention(),
+  );
+
+  $('#botControlAttentionList')?.addEventListener(
+    'click',
+    event => {
+      const button = event.target.closest(
+        '[data-bot-control-attention-request]'
+      );
+
+      if (!button) {
+        return;
+      }
+
+      openBotControlRequestDetail(
+        button.dataset
+          .botControlAttentionRequest
+      );
     },
   );
 
