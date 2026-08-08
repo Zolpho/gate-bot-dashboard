@@ -27,6 +27,8 @@ from ..bot_control import (
     get_bot_control_account,
 )
 from ..config import get_settings
+from ..db import session_scope
+from ..models import Bot
 from ..gate_client import (
     GateAPIError,
     GateClient,
@@ -464,7 +466,7 @@ class SpotGridCreateRequest(SpotGridPrepareRequest):
     )
 
 
-def _existing_create_result(
+def _existing_control_result(
     record: dict,
 ):
     status = record["status"]
@@ -603,7 +605,7 @@ async def create_spot_grid(
         ) from exc
 
     if existing is not None:
-        return _existing_create_result(
+        return _existing_control_result(
             existing
         )
 
@@ -664,7 +666,7 @@ async def create_spot_grid(
         ) from exc
 
     if not created:
-        return _existing_create_result(
+        return _existing_control_result(
             audit_record
         )
 
@@ -824,6 +826,493 @@ async def create_spot_grid(
         status="succeeded",
         response=result,
         strategy_id=strategy_id,
+        gate_status_code=response.status_code,
+        completed=True,
+    )
+
+    return result
+
+
+
+
+class BotStopRequest(BaseModel):
+    request_id: str = Field(
+        min_length=8,
+        max_length=128,
+        pattern=(
+            r"^[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{7,127}$"
+        ),
+    )
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=64,
+    )
+
+
+def _load_bot_control_target(
+    bot_id: int,
+    user: DashboardUser,
+) -> dict:
+    with session_scope() as db:
+        bot = db.get(
+            Bot,
+            bot_id,
+        )
+
+        if bot is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Bot not found",
+            )
+
+        require_account_access(
+            user,
+            bot.account_id,
+        )
+
+        return {
+            "id": bot.id,
+            "account_id": bot.account_id,
+            "strategy_id": bot.strategy_id,
+            "strategy_name": bot.strategy_name,
+            "strategy_type": bot.strategy_type,
+            "market": bot.market,
+            "status": bot.status,
+            "source_status": bot.source_status,
+            "invest_amount": (
+                decimal_text(bot.invest_amount)
+                if bot.invest_amount is not None
+                else None
+            ),
+            "total_profit": (
+                decimal_text(bot.total_profit)
+                if bot.total_profit is not None
+                else None
+            ),
+            "current_value": (
+                decimal_text(bot.current_value)
+                if bot.current_value is not None
+                else None
+            ),
+            "stop_supported": bool(
+                bot.stop_supported
+            ),
+        }
+
+
+@router.get("/bots/{bot_id}/stop/prepare")
+async def prepare_bot_stop(
+    bot_id: int,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    bot = _load_bot_control_target(
+        bot_id,
+        user,
+    )
+
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if not bot["stop_supported"]:
+        errors.append(
+            "Gate reports that this strategy "
+            "does not support stopping."
+        )
+
+    if str(bot["status"]).lower() in {
+        "stopped",
+        "finished",
+        "closed",
+    }:
+        errors.append(
+            "The local bot record is already stopped."
+        )
+
+    monitor_account = get_gate_account(
+        bot["account_id"]
+    )
+
+    if (
+        monitor_account is None
+        or not monitor_account.enabled
+        or not monitor_account.configured
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Monitor credentials are not configured "
+                f"for {bot['account_id']}"
+            ),
+        )
+
+    try:
+        control_account = (
+            get_bot_control_account(
+                bot["account_id"]
+            )
+        )
+    except BotControlConfigError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    if control_account is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Bot Control credentials are not "
+                f"configured for {bot['account_id']}"
+            ),
+        )
+
+    gate_detail: dict = {}
+
+    try:
+        async with GateClient(
+            settings,
+            monitor_account,
+        ) as client:
+            response = await client.get_bot_detail(
+                bot["strategy_id"],
+                bot["strategy_type"],
+            )
+
+            if isinstance(
+                response.data,
+                dict,
+            ):
+                gate_detail = response.data
+
+    except GateAPIError as exc:
+        warnings.append(
+            "Unable to refresh Gate bot detail "
+            f"during preflight: {exc}"
+        )
+
+    gate_status = str(
+        gate_detail.get("status")
+        or bot["source_status"]
+        or bot["status"]
+        or ""
+    )
+
+    if (
+        gate_status
+        and gate_status.lower()
+        not in {
+            "running",
+            "active",
+        }
+    ):
+        warnings.append(
+            "Gate currently reports strategy status "
+            f"'{gate_status}'. Review before stopping."
+        )
+
+    stop_payload = {
+        "strategy_id": bot["strategy_id"],
+        "strategy_type": bot["strategy_type"],
+    }
+
+    return {
+        "status": (
+            "ready"
+            if not errors
+            else "invalid"
+        ),
+        "can_stop": not errors,
+        "write_performed": False,
+        "credential_profiles": {
+            "prepare": "monitor",
+            "stop": "bot_control",
+        },
+        "bot": bot,
+        "gate_snapshot": {
+            "status": gate_status or None,
+        },
+        "errors": errors,
+        "warnings": warnings,
+        "gate_stop_payload_preview": stop_payload,
+    }
+
+
+@router.post("/bots/{bot_id}/stop")
+async def stop_bot_control(
+    bot_id: int,
+    request: BotStopRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    if (
+        not settings.allow_bot_stop
+        and not settings.bot_stop_simulation
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Bot stopping and simulation "
+                "are disabled"
+            ),
+        )
+
+    if (
+        request.confirmation
+        != settings.bot_stop_confirmation_text
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid Bot Stop confirmation text"
+            ),
+        )
+
+    bot = _load_bot_control_target(
+        bot_id,
+        user,
+    )
+
+    audit_payload = {
+        "account_id": bot["account_id"],
+        "operation": "bot_stop",
+        "gate_payload": {
+            "strategy_id": bot["strategy_id"],
+            "strategy_type": bot["strategy_type"],
+            "market": bot["market"],
+            "stop_params": {
+                "bot_id": bot["id"],
+                "strategy_name": (
+                    bot["strategy_name"]
+                ),
+            },
+        },
+    }
+
+    try:
+        existing = find_matching_request(
+            request_id=request.request_id,
+            account_id=bot["account_id"],
+            username=user.username,
+            action="bot_stop",
+            payload=audit_payload,
+        )
+    except IdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    if existing is not None:
+        return _existing_control_result(
+            existing
+        )
+
+    prepared = await prepare_bot_stop(
+        bot_id,
+        user,
+    )
+
+    if not prepared["can_stop"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Bot Stop validation failed. "
+                    "No Gate write was performed."
+                ),
+                "errors": prepared["errors"],
+                "warnings": prepared["warnings"],
+            },
+        )
+
+    try:
+        control_account = (
+            get_bot_control_account(
+                bot["account_id"]
+            )
+        )
+    except BotControlConfigError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    if control_account is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Bot Control credential unavailable "
+                f"for {bot['account_id']}"
+            ),
+        )
+
+    try:
+        audit_record, created = reserve_request(
+            request_id=request.request_id,
+            account_id=bot["account_id"],
+            username=user.username,
+            action="bot_stop",
+            payload=audit_payload,
+        )
+    except IdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    if not created:
+        return _existing_control_result(
+            audit_record
+        )
+
+    mark_request(
+        request.request_id,
+        status="submitting",
+        strategy_id=bot["strategy_id"],
+    )
+
+    payload = prepared[
+        "gate_stop_payload_preview"
+    ]
+
+    # Simulation deliberately exits before the Gate
+    # stop request.
+    if settings.bot_stop_simulation:
+        result = {
+            "status": "simulated",
+            "write_performed": False,
+            "simulation": True,
+            "credential_profile": "bot_control",
+            "request_id": request.request_id,
+            "idempotent_replay": False,
+            "account_id": bot["account_id"],
+            "authorized_user": user.username,
+            "action": "bot_stop",
+            "bot": {
+                "id": bot["id"],
+                "strategy_id": bot["strategy_id"],
+                "strategy_name": (
+                    bot["strategy_name"]
+                ),
+                "strategy_type": (
+                    bot["strategy_type"]
+                ),
+                "market": bot["market"],
+                "status": bot["status"],
+            },
+            "gate_stop_payload": payload,
+        }
+
+        mark_request(
+            request.request_id,
+            status="simulated",
+            response=result,
+            strategy_id=bot["strategy_id"],
+            completed=True,
+        )
+
+        return result
+
+    # Live path. Reached only when simulation is off
+    # and ALLOW_BOT_STOP is explicitly enabled.
+    try:
+        async with GateClient(
+            settings,
+            control_account,
+        ) as client:
+            response = await client.stop_bot(
+                bot["strategy_id"],
+                bot["strategy_type"],
+            )
+
+    except GateAPIError as exc:
+        terminal_status = (
+            "rejected"
+            if exc.status_code is not None
+            else "uncertain"
+        )
+
+        mark_request(
+            request.request_id,
+            status=terminal_status,
+            response=exc.response,
+            error=str(exc),
+            strategy_id=bot["strategy_id"],
+            gate_status_code=exc.status_code,
+            gate_label=exc.label,
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": (
+                    "Gate rejected Bot Stop."
+                    if terminal_status == "rejected"
+                    else (
+                        "Gate Stop outcome is uncertain. "
+                        "Do not retry automatically."
+                    )
+                ),
+                "request_id": request.request_id,
+                "status": terminal_status,
+                "gate_error": str(exc),
+            },
+        ) from exc
+
+    except Exception as exc:
+        mark_request(
+            request.request_id,
+            status="uncertain",
+            error=str(exc),
+            strategy_id=bot["strategy_id"],
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": (
+                    "Unexpected error after Gate Stop "
+                    "submission began. Outcome is "
+                    "uncertain; do not retry."
+                ),
+                "request_id": request.request_id,
+            },
+        ) from exc
+
+    result = {
+        "status": "submitted",
+        "write_performed": True,
+        "simulation": False,
+        "credential_profile": "bot_control",
+        "request_id": request.request_id,
+        "idempotent_replay": False,
+        "account_id": bot["account_id"],
+        "authorized_user": user.username,
+        "action": "bot_stop",
+        "bot": {
+            "id": bot["id"],
+            "strategy_id": bot["strategy_id"],
+            "strategy_name": bot["strategy_name"],
+            "strategy_type": bot["strategy_type"],
+            "market": bot["market"],
+        },
+        "gate": response.raw,
+    }
+
+    mark_request(
+        request.request_id,
+        status="succeeded",
+        response=result,
+        strategy_id=bot["strategy_id"],
         gate_status_code=response.status_code,
         completed=True,
     )

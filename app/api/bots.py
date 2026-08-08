@@ -161,49 +161,16 @@ def get_bot_history(
 async def stop_bot(
     bot_id: int,
     request: StopRequest,
-    user: Annotated[DashboardUser, Depends(require_user)],
-):  # type: ignore[no-untyped-def]
-    if not settings.allow_bot_stop:
-        raise HTTPException(status_code=403, detail="Bot stopping is disabled by ALLOW_BOT_STOP")
-    if request.confirmation != settings.bot_stop_confirmation_text:
-        raise HTTPException(status_code=400, detail="Invalid confirmation text")
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Legacy Stop endpoint is disabled. "
+            "Use the audited Bot Control Stop workflow."
+        ),
+    )
 
-    with session_scope() as db:
-        bot = db.get(Bot, bot_id)
-        if not bot:
-            raise HTTPException(status_code=404, detail="Bot not found")
-        require_account_access(user, bot.account_id)
-        if not bot.stop_supported:
-            raise HTTPException(status_code=409, detail="Gate reports that this bot does not support stop")
-        strategy_id = bot.strategy_id
-        strategy_type = bot.strategy_type
-        account_id = bot.account_id
-
-    try:
-        account = get_bot_control_account(account_id)
-    except BotControlConfigError as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Bot Control credential configuration error: {exc}",
-        ) from exc
-
-    if account is None:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Bot Control credentials are not configured "
-                f"for account {account_id}"
-            ),
-        )
-    try:
-        async with GateClient(settings, account) as client:
-            response = await client.stop_bot(strategy_id, strategy_type)
-    except (GateAPIError, AccountConfigError) as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {
-        "status": "submitted",
-        "account_id": account_id,
-        "authorized_user": user.username,
-        "credential_profile": "bot_control",
-        "gate": response.raw,
-    }

@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     demo_seed: int = 42
 
     allow_bot_stop: bool = False
+    bot_stop_simulation: bool = False
     bot_stop_confirmation_text: str = "STOP"
 
     allow_bot_create: bool = False

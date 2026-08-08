@@ -495,6 +495,7 @@
                   <th>Time</th>
                   <th>Account</th>
                   <th>User</th>
+                  <th>Action</th>
                   <th>Market</th>
                   <th>Investment</th>
                   <th>Mode</th>
@@ -507,7 +508,7 @@
               <tbody id="botControlActivityBody">
                 <tr>
                   <td
-                    colspan="9"
+                    colspan="10"
                     class="empty-state"
                   >
                     No Bot Control activity loaded.
@@ -573,6 +574,84 @@
   </dialog>
 
   
+
+  <dialog
+    id="stopBotConfirmDialog"
+    class="small-dialog bot-control-confirm-dialog"
+  >
+    <div class="dialog-header">
+      <div>
+        <h2>Confirm Bot Stop</h2>
+        <p>
+          Review the live strategy before submitting a
+          Bot Control Stop operation.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeStopBotConfirmDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <div class="bot-control-confirm-content">
+
+      <div
+        id="stopBotConfirmSummary"
+        class="bot-control-confirm-summary"
+      ></div>
+
+      <div
+        id="botStopSafetyNotice"
+        class="bot-control-safety-notice"
+      ></div>
+
+      <div
+        id="botStopValidationMessages"
+        class="bot-control-validation"
+      ></div>
+
+      <label class="bot-control-confirm-input">
+        Type <strong>STOP</strong> to confirm
+        <input
+          id="stopBotConfirmText"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="STOP"
+        >
+      </label>
+
+      <p
+        id="stopBotConfirmError"
+        class="form-error hidden"
+        role="alert"
+      ></p>
+
+      <div class="form-actions">
+        <button
+          type="button"
+          class="button secondary"
+          id="cancelStopBot"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="button danger"
+          id="confirmStopBot"
+          disabled
+        >
+          Stop Bot
+        </button>
+      </div>
+
+    </div>
+  </dialog>
+
   <dialog
     id="spotGridConfirmDialog"
     class="small-dialog bot-control-confirm-dialog"

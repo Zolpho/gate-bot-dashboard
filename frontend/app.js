@@ -53,6 +53,8 @@ const state = {
   botControlDraft: null,
   botControlRequestId: '',
   botControlActivity: [],
+  botStopPrepared: null,
+  botStopRequestId: '',
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -1156,6 +1158,20 @@ function botControlActivityStatusClass(status) {
   return 'other';
 }
 
+
+function botControlActionLabel(action) {
+  if (action === 'spot_grid_create') {
+    return 'Create Spot Grid';
+  }
+
+  if (action === 'bot_stop') {
+    return 'Stop Bot';
+  }
+
+  return action || '—';
+}
+
+
 function renderBotControlActivity() {
   const body = $('#botControlActivityBody');
 
@@ -1171,7 +1187,7 @@ function renderBotControlActivity() {
   if (!rows.length) {
     body.innerHTML = (
       '<tr>'
-      + '<td colspan="9" class="empty-state">'
+      + '<td colspan="10" class="empty-state">'
       + 'No Bot Control activity recorded.'
       + '</td>'
       + '</tr>'
@@ -1211,6 +1227,7 @@ function renderBotControlActivity() {
       + `<td>${escapeHtml(fmtDate(item.created_at))}</td>`
       + `<td><strong>${escapeHtml(item.account_id || '—')}</strong></td>`
       + `<td>${escapeHtml(item.username || '—')}</td>`
+      + `<td>${escapeHtml(botControlActionLabel(item.action))}</td>`
       + `<td>${escapeHtml(item.market || '—')}</td>`
       + `<td>${escapeHtml(investment)}</td>`
       + '<td>'
@@ -1261,6 +1278,8 @@ async function loadBotControlActivity(
 ) {
   if (!botControlAvailable()) {
     state.botControlActivity = [];
+  state.botStopPrepared = null;
+  state.botStopRequestId = '';
     renderBotControlActivity();
     return;
   }
@@ -1344,6 +1363,27 @@ function botCreationAvailable() {
   );
 }
 
+
+function botStopEnabled() {
+  return Boolean(
+    state.health?.allow_bot_stop
+  );
+}
+
+function botStopSimulation() {
+  return Boolean(
+    state.health?.bot_stop_simulation
+  );
+}
+
+function botStopAvailable() {
+  return (
+    botStopEnabled()
+    || botStopSimulation()
+  );
+}
+
+
 function botControlErrorMessage(error) {
   const detail = error?.payload?.detail;
 
@@ -1370,6 +1410,12 @@ function clearBotControlSession() {
 
   $('#spotGridReview')?.classList.add('hidden');
   $('#spotGridReviewEmpty')?.classList.remove('hidden');
+
+  const stopDialog = $('#stopBotConfirmDialog');
+
+  if (stopDialog?.open) {
+    stopDialog.close();
+  }
 
   const dialog = $('#spotGridConfirmDialog');
 
@@ -2024,18 +2070,18 @@ function updateSpotGridConfirmButton() {
       : 'Create Spot Grid';
 }
 
-function generateBotControlRequestId() {
+function generateBotControlRequestId(prefix = 'bot-control') {
   if (
     window.crypto
     && typeof window.crypto.randomUUID === 'function'
   ) {
     return (
-      `spot-grid-${window.crypto.randomUUID()}`
+      `${prefix}-${window.crypto.randomUUID()}`
     );
   }
 
   return (
-    `spot-grid-${Date.now()}-`
+    `${prefix}-${Date.now()}-`
     + Math.random().toString(16).slice(2)
   );
 }
@@ -2061,7 +2107,7 @@ async function submitSpotGridCreate() {
 
   if (!state.botControlRequestId) {
     state.botControlRequestId =
-      generateBotControlRequestId();
+      generateBotControlRequestId('spot-grid');
   }
 
   const requestId =
@@ -3638,14 +3684,70 @@ function renderBotDialog(detail, history) {
 }
 
 function updateBotAdminControls(bot) {
-  const ownsBot = canManageAccount(bot.account_id);
-  const stopEnabled = Boolean(state.health?.allow_bot_stop && bot.stop_supported && ownsBot);
-  $('#stopBotButton').disabled = !stopEnabled;
-  if (!state.adminUser) $('#dangerZone p').textContent = 'Unlock the matching account before using disruptive actions.';
-  else if (!ownsBot) $('#dangerZone p').textContent = `Signed in as ${state.adminUser.username}; this bot belongs to ${bot.account_name}.`;
-  else if (!state.health?.allow_bot_stop) $('#dangerZone p').textContent = 'Stopping is disabled by ALLOW_BOT_STOP on the server.';
-  else if (!bot.stop_supported) $('#dangerZone p').textContent = 'Gate reports stop is unavailable for this strategy.';
-  else $('#dangerZone p').textContent = 'This sends Gate’s native stop request after typed confirmation.';
+  const ownsBot = canManageAccount(
+    bot.account_id
+  );
+
+  const available = botStopAvailable();
+
+  const stopEnabled = Boolean(
+    available
+    && bot.stop_supported
+    && ownsBot
+  );
+
+  $('#stopBotButton').disabled =
+    !stopEnabled;
+
+  const message = $('#dangerZone p');
+
+  if (!state.adminUser) {
+    message.textContent = (
+      'Unlock the matching account before using '
+      + 'Bot Control actions.'
+    );
+
+  } else if (!ownsBot) {
+    message.textContent = (
+      `Signed in as ${state.adminUser.username}; `
+      + `this bot belongs to ${bot.account_name}.`
+    );
+
+  } else if (!bot.stop_supported) {
+    message.textContent = (
+      'Gate reports Stop is unavailable for '
+      + 'this strategy.'
+    );
+
+  } else if (botStopEnabled()) {
+    message.textContent = (
+      'LIVE Bot Stop is enabled. A final typed '
+      + 'confirmation is required.'
+    );
+
+  } else if (botStopSimulation()) {
+    message.textContent = (
+      'Stop simulation mode. The complete Bot '
+      + 'Control workflow will run, but no Gate '
+      + 'Stop request will be sent.'
+    );
+
+  } else {
+    message.textContent = (
+      'Bot stopping is disabled on the server.'
+    );
+  }
+
+  const button = $('#stopBotButton');
+
+  if (button) {
+    button.textContent = (
+      botStopSimulation()
+      && !botStopEnabled()
+        ? 'Simulate stop'
+        : 'Stop bot'
+    );
+  }
 }
 
 async function loadCurrentBotRaw() {
@@ -3689,16 +3791,319 @@ function drawBotChart() {
 
 async function stopCurrentBot() {
   const bot = state.currentBotData?.bot;
+
   if (!bot) return;
-  const confirmation = prompt(`Type STOP to stop ${bot.strategy_name}. Gate may close/cancel strategy orders according to its bot rules.`);
-  if (confirmation !== 'STOP') { showToast('Stop cancelled: confirmation did not match.'); return; }
+
+  if (!canManageAccount(bot.account_id)) {
+    openAdminDialog();
+    return;
+  }
+
+  if (!botStopAvailable()) {
+    showToast(
+      'Bot stopping is disabled on the server.',
+      true,
+    );
+    return;
+  }
+
+  if (!bot.stop_supported) {
+    showToast(
+      'Gate reports Stop is unavailable for '
+      + 'this strategy.',
+      true,
+    );
+    return;
+  }
+
+  const button = $('#stopBotButton');
+
+  button.disabled = true;
+  button.textContent = 'Checking Gate…';
+
   try {
-    if (!canManageAccount(bot.account_id)) { openAdminDialog(); return; }
-    const result = await adminApi(`/api/bots/${bot.id}/stop`, { method: 'POST', body: JSON.stringify({ confirmation }) });
-    showToast('Stop request submitted to Gate.');
-    $('#apiInspector').textContent = JSON.stringify(result, null, 2);
-    switchTab('system'); $('#botDialog').close();
-  } catch (error) { showToast(error.message, true); }
+    const prepared = await adminApi(
+      `/api/bot-control/bots/${bot.id}/stop/prepare`
+    );
+
+    state.botStopPrepared = prepared;
+    state.botStopRequestId = '';
+
+    renderBotStopConfirmation(
+      prepared
+    );
+
+    const dialog = $('#stopBotConfirmDialog');
+
+    if (!dialog.open) {
+      dialog.showModal();
+    }
+
+    setTimeout(
+      () => $('#stopBotConfirmText')?.focus(),
+      0,
+    );
+
+  } catch (error) {
+    showToast(
+      botControlErrorMessage(error),
+      true,
+    );
+
+  } finally {
+    updateBotAdminControls(bot);
+  }
+}
+
+function renderBotStopConfirmation(prepared) {
+  const bot = prepared.bot || {};
+  const gate = prepared.gate_snapshot || {};
+
+  $('#stopBotConfirmSummary').innerHTML = [
+    confirmRow(
+      'Account',
+      bot.account_id,
+    ),
+    confirmRow(
+      'Strategy',
+      bot.strategy_name
+      || bot.strategy_id,
+    ),
+    confirmRow(
+      'Strategy ID',
+      bot.strategy_id,
+    ),
+    confirmRow(
+      'Type',
+      bot.strategy_type,
+    ),
+    confirmRow(
+      'Market',
+      bot.market,
+    ),
+    confirmRow(
+      'Dashboard status',
+      bot.status,
+    ),
+    confirmRow(
+      'Gate status',
+      gate.status || '—',
+    ),
+    confirmRow(
+      'Investment',
+      bot.invest_amount
+        ? fmtMoney(bot.invest_amount)
+        : '—',
+    ),
+    confirmRow(
+      'Current value',
+      bot.current_value
+        ? fmtMoney(bot.current_value)
+        : '—',
+    ),
+    confirmRow(
+      'Total PnL',
+      bot.total_profit !== null
+      && bot.total_profit !== undefined
+        ? fmtMoney(bot.total_profit)
+        : '—',
+    ),
+  ].join('');
+
+  const messages = [];
+
+  (prepared.errors || []).forEach(
+    message => {
+      messages.push(
+        '<div class="bot-control-message error">'
+        + `${escapeHtml(message)}`
+        + '</div>'
+      );
+    },
+  );
+
+  (prepared.warnings || []).forEach(
+    message => {
+      messages.push(
+        '<div class="bot-control-message warning">'
+        + `${escapeHtml(message)}`
+        + '</div>'
+      );
+    },
+  );
+
+  if (
+    !(prepared.errors || []).length
+    && !(prepared.warnings || []).length
+  ) {
+    messages.push(
+      '<div class="bot-control-message success">'
+      + 'Stop preflight passed.'
+      + '</div>'
+    );
+  }
+
+  $('#botStopValidationMessages').innerHTML =
+    messages.join('');
+
+  const notice = $('#botStopSafetyNotice');
+
+  notice.classList.toggle(
+    'enabled',
+    botStopEnabled(),
+  );
+
+  notice.textContent = botStopEnabled()
+    ? (
+      'LIVE BOT STOP IS ENABLED. Submitting this '
+      + 'confirmation can stop the live Gate strategy.'
+    )
+    : botStopSimulation()
+      ? (
+        'SIMULATION MODE. The Stop operation will be '
+        + 'validated, reserved and audited, but NO '
+        + 'Gate Stop request will be sent.'
+      )
+      : (
+        'Bot stopping is disabled on the server.'
+      );
+
+  $('#stopBotConfirmText').value = '';
+
+  const errorBox = $('#stopBotConfirmError');
+
+  errorBox.textContent = '';
+  errorBox.classList.add('hidden');
+
+  updateBotStopConfirmButton();
+}
+
+function updateBotStopConfirmButton() {
+  const button = $('#confirmStopBot');
+
+  if (!button) return;
+
+  button.disabled = !(
+    botStopAvailable()
+    && state.botStopPrepared?.can_stop
+    && $('#stopBotConfirmText')?.value === 'STOP'
+  );
+
+  button.textContent = (
+    botStopSimulation()
+    && !botStopEnabled()
+      ? 'Simulate Stop'
+      : 'Stop Bot'
+  );
+}
+
+async function submitBotStop() {
+  const prepared = state.botStopPrepared;
+
+  if (
+    !prepared?.can_stop
+    || !botStopAvailable()
+  ) {
+    return;
+  }
+
+  if (
+    $('#stopBotConfirmText').value
+    !== 'STOP'
+  ) {
+    return;
+  }
+
+  if (!state.botStopRequestId) {
+    state.botStopRequestId =
+      generateBotControlRequestId(
+        'bot-stop'
+      );
+  }
+
+  const requestId =
+    state.botStopRequestId;
+
+  const botId = prepared.bot.id;
+
+  const button = $('#confirmStopBot');
+  const errorBox = $('#stopBotConfirmError');
+
+  button.disabled = true;
+  button.textContent = (
+    botStopSimulation()
+    && !botStopEnabled()
+      ? 'Simulating…'
+      : 'Submitting to Gate…'
+  );
+
+  errorBox.textContent = '';
+  errorBox.classList.add('hidden');
+
+  try {
+    const result = await adminApi(
+      `/api/bot-control/bots/${botId}/stop`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          request_id: requestId,
+          confirmation: 'STOP',
+        }),
+      },
+    );
+
+    const simulated = Boolean(
+      result.simulation
+      || result.status === 'simulated'
+    );
+
+    $('#stopBotConfirmDialog').close();
+
+    showToast(
+      simulated
+        ? (
+          'Stop simulation completed. '
+          + 'No Gate write performed.'
+        )
+        : 'Bot Stop submitted to Gate.'
+    );
+
+    $('#apiInspector').textContent =
+      JSON.stringify(
+        result,
+        null,
+        2,
+      );
+
+    await loadBotControlActivity({
+      quiet: true,
+    });
+
+    await loadCore();
+
+    if (
+      !simulated
+      && $('#botDialog').open
+    ) {
+      $('#botDialog').close();
+    }
+
+  } catch (error) {
+    /*
+     * Keep the SAME request ID after failure.
+     * The backend audit layer decides whether a
+     * retry is safe.
+     */
+    errorBox.textContent =
+      botControlErrorMessage(error);
+
+    errorBox.classList.remove(
+      'hidden'
+    );
+
+  } finally {
+    updateBotStopConfirmButton();
+  }
 }
 
 function exportCsv() {
@@ -3831,7 +4236,42 @@ function bindEvents() {
   $('#botDialog').addEventListener('click', event => { if (event.target === $('#botDialog')) $('#botDialog').close(); });
   $('#botHistoryRange').addEventListener('change', () => state.currentBot && openBot(state.currentBot));
   $$('.raw-tab').forEach(button => button.addEventListener('click', async () => { state.currentRawKey = button.dataset.raw; $$('.raw-tab').forEach(t => t.classList.toggle('active', t === button)); if (!state.currentRawData && state.currentBotData?.bot && canManageAccount(state.currentBotData.bot.account_id)) await loadCurrentBotRaw(); else renderBotRaw(); }));
-  $('#stopBotButton').addEventListener('click', stopCurrentBot);
+  $('#stopBotButton').addEventListener(
+    'click',
+    stopCurrentBot,
+  );
+
+  $('#stopBotConfirmText')?.addEventListener(
+    'input',
+    updateBotStopConfirmButton,
+  );
+
+  $('#confirmStopBot')?.addEventListener(
+    'click',
+    submitBotStop,
+  );
+
+  $('#closeStopBotConfirmDialog')?.addEventListener(
+    'click',
+    () => $('#stopBotConfirmDialog').close(),
+  );
+
+  $('#cancelStopBot')?.addEventListener(
+    'click',
+    () => $('#stopBotConfirmDialog').close(),
+  );
+
+  $('#stopBotConfirmDialog')?.addEventListener(
+    'click',
+    event => {
+      if (
+        event.target
+        === $('#stopBotConfirmDialog')
+      ) {
+        $('#stopBotConfirmDialog').close();
+      }
+    },
+  );
   $('#addRuleButton').addEventListener('click', () => { if (!state.adminUser) { openAdminDialog(); return; } populateFilterOptions(); $('#ruleDialog').showModal(); });
   $('#closeRuleDialog').addEventListener('click', () => $('#ruleDialog').close()); $('#cancelRule').addEventListener('click', () => $('#ruleDialog').close());
   $('#ruleForm').addEventListener('submit', createRule);
