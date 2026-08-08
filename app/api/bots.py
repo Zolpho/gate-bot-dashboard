@@ -8,7 +8,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..accounts import AccountConfigError, get_gate_account
+from ..accounts import AccountConfigError
+from ..bot_control import (
+    BotControlConfigError,
+    get_bot_control_account,
+)
 from ..config import get_settings
 from ..db import get_db, session_scope
 from ..gate_client import GateAPIError, GateClient
@@ -175,11 +179,21 @@ async def stop_bot(
         strategy_type = bot.strategy_type
         account_id = bot.account_id
 
-    account = get_gate_account(account_id)
-    if account is None or not account.enabled or not account.configured:
+    try:
+        account = get_bot_control_account(account_id)
+    except BotControlConfigError as exc:
         raise HTTPException(
             status_code=503,
-            detail=f"Gate credentials are not configured for account {account_id}",
+            detail=f"Bot Control credential configuration error: {exc}",
+        ) from exc
+
+    if account is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Bot Control credentials are not configured "
+                f"for account {account_id}"
+            ),
         )
     try:
         async with GateClient(settings, account) as client:
@@ -190,5 +204,6 @@ async def stop_bot(
         "status": "submitted",
         "account_id": account_id,
         "authorized_user": user.username,
+        "credential_profile": "bot_control",
         "gate": response.raw,
     }

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     gate_base_url: str = "https://api.gateio.ws/api/v4"
     gate_accounts_file: Path = Path("/run/secrets/gate_accounts.json")
+    gate_bot_control_file: Path = Path("/run/secrets/gate_bot_control.json")
     dashboard_users_file: Path = Path("/run/secrets/dashboard_users.json")
     dashboard_users_backup_dir: Path = Path("/data/dashboard-user-backups")
     dashboard_users_backup_keep: int = 20
