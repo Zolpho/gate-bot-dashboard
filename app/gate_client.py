@@ -280,6 +280,16 @@ class GateClient:
             ],
         )
 
+    async def create_spot_grid(
+        self,
+        payload: dict[str, Any],
+    ) -> GateResponse:
+        return await self.request(
+            "POST",
+            "/bot/spot-grid/create",
+            json_body=payload,
+        )
+
     async def stop_bot(self, strategy_id: str, strategy_type: str) -> GateResponse:
         return await self.request(
             "POST",
