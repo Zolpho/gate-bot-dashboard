@@ -931,3 +931,17 @@
     max-height: calc(100dvh - 12px);
   }
 }
+
+/* Bot Stop dialog inner spacing */
+
+.bot-control-confirm-dialog .bot-control-confirm-content {
+  padding-left: 22px;
+  padding-right: 22px;
+}
+
+@media (max-width: 700px) {
+  .bot-control-confirm-dialog .bot-control-confirm-content {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
