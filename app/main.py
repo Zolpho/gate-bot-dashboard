@@ -38,11 +38,31 @@ logger = logging.getLogger(__name__)
 async def collection_loop() -> None:
     await asyncio.sleep(1)
     while True:
-        result = await collector.sync(
-            trigger="startup" if not hasattr(collection_loop, "started") else "scheduler"
-        )
-        collection_loop.started = True  # type: ignore[attr-defined]
-        logger.info("Bot sync finished with status=%s", result.get("status"))
+        try:
+            result = await collector.sync(
+                trigger=(
+                    "startup"
+                    if not hasattr(collection_loop, "started")
+                    else "scheduler"
+                )
+            )
+            collection_loop.started = True  # type: ignore[attr-defined]
+            logger.info(
+                "Bot sync finished with status=%s",
+                result.get("status"),
+            )
+        except asyncio.CancelledError:
+            # Normal FastAPI shutdown must still be able to stop the task.
+            raise
+        except Exception:
+            # A single unexpected iteration failure must never permanently
+            # stop monitoring while the API process continues running.
+            logger.exception(
+                "Bot collector scheduler iteration failed; "
+                "retrying after %s seconds",
+                settings.poll_seconds,
+            )
+
         await asyncio.sleep(settings.poll_seconds)
 
 

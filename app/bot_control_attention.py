@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from .db import session_scope
 from .models import (
+    BotControlAttentionReview,
     BotControlLockResolution,
     BotControlOperationLock,
     BotControlReconciliation,
@@ -436,6 +437,11 @@ def build_attention_queue(
             BotControlLockResolution,
         ] = {}
 
+        review_by_request: dict[
+            str,
+            BotControlAttentionReview,
+        ] = {}
+
         if request_ids:
             reconciliation_rows = (
                 db.scalars(
@@ -495,6 +501,21 @@ def build_attention_queue(
                     row,
                 )
 
+            review_rows = db.scalars(
+                select(BotControlAttentionReview)
+                .where(
+                    BotControlAttentionReview
+                    .request_id.in_(
+                        sorted(request_ids)
+                    )
+                )
+            ).all()
+
+            review_by_request = {
+                row.request_id: row
+                for row in review_rows
+            }
+
         items: list[
             dict[str, Any]
         ] = []
@@ -545,6 +566,64 @@ def build_attention_queue(
 
             if not reasons:
                 continue
+
+            review_row = review_by_request.get(
+                row.request_id
+            )
+
+            # A held lock always requires attention, regardless of any
+            # earlier operator review.
+            if review_row is not None and lock_state != "held":
+                activity_times = [
+                    value
+                    for value in (
+                        row.updated_at,
+                        (
+                            reconciliation_row.created_at
+                            if reconciliation_row
+                            else None
+                        ),
+                        (
+                            resolution_row.created_at
+                            if resolution_row
+                            else None
+                        ),
+                    )
+                    if value is not None
+                ]
+
+                latest_activity = max(
+                    activity_times
+                ) if activity_times else None
+
+                reviewed_at = review_row.reviewed_at
+
+                if (
+                    latest_activity is not None
+                    and reviewed_at is not None
+                ):
+                    # SQLite may return naive datetimes.
+                    if (
+                        latest_activity.tzinfo is None
+                        and reviewed_at.tzinfo is not None
+                    ):
+                        reviewed_at = (
+                            reviewed_at.replace(
+                                tzinfo=None
+                            )
+                        )
+                    elif (
+                        latest_activity.tzinfo is not None
+                        and reviewed_at.tzinfo is None
+                    ):
+                        latest_activity = (
+                            latest_activity.replace(
+                                tzinfo=None
+                            )
+                        )
+
+                    if reviewed_at >= latest_activity:
+                        continue
 
             request_data = _load_json(
                 row.request_json
@@ -714,6 +793,9 @@ def build_attention_queue(
                     is not None
                     and reconciliation_outcome
                     != "stop_in_progress"
+                ),
+                "review_available": (
+                    lock_state != "held"
                 ),
             })
 

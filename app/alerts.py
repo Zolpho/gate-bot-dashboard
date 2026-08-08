@@ -121,35 +121,95 @@ def evaluate_alerts(session: Session, *, now: datetime | None = None) -> list[Al
             continue
         candidates = [bot for bot in bots if rule.bot_id is None or bot.id == rule.bot_id]
         for bot in candidates:
+            # A stopped strategy is expected to stop receiving fresh
+            # Gate observations. That is not a stale-data incident.
+            if rule.metric == "stale_minutes" and bot.status != "running":
+                continue
+
             value = _bot_metric(session, bot, rule.metric, now)
             if value is None or not comparator(value, rule.threshold):
                 continue
-            cutoff = now - timedelta(seconds=max(0, rule.cooldown_seconds))
-            recent = session.scalar(
-                select(AlertEvent.id)
-                .where(
-                    AlertEvent.rule_id == rule.id,
-                    AlertEvent.bot_id == bot.id,
-                    AlertEvent.triggered_at >= cutoff,
-                )
-                .limit(1)
-            )
-            if recent is not None:
-                continue
-            suffix = "%" if rule.metric.endswith("_pct") or rule.metric in {"pnl_rate", "stale_minutes"} else " USDT"
+
             if rule.metric == "stale_minutes":
-                suffix = " min"
-            label = METRIC_LABELS.get(rule.metric, rule.metric)
+                # One continuous stale period should create one incident.
+                #
+                # If an alert already exists after this bot's most recent
+                # observation, no fresh observation has occurred since that
+                # alert and this is still the same incident.
+                if bot.last_seen_at is not None:
+                    same_incident = session.scalar(
+                        select(AlertEvent.id)
+                        .where(
+                            AlertEvent.rule_id == rule.id,
+                            AlertEvent.bot_id == bot.id,
+                            AlertEvent.triggered_at >= bot.last_seen_at,
+                        )
+                        .limit(1)
+                    )
+                    if same_incident is not None:
+                        continue
+            else:
+                # Preserve cooldown semantics for normal threshold alerts.
+                cutoff = now - timedelta(
+                    seconds=max(0, rule.cooldown_seconds)
+                )
+                recent = session.scalar(
+                    select(AlertEvent.id)
+                    .where(
+                        AlertEvent.rule_id == rule.id,
+                        AlertEvent.bot_id == bot.id,
+                        AlertEvent.triggered_at >= cutoff,
+                    )
+                    .limit(1)
+                )
+                if recent is not None:
+                    continue
+
+            account_name = (
+                bot.account.name
+                if bot.account
+                else bot.account_id
+            )
+
+            if rule.metric == "stale_minutes":
+                threshold_text = (
+                    format(rule.threshold, "f")
+                    .rstrip("0")
+                    .rstrip(".")
+                    or "0"
+                )
+                message = (
+                    f"[{account_name}] "
+                    f"{bot.strategy_name or bot.strategy_id} · "
+                    f"Strategy {bot.strategy_id} · "
+                    f"{bot.market} data stale for {max(0, int(value))} min; "
+                    f"threshold {rule.operator} {threshold_text} min."
+                )
+            else:
+                suffix = (
+                    "%"
+                    if rule.metric.endswith("_pct")
+                    or rule.metric == "pnl_rate"
+                    else " USDT"
+                )
+                label = METRIC_LABELS.get(
+                    rule.metric,
+                    rule.metric,
+                )
+                message = (
+                    f"[{account_name}] "
+                    f"{bot.strategy_name or bot.strategy_id} "
+                    f"({bot.market}) {label} "
+                    f"is {value:.4f}{suffix}; "
+                    f"rule {rule.operator} {rule.threshold}."
+                )
+
             event = AlertEvent(
                 rule_id=rule.id,
                 bot_id=bot.id,
                 triggered_at=now,
                 metric_value=value,
-                message=(
-                    f"[{bot.account.name if bot.account else bot.account_id}] "
-                    f"{bot.strategy_name or bot.strategy_id} ({bot.market}) {label} "
-                    f"is {value:.4f}{suffix}; rule {rule.operator} {rule.threshold}."
-                ),
+                message=message,
             )
             session.add(event)
             created.append(event)

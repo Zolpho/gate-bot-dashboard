@@ -386,6 +386,47 @@ class BotControlRequest(Base):
     )
 
 
+class BotControlAttentionReview(Base):
+    __tablename__ = "bot_control_attention_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "request_id",
+            name="uq_bot_control_attention_review_request",
+        ),
+        Index(
+            "ix_bot_control_attention_review_account",
+            "account_id",
+            "reviewed_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    reviewed_by: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    reviewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
 class BotControlReconciliation(Base):
     __tablename__ = "bot_control_reconciliations"
     __table_args__ = (

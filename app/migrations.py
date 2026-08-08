@@ -112,7 +112,12 @@ def migrate_database(engine: Engine) -> None:
         # create a new schema or add an external migration system before upgrade.
         return
 
-    from .models import Bot, GateAccount, SyncRun
+    from .models import (
+        Bot,
+        BotControlAttentionReview,
+        GateAccount,
+        SyncRun,
+    )
 
     raw = engine.raw_connection()
     try:
@@ -121,6 +126,16 @@ def migrate_database(engine: Engine) -> None:
 
         if not _table_exists(raw, "gate_accounts"):
             _create_table(raw, engine, GateAccount.__table__)
+
+        if not _table_exists(
+            raw,
+            "bot_control_attention_reviews",
+        ):
+            _create_table(
+                raw,
+                engine,
+                BotControlAttentionReview.__table__,
+            )
 
         now = datetime.now(timezone.utc).isoformat()
 

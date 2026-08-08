@@ -1402,6 +1402,20 @@ function renderBotControlAttention() {
 
       + '</div>'
 
+      + (
+        item.review_available
+          ? (
+            '<div class="form-actions">'
+            + `<button
+                type="button"
+                class="text-button"
+                data-bot-control-attention-review="${escapeHtml(requestId)}"
+              >Mark reviewed</button>`
+            + '</div>'
+          )
+          : ''
+      )
+
       + '</article>'
     );
   }).join('');
@@ -5887,7 +5901,46 @@ function bindEvents() {
 
   $('#botControlAttentionList')?.addEventListener(
     'click',
-    event => {
+    async event => {
+      const reviewButton = event.target.closest(
+        '[data-bot-control-attention-review]'
+      );
+
+      if (reviewButton) {
+        const requestId = (
+          reviewButton.dataset
+            .botControlAttentionReview
+          || ''
+        );
+
+        reviewButton.disabled = true;
+
+        try {
+          await adminApi(
+            `/api/bot-control/attention/${
+              encodeURIComponent(requestId)
+            }/review`,
+            {
+              method: 'POST',
+            },
+          );
+
+          await loadBotControlAttention();
+
+          showToast(
+            'Bot Control item marked reviewed.'
+          );
+        } catch (error) {
+          reviewButton.disabled = false;
+          showError(
+            error?.message
+            || 'Unable to mark item reviewed.'
+          );
+        }
+
+        return;
+      }
+
       const button = event.target.closest(
         '[data-bot-control-attention-request]'
       );

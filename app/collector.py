@@ -41,12 +41,16 @@ class BotCollector:
 
         async with self._lock:
             started = datetime.now(timezone.utc)
-            aggregate_run_id = self._start_run(
-                account_id=None,
-                trigger=trigger,
-                started=started,
-            )
+            aggregate_run_id: int | None = None
             try:
+                # Keep even creation of the audit SyncRun inside the
+                # protection boundary. A transient DB failure here must
+                # not escape and kill the scheduler task.
+                aggregate_run_id = self._start_run(
+                    account_id=None,
+                    trigger=trigger,
+                    started=started,
+                )
                 if self.settings.demo_mode:
                     summary = self._sync_demo(trigger=trigger, now=started, account_id=account_id)
                 else:
@@ -96,7 +100,11 @@ class BotCollector:
                     }
 
                 self._cleanup_snapshots(started)
-                self._finish_run(aggregate_run_id, summary=summary)
+                if aggregate_run_id is not None:
+                    self._finish_run(
+                        aggregate_run_id,
+                        summary=summary,
+                    )
                 return summary
             except Exception as exc:
                 logger.exception("Gate bot sync failed")
@@ -107,7 +115,24 @@ class BotCollector:
                     "trigger": trigger,
                     "requested_account_id": account_id,
                 }
-                self._finish_run(aggregate_run_id, summary=summary, error=str(exc))
+
+                # If audit-run creation itself failed there is no run to
+                # finish. If finishing the failed run also fails, keep that
+                # secondary DB error from escaping to the scheduler.
+                if aggregate_run_id is not None:
+                    try:
+                        self._finish_run(
+                            aggregate_run_id,
+                            summary=summary,
+                            error=str(exc),
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Failed to finalize errored aggregate SyncRun "
+                            "id=%s",
+                            aggregate_run_id,
+                        )
+
                 return summary
 
     @staticmethod

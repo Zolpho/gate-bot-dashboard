@@ -53,6 +53,15 @@ def test_v1_sqlite_schema_migrates_to_account_aware_schema(tmp_path) -> None:  #
         connection.exec_driver_sql("INSERT INTO bot_snapshots(id, bot_id) VALUES (1, 1)")
 
     migrate_database(engine)
+
+    # Built-in migration must create the review table even for an
+    # existing production database, before create_all is needed.
+    migrated_inspector = inspect(engine)
+    assert (
+        "bot_control_attention_reviews"
+        in migrated_inspector.get_table_names()
+    )
+
     Base.metadata.create_all(engine)
 
     inspector = inspect(engine)

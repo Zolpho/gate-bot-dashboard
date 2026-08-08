@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -12,7 +13,7 @@ from ..config import get_settings
 from ..db import get_db
 from ..gate_client import GateAPIError, GateClient
 from ..metrics import account_to_dict
-from ..models import Bot, GateAccount
+from ..models import Bot, GateAccount, SyncRun
 from ..security import (
     DashboardUser,
     UserConfigError,
@@ -50,7 +51,10 @@ def _accounts_for_user(user: DashboardUser, requested_account_id: str | None):  
 
 
 @router.get("/health")
-def health(request: Request):  # type: ignore[no-untyped-def]
+def health(
+    request: Request,
+    db: Session = Depends(get_db),
+):  # type: ignore[no-untyped-def]
     config_error = ""
     accounts: list[dict] = []  # type: ignore[type-arg]
     try:
@@ -75,9 +79,90 @@ def health(request: Request):  # type: ignore[no-untyped-def]
         for account in accounts
         if account["enabled"] and account["configured"]
     )
-    collection_task = getattr(request.app.state, "collection_task", None)
-    collector_running = bool(collection_task is not None and not collection_task.done())
-    degraded = bool(config_error or user_config_error)
+    collection_task = getattr(
+        request.app.state,
+        "collection_task",
+        None,
+    )
+    collector_running = bool(
+        collection_task is not None
+        and not collection_task.done()
+    )
+
+    latest_collection = db.scalar(
+        select(SyncRun)
+        .where(
+            SyncRun.account_id.is_(None),
+            SyncRun.trigger.in_(("startup", "scheduler")),
+        )
+        .order_by(SyncRun.started_at.desc())
+        .limit(1)
+    )
+
+    latest_success = db.scalar(
+        select(SyncRun)
+        .where(
+            SyncRun.account_id.is_(None),
+            SyncRun.trigger.in_(("startup", "scheduler")),
+            SyncRun.status.in_(("success", "partial")),
+        )
+        .order_by(SyncRun.started_at.desc())
+        .limit(1)
+    )
+
+    def utc_value(value):  # type: ignore[no-untyped-def]
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    last_collection_at = utc_value(
+        latest_collection.finished_at or latest_collection.started_at
+        if latest_collection
+        else None
+    )
+    last_success_at = utc_value(
+        latest_success.finished_at or latest_success.started_at
+        if latest_success
+        else None
+    )
+
+    collection_age_seconds = None
+    if last_success_at is not None:
+        collection_age_seconds = max(
+            0,
+            int(
+                (
+                    datetime.now(timezone.utc)
+                    - last_success_at
+                ).total_seconds()
+            ),
+        )
+
+    # Five minutes is already the configured stale-data boundary here,
+    # while three polling intervals protects installations using a larger
+    # polling value.
+    freshness_limit_seconds = max(
+        settings.stale_after_minutes * 60,
+        settings.poll_seconds * 3,
+    )
+
+    collector_fresh = (
+        collection_age_seconds is None
+        or collection_age_seconds
+        <= freshness_limit_seconds
+    )
+    collector_healthy = (
+        collector_running
+        and collector_fresh
+    )
+
+    degraded = bool(
+        config_error
+        or user_config_error
+        or not collector_healthy
+    )
 
     return {
         "status": "degraded" if degraded else "ok",
@@ -88,6 +173,19 @@ def health(request: Request):  # type: ignore[no-untyped-def]
         "account_config_error": config_error,
         "accounts": accounts,
         "collector_running": collector_running,
+        "collector_healthy": collector_healthy,
+        "last_collection_at": (
+            last_collection_at.isoformat()
+            if last_collection_at
+            else None
+        ),
+        "last_collection_success_at": (
+            last_success_at.isoformat()
+            if last_success_at
+            else None
+        ),
+        "collection_age_seconds": collection_age_seconds,
+        "collection_freshness_limit_seconds": freshness_limit_seconds,
         "poll_seconds": settings.poll_seconds,
         "allow_bot_stop": settings.allow_bot_stop,
         "bot_stop_simulation": settings.bot_stop_simulation,
