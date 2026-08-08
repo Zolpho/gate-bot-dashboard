@@ -586,3 +586,144 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Bot Stop return estimate */
+
+.bot-stop-return-estimate {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.bot-stop-return-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.bot-stop-return-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bot-stop-return-heading strong {
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.bot-stop-return-heading span {
+  color: var(--muted);
+}
+
+.bot-stop-return-confidence {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.bot-stop-return-assets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bot-stop-return-asset {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.bot-stop-return-asset span,
+.bot-stop-return-total span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.bot-stop-return-asset strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.bot-stop-return-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.bot-stop-return-total span {
+  margin: 0;
+}
+
+.bot-stop-return-total strong {
+  text-align: right;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.bot-stop-return-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.bot-control-confirm-input {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.bot-control-confirm-prompt {
+  display: block;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.bot-control-confirm-prompt strong {
+  color: var(--text);
+}
+
+.bot-control-confirm-input input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .bot-stop-return-heading {
+    align-items: flex-start;
+  }
+
+  .bot-stop-return-assets {
+    grid-template-columns: 1fr;
+  }
+
+  .bot-stop-return-total {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .bot-stop-return-total strong {
+    text-align: left;
+  }
+}

@@ -670,6 +670,12 @@
         class="bot-control-confirm-summary"
       ></div>
 
+      <section
+        id="stopBotReturnEstimate"
+        class="bot-stop-return-estimate hidden"
+        aria-label="Estimated return if stopped now"
+      ></section>
+
       <div
         id="botStopSafetyNotice"
         class="bot-control-safety-notice"
@@ -681,7 +687,11 @@
       ></div>
 
       <label class="bot-control-confirm-input">
-        Type <strong id="stopBotRequiredConfirmation">STOP</strong> to confirm
+        <span class="bot-control-confirm-prompt">
+          Type
+          <strong id="stopBotRequiredConfirmation">STOP</strong>
+          to confirm
+        </span>
         <input
           id="stopBotConfirmText"
           type="text"

@@ -5250,42 +5250,80 @@ function renderBotStopConfirmation(prepared) {
         ? fmtMoney(bot.total_profit)
         : '—',
     ),
-
-    ...(estimate.available
-      ? [
-        confirmRow(
-          'Estimated base return',
-          formatEstimateAmount(
-            estimate.base?.amount,
-            estimate.base?.currency,
-          ),
-        ),
-        confirmRow(
-          'Estimated quote return',
-          formatEstimateAmount(
-            estimate.quote?.amount,
-            estimate.quote?.currency,
-          ),
-        ),
-        confirmRow(
-          'Estimated total value',
-          formatEstimateAmount(
-            estimate.estimated_total_quote_value,
-            estimate.quote?.currency,
-          ),
-        ),
-        confirmRow(
-          'Estimate confidence',
-          estimateConfidence,
-        ),
-        confirmRow(
-          'Estimate note',
-          'Current market estimate; actual Gate '
-          + 'settlement may differ.',
-        ),
-      ]
-      : []),
   ].join('');
+
+  const estimatePanel = $('#stopBotReturnEstimate');
+
+  if (estimatePanel) {
+    if (estimate.available) {
+      const baseReturn = formatEstimateAmount(
+        estimate.base?.amount,
+        estimate.base?.currency,
+      );
+
+      const quoteReturn = formatEstimateAmount(
+        estimate.quote?.amount,
+        estimate.quote?.currency,
+      );
+
+      const totalReturn = formatEstimateAmount(
+        estimate.estimated_total_quote_value,
+        estimate.quote?.currency,
+      );
+
+      const confidenceText = (
+        estimateConfidence !== '—'
+          ? `${estimateConfidence} confidence`
+          : ''
+      );
+
+      estimatePanel.innerHTML = `
+        <div class="bot-stop-return-heading">
+          <div>
+            <strong>Estimated return if stopped now</strong>
+            <span>Current market estimate</span>
+          </div>
+          ${
+            confidenceText
+              ? (
+                '<span class="bot-stop-return-confidence">'
+                + escapeHtml(confidenceText)
+                + '</span>'
+              )
+              : ''
+          }
+        </div>
+
+        <div class="bot-stop-return-assets">
+          <div class="bot-stop-return-asset">
+            <span>Base asset</span>
+            <strong>${escapeHtml(baseReturn)}</strong>
+          </div>
+
+          <div class="bot-stop-return-asset">
+            <span>Quote asset</span>
+            <strong>${escapeHtml(quoteReturn)}</strong>
+          </div>
+        </div>
+
+        <div class="bot-stop-return-total">
+          <span>Estimated total value</span>
+          <strong>${escapeHtml(totalReturn)}</strong>
+        </div>
+
+        <p class="bot-stop-return-note">
+          Actual Gate settlement may differ because orders
+          can fill or be cancelled while Stop is processed.
+        </p>
+      `;
+
+      estimatePanel.classList.remove('hidden');
+
+    } else {
+      estimatePanel.innerHTML = '';
+      estimatePanel.classList.add('hidden');
+    }
+  }
 
   const messages = [];
 
