@@ -21,6 +21,7 @@ from .api import (
     system,
     bot_control_attention,
 )
+from .bot_control_recovery import recover_stale_bot_control_requests
 from .collector import collector
 from .config import get_settings
 from .db import init_db, session_scope
@@ -48,6 +49,26 @@ async def collection_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     init_db()
+
+    recovery = recover_stale_bot_control_requests(
+        enabled=(
+            settings
+            .bot_control_startup_recovery_enabled
+        ),
+    )
+
+    if recovery["recovered"]:
+        logger.warning(
+            "Bot Control startup recovery marked "
+            "%s abandoned request(s) uncertain; "
+            "no Gate retry or lock release performed",
+            recovery["recovered"],
+        )
+    else:
+        logger.info(
+            "Bot Control startup recovery: "
+            "no abandoned requests found"
+        )
     with session_scope() as session:
         if settings.demo_mode:
             seed_demo_data(session, settings)

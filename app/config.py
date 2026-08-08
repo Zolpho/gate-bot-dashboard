@@ -93,6 +93,13 @@ class Settings(BaseSettings):
     bot_control_account_mutation_limit: int = 10
     bot_control_account_mutation_window_seconds: int = 600
 
+    # Recover Bot Control operations abandoned by
+    # a previous application process.
+    #
+    # Recovery NEVER retries Gate writes and NEVER
+    # automatically releases operation locks.
+    bot_control_startup_recovery_enabled: bool = True
+
     # Optional legacy super-admin credentials. They no longer protect public GET routes.
     dashboard_username: str = ""
     dashboard_password: str = ""
