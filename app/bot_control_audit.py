@@ -8,7 +8,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from .db import session_scope, utcnow
-from .models import BotControlRequest
+from .models import (
+    BotControlReconciliation,
+    BotControlRequest,
+)
 
 
 class IdempotencyConflict(RuntimeError):
@@ -292,5 +295,104 @@ def list_requests(
 
         return [
             _snapshot(row)
+            for row in rows
+        ]
+
+
+
+def _reconciliation_snapshot(
+    row: BotControlReconciliation,
+) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "request_id": row.request_id,
+        "account_id": row.account_id,
+        "username": row.username,
+        "action": row.action,
+        "outcome": row.outcome,
+        "confidence": row.confidence,
+        "strategy_id": (
+            row.strategy_id or None
+        ),
+        "gate_status": (
+            row.gate_status or None
+        ),
+        "summary": row.summary,
+        "details": _load_json(
+            row.details_json
+        ),
+        "created_at": (
+            row.created_at.isoformat()
+            if row.created_at
+            else None
+        ),
+    }
+
+
+def record_reconciliation(
+    *,
+    request_id: str,
+    account_id: str,
+    username: str,
+    action: str,
+    outcome: str,
+    confidence: str,
+    strategy_id: str = "",
+    gate_status: str = "",
+    summary: str = "",
+    details: Any = None,
+) -> dict[str, Any]:
+    with session_scope() as db:
+        row = BotControlReconciliation(
+            request_id=request_id,
+            account_id=account_id,
+            username=username,
+            action=action,
+            outcome=outcome,
+            confidence=confidence,
+            strategy_id=strategy_id,
+            gate_status=gate_status,
+            summary=summary,
+            details_json=canonical_json(
+                details or {}
+            ),
+        )
+
+        db.add(row)
+        db.flush()
+
+        return _reconciliation_snapshot(
+            row
+        )
+
+
+def list_reconciliations(
+    request_id: str,
+    *,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    limit = max(
+        1,
+        min(int(limit), 100),
+    )
+
+    with session_scope() as db:
+        rows = db.scalars(
+            select(
+                BotControlReconciliation
+            )
+            .where(
+                BotControlReconciliation.request_id
+                == request_id
+            )
+            .order_by(
+                BotControlReconciliation.created_at.desc(),
+                BotControlReconciliation.id.desc(),
+            )
+            .limit(limit)
+        ).all()
+
+        return [
+            _reconciliation_snapshot(row)
             for row in rows
         ]

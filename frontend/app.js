@@ -53,6 +53,7 @@ const state = {
   botControlDraft: null,
   botControlRequestId: '',
   botControlActivity: [],
+  botControlRequestDetail: null,
   botStopPrepared: null,
   botStopRequestId: '',
 };
@@ -1251,10 +1252,13 @@ function renderBotControlActivity() {
       + `<td>${escapeHtml(item.strategy_id || '—')}</td>`
       + '<td>'
       + (
-        `<span class="bot-control-activity-request" `
+        `<button type="button" `
+        + `class="bot-control-activity-request-button `
+        + `bot-control-activity-request" `
+        + `data-bot-control-request="${escapeHtml(requestId)}" `
         + `title="${escapeHtml(requestId)}">`
         + `${escapeHtml(shortBotControlRequestId(requestId))}`
-        + '</span>'
+        + '</button>'
       )
       + '</td>'
       + '</tr>'
@@ -1336,6 +1340,294 @@ async function loadBotControlActivity(
 }
 
 
+
+function reconciliationLabel(value) {
+  return String(
+    value || 'unknown'
+  )
+    .replaceAll('_', ' ');
+}
+
+function renderBotControlReconciliationHistory(
+  rows,
+) {
+  const element = $(
+    '#botControlReconciliationHistory'
+  );
+
+  if (!element) return;
+
+  if (!rows?.length) {
+    element.innerHTML = (
+      '<div class="empty-state">'
+      + 'No reconciliation has been run.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  element.innerHTML = rows.map(row => {
+    const details = (
+      row.details
+      || {}
+    );
+
+    const retryAdvice = (
+      details.retry_advice
+      || 'manual_review'
+    );
+
+    return (
+      '<div class="bot-control-reconciliation-card">'
+      + '<div class="bot-control-reconciliation-head">'
+      + `<strong>${escapeHtml(
+          reconciliationLabel(row.outcome)
+        )}</strong>`
+      + `<span class="status-badge">${escapeHtml(
+          row.confidence || 'inconclusive'
+        )}</span>`
+      + '</div>'
+      + `<p>${escapeHtml(row.summary || '—')}</p>`
+      + '<div class="bot-control-reconciliation-meta">'
+      + `Gate status: ${escapeHtml(row.gate_status || '—')}`
+      + ' · '
+      + `Strategy: ${escapeHtml(row.strategy_id || '—')}`
+      + ' · '
+      + `Retry: ${escapeHtml(
+          reconciliationLabel(retryAdvice)
+        )}`
+      + ' · '
+      + `${escapeHtml(fmtDate(row.created_at))}`
+      + '</div>'
+      + '</div>'
+    );
+  }).join('');
+}
+
+function renderBotControlRequestDetail(
+  detail,
+) {
+  state.botControlRequestDetail = detail;
+
+  const request = (
+    detail.request
+    || {}
+  );
+
+  const response = (
+    detail.response
+    || {}
+  );
+
+  const simulation = Boolean(
+    detail.status === 'simulated'
+    || response.simulation
+  );
+
+  $('#botControlRequestSummary').innerHTML = [
+    confirmRow(
+      'Request ID',
+      detail.request_id,
+    ),
+    confirmRow(
+      'Account',
+      detail.account_id,
+    ),
+    confirmRow(
+      'User',
+      detail.username,
+    ),
+    confirmRow(
+      'Action',
+      botControlActionLabel(
+        detail.action
+      ),
+    ),
+    confirmRow(
+      'Status',
+      detail.status,
+    ),
+    confirmRow(
+      'Strategy ID',
+      detail.strategy_id || '—',
+    ),
+    confirmRow(
+      'Gate HTTP status',
+      detail.gate_status_code ?? '—',
+    ),
+    confirmRow(
+      'Gate label',
+      detail.gate_label || '—',
+    ),
+    confirmRow(
+      'Created',
+      fmtDate(detail.created_at),
+    ),
+    confirmRow(
+      'Completed',
+      detail.completed_at
+        ? fmtDate(detail.completed_at)
+        : '—',
+    ),
+  ].join('');
+
+  const errorBox = $('#botControlRequestError');
+
+  if (detail.error) {
+    errorBox.textContent = detail.error;
+    errorBox.classList.remove('hidden');
+  } else {
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+
+  const notice = $(
+    '#botControlReconcileNotice'
+  );
+
+  if (simulation) {
+    notice.textContent = (
+      'Simulation record. Reconciliation will be '
+      + 'recorded as not applicable and will not '
+      + 'query Gate, because the original write '
+      + 'was never sent.'
+    );
+  } else if (
+    detail.status === 'rejected'
+  ) {
+    notice.textContent = (
+      'The original request contains an explicit '
+      + 'Gate rejection. Reconciliation is local '
+      + 'and no Gate write will occur.'
+    );
+  } else {
+    notice.textContent = (
+      'Read-only reconciliation uses the Monitor '
+      + 'credential. It can query Gate strategy '
+      + 'state but cannot Create or Stop a bot.'
+    );
+  }
+
+  $('#botControlRequestJson').textContent =
+    JSON.stringify(
+      request,
+      null,
+      2,
+    );
+
+  $('#botControlResponseJson').textContent =
+    JSON.stringify(
+      response,
+      null,
+      2,
+    );
+
+  renderBotControlReconciliationHistory(
+    detail.reconciliations
+    || []
+  );
+}
+
+async function openBotControlRequestDetail(
+  requestId,
+) {
+  if (!requestId) return;
+
+  try {
+    const detail = await adminApi(
+      `/api/bot-control/requests/${
+        encodeURIComponent(requestId)
+      }`
+    );
+
+    renderBotControlRequestDetail(
+      detail
+    );
+
+    const dialog = $(
+      '#botControlRequestDialog'
+    );
+
+    if (!dialog.open) {
+      dialog.showModal();
+    }
+
+  } catch (error) {
+    showToast(
+      botControlErrorMessage(error),
+      true,
+    );
+  }
+}
+
+async function reconcileCurrentBotControlRequest() {
+  const detail = (
+    state.botControlRequestDetail
+  );
+
+  if (!detail?.request_id) {
+    return;
+  }
+
+  const button = $(
+    '#reconcileBotControlRequest'
+  );
+
+  button.disabled = true;
+  button.textContent = 'Reconciling…';
+
+  try {
+    const requestId = (
+      detail.request_id
+    );
+
+    const result = await adminApi(
+      `/api/bot-control/requests/${
+        encodeURIComponent(requestId)
+      }/reconcile`,
+      {
+        method: 'POST',
+      },
+    );
+
+    showToast(
+      `Reconciliation: ${
+        reconciliationLabel(
+          result.reconciliation?.outcome
+        )
+      }`
+    );
+
+    const refreshed = await adminApi(
+      `/api/bot-control/requests/${
+        encodeURIComponent(requestId)
+      }`
+    );
+
+    renderBotControlRequestDetail(
+      refreshed
+    );
+
+    await loadBotControlActivity({
+      quiet: true,
+    });
+
+  } catch (error) {
+    showToast(
+      botControlErrorMessage(error),
+      true,
+    );
+
+  } finally {
+    button.disabled = false;
+    button.textContent = (
+      'Reconcile with Gate'
+    );
+  }
+}
+
+
 function botControlAvailable() {
   return Boolean(
     state.adminUser
@@ -1407,6 +1699,7 @@ function clearBotControlSession() {
   state.botControlDraft = null;
   state.botControlRequestId = '';
   state.botControlActivity = [];
+  state.botControlRequestDetail = null;
 
   $('#spotGridReview')?.classList.add('hidden');
   $('#spotGridReviewEmpty')?.classList.remove('hidden');
@@ -1415,6 +1708,12 @@ function clearBotControlSession() {
 
   if (stopDialog?.open) {
     stopDialog.close();
+  }
+
+  const requestDialog = $('#botControlRequestDialog');
+
+  if (requestDialog?.open) {
+    requestDialog.close();
   }
 
   const dialog = $('#spotGridConfirmDialog');
@@ -4154,6 +4453,46 @@ function bindEvents() {
   $$('.nav-item').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
   $$('[data-jump]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.jump)));
   $('#syncButton').addEventListener('click', syncNow);
+
+
+  $('#botControlActivityBody')?.addEventListener(
+    'click',
+    event => {
+      const button = event.target.closest(
+        '[data-bot-control-request]'
+      );
+
+      if (!button) {
+        return;
+      }
+
+      openBotControlRequestDetail(
+        button.dataset.botControlRequest
+      );
+    },
+  );
+
+  $('#reconcileBotControlRequest')?.addEventListener(
+    'click',
+    reconcileCurrentBotControlRequest,
+  );
+
+  $('#closeBotControlRequestDialog')?.addEventListener(
+    'click',
+    () => $('#botControlRequestDialog').close(),
+  );
+
+  $('#botControlRequestDialog')?.addEventListener(
+    'click',
+    event => {
+      if (
+        event.target
+        === $('#botControlRequestDialog')
+      ) {
+        $('#botControlRequestDialog').close();
+      }
+    },
+  );
 
   $('#refreshBotControlActivity')?.addEventListener(
     'click',

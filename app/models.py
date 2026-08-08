@@ -271,3 +271,199 @@ class AlertEvent(Base):
 
     rule: Mapped[AlertRule] = relationship(back_populates="events")
     bot: Mapped[Optional[Bot]] = relationship(back_populates="alert_events")
+
+
+class BotControlRequest(Base):
+    __tablename__ = "bot_control_requests"
+    __table_args__ = (
+        UniqueConstraint(
+            "request_id",
+            name="uq_bot_control_request_id",
+        ),
+        Index(
+            "ix_bot_control_account_created",
+            "account_id",
+            "created_at",
+        ),
+        Index(
+            "ix_bot_control_user_created",
+            "username",
+            "created_at",
+        ),
+        Index(
+            "ix_bot_control_status_created",
+            "status",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="spot_grid_create",
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="reserved",
+    )
+
+    request_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    request_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    response_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    error: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    gate_status_code: Mapped[Optional[int]] = mapped_column(
+        Integer,
+    )
+
+    gate_label: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    strategy_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+        nullable=False,
+    )
+
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+
+class BotControlReconciliation(Base):
+    __tablename__ = "bot_control_reconciliations"
+    __table_args__ = (
+        Index(
+            "ix_bot_control_reconcile_request_created",
+            "request_id",
+            "created_at",
+        ),
+        Index(
+            "ix_bot_control_reconcile_account_created",
+            "account_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    outcome: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    confidence: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="inconclusive",
+    )
+
+    strategy_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    gate_status: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    summary: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    details_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+

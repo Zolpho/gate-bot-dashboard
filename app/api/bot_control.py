@@ -19,6 +19,8 @@ from ..bot_control_audit import (
     find_matching_request,
     get_request,
     list_requests,
+    list_reconciliations,
+    record_reconciliation,
     mark_request,
     reserve_request,
 )
@@ -26,6 +28,7 @@ from ..bot_control import (
     BotControlConfigError,
     get_bot_control_account,
 )
+from ..bot_control_reconcile import reconcile_request_against_gate
 from ..config import get_settings
 from ..db import session_scope
 from ..models import Bot
@@ -1449,6 +1452,109 @@ def list_bot_control_activity(
     }
 
 
+
+@router.post("/requests/{request_id}/reconcile")
+async def reconcile_bot_control_request(
+    request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    record = get_request(
+        request_id
+    )
+
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Bot Control request not found"
+            ),
+        )
+
+    account_id = require_account_access(
+        user,
+        record["account_id"],
+    )
+
+    monitor_account = get_gate_account(
+        account_id
+    )
+
+    if (
+        monitor_account is None
+        or not monitor_account.enabled
+        or not monitor_account.configured
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Monitor credentials are not "
+                f"configured for {account_id}"
+            ),
+        )
+
+    result = (
+        await reconcile_request_against_gate(
+            record=record,
+            monitor_account=monitor_account,
+            settings=settings,
+        )
+    )
+
+    saved = record_reconciliation(
+        request_id=request_id,
+        account_id=account_id,
+        username=user.username,
+        action=record["action"],
+        outcome=result["outcome"],
+        confidence=result["confidence"],
+        strategy_id=str(
+            result.get("strategy_id")
+            or ""
+        ),
+        gate_status=str(
+            result.get("gate_status")
+            or ""
+        ),
+        summary=str(
+            result.get("summary")
+            or ""
+        ),
+        details={
+            "gate_read_performed": (
+                result.get(
+                    "gate_read_performed",
+                    False,
+                )
+            ),
+            "gate_write_performed": False,
+            "retry_advice": (
+                result.get(
+                    "retry_advice"
+                )
+            ),
+            "evidence": (
+                result.get("details")
+                or {}
+            ),
+        },
+    )
+
+    return {
+        "request_id": request_id,
+        "action": record["action"],
+        "original_status": (
+            record["status"]
+        ),
+        "credential_profile": "monitor",
+        "write_performed": False,
+        "gate_write_performed": False,
+        "reconciliation": saved,
+    }
+
+
 @router.get("/requests/{request_id}")
 def get_bot_control_request(
     request_id: str,
@@ -1495,5 +1601,10 @@ def get_bot_control_request(
         "created_at": record["created_at"],
         "updated_at": record["updated_at"],
         "completed_at": record["completed_at"],
+        "reconciliations": (
+            list_reconciliations(
+                request_id
+            )
+        ),
     }
 

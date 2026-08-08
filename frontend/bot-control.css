@@ -334,3 +334,93 @@
   color: var(--muted);
   font-size: .73rem;
 }
+
+
+.bot-control-activity-request-button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  font: inherit;
+}
+
+.bot-control-activity-request-button:hover {
+  text-decoration-style: solid;
+}
+
+.bot-control-request-dialog {
+  width: min(900px, calc(100vw - 32px));
+}
+
+.bot-control-request-content {
+  display: grid;
+  gap: 16px;
+}
+
+.bot-control-request-content section h3 {
+  margin: 0 0 10px;
+  font-size: .9rem;
+}
+
+.bot-control-request-content details {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 12px;
+}
+
+.bot-control-request-content summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.bot-control-json {
+  max-height: 360px;
+  overflow: auto;
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: .74rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bot-control-reconciliation-history {
+  display: grid;
+  gap: 10px;
+}
+
+.bot-control-reconciliation-card {
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.bot-control-reconciliation-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.bot-control-reconciliation-head strong {
+  text-transform: capitalize;
+}
+
+.bot-control-reconciliation-card p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.bot-control-reconciliation-meta {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: .72rem;
+}

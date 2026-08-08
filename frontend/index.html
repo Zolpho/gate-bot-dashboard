@@ -652,6 +652,82 @@
     </div>
   </dialog>
 
+
+  <dialog
+    id="botControlRequestDialog"
+    class="small-dialog bot-control-request-dialog"
+  >
+    <div class="dialog-header">
+      <div>
+        <h2>Bot Control Request</h2>
+        <p>
+          Persistent audit data and read-only Gate
+          reconciliation.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeBotControlRequestDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <div class="bot-control-request-content">
+
+      <div
+        id="botControlRequestSummary"
+        class="bot-control-confirm-summary"
+      ></div>
+
+      <div
+        id="botControlRequestError"
+        class="form-error hidden"
+      ></div>
+
+      <div
+        id="botControlReconcileNotice"
+        class="bot-control-safety-notice"
+      ></div>
+
+      <div class="form-actions">
+        <button
+          type="button"
+          class="button secondary"
+          id="reconcileBotControlRequest"
+        >
+          Reconcile with Gate
+        </button>
+      </div>
+
+      <section>
+        <h3>Reconciliation history</h3>
+        <div
+          id="botControlReconciliationHistory"
+          class="bot-control-reconciliation-history"
+        ></div>
+      </section>
+
+      <details open>
+        <summary>Original request</summary>
+        <pre
+          id="botControlRequestJson"
+          class="bot-control-json"
+        ></pre>
+      </details>
+
+      <details>
+        <summary>Original response</summary>
+        <pre
+          id="botControlResponseJson"
+          class="bot-control-json"
+        ></pre>
+      </details>
+
+    </div>
+  </dialog>
+
   <dialog
     id="spotGridConfirmDialog"
     class="small-dialog bot-control-confirm-dialog"
