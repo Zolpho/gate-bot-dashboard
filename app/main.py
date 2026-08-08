@@ -19,6 +19,7 @@ from .api import (
     deposit_history,
     me,
     system,
+    bot_control_attention,
 )
 from .collector import collector
 from .config import get_settings
@@ -99,5 +100,6 @@ app.include_router(deposit.private_router)
 app.include_router(deposit_history.router)
 app.include_router(me.router)
 
+app.include_router(bot_control_attention.router)
 # Keep this last so /api routes take precedence.
 app.mount("/", StaticFiles(directory=str(settings.frontend_dir), html=True), name="frontend")
