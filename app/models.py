@@ -670,3 +670,51 @@ class BotControlLockResolution(Base):
         nullable=False,
     )
 
+
+class BotControlRateLimitEvent(Base):
+    __tablename__ = "bot_control_rate_limit_events"
+    __table_args__ = (
+        Index(
+            "ix_bot_control_rate_user_action_time",
+            "username",
+            "action",
+            "created_at",
+        ),
+        Index(
+            "ix_bot_control_rate_account_action_time",
+            "account_id",
+            "action",
+            "created_at",
+        ),
+        Index(
+            "ix_bot_control_rate_created",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+

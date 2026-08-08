@@ -75,6 +75,24 @@ class Settings(BaseSettings):
     bot_create_confirmation_text: str = "CREATE"
     bot_create_duplicate_cooldown_seconds: int = 600
 
+    # Persistent Bot Control rate limiting.
+    bot_control_rate_limit_enabled: bool = True
+
+    bot_control_create_user_limit: int = 5
+    bot_control_create_user_window_seconds: int = 600
+
+    bot_control_stop_user_limit: int = 5
+    bot_control_stop_user_window_seconds: int = 600
+
+    bot_control_reconcile_user_limit: int = 20
+    bot_control_reconcile_user_window_seconds: int = 600
+
+    bot_control_lock_release_user_limit: int = 3
+    bot_control_lock_release_user_window_seconds: int = 1800
+
+    bot_control_account_mutation_limit: int = 10
+    bot_control_account_mutation_window_seconds: int = 600
+
     # Optional legacy super-admin credentials. They no longer protect public GET routes.
     dashboard_username: str = ""
     dashboard_password: str = ""

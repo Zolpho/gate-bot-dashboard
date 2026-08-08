@@ -2226,7 +2226,41 @@ function botControlErrorMessage(error) {
     && typeof detail === 'object'
     && detail.message
   ) {
-    return detail.message;
+    let message = String(
+      detail.message
+    );
+
+    const retry = Number(
+      detail.retry_after_seconds
+      || 0
+    );
+
+    if (
+      error?.status === 429
+      && retry > 0
+    ) {
+      let retryText;
+
+      if (retry < 60) {
+        retryText = `${Math.ceil(retry)}s`;
+
+      } else if (retry < 3600) {
+        retryText = (
+          `${Math.ceil(retry / 60)}m`
+        );
+
+      } else {
+        retryText = (
+          `${Math.ceil(retry / 3600)}h`
+        );
+      }
+
+      message += (
+        `. Try again in ${retryText}.`
+      );
+    }
+
+    return message;
   }
 
   return (

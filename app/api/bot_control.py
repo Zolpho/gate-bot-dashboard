@@ -46,6 +46,10 @@ from ..bot_control_locks import (
     release_operation_lock,
     strategy_lock_key,
 )
+from ..bot_control_rate_limit import (
+    BotControlRateLimitExceeded,
+    enforce_rate_limit,
+)
 from ..config import get_settings
 from ..db import session_scope
 from ..models import Bot
@@ -71,6 +75,33 @@ router = APIRouter(
 )
 
 settings = get_settings()
+
+
+def _enforce_bot_control_rate_limit(
+    *,
+    user: DashboardUser,
+    account_id: str,
+    action: str,
+) -> None:
+    try:
+        enforce_rate_limit(
+            settings=settings,
+            username=user.username,
+            account_id=account_id,
+            action=action,
+        )
+
+    except BotControlRateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=exc.detail(),
+            headers={
+                "Retry-After": str(
+                    exc.retry_after_seconds
+                ),
+            },
+        ) from exc
+
 
 
 class SpotGridPrepareRequest(BaseModel):
@@ -628,6 +659,12 @@ async def create_spot_grid(
         return _existing_control_result(
             existing
         )
+
+    _enforce_bot_control_rate_limit(
+        user=user,
+        account_id=account_id,
+        action="spot_grid_create",
+    )
 
     # Full read-only validation immediately before
     # reserving the write.
@@ -1207,6 +1244,12 @@ async def stop_bot_control(
             existing
         )
 
+    _enforce_bot_control_rate_limit(
+        user=user,
+        account_id=bot["account_id"],
+        action="bot_stop",
+    )
+
     prepared = await prepare_bot_stop(
         bot_id,
         user,
@@ -1655,6 +1698,12 @@ async def reconcile_bot_control_request(
         record["account_id"],
     )
 
+    _enforce_bot_control_rate_limit(
+        user=user,
+        account_id=account_id,
+        action="reconcile",
+    )
+
     monitor_account = get_gate_account(
         account_id
     )
@@ -1787,6 +1836,12 @@ def release_bot_control_request_lock(
     require_account_access(
         user,
         record["account_id"],
+    )
+
+    _enforce_bot_control_rate_limit(
+        user=user,
+        account_id=record["account_id"],
+        action="lock_release",
     )
 
     if record["status"] != "uncertain":
