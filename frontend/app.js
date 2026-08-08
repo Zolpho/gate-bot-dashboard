@@ -2364,6 +2364,45 @@ function botStopAvailable() {
   );
 }
 
+function botStopLive() {
+  return Boolean(
+    botStopEnabled()
+    && !botStopSimulation()
+  );
+}
+
+function botStopMode() {
+  if (botStopLive()) {
+    return 'live';
+  }
+
+  if (botStopSimulation()) {
+    return 'simulation';
+  }
+
+  return 'disabled';
+}
+
+function botStopRequiredConfirmation() {
+  return botStopLive()
+    ? 'LIVE STOP'
+    : 'STOP';
+}
+
+async function refreshBotControlRuntimeHealth() {
+  state.health = await api('/api/health');
+
+  if (state.currentBotData?.bot) {
+    updateBotAdminControls(
+      state.currentBotData.bot
+    );
+  }
+
+  renderBotControlAccess();
+
+  return state.health;
+}
+
 
 function botControlErrorMessage(error) {
   const detail = error?.payload?.detail;
@@ -4972,10 +5011,10 @@ function renderBotStopConfirmation(prepared) {
 
   notice.classList.toggle(
     'enabled',
-    botStopEnabled(),
+    botStopLive(),
   );
 
-  notice.textContent = botStopEnabled()
+  notice.textContent = botStopLive()
     ? (
       'LIVE BOT STOP IS ENABLED. Submitting this '
       + 'confirmation can stop the live Gate strategy.'
@@ -4989,6 +5028,15 @@ function renderBotStopConfirmation(prepared) {
       : (
         'Bot stopping is disabled on the server.'
       );
+
+  const requiredConfirmation =
+    botStopRequiredConfirmation();
+
+  $('#stopBotRequiredConfirmation').textContent =
+    requiredConfirmation;
+
+  $('#stopBotConfirmText').placeholder =
+    requiredConfirmation;
 
   $('#stopBotConfirmText').value = '';
 
@@ -5008,7 +5056,8 @@ function updateBotStopConfirmButton() {
   button.disabled = !(
     botStopAvailable()
     && state.botStopPrepared?.can_stop
-    && $('#stopBotConfirmText')?.value === 'STOP'
+    && $('#stopBotConfirmText')?.value
+      === botStopRequiredConfirmation()
   );
 
   button.textContent = (
@@ -5022,16 +5071,57 @@ function updateBotStopConfirmButton() {
 async function submitBotStop() {
   const prepared = state.botStopPrepared;
 
-  if (
-    !prepared?.can_stop
-    || !botStopAvailable()
-  ) {
+  if (!prepared?.can_stop) {
     return;
   }
 
+  const modeBefore = botStopMode();
+
+  try {
+    await refreshBotControlRuntimeHealth();
+
+  } catch (error) {
+    const errorBox =
+      $('#stopBotConfirmError');
+
+    errorBox.textContent = (
+      'Unable to refresh Bot Control safety state. '
+      + 'No Stop request was submitted.'
+    );
+
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const modeAfter = botStopMode();
+
+  if (modeAfter !== modeBefore) {
+    renderBotStopConfirmation(
+      prepared
+    );
+
+    const errorBox =
+      $('#stopBotConfirmError');
+
+    errorBox.textContent = (
+      'Bot Control mode changed on the server. '
+      + 'Review the updated mode and confirm again.'
+    );
+
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  if (!botStopAvailable()) {
+    return;
+  }
+
+  const requiredConfirmation =
+    botStopRequiredConfirmation();
+
   if (
     $('#stopBotConfirmText').value
-    !== 'STOP'
+    !== requiredConfirmation
   ) {
     return;
   }
@@ -5069,7 +5159,7 @@ async function submitBotStop() {
         method: 'POST',
         body: JSON.stringify({
           request_id: requestId,
-          confirmation: 'STOP',
+          confirmation: requiredConfirmation,
         }),
       },
     );
