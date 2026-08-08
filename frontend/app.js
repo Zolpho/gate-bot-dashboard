@@ -2229,8 +2229,35 @@ async function openBotControlRequestDetail(
       '#botControlRequestDialog'
     );
 
+    /*
+     * Always present a newly opened request from the
+     * top. Browsers preserve <dialog> scroll position
+     * between openings, which can otherwise hide the
+     * Request ID / status summary from the operator.
+     */
+    dialog.scrollTop = 0;
+
+    const content = dialog.querySelector(
+      '.bot-control-request-content'
+    );
+
+    if (content) {
+      content.scrollTop = 0;
+    }
+
     if (!dialog.open) {
       dialog.showModal();
+    }
+
+    /*
+     * Reset again after showModal() in case the browser
+     * restores the previous scroll position while
+     * displaying the dialog.
+     */
+    dialog.scrollTop = 0;
+
+    if (content) {
+      content.scrollTop = 0;
     }
 
   } catch (error) {
