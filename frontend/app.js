@@ -1896,61 +1896,153 @@ function renderBotControlRequestDetail(
     || response.simulation
   );
 
-  $('#botControlRequestSummary').innerHTML = [
-    confirmRow(
-      'Request ID',
-      detail.request_id,
-    ),
-    confirmRow(
-      'Account',
-      detail.account_id,
-    ),
-    confirmRow(
-      'User',
-      detail.username,
-    ),
-    confirmRow(
-      'Action',
-      botControlActionLabel(
-        detail.action
-      ),
-    ),
-    confirmRow(
-      'Status',
-      detail.status,
-    ),
-    confirmRow(
-      'Strategy ID',
-      detail.strategy_id || '—',
-    ),
-    confirmRow(
-      'Operation lock',
-      detail.operation_lock
-        ? (
-          `${detail.operation_lock.state} · `
-          + `${detail.operation_lock.lock_type}`
-        )
-        : 'none',
-    ),
-    confirmRow(
-      'Gate HTTP status',
-      detail.gate_status_code ?? '—',
-    ),
-    confirmRow(
-      'Gate label',
-      detail.gate_label || '—',
-    ),
-    confirmRow(
-      'Created',
-      fmtDate(detail.created_at),
-    ),
-    confirmRow(
-      'Completed',
-      detail.completed_at
-        ? fmtDate(detail.completed_at)
-        : '—',
-    ),
-  ].join('');
+  const requestStatus = String(
+    detail.status || 'unknown'
+  ).toLowerCase();
+
+  const statusClass = (
+    ['succeeded', 'completed'].includes(requestStatus)
+      ? 'success'
+      : ['rejected', 'failed'].includes(requestStatus)
+        ? 'danger'
+        : ['uncertain', 'blocked'].includes(requestStatus)
+          ? 'warning'
+          : ''
+  );
+
+  const lock = detail.operation_lock || null;
+
+  const lockState = (
+    lock?.state
+      ? reconciliationLabel(lock.state)
+      : 'No active lock'
+  );
+
+  const lockType = (
+    lock?.lock_type
+      ? reconciliationLabel(lock.lock_type)
+      : ''
+  );
+
+  const gateHttp = (
+    detail.gate_status_code !== null
+    && detail.gate_status_code !== undefined
+      ? String(detail.gate_status_code)
+      : '—'
+  );
+
+  $('#botControlRequestSummary').innerHTML = `
+    <section class="bot-control-request-card">
+      <div class="bot-control-request-heading">
+        <div>
+          <span class="bot-control-request-label">
+            Action
+          </span>
+
+          <strong>
+            ${escapeHtml(
+              botControlActionLabel(detail.action)
+            )}
+          </strong>
+        </div>
+
+        <span
+          class="bot-control-request-status ${statusClass}"
+        >
+          ${escapeHtml(
+            reconciliationLabel(detail.status)
+          )}
+        </span>
+      </div>
+
+      <div class="bot-control-request-id">
+        <span>Request ID</span>
+        <strong>
+          ${escapeHtml(detail.request_id || '—')}
+        </strong>
+      </div>
+
+      <div class="bot-control-request-identity">
+        <div>
+          <span>Account</span>
+          <strong>
+            ${escapeHtml(detail.account_id || '—')}
+          </strong>
+        </div>
+
+        <div>
+          <span>User</span>
+          <strong>
+            ${escapeHtml(detail.username || '—')}
+          </strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="bot-control-request-metrics">
+      <div class="bot-control-request-metric">
+        <span>Strategy ID</span>
+        <strong>
+          ${escapeHtml(detail.strategy_id || '—')}
+        </strong>
+      </div>
+
+      <div class="bot-control-request-metric">
+        <span>Gate HTTP</span>
+        <strong>
+          ${escapeHtml(gateHttp)}
+        </strong>
+
+        ${
+          detail.gate_label
+            ? (
+              '<small>'
+              + escapeHtml(detail.gate_label)
+              + '</small>'
+            )
+            : ''
+        }
+      </div>
+
+      <div class="bot-control-request-metric">
+        <span>Operation lock</span>
+
+        <strong class="bot-control-lock-badge">
+          ${escapeHtml(lockState)}
+        </strong>
+
+        ${
+          lockType
+            ? (
+              '<small>'
+              + escapeHtml(lockType)
+              + '</small>'
+            )
+            : ''
+        }
+      </div>
+    </section>
+
+    <section class="bot-control-request-times">
+      <div>
+        <span>Created</span>
+        <strong>
+          ${escapeHtml(fmtDate(detail.created_at))}
+        </strong>
+      </div>
+
+      <div>
+        <span>Completed</span>
+        <strong>
+          ${
+            detail.completed_at
+              ? escapeHtml(fmtDate(detail.completed_at))
+              : '—'
+          }
+        </strong>
+      </div>
+    </section>
+  `;
 
   const errorBox = $('#botControlRequestError');
 
