@@ -5160,6 +5160,46 @@ async function stopCurrentBot() {
 function renderBotStopConfirmation(prepared) {
   const bot = prepared.bot || {};
   const gate = prepared.gate_snapshot || {};
+  const estimate =
+    prepared.stop_return_estimate || {};
+
+  const formatEstimateAmount = (
+    amount,
+    currency,
+  ) => {
+    if (
+      amount === null
+      || amount === undefined
+      || amount === ''
+    ) {
+      return '—';
+    }
+
+    const numeric = Number(amount);
+
+    const formatted = Number.isFinite(numeric)
+      ? numeric.toLocaleString(
+        undefined,
+        {
+          maximumFractionDigits: 8,
+        },
+      )
+      : String(amount);
+
+    return currency
+      ? `${formatted} ${currency}`
+      : formatted;
+  };
+
+  const estimateConfidence = (
+    estimate.confidence
+    && estimate.confidence !== 'unavailable'
+  )
+    ? (
+      estimate.confidence.charAt(0).toUpperCase()
+      + estimate.confidence.slice(1)
+    )
+    : '—';
 
   $('#stopBotConfirmSummary').innerHTML = [
     confirmRow(
@@ -5210,6 +5250,41 @@ function renderBotStopConfirmation(prepared) {
         ? fmtMoney(bot.total_profit)
         : '—',
     ),
+
+    ...(estimate.available
+      ? [
+        confirmRow(
+          'Estimated base return',
+          formatEstimateAmount(
+            estimate.base?.amount,
+            estimate.base?.currency,
+          ),
+        ),
+        confirmRow(
+          'Estimated quote return',
+          formatEstimateAmount(
+            estimate.quote?.amount,
+            estimate.quote?.currency,
+          ),
+        ),
+        confirmRow(
+          'Estimated total value',
+          formatEstimateAmount(
+            estimate.estimated_total_quote_value,
+            estimate.quote?.currency,
+          ),
+        ),
+        confirmRow(
+          'Estimate confidence',
+          estimateConfidence,
+        ),
+        confirmRow(
+          'Estimate note',
+          'Current market estimate; actual Gate '
+          + 'settlement may differ.',
+        ),
+      ]
+      : []),
   ].join('');
 
   const messages = [];
