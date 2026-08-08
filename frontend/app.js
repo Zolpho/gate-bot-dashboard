@@ -5152,8 +5152,18 @@ async function submitBotStop() {
   errorBox.textContent = '';
   errorBox.classList.add('hidden');
 
+  let result;
+
+  /*
+   * Only the actual mutation request belongs in this
+   * try/catch. Once this returns successfully, Gate
+   * submission succeeded from the UI's perspective.
+   *
+   * Later dashboard refresh failures must NEVER make
+   * the operator think the Stop itself failed.
+   */
   try {
-    const result = await adminApi(
+    result = await adminApi(
       `/api/bot-control/bots/${botId}/stop`,
       {
         method: 'POST',
@@ -5164,47 +5174,11 @@ async function submitBotStop() {
       },
     );
 
-    const simulated = Boolean(
-      result.simulation
-      || result.status === 'simulated'
-    );
-
-    $('#stopBotConfirmDialog').close();
-
-    showToast(
-      simulated
-        ? (
-          'Stop simulation completed. '
-          + 'No Gate write performed.'
-        )
-        : 'Bot Stop submitted to Gate.'
-    );
-
-    $('#apiInspector').textContent =
-      JSON.stringify(
-        result,
-        null,
-        2,
-      );
-
-    await loadBotControlActivity({
-      quiet: true,
-    });
-
-    await loadCore();
-
-    if (
-      !simulated
-      && $('#botDialog').open
-    ) {
-      $('#botDialog').close();
-    }
-
   } catch (error) {
     /*
-     * Keep the SAME request ID after failure.
-     * The backend audit layer decides whether a
-     * retry is safe.
+     * Keep the SAME request ID after mutation failure.
+     * The backend audit/idempotency layer decides
+     * whether replay is safe.
      */
     errorBox.textContent =
       botControlErrorMessage(error);
@@ -5213,9 +5187,95 @@ async function submitBotStop() {
       'hidden'
     );
 
-  } finally {
     updateBotStopConfirmButton();
+    return;
   }
+
+  const simulated = Boolean(
+    result.simulation
+    || result.status === 'simulated'
+  );
+
+  $('#stopBotConfirmDialog').close();
+
+  /*
+   * Persist the raw response immediately. Do this
+   * before any secondary refresh work.
+   */
+  $('#apiInspector').textContent =
+    JSON.stringify(
+      result,
+      null,
+      2,
+    );
+
+  showToast(
+    simulated
+      ? (
+        'Stop simulation completed. '
+        + `Request ${requestId}. `
+        + 'No Gate write performed.'
+      )
+      : (
+        'Bot Stop submitted to Gate. '
+        + `Request ${requestId}.`
+      )
+  );
+
+  /*
+   * For a live Stop, close the old strategy detail
+   * before presenting the durable request record.
+   */
+  if (
+    !simulated
+    && $('#botDialog').open
+  ) {
+    $('#botDialog').close();
+  }
+
+  /*
+   * Always show the persistent Bot Control request
+   * after a successful submission. This contains the
+   * request ID, status, Gate HTTP response and audit
+   * evidence, so the operator is never dependent on a
+   * transient toast.
+   */
+  await openBotControlRequestDetail(
+    requestId
+  );
+
+  /*
+   * Everything below is secondary refresh work.
+   * Failures here must not be confused with mutation
+   * failure because the Stop has already succeeded.
+   */
+  try {
+    await loadBotControlActivity({
+      quiet: true,
+    });
+
+  } catch (error) {
+    showToast(
+      'Stop was submitted successfully, but Bot '
+      + 'Control Activity could not be refreshed. '
+      + `Request ${requestId}.`,
+      true,
+    );
+  }
+
+  try {
+    await loadCore();
+
+  } catch (error) {
+    showToast(
+      'Stop was submitted successfully, but the '
+      + 'dashboard could not be refreshed. '
+      + `Request ${requestId}.`,
+      true,
+    );
+  }
+
+  updateBotStopConfirmButton();
 }
 
 function exportCsv() {
