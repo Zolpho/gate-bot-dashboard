@@ -297,6 +297,16 @@ class GateClient:
     async def list_spot_accounts(self) -> GateResponse:
         return await self.request("GET", "/spot/accounts")
 
+    async def get_spot_currency_pair(
+        self,
+        currency_pair: str,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            f"/spot/currency_pairs/{currency_pair.upper()}",
+            signed=False,
+        )
+
     async def list_spot_tickers(self, currency_pair: str | None = None) -> GateResponse:
         return await self.request(
             "GET",
