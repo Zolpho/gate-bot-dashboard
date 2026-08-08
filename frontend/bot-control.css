@@ -727,3 +727,179 @@
     text-align: left;
   }
 }
+
+
+/* Bot Stop strategy summary cards */
+
+.bot-control-confirm-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bot-stop-strategy-card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.bot-stop-strategy-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.bot-stop-strategy-heading > div {
+  min-width: 0;
+}
+
+.bot-stop-card-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bot-stop-strategy-heading strong {
+  display: block;
+  color: var(--text);
+  font-size: 1.12rem;
+  line-height: 1.3;
+}
+
+.bot-stop-account-badge {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bot-stop-strategy-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--border);
+}
+
+.bot-stop-strategy-meta > div {
+  min-width: 0;
+  padding: 14px 18px;
+}
+
+.bot-stop-strategy-meta > div + div {
+  border-left: 1px solid var(--border);
+}
+
+.bot-stop-strategy-meta span,
+.bot-stop-status-item > span,
+.bot-stop-financial-card > span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.bot-stop-strategy-meta strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.bot-stop-status-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bot-stop-status-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 18px;
+}
+
+.bot-stop-status-item + .bot-stop-status-item {
+  border-left: 1px solid var(--border);
+}
+
+.bot-stop-status-item > span {
+  margin: 0;
+}
+
+.bot-stop-status-badge {
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.82rem;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.bot-stop-financial-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bot-stop-financial-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.bot-stop-financial-card > strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 1.2rem;
+  line-height: 1.25;
+}
+
+.bot-stop-financial-card.positive > strong {
+  color: var(--green);
+}
+
+.bot-stop-financial-card.negative > strong {
+  color: var(--red);
+}
+
+@media (max-width: 700px) {
+  .bot-stop-strategy-heading {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .bot-stop-strategy-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .bot-stop-strategy-meta > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .bot-stop-status-row {
+    grid-template-columns: 1fr;
+  }
+
+  .bot-stop-status-item + .bot-stop-status-item {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .bot-stop-financial-cards {
+    grid-template-columns: 1fr;
+  }
+}

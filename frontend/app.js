@@ -5201,56 +5201,107 @@ function renderBotStopConfirmation(prepared) {
     )
     : '—';
 
-  $('#stopBotConfirmSummary').innerHTML = [
-    confirmRow(
-      'Account',
-      bot.account_id,
-    ),
-    confirmRow(
-      'Strategy',
-      bot.strategy_name
-      || bot.strategy_id,
-    ),
-    confirmRow(
-      'Strategy ID',
-      bot.strategy_id,
-    ),
-    confirmRow(
-      'Type',
-      bot.strategy_type,
-    ),
-    confirmRow(
-      'Market',
-      bot.market,
-    ),
-    confirmRow(
-      'Dashboard status',
-      bot.status,
-    ),
-    confirmRow(
-      'Gate status',
-      gate.status || '—',
-    ),
-    confirmRow(
-      'Investment',
-      bot.invest_amount
-        ? fmtMoney(bot.invest_amount)
-        : '—',
-    ),
-    confirmRow(
-      'Current value',
-      bot.current_value
-        ? fmtMoney(bot.current_value)
-        : '—',
-    ),
-    confirmRow(
-      'Total PnL',
-      bot.total_profit !== null
-      && bot.total_profit !== undefined
-        ? fmtMoney(bot.total_profit)
-        : '—',
-    ),
-  ].join('');
+  const pnlNumeric = Number(bot.total_profit);
+
+  const pnlClass = Number.isFinite(pnlNumeric)
+    ? (
+      pnlNumeric > 0
+        ? 'positive'
+        : pnlNumeric < 0
+          ? 'negative'
+          : ''
+    )
+    : '';
+
+  $('#stopBotConfirmSummary').innerHTML = `
+    <section class="bot-stop-strategy-card">
+      <div class="bot-stop-strategy-heading">
+        <div>
+          <span class="bot-stop-card-label">Strategy</span>
+          <strong>
+            ${escapeHtml(
+              bot.strategy_name
+              || bot.strategy_id
+              || '—'
+            )}
+          </strong>
+        </div>
+
+        <span class="bot-stop-account-badge">
+          ${escapeHtml(bot.account_id || '—')}
+        </span>
+      </div>
+
+      <div class="bot-stop-strategy-meta">
+        <div>
+          <span>Strategy ID</span>
+          <strong>${escapeHtml(bot.strategy_id || '—')}</strong>
+        </div>
+
+        <div>
+          <span>Market</span>
+          <strong>${escapeHtml(bot.market || '—')}</strong>
+        </div>
+
+        <div>
+          <span>Type</span>
+          <strong>${escapeHtml(bot.strategy_type || '—')}</strong>
+        </div>
+      </div>
+
+      <div class="bot-stop-status-row">
+        <div class="bot-stop-status-item">
+          <span>Dashboard</span>
+          <strong class="bot-stop-status-badge">
+            ${escapeHtml(bot.status || '—')}
+          </strong>
+        </div>
+
+        <div class="bot-stop-status-item">
+          <span>Gate</span>
+          <strong class="bot-stop-status-badge">
+            ${escapeHtml(gate.status || '—')}
+          </strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="bot-stop-financial-cards">
+      <div class="bot-stop-financial-card">
+        <span>Investment</span>
+        <strong>
+          ${
+            bot.invest_amount
+              ? escapeHtml(fmtMoney(bot.invest_amount))
+              : '—'
+          }
+        </strong>
+      </div>
+
+      <div class="bot-stop-financial-card">
+        <span>Current value</span>
+        <strong>
+          ${
+            bot.current_value
+              ? escapeHtml(fmtMoney(bot.current_value))
+              : '—'
+          }
+        </strong>
+      </div>
+
+      <div class="bot-stop-financial-card ${pnlClass}">
+        <span>Total PnL</span>
+        <strong>
+          ${
+            bot.total_profit !== null
+            && bot.total_profit !== undefined
+              ? escapeHtml(fmtMoney(bot.total_profit))
+              : '—'
+          }
+        </strong>
+      </div>
+    </section>
+  `;
 
   const estimatePanel = $('#stopBotReturnEstimate');
 
