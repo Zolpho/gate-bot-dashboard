@@ -1,0 +1,235 @@
+.bot-control-layout {
+  display: grid;
+  grid-template-columns:
+    minmax(320px, .9fr)
+    minmax(400px, 1.1fr);
+  gap: 18px;
+}
+
+.bot-control-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.bot-control-form label,
+.bot-control-confirm-input {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: .79rem;
+}
+
+.bot-control-form .full {
+  grid-column: 1 / -1;
+}
+
+.bot-control-form input,
+.bot-control-form select,
+.bot-control-confirm-input input {
+  width: 100%;
+}
+
+.input-with-suffix {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.input-with-suffix input {
+  border: 0;
+  border-radius: 0;
+}
+
+.input-with-suffix span {
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.bot-control-advanced {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--surface-2);
+}
+
+.bot-control-advanced summary,
+.bot-control-payload summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.bot-control-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.bot-control-review-status {
+  margin-bottom: 14px;
+}
+
+.bot-control-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.bot-control-review-item {
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.bot-control-review-item span,
+.bot-control-review-item strong {
+  display: block;
+}
+
+.bot-control-review-item span {
+  color: var(--muted);
+  font-size: .72rem;
+  margin-bottom: 4px;
+}
+
+.bot-control-review-item strong {
+  font-size: .88rem;
+  overflow-wrap: anywhere;
+}
+
+.bot-control-validation {
+  margin: 15px 0;
+  display: grid;
+  gap: 8px;
+}
+
+.bot-control-message {
+  padding: 9px 11px;
+  border-radius: 9px;
+  font-size: .8rem;
+  line-height: 1.45;
+}
+
+.bot-control-message.error {
+  border: 1px solid rgba(255,110,124,.35);
+  background: rgba(255,110,124,.08);
+  color: var(--negative);
+}
+
+.bot-control-message.warning {
+  border: 1px solid rgba(241,189,100,.35);
+  background: rgba(241,189,100,.08);
+  color: var(--warning);
+}
+
+.bot-control-message.success {
+  border: 1px solid rgba(32,212,155,.30);
+  background: rgba(32,212,155,.07);
+  color: var(--positive);
+}
+
+.bot-control-payload {
+  margin: 15px 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.bot-control-payload pre {
+  max-height: 320px;
+  overflow: auto;
+  margin: 12px 0 0;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: 8px;
+  font-size: .76rem;
+}
+
+.bot-control-confirm-content {
+  padding: 4px 0 2px;
+  display: grid;
+  gap: 16px;
+}
+
+.bot-control-confirm-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.bot-control-confirm-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.bot-control-confirm-row span {
+  color: var(--muted);
+}
+
+.bot-control-confirm-row strong {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.bot-control-safety-notice {
+  padding: 11px 12px;
+  border: 1px solid rgba(241,189,100,.4);
+  border-radius: 10px;
+  background: rgba(241,189,100,.08);
+  color: var(--warning);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+.bot-control-safety-notice.enabled {
+  border-color: rgba(255,110,124,.35);
+  background: rgba(255,110,124,.07);
+  color: var(--negative);
+}
+
+.bot-control-result {
+  margin-top: 14px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 980px) {
+  .bot-control-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .bot-control-form,
+  .bot-control-review-grid,
+  .bot-control-advanced-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bot-control-form .full {
+    grid-column: auto;
+  }
+
+  .bot-control-confirm-row {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .bot-control-confirm-row strong {
+    text-align: left;
+  }
+}

@@ -48,6 +48,10 @@ const state = {
   depositChain: '',
   depositDetails: null,
   depositHistory: [],
+  botControlCapabilities: null,
+  botControlPrepared: null,
+  botControlDraft: null,
+  botControlRequestId: '',
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -197,6 +201,7 @@ function renderAdminState() {
   populateFilterOptions(state.botFilters);
   renderAlerts();
   if (state.currentBotData?.bot) updateBotAdminControls(state.currentBotData.bot);
+  renderBotControlAccess();
 }
 function lockAdmin(showMessage = true) {
   state.adminAuthorization = '';
@@ -205,6 +210,7 @@ function lockAdmin(showMessage = true) {
   clearPrivateBalance();
   clearDepositHistory();
   clearDepositState({ keepCatalog: false });
+  clearBotControlSession();
   const depositDialog = $('#depositDialog');
   if (depositDialog?.open) depositDialog.close();
   const passwordDialog = $('#changePasswordDialog');
@@ -234,6 +240,7 @@ async function unlockAdmin(event) {
     const result = await api('/api/auth/me', { headers: { Authorization: authorization } });
     state.adminAuthorization = authorization;
     state.adminUser = result.user;
+    await loadBotControlCapabilities();
     formElement.reset();
     $('#adminDialog').close();
     renderAdminState();
@@ -1112,10 +1119,785 @@ async function syncDepositHistory() {
   }
 }
 
+
+function botControlAvailable() {
+  return Boolean(
+    state.adminUser
+    && state.adminAuthorization
+    && state.botControlCapabilities?.modes?.bot_control
+  );
+}
+
+function botCreationEnabled() {
+  return Boolean(
+    state.health?.allow_bot_create
+  );
+}
+
+function botControlErrorMessage(error) {
+  const detail = error?.payload?.detail;
+
+  if (
+    detail
+    && typeof detail === 'object'
+    && detail.message
+  ) {
+    return detail.message;
+  }
+
+  return (
+    error?.message
+    || 'Bot Control request failed.'
+  );
+}
+
+function clearBotControlSession() {
+  state.botControlCapabilities = null;
+  state.botControlPrepared = null;
+  state.botControlDraft = null;
+  state.botControlRequestId = '';
+
+  $('#spotGridReview')?.classList.add('hidden');
+  $('#spotGridReviewEmpty')?.classList.remove('hidden');
+
+  const dialog = $('#spotGridConfirmDialog');
+
+  if (dialog?.open) {
+    dialog.close();
+  }
+
+  renderBotControlAccess();
+}
+
+async function loadBotControlCapabilities() {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    state.botControlCapabilities = null;
+    renderBotControlAccess();
+    return;
+  }
+
+  try {
+    state.botControlCapabilities = await adminApi(
+      '/api/auth/capabilities'
+    );
+  } catch (error) {
+    state.botControlCapabilities = null;
+
+    showToast(
+      botControlErrorMessage(error),
+      true,
+    );
+  }
+
+  renderBotControlAccess();
+}
+
+function botControlAccounts() {
+  return (
+    state.botControlCapabilities?.accounts
+    || []
+  ).filter(
+    account => account.bot_control
+  );
+}
+
+function renderBotControlAccess() {
+  const nav = $('#botControlNavItem');
+
+  if (!nav) return;
+
+  const available = botControlAvailable();
+
+  nav.classList.toggle(
+    'hidden',
+    !available,
+  );
+
+  nav.setAttribute(
+    'aria-hidden',
+    String(!available),
+  );
+
+  nav.tabIndex = available ? 0 : -1;
+
+  const select = $('#spotGridAccount');
+
+  if (select) {
+    const accounts = botControlAccounts();
+    const previous = select.value;
+
+    select.innerHTML = accounts
+      .map(account => (
+        `<option value="${escapeHtml(account.account_id)}">`
+        + `${escapeHtml(account.account_name || account.account_id)}`
+        + `</option>`
+      ))
+      .join('');
+
+    const ids = accounts.map(
+      account => account.account_id
+    );
+
+    let target = '';
+
+    if (
+      state.selectedAccount
+      && ids.includes(state.selectedAccount)
+    ) {
+      target = state.selectedAccount;
+    } else if (
+      previous
+      && ids.includes(previous)
+    ) {
+      target = previous;
+    } else {
+      target = ids[0] || '';
+    }
+
+    select.value = target;
+  }
+
+  const badge = $('#botControlCreateState');
+
+  if (badge) {
+    const enabled = botCreationEnabled();
+
+    badge.textContent = enabled
+      ? 'Creation enabled'
+      : 'Review only · creation disabled';
+
+    badge.className = (
+      `status-badge ${enabled ? 'warning' : 'disabled'}`
+    );
+  }
+
+  updateSpotGridConfirmButton();
+
+  if (
+    state.activeTab === 'bot-control'
+    && !available
+  ) {
+    switchTab('overview');
+  }
+}
+
+function invalidateSpotGridReview() {
+  if (!state.botControlPrepared) return;
+
+  state.botControlPrepared = null;
+  state.botControlDraft = null;
+  state.botControlRequestId = '';
+
+  $('#spotGridReview')?.classList.add(
+    'hidden'
+  );
+
+  const empty = $('#spotGridReviewEmpty');
+
+  if (empty) {
+    empty.innerHTML = (
+      'Parameters changed. Choose '
+      + '<strong>Review Spot Grid</strong> again.'
+    );
+
+    empty.classList.remove('hidden');
+  }
+}
+
+function setSpotGridFormError(message = '') {
+  const element = $('#spotGridFormError');
+
+  if (!element) return;
+
+  element.textContent = message;
+  element.classList.toggle(
+    'hidden',
+    !message,
+  );
+}
+
+function optionalFormValue(form, name) {
+  const value = String(
+    form.get(name) || ''
+  ).trim();
+
+  return value || null;
+}
+
+function spotGridDraftFromForm(formElement) {
+  const form = new FormData(formElement);
+
+  return {
+    account_id: String(
+      form.get('account_id') || ''
+    ).trim(),
+
+    market: String(
+      form.get('market') || ''
+    ).trim().toUpperCase(),
+
+    money: String(
+      form.get('money') || ''
+    ).trim(),
+
+    low_price: String(
+      form.get('low_price') || ''
+    ).trim(),
+
+    high_price: String(
+      form.get('high_price') || ''
+    ).trim(),
+
+    grid_num: Number(
+      form.get('grid_num')
+    ),
+
+    price_type: Number(
+      form.get('price_type')
+    ),
+
+    trigger_price: optionalFormValue(
+      form,
+      'trigger_price'
+    ),
+
+    stop_profit: optionalFormValue(
+      form,
+      'stop_profit'
+    ),
+
+    stop_loss: optionalFormValue(
+      form,
+      'stop_loss'
+    ),
+  };
+}
+
+async function prepareSpotGrid(event) {
+  event.preventDefault();
+
+  if (!botControlAvailable()) {
+    openAdminDialog();
+    return;
+  }
+
+  const formElement = event.currentTarget;
+  const button = $('#prepareSpotGridButton');
+
+  setSpotGridFormError('');
+
+  state.botControlPrepared = null;
+  state.botControlDraft = null;
+  state.botControlRequestId = '';
+
+  const draft = spotGridDraftFromForm(
+    formElement
+  );
+
+  button.disabled = true;
+  button.textContent = 'Checking Gate…';
+
+  try {
+    const result = await adminApi(
+      '/api/bot-control/spot-grid/prepare',
+      {
+        method: 'POST',
+        body: JSON.stringify(draft),
+      },
+    );
+
+    state.botControlDraft = draft;
+    state.botControlPrepared = result;
+
+    renderSpotGridReview();
+  } catch (error) {
+    setSpotGridFormError(
+      botControlErrorMessage(error)
+    );
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Review Spot Grid';
+  }
+}
+
+function reviewMetric(
+  label,
+  value,
+) {
+  return (
+    '<div class="bot-control-review-item">'
+    + `<span>${escapeHtml(label)}</span>`
+    + `<strong>${escapeHtml(value ?? '—')}</strong>`
+    + '</div>'
+  );
+}
+
+function renderSpotGridReview() {
+  const prepared = state.botControlPrepared;
+
+  if (!prepared) return;
+
+  $('#spotGridReviewEmpty')?.classList.add(
+    'hidden'
+  );
+
+  $('#spotGridReview')?.classList.remove(
+    'hidden'
+  );
+
+  const market = prepared.market || {};
+  const snapshot = (
+    prepared.market_snapshot
+    || {}
+  );
+  const balance = prepared.balance || {};
+  const grid = prepared.grid || {};
+
+  const ready = Boolean(
+    prepared.can_create
+  );
+
+  $('#spotGridReviewStatus').innerHTML = (
+    `<div class="bot-control-message ${ready ? 'success' : 'error'}">`
+    + (
+      ready
+        ? (
+          'Preflight passed. No Gate write was performed. '
+          + 'Review the values below before final confirmation.'
+        )
+        : (
+          'Preflight failed. No Gate write was performed.'
+        )
+    )
+    + '</div>'
+  );
+
+  $('#spotGridReviewMetrics').innerHTML = [
+    reviewMetric(
+      'Account',
+      prepared.account?.name
+      || prepared.account?.id,
+    ),
+
+    reviewMetric(
+      'Market',
+      market.id,
+    ),
+
+    reviewMetric(
+      'Current price',
+      snapshot.last
+        ? `${snapshot.last} ${market.quote || ''}`
+        : '—',
+    ),
+
+    reviewMetric(
+      'Investment',
+      `${balance.requested_investment || '—'} ${market.quote || ''}`,
+    ),
+
+    reviewMetric(
+      'Available balance',
+      `${balance.available || '—'} ${balance.currency || ''}`,
+    ),
+
+    reviewMetric(
+      'Remaining balance',
+      balance.remaining_after_investment !== null
+      && balance.remaining_after_investment !== undefined
+        ? (
+          `${balance.remaining_after_investment} `
+          + `${balance.currency || ''}`
+        )
+        : '—',
+    ),
+
+    reviewMetric(
+      'Price range',
+      (
+        `${state.botControlDraft?.low_price || '—'}`
+        + ' → '
+        + `${state.botControlDraft?.high_price || '—'}`
+        + ` ${market.quote || ''}`
+      ),
+    ),
+
+    reviewMetric(
+      'Number of grids',
+      String(
+        state.botControlDraft?.grid_num
+        ?? '—'
+      ),
+    ),
+
+    reviewMetric(
+      'Grid type',
+      grid.price_type || '—',
+    ),
+
+    reviewMetric(
+      'Grid spacing',
+      grid.price_type === 'geometric'
+        ? (
+          grid.geometric_step_pct
+            ? `${grid.geometric_step_pct}%`
+            : '—'
+        )
+        : (
+          grid.arithmetic_price_step
+          || '—'
+        ),
+    ),
+
+    reviewMetric(
+      'Approx. quote / grid',
+      grid.approx_quote_per_grid
+        ? (
+          `${grid.approx_quote_per_grid} `
+          + `${market.quote || ''}`
+        )
+        : '—',
+    ),
+
+    reviewMetric(
+      'Gate market status',
+      market.trade_status || '—',
+    ),
+  ].join('');
+
+  const errors = prepared.errors || [];
+  const warnings = prepared.warnings || [];
+
+  const messages = [];
+
+  errors.forEach(message => {
+    messages.push(
+      '<div class="bot-control-message error">'
+      + `${escapeHtml(message)}`
+      + '</div>'
+    );
+  });
+
+  warnings.forEach(message => {
+    messages.push(
+      '<div class="bot-control-message warning">'
+      + `${escapeHtml(message)}`
+      + '</div>'
+    );
+  });
+
+  if (
+    !errors.length
+    && !warnings.length
+  ) {
+    messages.push(
+      '<div class="bot-control-message success">'
+      + 'No validation warnings.'
+      + '</div>'
+    );
+  }
+
+  $('#spotGridValidationMessages').innerHTML =
+    messages.join('');
+
+  $('#spotGridPayloadPreview').textContent =
+    JSON.stringify(
+      prepared.gate_create_payload_preview,
+      null,
+      2,
+    );
+
+  $('#openSpotGridConfirmation').disabled =
+    !ready;
+
+  $('#spotGridCreateResult').classList.add(
+    'hidden'
+  );
+}
+
+function confirmRow(label, value) {
+  return (
+    '<div class="bot-control-confirm-row">'
+    + `<span>${escapeHtml(label)}</span>`
+    + `<strong>${escapeHtml(value ?? '—')}</strong>`
+    + '</div>'
+  );
+}
+
+function openSpotGridConfirmation() {
+  const prepared = state.botControlPrepared;
+  const draft = state.botControlDraft;
+
+  if (
+    !prepared?.can_create
+    || !draft
+  ) {
+    return;
+  }
+
+  const market = prepared.market || {};
+  const balance = prepared.balance || {};
+
+  const optionalRows = [];
+
+  if (draft.trigger_price) {
+    optionalRows.push(
+      confirmRow(
+        'Trigger price',
+        `${draft.trigger_price} ${market.quote || ''}`,
+      ),
+    );
+  }
+
+  if (draft.stop_profit) {
+    optionalRows.push(
+      confirmRow(
+        'Take-profit price',
+        `${draft.stop_profit} ${market.quote || ''}`,
+      ),
+    );
+  }
+
+  if (draft.stop_loss) {
+    optionalRows.push(
+      confirmRow(
+        'Stop-loss price',
+        `${draft.stop_loss} ${market.quote || ''}`,
+      ),
+    );
+  }
+
+  $('#spotGridConfirmSummary').innerHTML = [
+    confirmRow(
+      'Account',
+      prepared.account?.name
+      || prepared.account?.id,
+    ),
+
+    confirmRow(
+      'Market',
+      market.id,
+    ),
+
+    confirmRow(
+      'Current market price',
+      prepared.market_snapshot?.last
+        ? (
+          `${prepared.market_snapshot.last} `
+          + `${market.quote || ''}`
+        )
+        : '—',
+    ),
+
+    confirmRow(
+      'Investment',
+      `${draft.money} ${market.quote || ''}`,
+    ),
+
+    confirmRow(
+      'Available before creation',
+      `${balance.available || '—'} ${balance.currency || ''}`,
+    ),
+
+    confirmRow(
+      'Remaining after investment',
+      balance.remaining_after_investment !== null
+      && balance.remaining_after_investment !== undefined
+        ? (
+          `${balance.remaining_after_investment} `
+          + `${balance.currency || ''}`
+        )
+        : '—',
+    ),
+
+    confirmRow(
+      'Price range',
+      (
+        `${draft.low_price} → ${draft.high_price} `
+        + `${market.quote || ''}`
+      ),
+    ),
+
+    confirmRow(
+      'Number of grids',
+      String(draft.grid_num),
+    ),
+
+    confirmRow(
+      'Grid type',
+      Number(draft.price_type) === 0
+        ? 'Arithmetic'
+        : 'Geometric',
+    ),
+
+    ...optionalRows,
+  ].join('');
+
+  const enabled = botCreationEnabled();
+  const notice = $('#botCreateDisabledNotice');
+
+  notice.classList.toggle(
+    'enabled',
+    enabled,
+  );
+
+  notice.textContent = enabled
+    ? (
+      'Bot creation is ENABLED. Submitting this '
+      + 'confirmation will create a live Gate Spot Grid '
+      + 'using the Bot Control credential.'
+    )
+    : (
+      'Bot creation is currently disabled on the server. '
+      + 'You can review this screen, but no Gate write '
+      + 'can be submitted.'
+    );
+
+  $('#spotGridConfirmText').value = '';
+  $('#spotGridConfirmError').textContent = '';
+  $('#spotGridConfirmError').classList.add(
+    'hidden'
+  );
+
+  updateSpotGridConfirmButton();
+
+  const dialog = $('#spotGridConfirmDialog');
+
+  if (!dialog.open) {
+    dialog.showModal();
+  }
+
+  setTimeout(
+    () => $('#spotGridConfirmText')?.focus(),
+    0,
+  );
+}
+
+function updateSpotGridConfirmButton() {
+  const button = $('#confirmSpotGridCreate');
+
+  if (!button) return;
+
+  button.disabled = !(
+    botCreationEnabled()
+    && state.botControlPrepared?.can_create
+    && $('#spotGridConfirmText')?.value === 'CREATE'
+  );
+}
+
+function generateBotControlRequestId() {
+  if (
+    window.crypto
+    && typeof window.crypto.randomUUID === 'function'
+  ) {
+    return (
+      `spot-grid-${window.crypto.randomUUID()}`
+    );
+  }
+
+  return (
+    `spot-grid-${Date.now()}-`
+    + Math.random().toString(16).slice(2)
+  );
+}
+
+async function submitSpotGridCreate() {
+  if (
+    !state.botControlPrepared?.can_create
+    || !state.botControlDraft
+  ) {
+    return;
+  }
+
+  if (!botCreationEnabled()) {
+    return;
+  }
+
+  if (
+    $('#spotGridConfirmText').value
+    !== 'CREATE'
+  ) {
+    return;
+  }
+
+  if (!state.botControlRequestId) {
+    state.botControlRequestId =
+      generateBotControlRequestId();
+  }
+
+  const requestId =
+    state.botControlRequestId;
+
+  const payload = {
+    ...state.botControlDraft,
+    request_id: requestId,
+    confirmation: 'CREATE',
+  };
+
+  const button = $('#confirmSpotGridCreate');
+  const errorBox = $('#spotGridConfirmError');
+
+  button.disabled = true;
+  button.textContent = 'Submitting to Gate…';
+
+  errorBox.textContent = '';
+  errorBox.classList.add('hidden');
+
+  try {
+    const result = await adminApi(
+      '/api/bot-control/spot-grid/create',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    );
+
+    $('#spotGridConfirmDialog').close();
+
+    const resultBox = $('#spotGridCreateResult');
+
+    resultBox.innerHTML = (
+      '<strong>Gate submission completed.</strong>'
+      + '<br>'
+      + `Request ID: ${escapeHtml(requestId)}`
+      + '<br>'
+      + `Strategy ID: ${escapeHtml(result.strategy?.strategy_id || 'pending')}`
+    );
+
+    resultBox.classList.remove('hidden');
+
+    showToast(
+      'Spot Grid creation submitted to Gate.'
+    );
+
+    await loadCore();
+
+  } catch (error) {
+    /*
+     * Keep the SAME request ID after any failure.
+     * A retry must never generate another create request.
+     * The backend audit/idempotency layer decides whether
+     * replay is safe.
+     */
+    errorBox.textContent =
+      botControlErrorMessage(error);
+
+    errorBox.classList.remove('hidden');
+
+  } finally {
+    button.textContent = 'Create Spot Grid';
+    updateSpotGridConfirmButton();
+  }
+}
+
 function switchTab(tab, { updateHash = true } = {}) {
   const titles = {
     overview: ['Overview', 'Native Gate.io bot performance and portfolio history'],
     bots: ['Trading bots', 'Inspect every mapped field and Gate’s dynamic response data'],
+    'bot-control': ['Bot Control', 'Prepare, review and safely submit native Gate trading bots'],
     alerts: ['Alerts', 'Local rules evaluated after each bot snapshot'],
     wallet: ['Wallet', 'Private balances, deposits and account-scoped wallet activity'],
     system: ['System', 'Connection status, collector runs and safe API inspection'],
@@ -1130,6 +1912,13 @@ function switchTab(tab, { updateHash = true } = {}) {
     target = 'overview';
   }
   if (target === 'wallet' && (!state.adminUser || !state.adminAuthorization)) {
+    target = 'overview';
+  }
+
+  if (
+    target === 'bot-control'
+    && !botControlAvailable()
+  ) {
     target = 'overview';
   }
 
@@ -2244,6 +3033,7 @@ async function loadCore() {
     populateAccountSelector(overviewData.accounts || []);
     populateFilterOptions(botData.filters);
     applyBotFilters(); renderOverview(); renderAlerts(); renderSystem();
+    renderBotControlAccess();
 if (state.adminUser && state.activeTab === 'wallet') {
   await Promise.all([
     loadPrivateBalance({ quiet: true }),
@@ -2698,6 +3488,58 @@ function bindEvents() {
   $$('.nav-item').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
   $$('[data-jump]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.jump)));
   $('#syncButton').addEventListener('click', syncNow);
+
+  $('#spotGridForm')?.addEventListener(
+    'submit',
+    prepareSpotGrid,
+  );
+
+  $('#spotGridForm')?.addEventListener(
+    'input',
+    invalidateSpotGridReview,
+  );
+
+  $('#spotGridForm')?.addEventListener(
+    'change',
+    invalidateSpotGridReview,
+  );
+
+  $('#openSpotGridConfirmation')?.addEventListener(
+    'click',
+    openSpotGridConfirmation,
+  );
+
+  $('#spotGridConfirmText')?.addEventListener(
+    'input',
+    updateSpotGridConfirmButton,
+  );
+
+  $('#confirmSpotGridCreate')?.addEventListener(
+    'click',
+    submitSpotGridCreate,
+  );
+
+  $('#closeSpotGridConfirmDialog')?.addEventListener(
+    'click',
+    () => $('#spotGridConfirmDialog').close(),
+  );
+
+  $('#cancelSpotGridCreate')?.addEventListener(
+    'click',
+    () => $('#spotGridConfirmDialog').close(),
+  );
+
+  $('#spotGridConfirmDialog')?.addEventListener(
+    'click',
+    event => {
+      if (
+        event.target
+        === $('#spotGridConfirmDialog')
+      ) {
+        $('#spotGridConfirmDialog').close();
+      }
+    },
+  );
   $('#refreshPrivateBalance').addEventListener('click', () => loadPrivateBalance({ force: true }));
   $('#depositButton').addEventListener('click', openDepositDialog);
   $('#refreshDepositHistory').addEventListener('click', () => loadDepositHistory());

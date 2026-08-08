@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css">
   <link rel="stylesheet" href="./wallet-tab.css">
+  <link rel="stylesheet" href="./bot-control.css">
 </head>
 <body>
   <div class="app-shell">
@@ -18,6 +19,13 @@
       <nav aria-label="Primary navigation">
         <button class="nav-item active" data-tab="overview"><span>◫</span>Overview</button>
         <button class="nav-item" data-tab="bots"><span>⌁</span>Bots</button>
+        <button
+          class="nav-item hidden"
+          id="botControlNavItem"
+          data-tab="bot-control"
+          aria-hidden="true"
+          aria-controls="tab-bot-control"
+        ><span>◆</span>Bot Control</button>
         <button class="nav-item" data-tab="alerts"><span>◇</span>Alerts</button>
         <button class="nav-item hidden" id="walletNavItem" data-tab="wallet" aria-hidden="true" aria-controls="tab-wallet"><span>◈</span>Wallet</button>
         <button class="nav-item" data-tab="system"><span>⚙</span>System</button>
@@ -230,7 +238,232 @@
         </article>
       </section>
 
-      <section class="tab-panel" id="tab-alerts">
+      
+      <section class="tab-panel" id="tab-bot-control">
+        <div class="bot-control-layout">
+
+          <article class="panel bot-control-form-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Create Spot Grid</h2>
+                <p>
+                  Review with Monitor credentials before any
+                  Bot Control write is allowed.
+                </p>
+              </div>
+
+              <span
+                class="status-badge"
+                id="botControlCreateState"
+              >Review only</span>
+            </div>
+
+            <form id="spotGridForm" class="bot-control-form">
+
+              <label class="full">
+                Gate account
+                <select
+                  id="spotGridAccount"
+                  name="account_id"
+                  required
+                ></select>
+              </label>
+
+              <label class="full">
+                Market
+                <input
+                  name="market"
+                  value="EQTY_USDT"
+                  required
+                  maxlength="64"
+                  pattern="[A-Za-z0-9]+_[A-Za-z0-9]+"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+              </label>
+
+              <label>
+                Investment
+                <div class="input-with-suffix">
+                  <input
+                    name="money"
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="100"
+                    required
+                  >
+                  <span>USDT</span>
+                </div>
+              </label>
+
+              <label>
+                Number of grids
+                <input
+                  name="grid_num"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value="10"
+                  required
+                >
+              </label>
+
+              <label>
+                Lower price
+                <input
+                  name="low_price"
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.001650"
+                  required
+                >
+              </label>
+
+              <label>
+                Upper price
+                <input
+                  name="high_price"
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.002000"
+                  required
+                >
+              </label>
+
+              <label class="full">
+                Grid type
+                <select name="price_type">
+                  <option value="0">Arithmetic</option>
+                  <option value="1">Geometric</option>
+                </select>
+              </label>
+
+              <details class="bot-control-advanced full">
+                <summary>Optional trigger and exit prices</summary>
+
+                <div class="bot-control-advanced-grid">
+                  <label>
+                    Trigger price
+                    <input
+                      name="trigger_price"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Optional"
+                    >
+                  </label>
+
+                  <label>
+                    Take-profit price
+                    <input
+                      name="stop_profit"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Optional"
+                    >
+                  </label>
+
+                  <label>
+                    Stop-loss price
+                    <input
+                      name="stop_loss"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Optional"
+                    >
+                  </label>
+                </div>
+              </details>
+
+              <p
+                id="spotGridFormError"
+                class="form-error full hidden"
+                role="alert"
+              ></p>
+
+              <div class="form-actions full">
+                <button
+                  type="submit"
+                  class="button primary"
+                  id="prepareSpotGridButton"
+                >
+                  Review Spot Grid
+                </button>
+              </div>
+            </form>
+          </article>
+
+
+          <article class="panel bot-control-review-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Preflight review</h2>
+                <p>
+                  Live Gate market data, balance and exact
+                  parameters.
+                </p>
+              </div>
+            </div>
+
+            <div
+              id="spotGridReviewEmpty"
+              class="empty-state"
+            >
+              Enter the strategy parameters and choose
+              <strong>Review Spot Grid</strong>.
+            </div>
+
+            <div
+              id="spotGridReview"
+              class="hidden"
+            >
+              <div
+                id="spotGridReviewStatus"
+                class="bot-control-review-status"
+              ></div>
+
+              <div
+                id="spotGridReviewMetrics"
+                class="bot-control-review-grid"
+              ></div>
+
+              <div
+                id="spotGridValidationMessages"
+                class="bot-control-validation"
+              ></div>
+
+              <details class="bot-control-payload">
+                <summary>Exact Gate payload preview</summary>
+                <pre id="spotGridPayloadPreview"></pre>
+              </details>
+
+              <div class="form-actions">
+                <button
+                  type="button"
+                  class="button primary"
+                  id="openSpotGridConfirmation"
+                  disabled
+                >
+                  Final confirmation
+                </button>
+              </div>
+
+              <div
+                id="spotGridCreateResult"
+                class="bot-control-result hidden"
+              ></div>
+            </div>
+          </article>
+
+        </div>
+      </section>
+
+<section class="tab-panel" id="tab-alerts">
         <div class="dashboard-grid equal">
           <article class="panel">
             <div class="panel-header"><div><h2>Alert rules</h2><p>Evaluated after every collection</p></div><button class="button secondary" id="addRuleButton">Add rule</button></div>
@@ -277,7 +510,84 @@
     </div>
   </dialog>
 
-  <dialog id="ruleDialog" class="small-dialog">
+  
+  <dialog
+    id="spotGridConfirmDialog"
+    class="small-dialog bot-control-confirm-dialog"
+  >
+    <div class="dialog-header">
+      <div>
+        <h2>Confirm Spot Grid creation</h2>
+        <p>
+          This is the final step before a Gate Bot Control
+          write request.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeSpotGridConfirmDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <div class="bot-control-confirm-content">
+
+      <div
+        id="spotGridConfirmSummary"
+        class="bot-control-confirm-summary"
+      ></div>
+
+      <div
+        id="botCreateDisabledNotice"
+        class="bot-control-safety-notice"
+      >
+        Bot creation is currently disabled on the server.
+        You can review this screen, but no Gate write can
+        be submitted.
+      </div>
+
+      <label class="bot-control-confirm-input">
+        Type <strong>CREATE</strong> to confirm
+        <input
+          id="spotGridConfirmText"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="CREATE"
+        >
+      </label>
+
+      <p
+        id="spotGridConfirmError"
+        class="form-error hidden"
+        role="alert"
+      ></p>
+
+      <div class="form-actions">
+        <button
+          type="button"
+          class="button secondary"
+          id="cancelSpotGridCreate"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="button danger"
+          id="confirmSpotGridCreate"
+          disabled
+        >
+          Create Spot Grid
+        </button>
+      </div>
+
+    </div>
+  </dialog>
+
+<dialog id="ruleDialog" class="small-dialog">
     <div class="dialog-header"><div><h2>Create alert rule</h2><p>Rules run locally after each snapshot.</p></div><button class="icon-button" id="closeRuleDialog" aria-label="Close">×</button></div>
     <form id="ruleForm" class="form-grid">
       <label class="full">Name<input name="name" required maxlength="255" placeholder="High drawdown"></label>
