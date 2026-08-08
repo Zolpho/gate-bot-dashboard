@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     allow_bot_stop: bool = False
     bot_stop_confirmation_text: str = "STOP"
 
+    allow_bot_create: bool = False
+    bot_create_simulation: bool = False
+    bot_create_confirmation_text: str = "CREATE"
+
     # Optional legacy super-admin credentials. They no longer protect public GET routes.
     dashboard_username: str = ""
     dashboard_password: str = ""

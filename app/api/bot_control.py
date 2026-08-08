@@ -14,6 +14,13 @@ from ..accounts import (
     AccountConfigError,
     get_gate_account,
 )
+from ..bot_control_audit import (
+    IdempotencyConflict,
+    find_matching_request,
+    get_request,
+    mark_request,
+    reserve_request,
+)
 from ..bot_control import (
     BotControlConfigError,
     get_bot_control_account,
@@ -439,3 +446,435 @@ async def prepare_spot_grid(
             payload
         ),
     }
+
+class SpotGridCreateRequest(SpotGridPrepareRequest):
+    request_id: str = Field(
+        min_length=8,
+        max_length=128,
+        pattern=(
+            r"^[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{7,127}$"
+        ),
+    )
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=64,
+    )
+
+
+def _existing_create_result(
+    record: dict,
+):
+    status = record["status"]
+
+    if status in {
+        "succeeded",
+        "simulated",
+    }:
+        result = dict(
+            record.get("response")
+            or {}
+        )
+
+        result["request_id"] = (
+            record["request_id"]
+        )
+
+        result["idempotent_replay"] = True
+
+        return result
+
+    if status in {
+        "reserved",
+        "submitting",
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "This Bot Control request is already "
+                    "in progress. No second Gate request "
+                    "was sent."
+                ),
+                "request_id": record["request_id"],
+                "status": status,
+            },
+        )
+
+    if status == "uncertain":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "The previous Gate submission has an "
+                    "uncertain outcome. Do not retry "
+                    "automatically. Check Gate and the "
+                    "audit record."
+                ),
+                "request_id": record["request_id"],
+                "status": status,
+                "error": record.get("error"),
+            },
+        )
+
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "message": (
+                "This request_id was already used. "
+                "No second Gate request was sent."
+            ),
+            "request_id": record["request_id"],
+            "status": status,
+            "error": record.get("error"),
+        },
+    )
+
+
+@router.post("/spot-grid/create")
+async def create_spot_grid(
+    request: SpotGridCreateRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    # A request is permitted only when either simulation
+    # mode or live Bot Create mode is enabled.
+    if (
+        not settings.allow_bot_create
+        and not settings.bot_create_simulation
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Bot creation and simulation are disabled"
+            ),
+        )
+
+    if (
+        request.confirmation
+        != settings.bot_create_confirmation_text
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid Bot Control confirmation text"
+            ),
+        )
+
+    account_id = require_account_access(
+        user,
+        request.account_id,
+    )
+
+    intent = build_spot_grid_payload(
+        market=request.market.strip().upper(),
+        money=request.money,
+        low_price=request.low_price,
+        high_price=request.high_price,
+        grid_num=request.grid_num,
+        price_type=request.price_type,
+        trigger_price=request.trigger_price,
+        stop_profit=request.stop_profit,
+        stop_loss=request.stop_loss,
+    )
+
+    audit_payload = {
+        "account_id": account_id,
+        "operation": "spot_grid_create",
+        "gate_payload": intent,
+    }
+
+    try:
+        existing = find_matching_request(
+            request_id=request.request_id,
+            account_id=account_id,
+            username=user.username,
+            action="spot_grid_create",
+            payload=audit_payload,
+        )
+    except IdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    if existing is not None:
+        return _existing_create_result(
+            existing
+        )
+
+    # Full read-only validation immediately before
+    # reserving the write.
+    prepared = await prepare_spot_grid(
+        request,
+        user,
+    )
+
+    if not prepared["can_create"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Spot Grid validation failed. "
+                    "No Gate write was performed."
+                ),
+                "errors": prepared["errors"],
+                "warnings": prepared["warnings"],
+            },
+        )
+
+    try:
+        control_account = (
+            get_bot_control_account(
+                account_id
+            )
+        )
+    except BotControlConfigError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    if control_account is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Bot Control credentials are not "
+                f"configured for {account_id}"
+            ),
+        )
+
+    # Atomic reservation / double-submit barrier.
+    try:
+        audit_record, created = reserve_request(
+            request_id=request.request_id,
+            account_id=account_id,
+            username=user.username,
+            action="spot_grid_create",
+            payload=audit_payload,
+        )
+    except IdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    if not created:
+        return _existing_create_result(
+            audit_record
+        )
+
+    mark_request(
+        request.request_id,
+        status="submitting",
+    )
+
+    payload = prepared[
+        "gate_create_payload_preview"
+    ]
+
+    # Simulation mode exercises authentication, validation,
+    # idempotency and persistent auditing but deliberately
+    # stops before any Gate write request.
+    if settings.bot_create_simulation:
+        simulated_result = {
+            "status": "simulated",
+            "write_performed": False,
+            "simulation": True,
+            "credential_profile": "bot_control",
+            "request_id": request.request_id,
+            "idempotent_replay": False,
+            "account_id": account_id,
+            "authorized_user": user.username,
+            "gate_create_payload": payload,
+            "strategy": {
+                "strategy_id": None,
+                "strategy_type": "spot_grid",
+                "market": payload.get("market"),
+                "status": "not_submitted",
+                "jump_url": None,
+            },
+        }
+
+        mark_request(
+            request.request_id,
+            status="simulated",
+            response=simulated_result,
+            completed=True,
+        )
+
+        return simulated_result
+
+    # Reaching this point is possible only when live Bot
+    # Create is enabled and simulation mode is disabled.
+    try:
+        async with GateClient(
+            settings,
+            control_account,
+        ) as client:
+            response = (
+                await client.create_spot_grid(
+                    payload
+                )
+            )
+
+    except GateAPIError as exc:
+        # An explicit Gate HTTP/business error means
+        # rejection. A network failure may have happened
+        # after Gate accepted the request, so it is
+        # deliberately treated as uncertain.
+        terminal_status = (
+            "rejected"
+            if exc.status_code is not None
+            else "uncertain"
+        )
+
+        mark_request(
+            request.request_id,
+            status=terminal_status,
+            response=exc.response,
+            error=str(exc),
+            gate_status_code=exc.status_code,
+            gate_label=exc.label,
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": (
+                    "Gate rejected Spot Grid creation."
+                    if terminal_status == "rejected"
+                    else (
+                        "Gate submission outcome is "
+                        "uncertain. Do not retry "
+                        "automatically."
+                    )
+                ),
+                "request_id": request.request_id,
+                "status": terminal_status,
+                "gate_error": str(exc),
+            },
+        ) from exc
+
+    except Exception as exc:
+        mark_request(
+            request.request_id,
+            status="uncertain",
+            error=str(exc),
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": (
+                    "Unexpected error after Gate "
+                    "submission began. Outcome is "
+                    "uncertain; do not retry."
+                ),
+                "request_id": request.request_id,
+            },
+        ) from exc
+
+    data = (
+        response.data
+        if isinstance(
+            response.data,
+            dict,
+        )
+        else {}
+    )
+
+    strategy_id = str(
+        data.get("strategy_id")
+        or ""
+    )
+
+    result = {
+        "status": "submitted",
+        "write_performed": True,
+        "credential_profile": "bot_control",
+        "request_id": request.request_id,
+        "idempotent_replay": False,
+        "account_id": account_id,
+        "authorized_user": user.username,
+        "strategy": {
+            "strategy_id": (
+                strategy_id or None
+            ),
+            "strategy_type": data.get(
+                "strategy_type"
+            ),
+            "market": data.get("market"),
+            "status": data.get("status"),
+            "jump_url": data.get(
+                "jump_url"
+            ),
+        },
+        "gate": response.raw,
+    }
+
+    mark_request(
+        request.request_id,
+        status="succeeded",
+        response=result,
+        strategy_id=strategy_id,
+        gate_status_code=response.status_code,
+        completed=True,
+    )
+
+    return result
+
+
+@router.get("/requests/{request_id}")
+def get_bot_control_request(
+    request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    record = get_request(
+        request_id
+    )
+
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Bot Control request not found"
+            ),
+        )
+
+    require_account_access(
+        user,
+        record["account_id"],
+    )
+
+    return {
+        "request_id": record["request_id"],
+        "action": record["action"],
+        "account_id": record["account_id"],
+        "username": record["username"],
+        "status": record["status"],
+        "strategy_id": (
+            record["strategy_id"] or None
+        ),
+        "gate_status_code": (
+            record["gate_status_code"]
+        ),
+        "gate_label": (
+            record["gate_label"]
+        ),
+        "error": record["error"],
+        "request": record["request"],
+        "response": record["response"],
+        "created_at": record["created_at"],
+        "updated_at": record["updated_at"],
+        "completed_at": record["completed_at"],
+    }
+

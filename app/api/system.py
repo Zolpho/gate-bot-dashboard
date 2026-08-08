@@ -90,6 +90,8 @@ def health(request: Request):  # type: ignore[no-untyped-def]
         "collector_running": collector_running,
         "poll_seconds": settings.poll_seconds,
         "allow_bot_stop": settings.allow_bot_stop,
+        "allow_bot_create": settings.allow_bot_create,
+        "bot_create_simulation": settings.bot_create_simulation,
         "snapshot_retention_days": settings.snapshot_retention_days,
         "action_auth": users,
         "user_config_error": user_config_error,

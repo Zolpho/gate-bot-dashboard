@@ -1134,6 +1134,19 @@ function botCreationEnabled() {
   );
 }
 
+function botCreationSimulation() {
+  return Boolean(
+    state.health?.bot_create_simulation
+  );
+}
+
+function botCreationAvailable() {
+  return (
+    botCreationEnabled()
+    || botCreationSimulation()
+  );
+}
+
 function botControlErrorMessage(error) {
   const detail = error?.payload?.detail;
 
@@ -1264,13 +1277,22 @@ function renderBotControlAccess() {
 
   if (badge) {
     const enabled = botCreationEnabled();
+    const simulation = botCreationSimulation();
 
     badge.textContent = enabled
-      ? 'Creation enabled'
-      : 'Review only · creation disabled';
+      ? 'LIVE creation enabled'
+      : simulation
+        ? 'Simulation mode'
+        : 'Review only · creation disabled';
 
     badge.className = (
-      `status-badge ${enabled ? 'warning' : 'disabled'}`
+      `status-badge ${
+        enabled
+          ? 'warning'
+          : simulation
+            ? 'running'
+            : 'disabled'
+      }`
     );
   }
 
@@ -1737,6 +1759,7 @@ function openSpotGridConfirmation() {
   ].join('');
 
   const enabled = botCreationEnabled();
+  const simulation = botCreationSimulation();
   const notice = $('#botCreateDisabledNotice');
 
   notice.classList.toggle(
@@ -1746,15 +1769,19 @@ function openSpotGridConfirmation() {
 
   notice.textContent = enabled
     ? (
-      'Bot creation is ENABLED. Submitting this '
-      + 'confirmation will create a live Gate Spot Grid '
-      + 'using the Bot Control credential.'
+      'LIVE Bot creation is ENABLED. Submitting this '
+      + 'confirmation can create a real Gate Spot Grid.'
     )
-    : (
-      'Bot creation is currently disabled on the server. '
-      + 'You can review this screen, but no Gate write '
-      + 'can be submitted.'
-    );
+    : simulation
+      ? (
+        'SIMULATION MODE. This will exercise the complete '
+        + 'Bot Control workflow and audit trail, but NO '
+        + 'request will be sent to Gate to create a bot.'
+      )
+      : (
+        'Bot creation is currently disabled on the server. '
+        + 'No Gate write can be submitted.'
+      );
 
   $('#spotGridConfirmText').value = '';
   $('#spotGridConfirmError').textContent = '';
@@ -1782,10 +1809,15 @@ function updateSpotGridConfirmButton() {
   if (!button) return;
 
   button.disabled = !(
-    botCreationEnabled()
+    botCreationAvailable()
     && state.botControlPrepared?.can_create
     && $('#spotGridConfirmText')?.value === 'CREATE'
   );
+
+  button.textContent = botCreationSimulation()
+    && !botCreationEnabled()
+      ? 'Simulate Spot Grid'
+      : 'Create Spot Grid';
 }
 
 function generateBotControlRequestId() {
@@ -1812,7 +1844,7 @@ async function submitSpotGridCreate() {
     return;
   }
 
-  if (!botCreationEnabled()) {
+  if (!botCreationAvailable()) {
     return;
   }
 
@@ -1859,18 +1891,40 @@ async function submitSpotGridCreate() {
 
     const resultBox = $('#spotGridCreateResult');
 
+    const simulated = Boolean(
+      result.simulation
+      || result.status === 'simulated'
+    );
+
     resultBox.innerHTML = (
-      '<strong>Gate submission completed.</strong>'
+      `<strong>${
+        simulated
+          ? 'Simulation completed. No Gate write performed.'
+          : 'Gate submission completed.'
+      }</strong>`
       + '<br>'
       + `Request ID: ${escapeHtml(requestId)}`
       + '<br>'
-      + `Strategy ID: ${escapeHtml(result.strategy?.strategy_id || 'pending')}`
+      + (
+        simulated
+          ? 'Strategy ID: none · simulation only'
+          : (
+            `Strategy ID: ${
+              escapeHtml(
+                result.strategy?.strategy_id
+                || 'pending'
+              )
+            }`
+          )
+      )
     );
 
     resultBox.classList.remove('hidden');
 
     showToast(
-      'Spot Grid creation submitted to Gate.'
+      simulated
+        ? 'Spot Grid simulation completed.'
+        : 'Spot Grid creation submitted to Gate.'
     );
 
     await loadCore();
@@ -1888,7 +1942,6 @@ async function submitSpotGridCreate() {
     errorBox.classList.remove('hidden');
 
   } finally {
-    button.textContent = 'Create Spot Grid';
     updateSpotGridConfirmButton();
   }
 }
