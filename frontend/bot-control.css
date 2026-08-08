@@ -903,3 +903,31 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Bot Stop dialog viewport scrolling */
+
+.bot-control-confirm-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 28px);
+  overflow: hidden;
+}
+
+.bot-control-confirm-dialog > .dialog-header {
+  flex: 0 0 auto;
+}
+
+.bot-control-confirm-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 20px;
+}
+
+@media (max-width: 700px) {
+  .bot-control-confirm-dialog[open] {
+    max-height: calc(100dvh - 12px);
+  }
+}
