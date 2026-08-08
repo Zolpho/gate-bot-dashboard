@@ -1453,6 +1453,15 @@ function renderBotControlRequestDetail(
       detail.strategy_id || '—',
     ),
     confirmRow(
+      'Operation lock',
+      detail.operation_lock
+        ? (
+          `${detail.operation_lock.state} · `
+          + `${detail.operation_lock.lock_type}`
+        )
+        : 'none',
+    ),
+    confirmRow(
       'Gate HTTP status',
       detail.gate_status_code ?? '—',
     ),

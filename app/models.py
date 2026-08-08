@@ -467,3 +467,103 @@ class BotControlReconciliation(Base):
         nullable=False,
     )
 
+
+class BotControlOperationLock(Base):
+    __tablename__ = "bot_control_operation_locks"
+    __table_args__ = (
+        UniqueConstraint(
+            "lock_key",
+            name="uq_bot_control_operation_lock_key",
+        ),
+        Index(
+            "ix_bot_control_lock_account_action",
+            "account_id",
+            "action",
+        ),
+        Index(
+            "ix_bot_control_lock_owner_request",
+            "owner_request_id",
+        ),
+        Index(
+            "ix_bot_control_lock_strategy",
+            "account_id",
+            "strategy_type",
+            "strategy_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    lock_key: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    lock_type: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    strategy_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    strategy_type: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    market: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    intent_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    owner_request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    state: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="held",
+    )
+
+    acquired_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    cooldown_until: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+

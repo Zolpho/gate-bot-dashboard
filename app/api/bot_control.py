@@ -29,6 +29,16 @@ from ..bot_control import (
     get_bot_control_account,
 )
 from ..bot_control_reconcile import reconcile_request_against_gate
+from ..bot_control_locks import (
+    OperationLocked,
+    acquire_operation_lock,
+    cooldown_operation_lock,
+    create_intent_lock,
+    get_operation_lock_for_request,
+    list_operation_locks,
+    release_operation_lock,
+    strategy_lock_key,
+)
 from ..config import get_settings
 from ..db import session_scope
 from ..models import Bot
@@ -673,6 +683,61 @@ async def create_spot_grid(
             audit_record
         )
 
+    create_lock_key, intent_hash = (
+        create_intent_lock(
+            account_id=account_id,
+            gate_payload=intent,
+        )
+    )
+
+    try:
+        operation_lock = (
+            acquire_operation_lock(
+                lock_key=create_lock_key,
+                lock_type="create_intent",
+                account_id=account_id,
+                action="spot_grid_create",
+                owner_request_id=(
+                    request.request_id
+                ),
+                username=user.username,
+                strategy_type="spot_grid",
+                market=str(
+                    intent.get("market")
+                    or ""
+                ),
+                intent_hash=intent_hash,
+            )
+        )
+
+    except OperationLocked as exc:
+        message = (
+            "An identical Spot Grid creation "
+            "operation is already protected by "
+            "another Bot Control request."
+        )
+
+        mark_request(
+            request.request_id,
+            status="blocked",
+            error=message,
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": message,
+                "request_id": (
+                    request.request_id
+                ),
+                "conflicting_lock": (
+                    exc.lock
+                ),
+                "write_performed": False,
+            },
+        ) from exc
+
     mark_request(
         request.request_id,
         status="submitting",
@@ -710,6 +775,13 @@ async def create_spot_grid(
             status="simulated",
             response=simulated_result,
             completed=True,
+        )
+
+        release_operation_lock(
+            lock_key=create_lock_key,
+            owner_request_id=(
+                request.request_id
+            ),
         )
 
         return simulated_result
@@ -831,6 +903,17 @@ async def create_spot_grid(
         strategy_id=strategy_id,
         gate_status_code=response.status_code,
         completed=True,
+    )
+
+    cooldown_operation_lock(
+        lock_key=create_lock_key,
+        owner_request_id=(
+            request.request_id
+        ),
+        seconds=(
+            settings
+            .bot_create_duplicate_cooldown_seconds
+        ),
     )
 
     return result
@@ -1175,6 +1258,50 @@ async def stop_bot_control(
             audit_record
         )
 
+
+    stop_lock_key = strategy_lock_key(
+        account_id=bot["account_id"],
+        strategy_type=bot["strategy_type"],
+        strategy_id=bot["strategy_id"],
+    )
+
+    try:
+        acquire_operation_lock(
+            lock_key=stop_lock_key,
+            lock_type="strategy",
+            account_id=bot["account_id"],
+            action="bot_stop",
+            owner_request_id=request.request_id,
+            username=user.username,
+            strategy_id=bot["strategy_id"],
+            strategy_type=bot["strategy_type"],
+            market=bot["market"],
+        )
+
+    except OperationLocked as exc:
+        message = (
+            "This Gate strategy is already locked "
+            "by another Bot Control operation."
+        )
+
+        mark_request(
+            request.request_id,
+            status="blocked",
+            error=message,
+            strategy_id=bot["strategy_id"],
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": message,
+                "request_id": request.request_id,
+                "conflicting_lock": exc.lock,
+                "write_performed": False,
+            },
+        ) from exc
+
     mark_request(
         request.request_id,
         status="submitting",
@@ -1219,6 +1346,13 @@ async def stop_bot_control(
             response=result,
             strategy_id=bot["strategy_id"],
             completed=True,
+        )
+
+        release_operation_lock(
+            lock_key=stop_lock_key,
+            owner_request_id=(
+                request.request_id
+            ),
         )
 
         return result
@@ -1320,7 +1454,43 @@ async def stop_bot_control(
         completed=True,
     )
 
+    cooldown_operation_lock(
+        lock_key=stop_lock_key,
+        owner_request_id=(
+            request.request_id
+        ),
+        seconds=(
+            settings
+            .bot_stop_duplicate_cooldown_seconds
+        ),
+    )
+
     return result
+
+
+
+@router.get("/locks")
+def list_bot_control_operation_locks(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    if user.is_super_admin:
+        visible_account_ids = None
+    else:
+        visible_account_ids = set(
+            user.account_ids
+        )
+
+    locks = list_operation_locks(
+        account_ids=visible_account_ids,
+    )
+
+    return {
+        "count": len(locks),
+        "items": locks,
+    }
 
 
 @router.get("/requests")
@@ -1603,6 +1773,11 @@ def get_bot_control_request(
         "completed_at": record["completed_at"],
         "reconciliations": (
             list_reconciliations(
+                request_id
+            )
+        ),
+        "operation_lock": (
+            get_operation_lock_for_request(
                 request_id
             )
         ),

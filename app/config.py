@@ -68,10 +68,12 @@ class Settings(BaseSettings):
     allow_bot_stop: bool = False
     bot_stop_simulation: bool = False
     bot_stop_confirmation_text: str = "STOP"
+    bot_stop_duplicate_cooldown_seconds: int = 300
 
     allow_bot_create: bool = False
     bot_create_simulation: bool = False
     bot_create_confirmation_text: str = "CREATE"
+    bot_create_duplicate_cooldown_seconds: int = 600
 
     # Optional legacy super-admin credentials. They no longer protect public GET routes.
     dashboard_username: str = ""
