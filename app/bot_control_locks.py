@@ -133,6 +133,16 @@ def get_operation_lock(
         if row is None:
             return None
 
+        if (
+            row.state == "cooldown"
+            and _expired(
+                row.cooldown_until
+            )
+        ):
+            db.delete(row)
+            db.flush()
+            return None
+
         return _snapshot(row)
 
 
@@ -150,6 +160,16 @@ def get_operation_lock_for_request(
         )
 
         if row is None:
+            return None
+
+        if (
+            row.state == "cooldown"
+            and _expired(
+                row.cooldown_until
+            )
+        ):
+            db.delete(row)
+            db.flush()
             return None
 
         return _snapshot(row)
@@ -370,7 +390,22 @@ def list_operation_locks(
             statement
         ).all()
 
-        return [
-            _snapshot(row)
-            for row in rows
-        ]
+        active: list[dict[str, Any]] = []
+
+        for row in rows:
+            if (
+                row.state == "cooldown"
+                and _expired(
+                    row.cooldown_until
+                )
+            ):
+                db.delete(row)
+                continue
+
+            active.append(
+                _snapshot(row)
+            )
+
+        db.flush()
+
+        return active
