@@ -709,6 +709,62 @@
         ></div>
       </section>
 
+
+      <section>
+        <h3>Lock resolution history</h3>
+
+        <div
+          id="botControlLockResolutionHistory"
+          class="bot-control-reconciliation-history"
+        ></div>
+      </section>
+
+      <section
+        id="manualLockReleaseSection"
+        class="hidden"
+      >
+        <h3>Manual lock release</h3>
+
+        <div class="bot-control-safety-notice enabled">
+          This request has an unresolved operation lock.
+          Releasing it does not perform a Gate write, but
+          it removes the protection that prevents a later
+          conflicting Bot Control operation.
+        </div>
+
+        <label class="bot-control-confirm-input">
+          Operator reason
+          <textarea
+            id="manualLockReleaseReason"
+            rows="4"
+            maxlength="1000"
+            placeholder="Explain what was checked and why this lock can be released."
+          ></textarea>
+        </label>
+
+        <label class="bot-control-confirm-input">
+          Type <strong>RELEASE</strong> to confirm
+          <input
+            id="manualLockReleaseConfirm"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="RELEASE"
+          >
+        </label>
+
+        <div class="form-actions">
+          <button
+            type="button"
+            class="button danger"
+            id="releaseBotControlLock"
+            disabled
+          >
+            Release operation lock
+          </button>
+        </div>
+      </section>
+
       <details open>
         <summary>Original request</summary>
         <pre

@@ -567,3 +567,106 @@ class BotControlOperationLock(Base):
         DateTime(timezone=True),
     )
 
+
+class BotControlLockResolution(Base):
+    __tablename__ = "bot_control_lock_resolutions"
+    __table_args__ = (
+        Index(
+            "ix_bot_control_lock_resolution_request_created",
+            "request_id",
+            "created_at",
+        ),
+        Index(
+            "ix_bot_control_lock_resolution_account_created",
+            "account_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    resolution_type: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    decision: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    reason: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    reconciliation_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+    )
+
+    reconciliation_outcome: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    reconciliation_confidence: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="",
+    )
+
+    lock_key: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        default="",
+    )
+
+    prior_state: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="",
+    )
+
+    prior_lock_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    resulting_lock_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+

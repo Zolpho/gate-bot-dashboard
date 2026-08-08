@@ -1538,6 +1538,206 @@ function renderBotControlRequestDetail(
   );
 }
 
+
+function renderBotControlLockResolutions(rows) {
+  const element = $(
+    '#botControlLockResolutionHistory'
+  );
+
+  if (!element) return;
+
+  if (!rows?.length) {
+    element.innerHTML = (
+      '<div class="empty-state">'
+      + 'No lock-resolution decisions recorded.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  element.innerHTML = rows.map(row => {
+    return (
+      '<div class="bot-control-reconciliation-card">'
+      + '<div class="bot-control-reconciliation-head">'
+      + `<strong>${escapeHtml(
+          reconciliationLabel(row.decision)
+        )}</strong>`
+      + `<span class="status-badge">${escapeHtml(
+          row.resolution_type || 'unknown'
+        )}</span>`
+      + '</div>'
+      + `<p>${escapeHtml(row.reason || '—')}</p>`
+      + '<div class="bot-control-reconciliation-meta">'
+      + `By: ${escapeHtml(row.username || '—')}`
+      + ' · '
+      + `Reconciliation: ${escapeHtml(
+          reconciliationLabel(
+            row.reconciliation_outcome
+          )
+        )}`
+      + ' · '
+      + `Prior lock: ${escapeHtml(row.prior_state || '—')}`
+      + ' · '
+      + `${escapeHtml(fmtDate(row.created_at))}`
+      + '</div>'
+      + '</div>'
+    );
+  }).join('');
+}
+
+
+function updateManualLockReleaseButton() {
+  const button = $(
+    '#releaseBotControlLock'
+  );
+
+  if (!button) return;
+
+  const reason = String(
+    $('#manualLockReleaseReason')?.value
+    || ''
+  ).trim();
+
+  const confirmation = String(
+    $('#manualLockReleaseConfirm')?.value
+    || ''
+  );
+
+  button.disabled = !(
+    confirmation === 'RELEASE'
+    && reason.length >= 10
+  );
+}
+
+
+function renderManualLockRelease(detail) {
+  const section = $(
+    '#manualLockReleaseSection'
+  );
+
+  if (!section) return;
+
+  const reconciliations = (
+    detail.reconciliations
+    || []
+  );
+
+  const latest = (
+    reconciliations[0]
+    || null
+  );
+
+  const lock = (
+    detail.operation_lock
+    || null
+  );
+
+  const eligible = Boolean(
+    detail.status === 'uncertain'
+    && lock
+    && lock.state === 'held'
+    && latest
+    && latest.outcome !== 'stop_in_progress'
+  );
+
+  section.classList.toggle(
+    'hidden',
+    !eligible,
+  );
+
+  $('#manualLockReleaseReason').value = '';
+  $('#manualLockReleaseConfirm').value = '';
+
+  updateManualLockReleaseButton();
+}
+
+
+async function releaseCurrentBotControlLock() {
+  const detail = (
+    state.botControlRequestDetail
+  );
+
+  if (!detail?.request_id) {
+    return;
+  }
+
+  const reason = String(
+    $('#manualLockReleaseReason').value
+    || ''
+  ).trim();
+
+  const confirmation = String(
+    $('#manualLockReleaseConfirm').value
+    || ''
+  );
+
+  if (
+    confirmation !== 'RELEASE'
+    || reason.length < 10
+  ) {
+    return;
+  }
+
+  const button = $(
+    '#releaseBotControlLock'
+  );
+
+  button.disabled = true;
+  button.textContent = 'Releasing…';
+
+  try {
+    const requestId = (
+      detail.request_id
+    );
+
+    await adminApi(
+      `/api/bot-control/requests/${
+        encodeURIComponent(requestId)
+      }/lock/release`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          confirmation: 'RELEASE',
+          reason,
+        }),
+      },
+    );
+
+    showToast(
+      'Operation lock released and audit record created.'
+    );
+
+    const refreshed = await adminApi(
+      `/api/bot-control/requests/${
+        encodeURIComponent(requestId)
+      }`
+    );
+
+    renderBotControlRequestDetail(
+      refreshed
+    );
+
+    await loadBotControlActivity({
+      quiet: true,
+    });
+
+  } catch (error) {
+    showToast(
+      botControlErrorMessage(error),
+      true,
+    );
+
+  } finally {
+    button.textContent = (
+      'Release operation lock'
+    );
+
+    updateManualLockReleaseButton();
+  }
+}
+
+
 async function openBotControlRequestDetail(
   requestId,
 ) {
@@ -1600,10 +1800,19 @@ async function reconcileCurrentBotControlRequest() {
       },
     );
 
+    const lockDecision = (
+      result.lock_decision?.decision
+      || 'no lock'
+    );
+
     showToast(
       `Reconciliation: ${
         reconciliationLabel(
           result.reconciliation?.outcome
+        )
+      } · lock: ${
+        reconciliationLabel(
+          lockDecision
         )
       }`
     );
@@ -4479,6 +4688,21 @@ function bindEvents() {
         button.dataset.botControlRequest
       );
     },
+  );
+
+  $('#manualLockReleaseReason')?.addEventListener(
+    'input',
+    updateManualLockReleaseButton,
+  );
+
+  $('#manualLockReleaseConfirm')?.addEventListener(
+    'input',
+    updateManualLockReleaseButton,
+  );
+
+  $('#releaseBotControlLock')?.addEventListener(
+    'click',
+    releaseCurrentBotControlLock,
   );
 
   $('#reconcileBotControlRequest')?.addEventListener(

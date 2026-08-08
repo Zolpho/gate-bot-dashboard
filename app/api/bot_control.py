@@ -29,6 +29,13 @@ from ..bot_control import (
     get_bot_control_account,
 )
 from ..bot_control_reconcile import reconcile_request_against_gate
+from ..bot_control_lock_resolution import (
+    LockNotFound,
+    LockResolutionError,
+    apply_reconciliation_lock_policy,
+    list_lock_resolutions,
+    manual_release_operation_lock,
+)
 from ..bot_control_locks import (
     OperationLocked,
     acquire_operation_lock,
@@ -1712,6 +1719,15 @@ async def reconcile_bot_control_request(
         },
     )
 
+    lock_decision = (
+        apply_reconciliation_lock_policy(
+            request_record=record,
+            reconciliation=saved,
+            username=user.username,
+            settings=settings,
+        )
+    )
+
     return {
         "request_id": request_id,
         "action": record["action"],
@@ -1722,6 +1738,135 @@ async def reconcile_bot_control_request(
         "write_performed": False,
         "gate_write_performed": False,
         "reconciliation": saved,
+        "lock_decision": lock_decision,
+    }
+
+
+
+class ManualLockReleaseRequest(BaseModel):
+    confirmation: str = Field(
+        min_length=7,
+        max_length=32,
+    )
+
+    reason: str = Field(
+        min_length=10,
+        max_length=1000,
+    )
+
+
+@router.post("/requests/{request_id}/lock/release")
+def release_bot_control_request_lock(
+    request_id: str,
+    request: ManualLockReleaseRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    if request.confirmation != "RELEASE":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid lock release confirmation text"
+            ),
+        )
+
+    record = get_request(
+        request_id
+    )
+
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Bot Control request not found"
+            ),
+        )
+
+    require_account_access(
+        user,
+        record["account_id"],
+    )
+
+    if record["status"] != "uncertain":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Manual lock release is permitted "
+                    "only for uncertain Bot Control "
+                    "requests."
+                ),
+                "request_id": request_id,
+                "status": record["status"],
+            },
+        )
+
+    reconciliations = list_reconciliations(
+        request_id,
+        limit=1,
+    )
+
+    if not reconciliations:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Run read-only reconciliation "
+                    "before manually releasing an "
+                    "uncertain operation lock."
+                ),
+                "request_id": request_id,
+            },
+        )
+
+    latest = reconciliations[0]
+
+    if (
+        latest.get("outcome")
+        == "stop_in_progress"
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Gate still reports the Stop "
+                    "operation as in progress. Run "
+                    "reconciliation again later rather "
+                    "than releasing the lock."
+                ),
+                "request_id": request_id,
+            },
+        )
+
+    try:
+        result = manual_release_operation_lock(
+            request_record=record,
+            reconciliation=latest,
+            username=user.username,
+            reason=request.reason,
+        )
+
+    except LockNotFound as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    except LockResolutionError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "request_id": request_id,
+        "action": record["action"],
+        "status": record["status"],
+        "write_performed": False,
+        "gate_write_performed": False,
+        "lock_decision": result,
     }
 
 
@@ -1778,6 +1923,11 @@ def get_bot_control_request(
         ),
         "operation_lock": (
             get_operation_lock_for_request(
+                request_id
+            )
+        ),
+        "lock_resolutions": (
+            list_lock_resolutions(
                 request_id
             )
         ),
