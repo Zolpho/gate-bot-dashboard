@@ -7496,6 +7496,37 @@ if (footerYear) {
   footerYear.textContent = new Date().getFullYear();
 }
 
+/*
+ * Ownership-ledger entries reference the Treasury transfer
+ * request that caused the accounting entry. Open the same
+ * request-detail dialog used by Treasury activity.
+ */
+document.addEventListener('click', event => {
+  const target = (
+    event.target instanceof Element
+      ? event.target
+      : null
+  );
+
+  const button = target?.closest(
+    '#treasuryOwnershipLedgerBody '
+    + '[data-treasury-request]'
+  );
+
+  if (!button) {
+    return;
+  }
+
+  const requestId = String(
+    button.dataset.treasuryRequest || ''
+  );
+
+  if (requestId) {
+    openTreasuryRequestDetail(requestId);
+  }
+});
+
+
 bindEvents();
 renderAdminState();
 switchTab(window.location.hash.slice(1) || 'overview', { updateHash: false });
