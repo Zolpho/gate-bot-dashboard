@@ -117,6 +117,8 @@ def migrate_database(engine: Engine) -> None:
         BotControlAttentionReview,
         GateAccount,
         SyncRun,
+        TreasuryRateLimitEvent,
+        TreasuryTransferLockResolution,
         TreasuryTransferOperationLock,
         TreasuryTransferReconciliation,
         TreasuryTransferRequest,
@@ -168,6 +170,26 @@ def migrate_database(engine: Engine) -> None:
                 raw,
                 engine,
                 TreasuryTransferOperationLock.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "treasury_rate_limit_events",
+        ):
+            _create_table(
+                raw,
+                engine,
+                TreasuryRateLimitEvent.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "treasury_transfer_lock_resolutions",
+        ):
+            _create_table(
+                raw,
+                engine,
+                TreasuryTransferLockResolution.__table__,
             )
 
         now = datetime.now(timezone.utc).isoformat()

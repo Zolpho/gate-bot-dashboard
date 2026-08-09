@@ -557,6 +557,121 @@ class TreasuryTransferOperationLock(Base):
     )
 
 
+class TreasuryRateLimitEvent(Base):
+    __tablename__ = "treasury_rate_limit_events"
+    __table_args__ = (
+        Index(
+            "ix_treasury_rate_user_action_created",
+            "username",
+            "action",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_rate_source_action_created",
+            "source_account_id",
+            "action",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    source_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
+class TreasuryTransferLockResolution(Base):
+    __tablename__ = "treasury_transfer_lock_resolutions"
+    __table_args__ = (
+        Index(
+            "ix_treasury_lock_resolution_request_created",
+            "request_id",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_lock_resolution_source_created",
+            "source_account_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    source_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    decision: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    reason: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    prior_request_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="",
+    )
+
+    prior_lock_state: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="",
+    )
+
+    reconciliation_outcome: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
 class BotControlRequest(Base):
     __tablename__ = "bot_control_requests"
     __table_args__ = (

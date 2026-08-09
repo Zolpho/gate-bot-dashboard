@@ -152,3 +152,62 @@ def release_transfer_lock(
         )
 
         return bool(result.rowcount)
+
+def get_transfer_lock_for_request(
+    request_id: str,
+) -> dict[str, Any] | None:
+    with session_scope() as db:
+        row = db.scalar(
+            select(
+                TreasuryTransferOperationLock
+            ).where(
+                TreasuryTransferOperationLock
+                .owner_request_id
+                == request_id
+            )
+        )
+
+        return (
+            _snapshot(row)
+            if row is not None
+            else None
+        )
+
+
+def list_transfer_locks(
+    *,
+    source_account_ids: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    if (
+        source_account_ids is not None
+        and not source_account_ids
+    ):
+        return []
+
+    with session_scope() as db:
+        statement = (
+            select(
+                TreasuryTransferOperationLock
+            )
+            .order_by(
+                TreasuryTransferOperationLock
+                .acquired_at.asc(),
+                TreasuryTransferOperationLock
+                .id.asc(),
+            )
+        )
+
+        if source_account_ids is not None:
+            statement = statement.where(
+                TreasuryTransferOperationLock
+                .source_account_id.in_(
+                    sorted(source_account_ids)
+                )
+            )
+
+        rows = db.scalars(statement).all()
+
+        return [
+            _snapshot(row)
+            for row in rows
+        ]

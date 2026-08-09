@@ -38,6 +38,21 @@ class Settings(BaseSettings):
     treasury_transfers_live_accounts: str = ""
     treasury_transfer_confirmation_text: str = "LIVE TRANSFER"
 
+    # Persistent Treasury operation rate limiting.
+    treasury_rate_limit_enabled: bool = True
+
+    treasury_execute_user_limit: int = 3
+    treasury_execute_user_window_seconds: int = 600
+
+    treasury_execute_account_limit: int = 5
+    treasury_execute_account_window_seconds: int = 600
+
+    treasury_reconcile_user_limit: int = 20
+    treasury_reconcile_user_window_seconds: int = 600
+
+    treasury_lock_release_user_limit: int = 2
+    treasury_lock_release_user_window_seconds: int = 1800
+
     dashboard_users_file: Path = Path("/run/secrets/dashboard_users.json")
     dashboard_users_backup_dir: Path = Path("/data/dashboard-user-backups")
     dashboard_users_backup_keep: int = 20

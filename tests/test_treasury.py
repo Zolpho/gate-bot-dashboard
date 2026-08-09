@@ -282,6 +282,10 @@ def test_treasury_t2b_allows_only_expected_mutation_routes() -> None:
             "/api/treasury/transfers/{request_id}/reconcile",
             frozenset({"POST"}),
         ),
+        (
+            "/api/treasury/transfers/{request_id}/lock/release",
+            frozenset({"POST"}),
+        ),
     }
 
     assert all(

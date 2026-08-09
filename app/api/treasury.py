@@ -13,6 +13,7 @@ from ..gate_client import GateAPIError, GateClient
 from ..security import (
     DashboardUser,
     require_account_access,
+    require_super_admin,
     require_user,
 )
 from ..treasury import (
@@ -45,7 +46,18 @@ from ..treasury_transfer_live_policy import (
 from ..treasury_transfer_locks import (
     TreasuryTransferLocked,
     acquire_transfer_lock,
+    get_transfer_lock_for_request,
+    list_transfer_locks,
     release_transfer_lock,
+)
+from ..treasury_transfer_lock_resolution import (
+    TreasuryLockResolutionError,
+    list_lock_resolutions,
+    manual_release_transfer_lock,
+)
+from ..treasury_rate_limit import (
+    TreasuryRateLimitExceeded,
+    enforce_treasury_rate_limit,
 )
 from ..treasury_transfer_reconcile import (
     interpret_transfer_order_status,
@@ -82,6 +94,32 @@ def _currency(value: str) -> str:
         )
 
     return normalized
+
+
+def _enforce_treasury_rate_limit(
+    *,
+    user: DashboardUser,
+    source_account_id: str,
+    action: str,
+) -> None:
+    try:
+        enforce_treasury_rate_limit(
+            settings=settings,
+            username=user.username,
+            source_account_id=source_account_id,
+            action=action,
+        )
+
+    except TreasuryRateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=exc.detail(),
+            headers={
+                "Retry-After": str(
+                    exc.retry_after_seconds
+                ),
+            },
+        ) from exc
 
 
 def _treasury_account_or_http():  # type: ignore[no-untyped-def]
@@ -597,6 +635,12 @@ async def execute_treasury_transfer(
             },
         )
 
+    _enforce_treasury_rate_limit(
+        user=user,
+        source_account_id=source_account_id,
+        action="execute",
+    )
+
     treasury_account = (
         _treasury_account_or_http()
     )
@@ -1018,6 +1062,14 @@ async def reconcile_treasury_transfer(
             ),
         }
 
+    _enforce_treasury_rate_limit(
+        user=user,
+        source_account_id=(
+            record["source_account_id"]
+        ),
+        action="reconcile",
+    )
+
     treasury_account = (
         _treasury_account_or_http()
     )
@@ -1091,6 +1143,125 @@ def treasury_transfer_request_detail(
                 request_id
             )
         ),
+        "operation_lock": (
+            get_transfer_lock_for_request(
+                request_id
+            )
+        ),
+        "lock_resolutions": (
+            list_lock_resolutions(
+                request_id
+            )
+        ),
+    }
+
+
+class TreasuryManualLockReleaseRequest(BaseModel):
+    confirmation: str = Field(
+        min_length=1,
+        max_length=255,
+    )
+
+    reason: str = Field(
+        min_length=20,
+        max_length=1000,
+    )
+
+
+@router.get("/transfers/locks")
+def treasury_transfer_locks(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    source_account_ids = (
+        None
+        if user.is_super_admin
+        else set(user.account_ids)
+    )
+
+    return {
+        "phase": "T2B_TRANSFER_CONTROL",
+        "items": list_transfer_locks(
+            source_account_ids=(
+                source_account_ids
+            )
+        ),
+    }
+
+
+@router.post(
+    "/transfers/{request_id}/lock/release"
+)
+def release_treasury_transfer_lock(
+    request_id: str,
+    request: TreasuryManualLockReleaseRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_super_admin),
+    ],
+):
+    row = get_transfer_request(request_id)
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Treasury transfer request not found",
+        )
+
+    required_confirmation = (
+        "RELEASE TREASURY LOCK "
+        + request_id
+    )
+
+    if request.confirmation != required_confirmation:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid Treasury lock-release "
+                    "confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "write_performed": False,
+            },
+        )
+
+    _enforce_treasury_rate_limit(
+        user=user,
+        source_account_id=(
+            row["source_account_id"]
+        ),
+        action="lock_release",
+    )
+
+    try:
+        result = manual_release_transfer_lock(
+            request_id=request_id,
+            username=user.username,
+            reason=request.reason,
+            live_armed=(
+                settings
+                .treasury_transfers_live_armed
+            ),
+        )
+
+    except TreasuryLockResolutionError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": "T2B_TRANSFER_CONTROL",
+        "gate_write_performed": False,
+        **result,
     }
 
 
