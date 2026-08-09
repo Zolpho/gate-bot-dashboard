@@ -425,3 +425,8 @@
     flex-direction: column;
   }
 }
+
+.treasury-type {
+  font-weight: 600;
+  white-space: nowrap;
+}

@@ -3641,6 +3641,59 @@ function treasuryStatusClass(value) {
 }
 
 
+function treasuryOperationType(item) {
+  const operation = String(
+    item?.request?.operation || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  if (operation === 'subaccount_to_main') {
+    return 'Internal transfer';
+  }
+
+  if (
+    operation === 'main_to_subaccount'
+    || operation === 'return_to_subaccount'
+    || operation === 'return_transfer'
+  ) {
+    return 'Return transfer';
+  }
+
+  if (
+    operation === 'withdrawal'
+    || operation === 'external_withdrawal'
+  ) {
+    return 'Withdrawal';
+  }
+
+  /*
+   * Legacy Treasury simulations predate the explicit
+   * request.operation field. Their persisted direction
+   * still identifies the transfer safely.
+   */
+  const direction = String(
+    item?.direction || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  if (direction === 'from') {
+    return 'Internal transfer';
+  }
+
+  if (direction === 'to') {
+    return 'Return transfer';
+  }
+
+  if (operation) {
+    return reconciliationLabel(operation);
+  }
+
+  return 'Treasury operation';
+}
+
+
 function treasuryAmount(value, currency = '') {
   if (
     value === null
@@ -3830,7 +3883,7 @@ function renderTreasuryTransfers() {
   if (!rows.length) {
     body.innerHTML = (
       '<tr>'
-      + '<td colspan="8" class="empty-state">'
+      + '<td colspan="9" class="empty-state">'
       + 'No Treasury transfer activity recorded.'
       + '</td>'
       + '</tr>'
@@ -3867,6 +3920,9 @@ function renderTreasuryTransfers() {
       + `<td>${escapeHtml(
           fmtDate(item.created_at)
         )}</td>`
+      + `<td><span class="treasury-type">${escapeHtml(
+          treasuryOperationType(item)
+        )}</span></td>`
       + `<td><strong>${escapeHtml(
           item.source_account_id || '—'
         )}</strong></td>`
@@ -4147,6 +4203,15 @@ function renderTreasuryRequestDetail(payload) {
       </div>
 
       <div class="treasury-request-grid">
+        <div>
+          <span>Type</span>
+          <strong>
+            ${escapeHtml(
+              treasuryOperationType(item)
+            )}
+          </strong>
+        </div>
+
         <div>
           <span>Source</span>
           <strong>
