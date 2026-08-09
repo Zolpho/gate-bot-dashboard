@@ -18,6 +18,7 @@ copy_secret() {
 
 copy_secret /run/config/gate_accounts.json /run/secrets/gate_accounts.json
 copy_secret /run/config/gate_bot_control.json /run/secrets/gate_bot_control.json
+copy_secret /run/config/gate_treasury.json /run/secrets/gate_treasury.json
 
 prepare_dashboard_users() {
   source_path="/run/config/dashboard_users.json"
