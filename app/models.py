@@ -419,6 +419,98 @@ class TreasuryTransferRequest(Base):
     )
 
 
+class TreasuryOwnershipLedgerEntry(Base):
+    """
+    Append-only economic ownership ledger.
+
+    Physical custody may be the Gate main account while
+    economic ownership remains with a dashboard account.
+    Corrections must be new compensating entries; existing
+    ledger rows are never edited or deleted by application
+    code.
+    """
+
+    __tablename__ = "treasury_ownership_ledger"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "event_id",
+            name="uq_treasury_ownership_event_id",
+        ),
+        Index(
+            "ix_treasury_ownership_owner_currency_created",
+            "owner_account_id",
+            "currency",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_ownership_source_request",
+            "source_request_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    event_id: Mapped[str] = mapped_column(
+        String(192),
+        nullable=False,
+    )
+
+    owner_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    custody_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    # Positive = funds held on main for the owner.
+    # Negative = owner-held main balance consumed/returned.
+    delta_amount: Mapped[Decimal] = mapped_column(
+        TREASURY_AMOUNT,
+        nullable=False,
+    )
+
+    entry_type: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    source_request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    reason: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    metadata_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
 class TreasuryTransferReconciliation(Base):
     __tablename__ = "treasury_transfer_reconciliations"
     __table_args__ = (

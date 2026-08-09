@@ -14,6 +14,9 @@ from .models import (
     TreasuryTransferRequest,
 )
 from .treasury_transfer import gate_client_order_id
+from .treasury_ownership import (
+    ensure_internal_transfer_credit_for_row,
+)
 
 
 class TreasuryTransferIdempotencyConflict(RuntimeError):
@@ -403,6 +406,16 @@ def mark_transfer_request(
 
         if completed:
             row.completed_at = utcnow()
+
+        # Economic ownership must be committed atomically
+        # with a definitive successful live internal
+        # transfer. Simulations and all non-success states
+        # are ignored by the ledger predicate.
+        if status == "success":
+            ensure_internal_transfer_credit_for_row(
+                db,
+                row,
+            )
 
         db.flush()
 

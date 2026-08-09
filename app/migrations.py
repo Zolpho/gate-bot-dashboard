@@ -117,6 +117,7 @@ def migrate_database(engine: Engine) -> None:
         BotControlAttentionReview,
         GateAccount,
         SyncRun,
+        TreasuryOwnershipLedgerEntry,
         TreasuryRateLimitEvent,
         TreasuryTransferLockResolution,
         TreasuryTransferOperationLock,
@@ -150,6 +151,16 @@ def migrate_database(engine: Engine) -> None:
                 raw,
                 engine,
                 TreasuryTransferRequest.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "treasury_ownership_ledger",
+        ):
+            _create_table(
+                raw,
+                engine,
+                TreasuryOwnershipLedgerEntry.__table__,
             )
 
         if not _table_exists(
@@ -191,6 +202,58 @@ def migrate_database(engine: Engine) -> None:
                 engine,
                 TreasuryTransferLockResolution.__table__,
             )
+
+        # Deterministic, idempotent ownership backfill.
+        #
+        # This deliberately derives ownership ONLY from
+        # definitive successful LIVE internal-transfer audit
+        # records. It never infers ownership from the physical
+        # Gate main-account balance.
+        #
+        # instr() is used rather than SQLite JSON functions so
+        # the migration has no JSON1 extension dependency.
+        raw.execute(
+            """
+            INSERT OR IGNORE INTO treasury_ownership_ledger
+            (
+                event_id,
+                owner_account_id,
+                custody_account_id,
+                currency,
+                delta_amount,
+                entry_type,
+                source_request_id,
+                reason,
+                metadata_json,
+                created_at
+            )
+            SELECT
+                'internal-transfer-credit:' || request_id,
+                source_account_id,
+                destination_account_id,
+                currency,
+                amount,
+                'internal_transfer_credit',
+                request_id,
+                'Definitive successful subaccount-to-main Treasury transfer.',
+                '{"source":"migration_backfill"}',
+                COALESCE(
+                    completed_at,
+                    updated_at,
+                    created_at
+                )
+            FROM treasury_transfer_requests
+            WHERE
+                status = 'success'
+                AND simulation = 0
+                AND write_performed = 1
+                AND lower(direction) = 'from'
+                AND instr(
+                    request_json,
+                    '"operation":"subaccount_to_main"'
+                ) > 0
+            """
+        )
 
         now = datetime.now(timezone.utc).isoformat()
 
