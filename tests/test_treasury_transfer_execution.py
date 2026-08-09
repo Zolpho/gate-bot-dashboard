@@ -121,3 +121,39 @@ def test_reconcile_unknown_keeps_lock() -> None:
     assert result.outcome == "unknown"
     assert result.request_status == "uncertain"
     assert result.release_lock is False
+
+
+def test_submission_4xx_is_definitive_rejection() -> None:
+    from app.treasury_transfer_reconcile import (
+        interpret_transfer_submission_error,
+    )
+
+    result = interpret_transfer_submission_error(403)
+
+    assert result.request_status == "rejected"
+    assert result.definitive is True
+    assert result.release_lock is True
+
+
+def test_submission_network_failure_is_uncertain() -> None:
+    from app.treasury_transfer_reconcile import (
+        interpret_transfer_submission_error,
+    )
+
+    result = interpret_transfer_submission_error(None)
+
+    assert result.request_status == "uncertain"
+    assert result.definitive is False
+    assert result.release_lock is False
+
+
+def test_submission_5xx_is_uncertain() -> None:
+    from app.treasury_transfer_reconcile import (
+        interpret_transfer_submission_error,
+    )
+
+    result = interpret_transfer_submission_error(500)
+
+    assert result.request_status == "uncertain"
+    assert result.definitive is False
+    assert result.release_lock is False

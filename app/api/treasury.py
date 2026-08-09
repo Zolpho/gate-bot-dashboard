@@ -49,6 +49,7 @@ from ..treasury_transfer_locks import (
 )
 from ..treasury_transfer_reconcile import (
     interpret_transfer_order_status,
+    interpret_transfer_submission_error,
 )
 
 
@@ -843,37 +844,60 @@ async def execute_treasury_transfer(
             )
 
     except GateAPIError as exc:
+        submission_decision = (
+            interpret_transfer_submission_error(
+                exc.status_code
+            )
+        )
+
         updated = mark_transfer_request(
             request.request_id,
-            status="uncertain",
+            status=(
+                submission_decision.request_status
+            ),
             response=exc.response,
             error=str(exc),
             gate_status_code=exc.status_code,
             gate_label=exc.label,
             write_performed=True,
-            completed=False,
+            completed=(
+                submission_decision.definitive
+            ),
         )
+
+        lock_released = False
+
+        if submission_decision.release_lock:
+            lock_released = release_transfer_lock(
+                source_account_id=(
+                    source_account_id
+                ),
+                currency=selected_currency,
+                owner_request_id=(
+                    request.request_id
+                ),
+            )
+
+        detail = {
+            "message": submission_decision.summary,
+            "request_id": request.request_id,
+            "status": (
+                submission_decision.request_status
+            ),
+            "write_performed": True,
+            "lock_released": lock_released,
+            "gate_error": str(exc),
+        }
+
+        if not submission_decision.definitive:
+            detail["reconcile_path"] = (
+                "/api/treasury/transfers/"
+                f"{request.request_id}/reconcile"
+            )
 
         raise HTTPException(
             status_code=502,
-            detail={
-                "message": (
-                    "Gate transfer submission outcome "
-                    "is uncertain. The Treasury lock "
-                    "remains held. Do not retry the "
-                    "transfer. Reconcile this request."
-                ),
-                "request_id": request.request_id,
-                "status": "uncertain",
-                "write_performed": (
-                    updated["write_performed"]
-                ),
-                "reconcile_path": (
-                    "/api/treasury/transfers/"
-                    f"{request.request_id}/reconcile"
-                ),
-                "gate_error": str(exc),
-            },
+            detail=detail,
         ) from exc
 
     except Exception as exc:

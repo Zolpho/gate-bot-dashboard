@@ -16,6 +16,46 @@ class TransferStatusDecision:
     summary: str
 
 
+@dataclass(frozen=True)
+class TransferSubmissionErrorDecision:
+    request_status: str
+    definitive: bool
+    release_lock: bool
+    summary: str
+
+
+def interpret_transfer_submission_error(
+    status_code: int | None,
+) -> TransferSubmissionErrorDecision:
+    # An explicit 4xx Gate response means Gate rejected
+    # the submitted request. Network failures and 5xx
+    # outcomes stay uncertain because the transfer may
+    # have reached Gate before the failure was observed.
+    if (
+        status_code is not None
+        and 400 <= status_code < 500
+    ):
+        return TransferSubmissionErrorDecision(
+            request_status="rejected",
+            definitive=True,
+            release_lock=True,
+            summary=(
+                "Gate explicitly rejected the Treasury "
+                "transfer request."
+            ),
+        )
+
+    return TransferSubmissionErrorDecision(
+        request_status="uncertain",
+        definitive=False,
+        release_lock=False,
+        summary=(
+            "Treasury transfer submission outcome is "
+            "uncertain. Do not retry automatically."
+        ),
+    )
+
+
 def interpret_transfer_order_status(
     payload: Any,
 ) -> TransferStatusDecision:
