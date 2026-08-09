@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     gate_bot_control_file: Path = Path("/run/secrets/gate_bot_control.json")
 
     # Treasury is deliberately isolated from Monitor and Bot Control.
-    # /run/config is the read-only secrets-directory mount.
-    gate_treasury_file: Path = Path("/run/config/gate_treasury.json")
+    # Treasury uses its own read-only credential mount.
+    gate_treasury_file: Path = Path("/run/secrets/gate_treasury.json")
     treasury_main_account: str = "zolnode"
 
     dashboard_users_file: Path = Path("/run/secrets/dashboard_users.json")
