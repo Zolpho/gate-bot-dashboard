@@ -21,6 +21,10 @@ from ..treasury import (
     get_treasury_account,
     safe_treasury_config,
 )
+from ..treasury_ownership import (
+    list_ownership_entries,
+    ownership_balances,
+)
 from ..treasury_transfer import (
     TreasuryTransferValidationError,
     as_decimal,
@@ -1084,6 +1088,54 @@ async def reconcile_treasury_transfer(
         "idempotent_replay": False,
         "gate_read_performed": True,
         **result,
+    }
+
+
+@router.get("/ownership/balances")
+def treasury_ownership_balances(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    account_ids = (
+        None
+        if user.is_super_admin
+        else set(user.account_ids)
+    )
+
+    return {
+        "phase": "T2B_TRANSFER_CONTROL",
+        "items": ownership_balances(
+            account_ids=account_ids,
+        ),
+    }
+
+
+@router.get("/ownership/ledger")
+def treasury_ownership_ledger(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    limit: int = Query(
+        default=200,
+        ge=1,
+        le=500,
+    ),
+):
+    account_ids = (
+        None
+        if user.is_super_admin
+        else set(user.account_ids)
+    )
+
+    return {
+        "phase": "T2B_TRANSFER_CONTROL",
+        "items": list_ownership_entries(
+            account_ids=account_ids,
+            limit=limit,
+        ),
     }
 
 

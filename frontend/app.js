@@ -58,6 +58,8 @@ const state = {
   botControlRequestDetail: null,
   treasuryTransfers: [],
   treasuryLocks: [],
+  treasuryOwnershipBalances: [],
+  treasuryOwnershipLedger: [],
   treasuryRequestDetail: null,
   botStopPrepared: null,
   botStopRequestId: '',
@@ -3808,6 +3810,199 @@ function renderTreasurySafety() {
 }
 
 
+function treasuryOwnershipEntryType(value) {
+  const type = String(value || '')
+    .trim()
+    .toLowerCase();
+
+  const labels = {
+    internal_transfer_credit: 'Internal transfer credit',
+    withdrawal_debit: 'Withdrawal debit',
+    return_transfer_debit: 'Return transfer debit',
+    correction_credit: 'Correction credit',
+    correction_debit: 'Correction debit',
+  };
+
+  return (
+    labels[type]
+    || reconciliationLabel(type || 'unknown')
+  );
+}
+
+
+function treasurySignedAmount(
+  value,
+  currency = '',
+) {
+  const text = treasuryAmount(
+    value,
+    currency,
+  );
+
+  const number = Number(value);
+
+  if (
+    Number.isFinite(number)
+    && number > 0
+  ) {
+    return `+${text}`;
+  }
+
+  return text;
+}
+
+
+function renderTreasuryOwnershipBalances() {
+  const body = $(
+    '#treasuryOwnershipBalanceBody'
+  );
+
+  if (!body) return;
+
+  const rows = (
+    state.treasuryOwnershipBalances || []
+  );
+
+  if (!rows.length) {
+    body.innerHTML = (
+      '<tr>'
+      + '<td colspan="4" class="empty-state">'
+      + 'No main-held ownership balances.'
+      + '</td>'
+      + '</tr>'
+    );
+
+    if ($('#treasuryOwnershipBalanceCount')) {
+      $('#treasuryOwnershipBalanceCount')
+        .textContent = '0 balances';
+    }
+
+    return;
+  }
+
+  body.innerHTML = rows.map(item => {
+    return (
+      '<tr>'
+      + `<td><strong>${escapeHtml(
+          item.owner_account_id || '—'
+        )}</strong></td>`
+      + `<td>${escapeHtml(
+          item.custody_account_id || '—'
+        )}</td>`
+      + `<td>${escapeHtml(
+          item.currency || '—'
+        )}</td>`
+      + `<td><strong>${escapeHtml(
+          treasuryAmount(
+            item.main_held_amount,
+            item.currency,
+          )
+        )}</strong></td>`
+      + '</tr>'
+    );
+  }).join('');
+
+  if ($('#treasuryOwnershipBalanceCount')) {
+    $('#treasuryOwnershipBalanceCount')
+      .textContent = (
+        `${rows.length} ${
+          rows.length === 1
+            ? 'balance'
+            : 'balances'
+        }`
+      );
+  }
+}
+
+
+function renderTreasuryOwnershipLedger() {
+  const body = $(
+    '#treasuryOwnershipLedgerBody'
+  );
+
+  if (!body) return;
+
+  const rows = (
+    state.treasuryOwnershipLedger || []
+  );
+
+  if (!rows.length) {
+    body.innerHTML = (
+      '<tr>'
+      + '<td colspan="7" class="empty-state">'
+      + 'No ownership ledger entries.'
+      + '</td>'
+      + '</tr>'
+    );
+
+    if ($('#treasuryOwnershipLedgerCount')) {
+      $('#treasuryOwnershipLedgerCount')
+        .textContent = '0 entries';
+    }
+
+    return;
+  }
+
+  body.innerHTML = rows.map(item => {
+    const requestId = String(
+      item.source_request_id || ''
+    );
+
+    return (
+      '<tr>'
+      + `<td>${escapeHtml(
+          fmtDate(item.created_at)
+        )}</td>`
+      + `<td><strong>${escapeHtml(
+          item.owner_account_id || '—'
+        )}</strong></td>`
+      + `<td>${escapeHtml(
+          item.custody_account_id || '—'
+        )}</td>`
+      + `<td>${escapeHtml(
+          item.currency || '—'
+        )}</td>`
+      + `<td><strong>${escapeHtml(
+          treasurySignedAmount(
+            item.delta_amount,
+            item.currency,
+          )
+        )}</strong></td>`
+      + `<td>${escapeHtml(
+          treasuryOwnershipEntryType(
+            item.entry_type
+          )
+        )}</td>`
+      + `<td>${
+          requestId
+            ? `<button
+                 type="button"
+                 class="treasury-request-link"
+                 data-treasury-request="${escapeHtml(
+                   requestId
+                 )}"
+               >${escapeHtml(
+                 shortTreasuryId(requestId)
+               )}</button>`
+            : '—'
+        }</td>`
+      + '</tr>'
+    );
+  }).join('');
+
+  if ($('#treasuryOwnershipLedgerCount')) {
+    $('#treasuryOwnershipLedgerCount')
+      .textContent = (
+        `${rows.length} ${
+          rows.length === 1
+            ? 'entry'
+            : 'entries'
+        }`
+      );
+  }
+}
+
+
 function renderTreasuryLocks() {
   const container = $('#treasuryLockList');
 
@@ -4398,9 +4593,13 @@ async function loadTreasuryOverview(
   ) {
     state.treasuryTransfers = [];
     state.treasuryLocks = [];
+    state.treasuryOwnershipBalances = [];
+    state.treasuryOwnershipLedger = [];
 
     renderTreasuryTransfers();
     renderTreasuryLocks();
+    renderTreasuryOwnershipBalances();
+    renderTreasuryOwnershipLedger();
     return;
   }
 
@@ -4419,6 +4618,8 @@ async function loadTreasuryOverview(
       health,
       requests,
       locks,
+      ownershipBalances,
+      ownershipLedger,
     ] = await Promise.all([
       api('/api/health'),
       adminApi(
@@ -4426,6 +4627,12 @@ async function loadTreasuryOverview(
       ),
       adminApi(
         '/api/treasury/transfers/locks'
+      ),
+      adminApi(
+        '/api/treasury/ownership/balances'
+      ),
+      adminApi(
+        '/api/treasury/ownership/ledger?limit=200'
       ),
     ]);
 
@@ -4439,7 +4646,17 @@ async function loadTreasuryOverview(
       locks.items || []
     );
 
+    state.treasuryOwnershipBalances = (
+      ownershipBalances.items || []
+    );
+
+    state.treasuryOwnershipLedger = (
+      ownershipLedger.items || []
+    );
+
     renderTreasurySafety();
+    renderTreasuryOwnershipBalances();
+    renderTreasuryOwnershipLedger();
     renderTreasuryLocks();
     renderTreasuryTransfers();
 

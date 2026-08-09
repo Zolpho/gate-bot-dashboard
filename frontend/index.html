@@ -277,6 +277,85 @@
             </section>
           </div>
 
+          <section class="treasury-ownership-section">
+            <div class="treasury-section-header">
+              <div>
+                <h3>Main-held economic ownership</h3>
+                <p>
+                  Funds physically held by the Gate main
+                  account but economically owned by a
+                  dashboard account.
+                </p>
+              </div>
+
+              <span
+                id="treasuryOwnershipBalanceCount"
+                class="treasury-count"
+              >0 balances</span>
+            </div>
+
+            <div class="table-scroll">
+              <table class="treasury-ownership-table">
+                <thead>
+                  <tr>
+                    <th>Economic owner</th>
+                    <th>Custody account</th>
+                    <th>Asset</th>
+                    <th>Main-held amount</th>
+                  </tr>
+                </thead>
+
+                <tbody id="treasuryOwnershipBalanceBody">
+                  <tr>
+                    <td colspan="4" class="empty-state">
+                      No main-held ownership balances.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="treasury-ownership-ledger-header">
+              <div>
+                <h3>Ownership ledger</h3>
+                <p>
+                  Append-only accounting history. Credits
+                  and future debits preserve the economic
+                  owner independently from physical custody.
+                </p>
+              </div>
+
+              <span
+                id="treasuryOwnershipLedgerCount"
+                class="treasury-count"
+              >0 entries</span>
+            </div>
+
+            <div class="table-scroll">
+              <table class="treasury-ownership-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Owner</th>
+                    <th>Custody</th>
+                    <th>Asset</th>
+                    <th>Delta</th>
+                    <th>Type</th>
+                    <th>Source request</th>
+                  </tr>
+                </thead>
+
+                <tbody id="treasuryOwnershipLedgerBody">
+                  <tr>
+                    <td colspan="7" class="empty-state">
+                      No ownership ledger entries.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section class="treasury-lock-section">
             <div class="treasury-section-header">
               <div>

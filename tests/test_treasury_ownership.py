@@ -437,3 +437,124 @@ def test_migration_backfills_existing_success(
     assert len(rows_again) == 1
 
     engine.dispose()
+
+
+def test_ownership_api_is_account_scoped() -> None:
+    from app.api.treasury import (
+        treasury_ownership_balances,
+        treasury_ownership_ledger,
+    )
+    from app.security import DashboardUser
+
+    owner_a = (
+        "scope-a-" + uuid4().hex[:10]
+    )
+    owner_b = (
+        "scope-b-" + uuid4().hex[:10]
+    )
+
+    for owner in (owner_a, owner_b):
+        request_id = _request_id(
+            "ownership-scope"
+        )
+
+        reserve_live_transfer(
+            request_id=request_id,
+            source_account_id=owner,
+            destination_account_id="zolnode",
+            username="ownership-test",
+            currency="USDT",
+            amount=Decimal("1"),
+            payload=_live_payload(owner),
+        )
+
+        mark_transfer_request(
+            request_id,
+            status="success",
+            response={
+                "status": "SUCCESS",
+            },
+            write_performed=True,
+            completed=True,
+        )
+
+    user = DashboardUser(
+        username="scope-user",
+        role="account_operator",
+        account_ids=(owner_a,),
+    )
+
+    balances = treasury_ownership_balances(
+        user=user,
+    )
+
+    ledger = treasury_ownership_ledger(
+        user=user,
+        limit=200,
+    )
+
+    assert balances["items"]
+    assert ledger["items"]
+
+    assert {
+        item["owner_account_id"]
+        for item in balances["items"]
+    } == {owner_a}
+
+    assert {
+        item["owner_account_id"]
+        for item in ledger["items"]
+    } == {owner_a}
+
+
+def test_ownership_api_super_admin_can_see_all() -> None:
+    from app.api.treasury import (
+        treasury_ownership_ledger,
+    )
+    from app.security import DashboardUser
+
+    owner = (
+        "scope-admin-" + uuid4().hex[:10]
+    )
+
+    request_id = _request_id(
+        "ownership-admin"
+    )
+
+    reserve_live_transfer(
+        request_id=request_id,
+        source_account_id=owner,
+        destination_account_id="zolnode",
+        username="ownership-test",
+        currency="USDT",
+        amount=Decimal("2"),
+        payload=_live_payload(owner),
+    )
+
+    mark_transfer_request(
+        request_id,
+        status="success",
+        response={
+            "status": "SUCCESS",
+        },
+        write_performed=True,
+        completed=True,
+    )
+
+    user = DashboardUser(
+        username="scope-admin",
+        role="super_admin",
+        account_ids=(),
+    )
+
+    ledger = treasury_ownership_ledger(
+        user=user,
+        limit=500,
+    )
+
+    assert any(
+        item["owner_account_id"] == owner
+        and item["source_request_id"]
+        == request_id
+        for item in ledger["items"]
+    )

@@ -430,3 +430,33 @@
   font-weight: 600;
   white-space: nowrap;
 }
+
+.treasury-ownership-section {
+  margin-top: 24px;
+}
+
+.treasury-ownership-ledger-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 28px;
+  margin-bottom: 12px;
+}
+
+.treasury-ownership-ledger-header h3 {
+  margin-bottom: 4px;
+}
+
+.treasury-ownership-ledger-header p {
+  margin: 0;
+}
+
+.treasury-ownership-table {
+  width: 100%;
+}
+
+.treasury-ownership-table td,
+.treasury-ownership-table th {
+  white-space: nowrap;
+}
