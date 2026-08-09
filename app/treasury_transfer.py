@@ -62,6 +62,38 @@ def as_decimal(value: Any) -> Decimal | None:
     return result
 
 
+def build_gate_subaccount_transfer_payload(
+    *,
+    source_account: GateAccountConfig,
+    currency: str,
+    amount: Decimal,
+    request_id: str,
+) -> dict[str, str]:
+    validate_transfer_amount(amount)
+
+    if source_account.account_type != "subaccount":
+        raise TreasuryTransferValidationError(
+            f"Source account '{source_account.id}' must have "
+            "account_type='subaccount'"
+        )
+
+    if not source_account.gate_uid:
+        raise TreasuryTransferValidationError(
+            f"Source account '{source_account.id}' has no Gate UID"
+        )
+
+    return {
+        "sub_account": source_account.gate_uid,
+        "sub_account_type": "spot",
+        "currency": currency.strip().upper(),
+        "amount": decimal_text(amount),
+        "direction": "from",
+        "client_order_id": gate_client_order_id(
+            request_id
+        ),
+    }
+
+
 def build_subaccount_to_main_preflight(
     *,
     source_account: GateAccountConfig,

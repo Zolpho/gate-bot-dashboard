@@ -307,6 +307,57 @@ class GateClient:
     async def list_spot_accounts(self) -> GateResponse:
         return await self.request("GET", "/spot/accounts")
 
+    async def create_sub_account_transfer(
+        self,
+        payload: dict[str, Any],
+    ) -> GateResponse:
+        return await self.request(
+            "POST",
+            "/wallet/sub_account_transfers",
+            json_body=payload,
+        )
+
+    async def get_transfer_order_status(
+        self,
+        *,
+        client_order_id: str | None = None,
+        tx_id: str | None = None,
+    ) -> GateResponse:
+        if not client_order_id and not tx_id:
+            raise ValueError(
+                "client_order_id or tx_id is required"
+            )
+
+        return await self.request(
+            "GET",
+            "/wallet/order_status",
+            params={
+                "client_order_id": client_order_id,
+                "tx_id": tx_id,
+            },
+        )
+
+    async def list_sub_account_transfers(
+        self,
+        *,
+        sub_uid: str | None = None,
+        from_timestamp: int | None = None,
+        to_timestamp: int | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/wallet/sub_account_transfers",
+            params=[
+                ("sub_uid", sub_uid),
+                ("from", from_timestamp),
+                ("to", to_timestamp),
+                ("limit", max(1, min(limit, 100))),
+                ("offset", max(0, offset)),
+            ],
+        )
+
     async def get_spot_currency_pair(
         self,
         currency_pair: str,

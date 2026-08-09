@@ -9,7 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from .db import session_scope, utcnow
-from .models import TreasuryTransferRequest
+from .models import (
+    TreasuryTransferReconciliation,
+    TreasuryTransferRequest,
+)
 from .treasury_transfer import gate_client_order_id
 
 
@@ -234,5 +237,263 @@ def list_transfer_requests(
 
         return [
             _snapshot(row)
+            for row in rows
+        ]
+
+def find_matching_transfer_request(
+    *,
+    request_id: str,
+    source_account_id: str,
+    username: str,
+    payload: Any,
+) -> dict[str, Any] | None:
+    fingerprint = request_fingerprint(payload)
+
+    with session_scope() as db:
+        row = db.scalar(
+            select(TreasuryTransferRequest).where(
+                TreasuryTransferRequest.request_id
+                == request_id
+            )
+        )
+
+        if row is None:
+            return None
+
+        _verify_match(
+            row,
+            source_account_id=source_account_id,
+            username=username,
+            fingerprint=fingerprint,
+        )
+
+        return _snapshot(row)
+
+
+def reserve_live_transfer(
+    *,
+    request_id: str,
+    source_account_id: str,
+    destination_account_id: str,
+    username: str,
+    currency: str,
+    amount: Decimal,
+    payload: Any,
+) -> tuple[dict[str, Any], bool]:
+    fingerprint = request_fingerprint(payload)
+
+    try:
+        with session_scope() as db:
+            existing = db.scalar(
+                select(TreasuryTransferRequest).where(
+                    TreasuryTransferRequest.request_id
+                    == request_id
+                )
+            )
+
+            if existing is not None:
+                _verify_match(
+                    existing,
+                    source_account_id=(
+                        source_account_id
+                    ),
+                    username=username,
+                    fingerprint=fingerprint,
+                )
+                return _snapshot(existing), False
+
+            row = TreasuryTransferRequest(
+                request_id=request_id,
+                source_account_id=(
+                    source_account_id
+                ),
+                destination_account_id=(
+                    destination_account_id
+                ),
+                username=username,
+                direction="from",
+                currency=currency,
+                amount=amount,
+                status="reserved",
+                request_hash=fingerprint,
+                request_json=canonical_json(payload),
+                response_json="{}",
+                client_order_id=gate_client_order_id(
+                    request_id
+                ),
+                simulation=False,
+                write_performed=False,
+            )
+
+            db.add(row)
+            db.flush()
+
+            return _snapshot(row), True
+
+    except IntegrityError:
+        with session_scope() as db:
+            existing = db.scalar(
+                select(TreasuryTransferRequest).where(
+                    TreasuryTransferRequest.request_id
+                    == request_id
+                )
+            )
+
+            if existing is None:
+                raise
+
+            _verify_match(
+                existing,
+                source_account_id=(
+                    source_account_id
+                ),
+                username=username,
+                fingerprint=fingerprint,
+            )
+
+            return _snapshot(existing), False
+
+
+def mark_transfer_request(
+    request_id: str,
+    *,
+    status: str,
+    response: Any = None,
+    error: str = "",
+    gate_transfer_id: str = "",
+    gate_status_code: int | None = None,
+    gate_label: str = "",
+    write_performed: bool | None = None,
+    completed: bool = False,
+) -> dict[str, Any]:
+    with session_scope() as db:
+        row = db.scalar(
+            select(TreasuryTransferRequest).where(
+                TreasuryTransferRequest.request_id
+                == request_id
+            )
+        )
+
+        if row is None:
+            raise RuntimeError(
+                "Unknown Treasury transfer request "
+                f"{request_id}"
+            )
+
+        row.status = status
+        row.error = error
+
+        if response is not None:
+            row.response_json = canonical_json(
+                response
+            )
+
+        if gate_transfer_id:
+            row.gate_transfer_id = (
+                gate_transfer_id
+            )
+
+        row.gate_status_code = gate_status_code
+        row.gate_label = gate_label
+
+        if write_performed is not None:
+            row.write_performed = (
+                write_performed
+            )
+
+        if completed:
+            row.completed_at = utcnow()
+
+        db.flush()
+
+        return _snapshot(row)
+
+
+def _reconciliation_snapshot(
+    row: TreasuryTransferReconciliation,
+) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "request_id": row.request_id,
+        "source_account_id": (
+            row.source_account_id
+        ),
+        "username": row.username,
+        "outcome": row.outcome,
+        "confidence": row.confidence,
+        "gate_status": (
+            row.gate_status or None
+        ),
+        "tx_id": row.tx_id or None,
+        "summary": row.summary,
+        "details": _load_json(
+            row.details_json
+        ),
+        "created_at": (
+            row.created_at.isoformat()
+            if row.created_at
+            else None
+        ),
+    }
+
+
+def record_transfer_reconciliation(
+    *,
+    request_id: str,
+    source_account_id: str,
+    username: str,
+    outcome: str,
+    confidence: str,
+    gate_status: str = "",
+    tx_id: str = "",
+    summary: str = "",
+    details: Any = None,
+) -> dict[str, Any]:
+    with session_scope() as db:
+        row = TreasuryTransferReconciliation(
+            request_id=request_id,
+            source_account_id=(
+                source_account_id
+            ),
+            username=username,
+            outcome=outcome,
+            confidence=confidence,
+            gate_status=gate_status,
+            tx_id=tx_id,
+            summary=summary,
+            details_json=canonical_json(
+                details or {}
+            ),
+        )
+
+        db.add(row)
+        db.flush()
+
+        return _reconciliation_snapshot(row)
+
+
+def list_transfer_reconciliations(
+    request_id: str,
+) -> list[dict[str, Any]]:
+    with session_scope() as db:
+        rows = db.scalars(
+            select(
+                TreasuryTransferReconciliation
+            )
+            .where(
+                TreasuryTransferReconciliation
+                .request_id
+                == request_id
+            )
+            .order_by(
+                TreasuryTransferReconciliation
+                .created_at.asc(),
+                TreasuryTransferReconciliation
+                .id.asc(),
+            )
+        ).all()
+
+        return [
+            _reconciliation_snapshot(row)
             for row in rows
         ]

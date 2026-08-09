@@ -419,6 +419,144 @@ class TreasuryTransferRequest(Base):
     )
 
 
+class TreasuryTransferReconciliation(Base):
+    __tablename__ = "treasury_transfer_reconciliations"
+    __table_args__ = (
+        Index(
+            "ix_treasury_transfer_reconcile_request_created",
+            "request_id",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_transfer_reconcile_source_created",
+            "source_account_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    source_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    outcome: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    confidence: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="inconclusive",
+    )
+
+    gate_status: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    tx_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    summary: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    details_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
+class TreasuryTransferOperationLock(Base):
+    __tablename__ = "treasury_transfer_operation_locks"
+    __table_args__ = (
+        UniqueConstraint(
+            "lock_key",
+            name="uq_treasury_transfer_operation_lock_key",
+        ),
+        Index(
+            "ix_treasury_transfer_lock_source_currency",
+            "source_account_id",
+            "currency",
+        ),
+        Index(
+            "ix_treasury_transfer_lock_owner",
+            "owner_request_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    lock_key: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    source_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    owner_request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    state: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="held",
+    )
+
+    acquired_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
 class BotControlRequest(Base):
     __tablename__ = "bot_control_requests"
     __table_args__ = (

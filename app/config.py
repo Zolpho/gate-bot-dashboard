@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     gate_treasury_file: Path = Path("/run/secrets/gate_treasury.json")
     treasury_main_account: str = "zolnode"
 
+    # Live internal Treasury transfers are independently armed.
+    # External withdrawals remain a separate future phase.
+    treasury_transfers_live_armed: bool = False
+    treasury_transfers_live_accounts: str = ""
+    treasury_transfer_confirmation_text: str = "LIVE TRANSFER"
+
     dashboard_users_file: Path = Path("/run/secrets/dashboard_users.json")
     dashboard_users_backup_dir: Path = Path("/data/dashboard-user-backups")
     dashboard_users_backup_keep: int = 20
@@ -225,6 +231,34 @@ class Settings(BaseSettings):
         account_id: str,
     ) -> bool:
         allowed = self.bot_control_live_account_list
+
+        return (
+            "*" in allowed
+            or account_id in allowed
+        )
+
+    @property
+    def treasury_transfers_live_account_list(
+        self,
+    ) -> set[str]:
+        return {
+            item.strip().lower()
+            for item in (
+                self.treasury_transfers_live_accounts
+                .split(",")
+            )
+            if item.strip()
+        }
+
+    def treasury_transfers_live_account_allowed(
+        self,
+        account_id: str,
+    ) -> bool:
+        allowed = (
+            self.treasury_transfers_live_account_list
+        )
+
+        account_id = account_id.strip().lower()
 
         return (
             "*" in allowed
