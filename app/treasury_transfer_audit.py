@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .db import session_scope, utcnow
 from .models import TreasuryTransferRequest
+from .treasury_transfer import gate_client_order_id
 
 
 class TreasuryTransferIdempotencyConflict(RuntimeError):
@@ -148,7 +149,9 @@ def record_simulation(
                 request_hash=fingerprint,
                 request_json=canonical_json(payload),
                 response_json=canonical_json(response),
-                client_order_id=request_id,
+                client_order_id=gate_client_order_id(
+                    request_id
+                ),
                 simulation=True,
                 write_performed=False,
                 completed_at=utcnow(),

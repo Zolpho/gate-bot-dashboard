@@ -23,6 +23,7 @@ from ..treasury import (
 from ..treasury_transfer import (
     TreasuryTransferValidationError,
     build_subaccount_to_main_preflight,
+    gate_client_order_id,
 )
 from ..treasury_transfer_audit import (
     TreasuryTransferIdempotencyConflict,
@@ -194,7 +195,9 @@ async def simulate_treasury_transfer(
         },
         "transfer": preflight,
         "client_order_id_preview": (
-            request.request_id
+            gate_client_order_id(
+                request.request_id
+            )
         ),
     }
 

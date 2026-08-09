@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -12,6 +13,37 @@ class TreasuryTransferValidationError(RuntimeError):
 
 def decimal_text(value: Decimal) -> str:
     return format(value, "f")
+
+
+def gate_client_order_id(request_id: str) -> str:
+    """Stable Gate-safe idempotency key derived from our request ID."""
+    digest = hashlib.sha256(
+        request_id.encode("utf-8")
+    ).hexdigest()
+
+    return f"treasury_{digest[:48]}"
+
+
+def validate_transfer_amount(
+    amount: Decimal,
+) -> None:
+    if not amount.is_finite() or amount <= 0:
+        raise TreasuryTransferValidationError(
+            "Transfer amount must be greater than zero"
+        )
+
+    exponent = amount.as_tuple().exponent
+    decimal_places = (
+        -exponent
+        if exponent < 0
+        else 0
+    )
+
+    if decimal_places > 8:
+        raise TreasuryTransferValidationError(
+            "Gate transfer amount supports at most "
+            "8 decimal places"
+        )
 
 
 def as_decimal(value: Any) -> Decimal | None:
@@ -40,6 +72,8 @@ def build_subaccount_to_main_preflight(
 ) -> dict[str, Any]:
     main_account_id = main_account_id.strip().lower()
     currency = currency.strip().upper()
+
+    validate_transfer_amount(amount)
 
     if source_account.id == main_account_id:
         raise TreasuryTransferValidationError(

@@ -220,3 +220,36 @@ def test_migration_creates_treasury_transfer_table(
 
     finally:
         engine.dispose()
+
+
+def test_gate_client_order_id_is_safe_and_stable() -> None:
+    from app.treasury_transfer import gate_client_order_id
+
+    first = gate_client_order_id(
+        "treasury:user/request.with:characters"
+    )
+    second = gate_client_order_id(
+        "treasury:user/request.with:characters"
+    )
+
+    assert first == second
+    assert first.startswith("treasury_")
+    assert len(first) <= 64
+    assert all(
+        char.isalnum() or char in "-_"
+        for char in first
+    )
+
+
+def test_transfer_preflight_rejects_more_than_8_decimals() -> None:
+    with pytest.raises(
+        TreasuryTransferValidationError,
+        match="8 decimal places",
+    ):
+        build_subaccount_to_main_preflight(
+            source_account=source(),
+            main_account_id="zolnode",
+            currency="USDT",
+            amount=Decimal("1.123456789"),
+            spot_accounts=balances(),
+        )
