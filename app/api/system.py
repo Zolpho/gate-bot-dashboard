@@ -207,7 +207,8 @@ def health(
         "treasury_main_account": (
             settings.treasury_main_account
         ),
-        "treasury_phase": "T1_READ_ONLY",
+        "treasury_phase": "T2A_SIMULATION",
+        "treasury_transfer_simulation_enabled": True,
         "treasury_transfers_enabled": False,
         "treasury_withdrawals_enabled": False,
         "treasury_config_error": treasury_config_error,

@@ -168,7 +168,7 @@ def safe_treasury_config() -> dict:
         account = load_treasury_account()
     except TreasuryConfigError as exc:
         return {
-            "phase": "T1_READ_ONLY",
+            "phase": "T2A_SIMULATION",
             "configured": False,
             "main_account": settings.treasury_main_account,
             "account": None,
@@ -178,7 +178,7 @@ def safe_treasury_config() -> dict:
         }
 
     return {
-        "phase": "T1_READ_ONLY",
+        "phase": "T2A_SIMULATION",
         "configured": account is not None,
         "main_account": settings.treasury_main_account,
         "account": (

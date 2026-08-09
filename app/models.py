@@ -273,6 +273,152 @@ class AlertEvent(Base):
     bot: Mapped[Optional[Bot]] = relationship(back_populates="alert_events")
 
 
+TREASURY_AMOUNT = Numeric(48, 24)
+
+
+class TreasuryTransferRequest(Base):
+    __tablename__ = "treasury_transfer_requests"
+    __table_args__ = (
+        UniqueConstraint(
+            "request_id",
+            name="uq_treasury_transfer_request_id",
+        ),
+        Index(
+            "ix_treasury_transfer_source_created",
+            "source_account_id",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_transfer_status_created",
+            "status",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    source_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    destination_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    # Gate's eventual main-account API uses direction="from"
+    # for subaccount -> main. T2A does not call that endpoint.
+    direction: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="from",
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    amount: Mapped[Decimal] = mapped_column(
+        TREASURY_AMOUNT,
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="simulated",
+    )
+
+    request_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    request_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    response_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    client_order_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    gate_transfer_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    gate_status_code: Mapped[Optional[int]] = mapped_column(
+        Integer,
+    )
+
+    gate_label: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    error: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    simulation: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+    )
+
+    write_performed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+        nullable=False,
+    )
+
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+
 class BotControlRequest(Base):
     __tablename__ = "bot_control_requests"
     __table_args__ = (

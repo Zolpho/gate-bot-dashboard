@@ -117,6 +117,7 @@ def migrate_database(engine: Engine) -> None:
         BotControlAttentionReview,
         GateAccount,
         SyncRun,
+        TreasuryTransferRequest,
     )
 
     raw = engine.raw_connection()
@@ -135,6 +136,16 @@ def migrate_database(engine: Engine) -> None:
                 raw,
                 engine,
                 BotControlAttentionReview.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "treasury_transfer_requests",
+        ):
+            _create_table(
+                raw,
+                engine,
+                TreasuryTransferRequest.__table__,
             )
 
         now = datetime.now(timezone.utc).isoformat()

@@ -222,7 +222,7 @@ def test_treasury_status_is_safe_when_unconfigured() -> None:
 
         payload = response.json()
 
-        assert payload["phase"] == "T1_READ_ONLY"
+        assert payload["phase"] == "T2A_SIMULATION"
         assert payload["configured"] is False
         assert payload["main_account"] == "zolnode"
         assert payload["transfers_enabled"] is False
@@ -230,31 +230,42 @@ def test_treasury_status_is_safe_when_unconfigured() -> None:
         assert payload["config_error"] == ""
 
 
-def test_treasury_t1_exposes_no_write_routes() -> None:
-    forbidden = {
-        "POST",
-        "PUT",
-        "PATCH",
-        "DELETE",
-    }
+def test_treasury_t2a_only_allows_local_simulation_post() -> None:
+    write_routes = []
 
-    treasury_routes = [
-        route
-        for route in app.routes
-        if getattr(route, "path", "").startswith(
+    for route in app.routes:
+        path = getattr(route, "path", "")
+
+        if not path.startswith(
             "/api/treasury"
-        )
-    ]
+        ):
+            continue
 
-    assert treasury_routes
-
-    for route in treasury_routes:
         methods = set(
             getattr(route, "methods", set())
             or set()
         )
 
-        assert not methods.intersection(forbidden), (
-            route.path,
-            methods,
+        mutation_methods = methods.intersection(
+            {
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+            }
         )
+
+        if mutation_methods:
+            write_routes.append(
+                (
+                    path,
+                    mutation_methods,
+                )
+            )
+
+    assert write_routes == [
+        (
+            "/api/treasury/transfers/simulate",
+            {"POST"},
+        )
+    ]
