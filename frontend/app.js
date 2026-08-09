@@ -56,6 +56,9 @@ const state = {
   botControlAttention: [],
   botControlAttentionSummary: null,
   botControlRequestDetail: null,
+  treasuryTransfers: [],
+  treasuryLocks: [],
+  treasuryRequestDetail: null,
   botStopPrepared: null,
   botStopRequestId: '',
 };
@@ -3563,6 +3566,1017 @@ async function submitSpotGridCreate() {
   updateSpotGridConfirmButton();
 }
 
+
+function treasuryErrorMessage(error) {
+  const detail = error?.payload?.detail;
+
+  if (
+    detail
+    && typeof detail === 'object'
+    && detail.message
+  ) {
+    let message = String(detail.message);
+
+    const retry = Number(
+      detail.retry_after_seconds || 0
+    );
+
+    if (
+      error?.status === 429
+      && retry > 0
+    ) {
+      const retryText = (
+        retry < 60
+          ? `${Math.ceil(retry)}s`
+          : retry < 3600
+            ? `${Math.ceil(retry / 60)}m`
+            : `${Math.ceil(retry / 3600)}h`
+      );
+
+      message += `. Try again in ${retryText}.`;
+    }
+
+    return message;
+  }
+
+  if (typeof detail === 'string' && detail) {
+    return detail;
+  }
+
+  return (
+    error?.message
+    || 'Treasury request failed.'
+  );
+}
+
+
+function treasuryStatusClass(value) {
+  const status = String(
+    value || 'unknown'
+  ).toLowerCase();
+
+  if (status === 'success') {
+    return 'success';
+  }
+
+  if (
+    status === 'failed'
+    || status === 'rejected'
+    || status === 'blocked'
+  ) {
+    return status;
+  }
+
+  if (
+    status === 'pending'
+    || status === 'uncertain'
+    || status === 'attention'
+    || status === 'submitting'
+    || status === 'validating'
+  ) {
+    return status;
+  }
+
+  return '';
+}
+
+
+function treasuryAmount(value, currency = '') {
+  if (
+    value === null
+    || value === undefined
+    || value === ''
+  ) {
+    return '—';
+  }
+
+  let rendered = String(value);
+
+  if (rendered.includes('.')) {
+    rendered = rendered
+      .replace(/0+$/, '')
+      .replace(/\.$/, '');
+  }
+
+  return (
+    `${rendered}${currency ? ` ${currency}` : ''}`
+  );
+}
+
+
+function shortTreasuryRequestId(value) {
+  const id = String(value || '');
+
+  if (id.length <= 22) {
+    return id || '—';
+  }
+
+  return `${id.slice(0, 12)}…${id.slice(-7)}`;
+}
+
+
+function shortTreasuryGateId(value) {
+  const id = String(value || '');
+
+  if (!id) return '—';
+
+  if (id.length <= 18) {
+    return id;
+  }
+
+  return `${id.slice(0, 9)}…${id.slice(-6)}`;
+}
+
+
+function renderTreasurySafety() {
+  const health = state.health || {};
+
+  const configured = Boolean(
+    health.treasury_configured
+  );
+
+  const transfersEnabled = Boolean(
+    health.treasury_transfers_enabled
+  );
+
+  const withdrawalsEnabled = Boolean(
+    health.treasury_withdrawals_enabled
+  );
+
+  const phase = String(
+    health.treasury_phase || '—'
+  );
+
+  const badge = $('#treasurySafetyBadge');
+
+  if (badge) {
+    badge.textContent = transfersEnabled
+      ? 'LIVE TRANSFERS ENABLED'
+      : 'LIVE TRANSFERS DISABLED';
+
+    badge.classList.toggle(
+      'safe',
+      !transfersEnabled
+    );
+
+    badge.classList.toggle(
+      'danger',
+      transfersEnabled
+    );
+  }
+
+  if ($('#treasuryConfigured')) {
+    $('#treasuryConfigured').textContent = (
+      configured ? 'Configured' : 'Unavailable'
+    );
+  }
+
+  if ($('#treasuryPhase')) {
+    $('#treasuryPhase').textContent = phase;
+  }
+
+  if ($('#treasuryTransferState')) {
+    $('#treasuryTransferState').textContent = (
+      transfersEnabled ? 'ENABLED' : 'DISABLED'
+    );
+  }
+
+  if ($('#treasuryWithdrawalState')) {
+    $('#treasuryWithdrawalState').textContent = (
+      withdrawalsEnabled ? 'ENABLED' : 'DISABLED'
+    );
+  }
+
+  if ($('#treasuryLockCount')) {
+    $('#treasuryLockCount').textContent = String(
+      state.treasuryLocks?.length || 0
+    );
+  }
+}
+
+
+function renderTreasuryLocks() {
+  const container = $('#treasuryLockList');
+
+  if (!container) return;
+
+  const rows = state.treasuryLocks || [];
+
+  if (!rows.length) {
+    container.innerHTML = (
+      '<div class="treasury-empty">'
+      + 'No active Treasury locks.'
+      + '</div>'
+    );
+
+    renderTreasurySafety();
+    return;
+  }
+
+  container.innerHTML = rows.map(lock => {
+    const requestId = String(
+      lock.owner_request_id || ''
+    );
+
+    return (
+      '<article class="treasury-lock-card">'
+      + '<div class="treasury-lock-field">'
+      + '<span>Source</span>'
+      + `<strong>${escapeHtml(
+          lock.source_account_id || '—'
+        )}</strong>`
+      + '</div>'
+      + '<div class="treasury-lock-field">'
+      + '<span>Currency</span>'
+      + `<strong>${escapeHtml(
+          lock.currency || '—'
+        )}</strong>`
+      + '</div>'
+      + '<div class="treasury-lock-field">'
+      + '<span>Request</span>'
+      + `<strong title="${escapeHtml(requestId)}">`
+      + `${escapeHtml(
+          shortTreasuryRequestId(requestId)
+        )}</strong>`
+      + '</div>'
+      + (
+        requestId
+          ? (
+              `<button type="button" `
+              + `class="button secondary" `
+              + `data-treasury-request="${
+                  escapeHtml(requestId)
+                }">`
+              + 'Review'
+              + '</button>'
+            )
+          : ''
+      )
+      + '</article>'
+    );
+  }).join('');
+
+  renderTreasurySafety();
+}
+
+
+function renderTreasuryTransfers() {
+  const body = $('#treasuryActivityBody');
+
+  if (!body) return;
+
+  const rows = state.treasuryTransfers || [];
+
+  if (!rows.length) {
+    body.innerHTML = (
+      '<tr>'
+      + '<td colspan="8" class="empty-state">'
+      + 'No Treasury transfer activity recorded.'
+      + '</td>'
+      + '</tr>'
+    );
+
+    if ($('#treasuryActivityCount')) {
+      $('#treasuryActivityCount').textContent = (
+        '0 records'
+      );
+    }
+
+    return;
+  }
+
+  body.innerHTML = rows.map(item => {
+    const requestId = String(
+      item.request_id || ''
+    );
+
+    const mode = item.simulation
+      ? 'simulation'
+      : 'live';
+
+    const status = String(
+      item.status || 'unknown'
+    ).toLowerCase();
+
+    const gateId = String(
+      item.gate_transfer_id || ''
+    );
+
+    return (
+      '<tr>'
+      + `<td>${escapeHtml(
+          fmtDate(item.created_at)
+        )}</td>`
+      + `<td><strong>${escapeHtml(
+          item.source_account_id || '—'
+        )}</strong></td>`
+      + `<td>${escapeHtml(
+          item.destination_account_id || '—'
+        )}</td>`
+      + `<td>${escapeHtml(
+          treasuryAmount(
+            item.amount,
+            item.currency
+          )
+        )}</td>`
+      + '<td>'
+      + `<span class="treasury-mode ${
+          escapeHtml(mode)
+        }">${escapeHtml(mode)}</span>`
+      + '</td>'
+      + '<td>'
+      + `<span class="treasury-status ${
+          escapeHtml(
+            treasuryStatusClass(status)
+          )
+        }">${escapeHtml(status)}</span>`
+      + '</td>'
+      + `<td title="${escapeHtml(gateId)}">`
+      + `${escapeHtml(
+          shortTreasuryGateId(gateId)
+        )}</td>`
+      + '<td>'
+      + `<button type="button" `
+      + `class="treasury-request-button" `
+      + `data-treasury-request="${
+          escapeHtml(requestId)
+        }" `
+      + `title="${escapeHtml(requestId)}">`
+      + `${escapeHtml(
+          shortTreasuryRequestId(requestId)
+        )}`
+      + '</button>'
+      + '</td>'
+      + '</tr>'
+    );
+  }).join('');
+
+  if ($('#treasuryActivityCount')) {
+    $('#treasuryActivityCount').textContent = (
+      `${rows.length} recent record${
+        rows.length === 1 ? '' : 's'
+      }`
+    );
+  }
+}
+
+
+function renderTreasuryReconciliations(rows) {
+  const element = $(
+    '#treasuryReconciliationHistory'
+  );
+
+  if (!element) return;
+
+  if (!rows?.length) {
+    element.innerHTML = (
+      '<div class="treasury-empty">'
+      + 'No reconciliation has been recorded.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  element.innerHTML = rows.map(row => (
+    '<article class="treasury-history-card">'
+    + '<div class="treasury-history-head">'
+    + `<strong>${escapeHtml(
+        reconciliationLabel(row.outcome)
+      )}</strong>`
+    + `<span class="treasury-status ${
+        escapeHtml(
+          treasuryStatusClass(row.outcome)
+        )
+      }">${escapeHtml(
+        row.confidence || 'inconclusive'
+      )}</span>`
+    + '</div>'
+    + `<p>${escapeHtml(
+        row.summary || '—'
+      )}</p>`
+    + '<div class="treasury-history-meta">'
+    + `Gate status: ${escapeHtml(
+        row.gate_status || '—'
+      )}`
+    + ' · '
+    + `TX: ${escapeHtml(
+        row.tx_id || '—'
+      )}`
+    + ' · '
+    + `${escapeHtml(
+        fmtDate(row.created_at)
+      )}`
+    + '</div>'
+    + '</article>'
+  )).join('');
+}
+
+
+function renderTreasuryLockResolutions(rows) {
+  const element = $(
+    '#treasuryLockResolutionHistory'
+  );
+
+  if (!element) return;
+
+  if (!rows?.length) {
+    element.innerHTML = (
+      '<div class="treasury-empty">'
+      + 'No manual lock-resolution decisions.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  element.innerHTML = rows.map(row => (
+    '<article class="treasury-history-card">'
+    + '<div class="treasury-history-head">'
+    + `<strong>${escapeHtml(
+        reconciliationLabel(row.decision)
+      )}</strong>`
+    + `<span>${escapeHtml(
+        row.username || '—'
+      )}</span>`
+    + '</div>'
+    + `<p>${escapeHtml(
+        row.reason || '—'
+      )}</p>`
+    + '<div class="treasury-history-meta">'
+    + `Prior request: ${escapeHtml(
+        row.prior_request_status || '—'
+      )}`
+    + ' · '
+    + `Prior lock: ${escapeHtml(
+        row.prior_lock_state || '—'
+      )}`
+    + ' · '
+    + `Reconciliation: ${escapeHtml(
+        reconciliationLabel(
+          row.reconciliation_outcome
+        )
+      )}`
+    + ' · '
+    + `${escapeHtml(
+        fmtDate(row.created_at)
+      )}`
+    + '</div>'
+    + '</article>'
+  )).join('');
+}
+
+
+function treasuryManualReleaseEligible(payload) {
+  const item = payload?.item || {};
+  const lock = payload?.operation_lock || null;
+  const reconciliations = (
+    payload?.reconciliations || []
+  );
+
+  const hasInconclusive = (
+    reconciliations.length > 0
+    && reconciliations.some(
+      row => String(
+        row.confidence || ''
+      ).toLowerCase() === 'inconclusive'
+    )
+  );
+
+  return Boolean(
+    state.adminUser?.role === 'super_admin'
+    && String(item.status || '').toLowerCase()
+      === 'uncertain'
+    && lock
+    && String(lock.state || '').toLowerCase()
+      === 'held'
+    && hasInconclusive
+    && !state.health?.treasury_transfers_enabled
+  );
+}
+
+
+function updateTreasuryReleaseButton() {
+  const detail = state.treasuryRequestDetail;
+  const item = detail?.item || {};
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  const required = (
+    `RELEASE TREASURY LOCK ${requestId}`
+  );
+
+  const confirmation = String(
+    $('#treasuryReleaseConfirmation')?.value
+    || ''
+  );
+
+  const reason = String(
+    $('#treasuryReleaseReason')?.value
+    || ''
+  ).trim();
+
+  const button = $('#releaseTreasuryLock');
+
+  if (!button) return;
+
+  button.disabled = !(
+    treasuryManualReleaseEligible(detail)
+    && confirmation === required
+    && reason.length >= 20
+  );
+}
+
+
+function renderTreasuryRequestDetail(payload) {
+  state.treasuryRequestDetail = payload;
+
+  const item = payload?.item || {};
+  const lock = payload?.operation_lock || null;
+
+  const status = String(
+    item.status || 'unknown'
+  ).toLowerCase();
+
+  const mode = item.simulation
+    ? 'Simulation'
+    : 'Live';
+
+  const lockText = lock
+    ? `${lock.state || 'held'} · ${
+        lock.source_account_id || '—'
+      } ${lock.currency || ''}`
+    : 'No active lock';
+
+  $('#treasuryRequestSummary').innerHTML = `
+    <article class="treasury-request-card">
+      <div class="treasury-request-heading">
+        <div>
+          <h3>
+            ${escapeHtml(
+              treasuryAmount(
+                item.amount,
+                item.currency
+              )
+            )}
+          </h3>
+          <small>
+            ${escapeHtml(mode)} transfer
+          </small>
+        </div>
+
+        <span
+          class="treasury-status ${
+            escapeHtml(
+              treasuryStatusClass(status)
+            )
+          }"
+        >
+          ${escapeHtml(status)}
+        </span>
+      </div>
+
+      <div class="treasury-request-id">
+        <span>Request ID</span>
+        <strong>
+          ${escapeHtml(
+            item.request_id || '—'
+          )}
+        </strong>
+      </div>
+
+      <div class="treasury-request-grid">
+        <div>
+          <span>Source</span>
+          <strong>
+            ${escapeHtml(
+              item.source_account_id || '—'
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>Destination</span>
+          <strong>
+            ${escapeHtml(
+              item.destination_account_id || '—'
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>User</span>
+          <strong>
+            ${escapeHtml(
+              item.username || '—'
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>Gate transfer ID</span>
+          <strong>
+            ${escapeHtml(
+              item.gate_transfer_id || '—'
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>Client order ID</span>
+          <strong>
+            ${escapeHtml(
+              item.client_order_id || '—'
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>Operation lock</span>
+          <strong>
+            ${escapeHtml(lockText)}
+          </strong>
+        </div>
+      </div>
+
+      <div class="treasury-request-times">
+        <div>
+          <span>Created</span>
+          <strong>
+            ${escapeHtml(
+              fmtDate(item.created_at)
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>Updated</span>
+          <strong>
+            ${escapeHtml(
+              fmtDate(item.updated_at)
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>Completed</span>
+          <strong>
+            ${
+              item.completed_at
+                ? escapeHtml(
+                    fmtDate(item.completed_at)
+                  )
+                : '—'
+            }
+          </strong>
+        </div>
+      </div>
+    </article>
+  `;
+
+  const errorBox = $('#treasuryRequestError');
+
+  if (item.error) {
+    errorBox.textContent = item.error;
+    errorBox.classList.remove('hidden');
+  } else {
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+
+  renderTreasuryReconciliations(
+    payload?.reconciliations || []
+  );
+
+  renderTreasuryLockResolutions(
+    payload?.lock_resolutions || []
+  );
+
+  $('#treasuryRequestJson').textContent = (
+    JSON.stringify(
+      item.request || {},
+      null,
+      2,
+    )
+  );
+
+  $('#treasuryResponseJson').textContent = (
+    JSON.stringify(
+      item.response || {},
+      null,
+      2,
+    )
+  );
+
+  const terminal = [
+    'success',
+    'failed',
+    'rejected',
+    'blocked',
+  ].includes(status);
+
+  const reconcileButton = $(
+    '#reconcileTreasuryRequest'
+  );
+
+  reconcileButton?.classList.toggle(
+    'hidden',
+    Boolean(item.simulation || terminal)
+  );
+
+  const releaseSection = $(
+    '#treasuryManualReleaseSection'
+  );
+
+  const releaseEligible = (
+    treasuryManualReleaseEligible(payload)
+  );
+
+  releaseSection?.classList.toggle(
+    'hidden',
+    !releaseEligible
+  );
+
+  const required = (
+    `RELEASE TREASURY LOCK ${
+      item.request_id || ''
+    }`
+  );
+
+  if ($('#treasuryReleaseRequired')) {
+    $('#treasuryReleaseRequired').textContent = (
+      required
+    );
+  }
+
+  if ($('#treasuryReleaseReason')) {
+    $('#treasuryReleaseReason').value = '';
+  }
+
+  if ($('#treasuryReleaseConfirmation')) {
+    $('#treasuryReleaseConfirmation').value = '';
+  }
+
+  updateTreasuryReleaseButton();
+}
+
+
+async function loadTreasuryOverview(
+  {
+    quiet = false,
+  } = {},
+) {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    state.treasuryTransfers = [];
+    state.treasuryLocks = [];
+
+    renderTreasuryTransfers();
+    renderTreasuryLocks();
+    return;
+  }
+
+  const button = $('#refreshTreasury');
+  const errorBox = $('#treasuryError');
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Loading…';
+  }
+
+  errorBox?.classList.add('hidden');
+
+  try {
+    const [
+      health,
+      requests,
+      locks,
+    ] = await Promise.all([
+      api('/api/health'),
+      adminApi(
+        '/api/treasury/transfers/requests?limit=50'
+      ),
+      adminApi(
+        '/api/treasury/transfers/locks'
+      ),
+    ]);
+
+    state.health = health;
+
+    state.treasuryTransfers = (
+      requests.items || []
+    );
+
+    state.treasuryLocks = (
+      locks.items || []
+    );
+
+    renderTreasurySafety();
+    renderTreasuryLocks();
+    renderTreasuryTransfers();
+
+  } catch (error) {
+    const message = treasuryErrorMessage(error);
+
+    if (errorBox) {
+      errorBox.textContent = message;
+      errorBox.classList.remove('hidden');
+    }
+
+    if (!quiet) {
+      showToast(message, true);
+    }
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Refresh Treasury';
+    }
+  }
+}
+
+
+async function openTreasuryRequestDetail(
+  requestId,
+) {
+  if (!requestId) return;
+
+  try {
+    const payload = await adminApi(
+      `/api/treasury/transfers/requests/${
+        encodeURIComponent(requestId)
+      }`
+    );
+
+    renderTreasuryRequestDetail(payload);
+
+    const dialog = $('#treasuryRequestDialog');
+
+    dialog.scrollTop = 0;
+
+    const content = dialog.querySelector(
+      '.treasury-request-content'
+    );
+
+    if (content) {
+      content.scrollTop = 0;
+    }
+
+    if (!dialog.open) {
+      dialog.showModal();
+    }
+
+    dialog.scrollTop = 0;
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+  }
+}
+
+
+async function reconcileCurrentTreasuryRequest() {
+  const payload = state.treasuryRequestDetail;
+  const item = payload?.item || {};
+
+  if (!item.request_id) return;
+
+  const button = $('#reconcileTreasuryRequest');
+
+  button.disabled = true;
+  button.textContent = 'Reconciling…';
+
+  try {
+    const requestId = item.request_id;
+
+    const result = await adminApi(
+      `/api/treasury/transfers/${
+        encodeURIComponent(requestId)
+      }/reconcile`,
+      {
+        method: 'POST',
+      },
+    );
+
+    showToast(
+      `Treasury reconciliation: ${
+        reconciliationLabel(
+          result.reconciliation?.outcome
+          || result.status
+        )
+      }.`
+    );
+
+    const refreshed = await adminApi(
+      `/api/treasury/transfers/requests/${
+        encodeURIComponent(requestId)
+      }`
+    );
+
+    renderTreasuryRequestDetail(refreshed);
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Reconcile with Gate';
+  }
+}
+
+
+async function releaseCurrentTreasuryLock() {
+  const payload = state.treasuryRequestDetail;
+  const item = payload?.item || {};
+
+  if (!item.request_id) return;
+
+  const requestId = String(item.request_id);
+
+  const required = (
+    `RELEASE TREASURY LOCK ${requestId}`
+  );
+
+  const confirmation = String(
+    $('#treasuryReleaseConfirmation')?.value
+    || ''
+  );
+
+  const reason = String(
+    $('#treasuryReleaseReason')?.value
+    || ''
+  ).trim();
+
+  if (
+    confirmation !== required
+    || reason.length < 20
+  ) {
+    return;
+  }
+
+  const button = $('#releaseTreasuryLock');
+
+  button.disabled = true;
+  button.textContent = 'Releasing…';
+
+  try {
+    await adminApi(
+      `/api/treasury/transfers/${
+        encodeURIComponent(requestId)
+      }/lock/release`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          confirmation,
+          reason,
+        }),
+      },
+    );
+
+    showToast(
+      'Treasury lock released; audit record created.'
+    );
+
+    const refreshed = await adminApi(
+      `/api/treasury/transfers/requests/${
+        encodeURIComponent(requestId)
+      }`
+    );
+
+    renderTreasuryRequestDetail(refreshed);
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+
+  } finally {
+    button.textContent = (
+      'Release unresolved lock'
+    );
+
+    updateTreasuryReleaseButton();
+  }
+}
+
+
 function switchTab(tab, { updateHash = true } = {}) {
   const titles = {
     overview: ['Overview', 'Native Gate.io bot performance and portfolio history'],
@@ -3611,6 +4625,7 @@ function switchTab(tab, { updateHash = true } = {}) {
     void Promise.all([
       loadPrivateBalance({ quiet: true }),
       loadDepositHistory({ quiet: true }),
+      loadTreasuryOverview({ quiet: true }),
     ]);
   }
 }
@@ -6027,6 +7042,78 @@ function bindEvents() {
       }
     },
   );
+  $('#refreshTreasury')?.addEventListener(
+    'click',
+    () => loadTreasuryOverview(),
+  );
+
+  $('#treasuryActivityBody')?.addEventListener(
+    'click',
+    event => {
+      const button = event.target.closest(
+        '[data-treasury-request]'
+      );
+
+      if (!button) return;
+
+      openTreasuryRequestDetail(
+        button.dataset.treasuryRequest
+      );
+    },
+  );
+
+  $('#treasuryLockList')?.addEventListener(
+    'click',
+    event => {
+      const button = event.target.closest(
+        '[data-treasury-request]'
+      );
+
+      if (!button) return;
+
+      openTreasuryRequestDetail(
+        button.dataset.treasuryRequest
+      );
+    },
+  );
+
+  $('#reconcileTreasuryRequest')?.addEventListener(
+    'click',
+    reconcileCurrentTreasuryRequest,
+  );
+
+  $('#treasuryReleaseReason')?.addEventListener(
+    'input',
+    updateTreasuryReleaseButton,
+  );
+
+  $('#treasuryReleaseConfirmation')?.addEventListener(
+    'input',
+    updateTreasuryReleaseButton,
+  );
+
+  $('#releaseTreasuryLock')?.addEventListener(
+    'click',
+    releaseCurrentTreasuryLock,
+  );
+
+  $('#closeTreasuryRequestDialog')?.addEventListener(
+    'click',
+    () => $('#treasuryRequestDialog').close(),
+  );
+
+  $('#treasuryRequestDialog')?.addEventListener(
+    'click',
+    event => {
+      if (
+        event.target
+        === $('#treasuryRequestDialog')
+      ) {
+        $('#treasuryRequestDialog').close();
+      }
+    },
+  );
+
   $('#refreshPrivateBalance').addEventListener('click', () => loadPrivateBalance({ force: true }));
   $('#depositButton').addEventListener('click', openDepositDialog);
   $('#refreshDepositHistory').addEventListener('click', () => loadDepositHistory());

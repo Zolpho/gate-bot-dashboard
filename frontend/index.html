@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css">
   <link rel="stylesheet" href="./wallet-tab.css">
+  <link rel="stylesheet" href="./treasury.css">
   <link rel="stylesheet" href="./bot-control.css">
 </head>
 <body>
@@ -208,7 +209,145 @@
             </section>
           </div>
         </article>
+
+        <article
+          class="panel treasury-panel"
+          id="treasuryPanel"
+        >
+          <div class="panel-header treasury-header">
+            <div>
+              <div class="treasury-title-row">
+                <h2>Treasury operations</h2>
+                <span
+                  id="treasurySafetyBadge"
+                  class="treasury-state-badge"
+                >Checking…</span>
+              </div>
+
+              <p>
+                Account-scoped transfer audit, Gate
+                reconciliation and unresolved operation locks.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="button secondary"
+              id="refreshTreasury"
+            >
+              Refresh Treasury
+            </button>
+          </div>
+
+          <div
+            id="treasuryError"
+            class="treasury-message error hidden"
+            role="alert"
+          ></div>
+
+          <div class="treasury-safety-grid">
+            <section class="treasury-safety-card">
+              <span>Treasury configuration</span>
+              <strong id="treasuryConfigured">—</strong>
+              <small id="treasuryPhase">—</small>
+            </section>
+
+            <section class="treasury-safety-card">
+              <span>Live transfer path</span>
+              <strong id="treasuryTransferState">—</strong>
+              <small>
+                Arming remains outside the dashboard
+              </small>
+            </section>
+
+            <section class="treasury-safety-card">
+              <span>Withdrawals</span>
+              <strong id="treasuryWithdrawalState">—</strong>
+              <small>
+                No withdrawal controls are exposed
+              </small>
+            </section>
+
+            <section class="treasury-safety-card">
+              <span>Active operation locks</span>
+              <strong id="treasuryLockCount">0</strong>
+              <small>
+                Source + currency collision protection
+              </small>
+            </section>
+          </div>
+
+          <section class="treasury-lock-section">
+            <div class="treasury-section-header">
+              <div>
+                <h3>Active Treasury locks</h3>
+                <p>
+                  Unresolved transfers remain locked until
+                  Gate reaches a definitive outcome or a
+                  reviewed manual resolution is recorded.
+                </p>
+              </div>
+            </div>
+
+            <div
+              id="treasuryLockList"
+              class="treasury-lock-list"
+            >
+              <div class="treasury-empty">
+                No active Treasury locks.
+              </div>
+            </div>
+          </section>
+
+          <section class="treasury-activity-section">
+            <div class="treasury-section-header">
+              <div>
+                <h3>Transfer activity</h3>
+                <p>
+                  Persistent local audit history. Live and
+                  simulation records are clearly separated.
+                </p>
+              </div>
+
+              <span
+                id="treasuryActivityCount"
+                class="treasury-count"
+              >0 records</span>
+            </div>
+
+            <div class="table-scroll">
+              <table class="treasury-activity-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Source</th>
+                    <th>Destination</th>
+                    <th>Amount</th>
+                    <th>Mode</th>
+                    <th>Status</th>
+                    <th>Gate TX</th>
+                    <th>Request</th>
+                  </tr>
+                </thead>
+
+                <tbody id="treasuryActivityBody">
+                  <tr>
+                    <td colspan="8" class="empty-state">
+                      No Treasury activity loaded.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div class="treasury-footnote">
+            This dashboard does not arm Treasury, enable Gate
+            write permissions, or expose withdrawal submission.
+          </div>
+        </article>
       </section>
+
       <section class="tab-panel" id="tab-bots">
         <article class="panel toolbar-panel">
           <div class="filters">
@@ -1135,5 +1274,145 @@
     Market and performance data may be delayed. For informational purposes only.
   </div>
 </footer>  
+  <dialog
+    id="treasuryRequestDialog"
+    class="treasury-request-dialog"
+  >
+    <div class="dialog-header">
+      <div>
+        <h2>Treasury Transfer Request</h2>
+        <p>
+          Persistent financial-operation audit record
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeTreasuryRequestDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <div class="treasury-request-content">
+      <div id="treasuryRequestSummary"></div>
+
+      <div
+        id="treasuryRequestError"
+        class="treasury-message error hidden"
+        role="alert"
+      ></div>
+
+      <section>
+        <div class="treasury-section-header">
+          <div>
+            <h3>Gate reconciliation</h3>
+            <p>
+              Read-only status checks for the original
+              transfer. Reconciliation never resubmits it.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            class="button secondary hidden"
+            id="reconcileTreasuryRequest"
+          >
+            Reconcile with Gate
+          </button>
+        </div>
+
+        <div
+          id="treasuryReconciliationHistory"
+          class="treasury-history-list"
+        ></div>
+      </section>
+
+      <section>
+        <div class="treasury-section-header">
+          <div>
+            <h3>Lock-resolution audit</h3>
+            <p>
+              Manual lock decisions remain separate from
+              the original financial outcome.
+            </p>
+          </div>
+        </div>
+
+        <div
+          id="treasuryLockResolutionHistory"
+          class="treasury-history-list"
+        ></div>
+      </section>
+
+      <section
+        id="treasuryManualReleaseSection"
+        class="treasury-manual-release hidden"
+      >
+        <h3>Manual unresolved-lock release</h3>
+
+        <p>
+          Super-admin only. The request remains
+          <strong>uncertain</strong>; releasing the lock does
+          not classify the transfer as failed or successful.
+        </p>
+
+        <div class="treasury-release-warning">
+          Only continue after independently reviewing the
+          Gate evidence. Treasury must be disarmed and the
+          latest Gate reconciliation must remain
+          inconclusive.
+        </div>
+
+        <label>
+          Operator reason
+          <textarea
+            id="treasuryReleaseReason"
+            rows="4"
+            maxlength="1000"
+            placeholder="Document the independent evidence and why releasing this lock is safe."
+          ></textarea>
+        </label>
+
+        <label>
+          Type the exact confirmation
+          <code id="treasuryReleaseRequired"></code>
+
+          <input
+            id="treasuryReleaseConfirmation"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+          >
+        </label>
+
+        <button
+          type="button"
+          class="button treasury-release-button"
+          id="releaseTreasuryLock"
+          disabled
+        >
+          Release unresolved lock
+        </button>
+      </section>
+
+      <details class="treasury-json-details">
+        <summary>Request payload</summary>
+        <pre
+          id="treasuryRequestJson"
+          class="treasury-json"
+        ></pre>
+      </details>
+
+      <details class="treasury-json-details">
+        <summary>Gate / audit response</summary>
+        <pre
+          id="treasuryResponseJson"
+          class="treasury-json"
+        ></pre>
+      </details>
+    </div>
+  </dialog>
+
 </body>
 </html>
