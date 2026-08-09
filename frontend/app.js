@@ -3810,6 +3810,17 @@ function renderTreasurySafety() {
 }
 
 
+function shortTreasuryId(value) {
+  const text = String(value || '');
+
+  if (text.length <= 22) {
+    return text;
+  }
+
+  return `${text.slice(0, 12)}…${text.slice(-7)}`;
+}
+
+
 function treasuryOwnershipEntryType(value) {
   const type = String(value || '')
     .trim()
