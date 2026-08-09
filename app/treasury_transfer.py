@@ -62,6 +62,24 @@ def as_decimal(value: Any) -> Decimal | None:
     return result
 
 
+def live_transfer_confirmation_text(
+    *,
+    base_text: str,
+    source_account_id: str,
+    destination_account_id: str,
+    currency: str,
+    amount: Decimal,
+) -> str:
+    return (
+        f"{base_text.strip()} "
+        f"{source_account_id.strip().lower()} "
+        f"{decimal_text(amount)} "
+        f"{currency.strip().upper()} "
+        f"TO "
+        f"{destination_account_id.strip().lower()}"
+    )
+
+
 def build_gate_subaccount_transfer_payload(
     *,
     source_account: GateAccountConfig,
@@ -158,6 +176,7 @@ def build_subaccount_to_main_preflight(
 
     return {
         "can_simulate": not errors,
+        "can_transfer": not errors,
         "source_account_id": source_account.id,
         "destination_account_id": main_account_id,
         "direction": "from",

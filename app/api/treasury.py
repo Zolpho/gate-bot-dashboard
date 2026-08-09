@@ -22,14 +22,33 @@ from ..treasury import (
 )
 from ..treasury_transfer import (
     TreasuryTransferValidationError,
+    as_decimal,
+    build_gate_subaccount_transfer_payload,
     build_subaccount_to_main_preflight,
     gate_client_order_id,
+    live_transfer_confirmation_text,
 )
 from ..treasury_transfer_audit import (
     TreasuryTransferIdempotencyConflict,
+    find_matching_transfer_request,
     get_transfer_request,
+    list_transfer_reconciliations,
     list_transfer_requests,
+    mark_transfer_request,
     record_simulation,
+    record_transfer_reconciliation,
+    reserve_live_transfer,
+)
+from ..treasury_transfer_live_policy import (
+    evaluate_live_transfer_policy,
+)
+from ..treasury_transfer_locks import (
+    TreasuryTransferLocked,
+    acquire_transfer_lock,
+    release_transfer_lock,
+)
+from ..treasury_transfer_reconcile import (
+    interpret_transfer_order_status,
 )
 
 
@@ -107,6 +126,183 @@ class TreasuryTransferSimulationRequest(BaseModel):
     amount: Decimal = Field(gt=0)
 
 
+class TreasuryTransferExecutionRequest(
+    TreasuryTransferSimulationRequest
+):
+    confirmation: str = Field(
+        min_length=1,
+        max_length=255,
+    )
+
+
+def _existing_live_transfer_result(
+    record: dict,
+) -> dict:
+    status = str(
+        record.get("status") or ""
+    )
+
+    if status in {
+        "success",
+        "failed",
+        "blocked",
+        "rejected",
+    }:
+        return {
+            "phase": "T2B_TRANSFER_CONTROL",
+            "status": status,
+            "simulation": False,
+            "gate_write_performed": bool(
+                record.get("write_performed")
+            ),
+            "idempotent_replay": True,
+            "request_id": record["request_id"],
+            "audit": record,
+            "message": (
+                "Existing Treasury request returned. "
+                "No second Gate transfer was sent."
+            ),
+        }
+
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "message": (
+                "This Treasury request_id already exists "
+                "and is not in a safely retryable state. "
+                "No second Gate transfer was sent. "
+                "Reconcile the existing request."
+            ),
+            "request_id": record["request_id"],
+            "status": status,
+            "write_performed": bool(
+                record.get("write_performed")
+            ),
+        },
+    )
+
+
+async def _reconcile_live_transfer(
+    *,
+    record: dict,
+    treasury_account,
+) -> dict:
+    request_id = record["request_id"]
+
+    try:
+        async with GateClient(
+            settings,
+            treasury_account,
+        ) as client:
+            response = (
+                await client.get_transfer_order_status(
+                    client_order_id=(
+                        record["client_order_id"]
+                    ),
+                )
+            )
+
+    except GateAPIError as exc:
+        reconciliation = (
+            record_transfer_reconciliation(
+                request_id=request_id,
+                source_account_id=(
+                    record["source_account_id"]
+                ),
+                username=record["username"],
+                outcome="inconclusive",
+                confidence="inconclusive",
+                summary=(
+                    "Gate transfer status query failed. "
+                    "Treasury lock remains held."
+                ),
+                details={
+                    "error": str(exc),
+                    "label": exc.label,
+                    "status_code": exc.status_code,
+                },
+            )
+        )
+
+        updated = mark_transfer_request(
+            request_id,
+            status="uncertain",
+            error=str(exc),
+            write_performed=bool(
+                record.get("write_performed")
+            ),
+            completed=False,
+        )
+
+        return {
+            "status": "uncertain",
+            "lock_released": False,
+            "audit": updated,
+            "reconciliation": reconciliation,
+        }
+
+    decision = interpret_transfer_order_status(
+        response.data
+    )
+
+    tx_id = (
+        decision.tx_id
+        or str(
+            record.get("gate_transfer_id")
+            or ""
+        )
+    )
+
+    reconciliation = (
+        record_transfer_reconciliation(
+            request_id=request_id,
+            source_account_id=(
+                record["source_account_id"]
+            ),
+            username=record["username"],
+            outcome=decision.outcome,
+            confidence=decision.confidence,
+            gate_status=decision.gate_status,
+            tx_id=tx_id,
+            summary=decision.summary,
+            details=response.raw,
+        )
+    )
+
+    updated = mark_transfer_request(
+        request_id,
+        status=decision.request_status,
+        response=response.raw,
+        gate_transfer_id=tx_id,
+        write_performed=(
+            True
+            if decision.gate_status
+            else bool(
+                record.get("write_performed")
+            )
+        ),
+        completed=decision.terminal,
+    )
+
+    released = False
+
+    if decision.release_lock:
+        released = release_transfer_lock(
+            source_account_id=(
+                record["source_account_id"]
+            ),
+            currency=record["currency"],
+            owner_request_id=request_id,
+        )
+
+    return {
+        "status": decision.request_status,
+        "lock_released": released,
+        "audit": updated,
+        "reconciliation": reconciliation,
+    }
+
+
 @router.post("/transfers/simulate")
 async def simulate_treasury_transfer(
     request: TreasuryTransferSimulationRequest,
@@ -179,7 +375,7 @@ async def simulate_treasury_transfer(
         ) from exc
 
     base_response = {
-        "phase": "T2A_SIMULATION",
+        "phase": "T2B_TRANSFER_CONTROL",
         "status": (
             "ready"
             if preflight["can_simulate"]
@@ -253,6 +449,568 @@ async def simulate_treasury_transfer(
     }
 
 
+@router.post("/transfers/execute")
+async def execute_treasury_transfer(
+    request: TreasuryTransferExecutionRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    source_account_id = require_account_access(
+        user,
+        request.source_account_id,
+    )
+
+    selected_currency = _currency(
+        request.currency
+    )
+
+    source_account = get_gate_account(
+        source_account_id
+    )
+
+    if (
+        source_account is None
+        or not source_account.enabled
+        or not source_account.configured
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Monitor credentials are not configured "
+                f"for {source_account_id}"
+            ),
+        )
+
+    try:
+        gate_payload = (
+            build_gate_subaccount_transfer_payload(
+                source_account=source_account,
+                currency=selected_currency,
+                amount=request.amount,
+                request_id=request.request_id,
+            )
+        )
+
+    except TreasuryTransferValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    audit_payload = {
+        "operation": "subaccount_to_main",
+        "source_account_id": (
+            source_account_id
+        ),
+        "destination_account_id": (
+            settings.treasury_main_account
+        ),
+        "gate_payload": gate_payload,
+    }
+
+    # Idempotency check happens BEFORE any live balance read
+    # and, critically, before any possible Gate write.
+    try:
+        existing = find_matching_transfer_request(
+            request_id=request.request_id,
+            source_account_id=(
+                source_account_id
+            ),
+            username=user.username,
+            payload=audit_payload,
+        )
+
+    except TreasuryTransferIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    if existing is not None:
+        return _existing_live_transfer_result(
+            existing
+        )
+
+    required_confirmation = (
+        live_transfer_confirmation_text(
+            base_text=(
+                settings
+                .treasury_transfer_confirmation_text
+            ),
+            source_account_id=source_account_id,
+            destination_account_id=(
+                settings.treasury_main_account
+            ),
+            currency=selected_currency,
+            amount=request.amount,
+        )
+    )
+
+    if request.confirmation != required_confirmation:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid Treasury live transfer "
+                    "confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "write_performed": False,
+            },
+        )
+
+    # Fast rejection before creating a live audit reservation.
+    if not settings.treasury_transfers_live_armed:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "Live Treasury transfers are not armed."
+                ),
+                "reason": "live_not_armed",
+                "write_performed": False,
+            },
+        )
+
+    if not (
+        settings
+        .treasury_transfers_live_account_allowed(
+            source_account_id
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "This source account is not enabled "
+                    "for live Treasury transfers."
+                ),
+                "reason": (
+                    "source_account_not_live_enabled"
+                ),
+                "write_performed": False,
+            },
+        )
+
+    treasury_account = (
+        _treasury_account_or_http()
+    )
+
+    try:
+        audit_record, created = (
+            reserve_live_transfer(
+                request_id=request.request_id,
+                source_account_id=(
+                    source_account_id
+                ),
+                destination_account_id=(
+                    settings.treasury_main_account
+                ),
+                username=user.username,
+                currency=selected_currency,
+                amount=request.amount,
+                payload=audit_payload,
+            )
+        )
+
+    except TreasuryTransferIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    if not created:
+        return _existing_live_transfer_result(
+            audit_record
+        )
+
+    try:
+        operation_lock = acquire_transfer_lock(
+            source_account_id=(
+                source_account_id
+            ),
+            currency=selected_currency,
+            owner_request_id=request.request_id,
+            username=user.username,
+        )
+
+    except TreasuryTransferLocked as exc:
+        message = (
+            "Another unresolved Treasury transfer "
+            "already owns the source/currency lock."
+        )
+
+        mark_transfer_request(
+            request.request_id,
+            status="blocked",
+            error=message,
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": message,
+                "conflicting_lock": exc.lock,
+                "write_performed": False,
+            },
+        ) from exc
+
+    mark_transfer_request(
+        request.request_id,
+        status="validating",
+    )
+
+    # The source balance is read using the source account's
+    # ordinary Monitor credential. No Treasury write is
+    # possible during this stage.
+    try:
+        async with GateClient(
+            settings,
+            source_account,
+        ) as client:
+            balances_response = (
+                await client.list_spot_accounts()
+            )
+
+        preflight = (
+            build_subaccount_to_main_preflight(
+                source_account=source_account,
+                main_account_id=(
+                    settings.treasury_main_account
+                ),
+                currency=selected_currency,
+                amount=request.amount,
+                spot_accounts=(
+                    balances_response.data
+                ),
+            )
+        )
+
+    except (
+        GateAPIError,
+        TreasuryTransferValidationError,
+    ) as exc:
+        mark_transfer_request(
+            request.request_id,
+            status="preflight_failed",
+            error=str(exc),
+            completed=True,
+        )
+
+        release_transfer_lock(
+            source_account_id=(
+                source_account_id
+            ),
+            currency=selected_currency,
+            owner_request_id=request.request_id,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": (
+                    "Treasury transfer preflight failed. "
+                    "No Gate write was performed."
+                ),
+                "error": str(exc),
+                "write_performed": False,
+            },
+        ) from exc
+
+    if not preflight["can_transfer"]:
+        message = (
+            "Treasury transfer preflight rejected "
+            "the requested amount."
+        )
+
+        mark_transfer_request(
+            request.request_id,
+            status="blocked",
+            response=preflight,
+            error=message,
+            completed=True,
+        )
+
+        release_transfer_lock(
+            source_account_id=(
+                source_account_id
+            ),
+            currency=selected_currency,
+            owner_request_id=request.request_id,
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": message,
+                "errors": preflight["errors"],
+                "write_performed": False,
+            },
+        )
+
+    available_amount = as_decimal(
+        preflight.get("available")
+    )
+
+    if available_amount is None:
+        mark_transfer_request(
+            request.request_id,
+            status="preflight_failed",
+            error="Available balance could not be parsed",
+            completed=True,
+        )
+
+        release_transfer_lock(
+            source_account_id=(
+                source_account_id
+            ),
+            currency=selected_currency,
+            owner_request_id=request.request_id,
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Treasury safety policy could not "
+                    "determine available balance."
+                ),
+                "write_performed": False,
+            },
+        )
+
+    live_decision = (
+        evaluate_live_transfer_policy(
+            settings=settings,
+            source_account_id=(
+                source_account_id
+            ),
+            currency=selected_currency,
+            requested_amount=request.amount,
+            available_amount=available_amount,
+        )
+    )
+
+    if not live_decision.allowed:
+        mark_transfer_request(
+            request.request_id,
+            status="blocked",
+            response=live_decision.safe_dict(),
+            error=live_decision.message,
+            completed=True,
+        )
+
+        release_transfer_lock(
+            source_account_id=(
+                source_account_id
+            ),
+            currency=selected_currency,
+            owner_request_id=request.request_id,
+        )
+
+        raise HTTPException(
+            status_code=403,
+            detail={
+                **live_decision.safe_dict(),
+                "write_performed": False,
+            },
+        )
+
+    mark_transfer_request(
+        request.request_id,
+        status="submitting",
+    )
+
+    # MONEY-MOVING BOUNDARY.
+    #
+    # There is exactly one Gate POST below. Any exception after
+    # reaching it is treated as UNCERTAIN. The operation lock is
+    # deliberately retained and this code never retries the POST.
+    try:
+        async with GateClient(
+            settings,
+            treasury_account,
+        ) as client:
+            response = (
+                await client.create_sub_account_transfer(
+                    gate_payload
+                )
+            )
+
+    except GateAPIError as exc:
+        updated = mark_transfer_request(
+            request.request_id,
+            status="uncertain",
+            response=exc.response,
+            error=str(exc),
+            gate_status_code=exc.status_code,
+            gate_label=exc.label,
+            write_performed=True,
+            completed=False,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": (
+                    "Gate transfer submission outcome "
+                    "is uncertain. The Treasury lock "
+                    "remains held. Do not retry the "
+                    "transfer. Reconcile this request."
+                ),
+                "request_id": request.request_id,
+                "status": "uncertain",
+                "write_performed": (
+                    updated["write_performed"]
+                ),
+                "reconcile_path": (
+                    "/api/treasury/transfers/"
+                    f"{request.request_id}/reconcile"
+                ),
+                "gate_error": str(exc),
+            },
+        ) from exc
+
+    except Exception as exc:
+        mark_transfer_request(
+            request.request_id,
+            status="uncertain",
+            error=str(exc),
+            write_performed=True,
+            completed=False,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": (
+                    "Unexpected error after the Treasury "
+                    "Gate submission boundary. Outcome is "
+                    "uncertain. Do not retry."
+                ),
+                "request_id": request.request_id,
+                "status": "uncertain",
+            },
+        ) from exc
+
+    data = (
+        response.data
+        if isinstance(response.data, dict)
+        else {}
+    )
+
+    tx_id = str(
+        data.get("tx_id") or ""
+    )
+
+    submitted = mark_transfer_request(
+        request.request_id,
+        status="submitted",
+        response=response.raw,
+        gate_transfer_id=tx_id,
+        write_performed=True,
+        completed=False,
+    )
+
+    reconciliation = (
+        await _reconcile_live_transfer(
+            record=submitted,
+            treasury_account=treasury_account,
+        )
+    )
+
+    return {
+        "phase": "T2B_TRANSFER_CONTROL",
+        "status": reconciliation["status"],
+        "simulation": False,
+        "gate_write_performed": True,
+        "idempotent_replay": False,
+        "request_id": request.request_id,
+        "source_account_id": source_account_id,
+        "destination_account_id": (
+            settings.treasury_main_account
+        ),
+        "policy": live_decision.safe_dict(),
+        "transfer": preflight,
+        "gate_payload": gate_payload,
+        "operation_lock": operation_lock,
+        **reconciliation,
+    }
+
+
+@router.post(
+    "/transfers/{request_id}/reconcile"
+)
+async def reconcile_treasury_transfer(
+    request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    record = get_transfer_request(
+        request_id
+    )
+
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Treasury transfer request not found",
+        )
+
+    require_account_access(
+        user,
+        record["source_account_id"],
+    )
+
+    if record["simulation"]:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Simulation records do not require "
+                "Gate transfer reconciliation."
+            ),
+        )
+
+    if record["status"] in {
+        "success",
+        "failed",
+    }:
+        return {
+            "phase": "T2B_TRANSFER_CONTROL",
+            "status": record["status"],
+            "idempotent_replay": True,
+            "gate_read_performed": False,
+            "audit": record,
+            "reconciliations": (
+                list_transfer_reconciliations(
+                    request_id
+                )
+            ),
+        }
+
+    treasury_account = (
+        _treasury_account_or_http()
+    )
+
+    result = await _reconcile_live_transfer(
+        record=record,
+        treasury_account=treasury_account,
+    )
+
+    return {
+        "phase": "T2B_TRANSFER_CONTROL",
+        "idempotent_replay": False,
+        "gate_read_performed": True,
+        **result,
+    }
+
+
 @router.get("/transfers/requests")
 def treasury_transfer_requests(
     user: Annotated[
@@ -272,7 +1030,7 @@ def treasury_transfer_requests(
     )
 
     return {
-        "phase": "T2A_SIMULATION",
+        "phase": "T2B_TRANSFER_CONTROL",
         "items": list_transfer_requests(
             limit=limit,
             account_ids=account_ids,
@@ -302,8 +1060,13 @@ def treasury_transfer_request_detail(
     )
 
     return {
-        "phase": "T2A_SIMULATION",
+        "phase": "T2B_TRANSFER_CONTROL",
         "item": row,
+        "reconciliations": (
+            list_transfer_reconciliations(
+                request_id
+            )
+        ),
     }
 
 
@@ -363,7 +1126,7 @@ async def treasury_balance(
         ) from exc
 
     return {
-        "phase": "T2A_SIMULATION",
+        "phase": "T2B_TRANSFER_CONTROL",
         "main_account": settings.treasury_main_account,
         "currency": selected_currency,
         "account": account.safe_dict(),
@@ -403,7 +1166,7 @@ async def treasury_currency_chains(
         ) from exc
 
     return {
-        "phase": "T2A_SIMULATION",
+        "phase": "T2B_TRANSFER_CONTROL",
         "main_account": settings.treasury_main_account,
         "currency": selected_currency,
         "chains": response.raw,

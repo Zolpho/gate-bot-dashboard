@@ -222,7 +222,7 @@ def test_treasury_status_is_safe_when_unconfigured() -> None:
 
         payload = response.json()
 
-        assert payload["phase"] == "T2A_SIMULATION"
+        assert payload["phase"] == "T2B_TRANSFER_CONTROL"
         assert payload["configured"] is False
         assert payload["main_account"] == "zolnode"
         assert payload["transfers_enabled"] is False
@@ -230,7 +230,7 @@ def test_treasury_status_is_safe_when_unconfigured() -> None:
         assert payload["config_error"] == ""
 
 
-def test_treasury_t2a_only_allows_local_simulation_post() -> None:
+def test_treasury_t2b_allows_only_expected_mutation_routes() -> None:
     write_routes = []
 
     for route in app.routes:
@@ -263,9 +263,28 @@ def test_treasury_t2a_only_allows_local_simulation_post() -> None:
                 )
             )
 
-    assert write_routes == [
+    assert set(
+        (
+            path,
+            frozenset(methods),
+        )
+        for path, methods in write_routes
+    ) == {
         (
             "/api/treasury/transfers/simulate",
-            {"POST"},
-        )
-    ]
+            frozenset({"POST"}),
+        ),
+        (
+            "/api/treasury/transfers/execute",
+            frozenset({"POST"}),
+        ),
+        (
+            "/api/treasury/transfers/{request_id}/reconcile",
+            frozenset({"POST"}),
+        ),
+    }
+
+    assert all(
+        "withdraw" not in path.lower()
+        for path, _methods in write_routes
+    )

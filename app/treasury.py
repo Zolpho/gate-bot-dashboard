@@ -168,7 +168,7 @@ def safe_treasury_config() -> dict:
         account = load_treasury_account()
     except TreasuryConfigError as exc:
         return {
-            "phase": "T2A_SIMULATION",
+            "phase": "T2B_TRANSFER_CONTROL",
             "configured": False,
             "main_account": settings.treasury_main_account,
             "account": None,
@@ -178,7 +178,7 @@ def safe_treasury_config() -> dict:
         }
 
     return {
-        "phase": "T2A_SIMULATION",
+        "phase": "T2B_TRANSFER_CONTROL",
         "configured": account is not None,
         "main_account": settings.treasury_main_account,
         "account": (
@@ -186,7 +186,16 @@ def safe_treasury_config() -> dict:
             if account is not None
             else None
         ),
-        "transfers_enabled": False,
+        "transfers_enabled": bool(
+            account is not None
+            and settings.treasury_transfers_live_armed
+        ),
+        "transfers_live_armed": (
+            settings.treasury_transfers_live_armed
+        ),
+        "transfers_live_accounts": sorted(
+            settings.treasury_transfers_live_account_list
+        ),
         "withdrawals_enabled": False,
         "config_error": "",
     }
