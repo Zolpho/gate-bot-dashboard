@@ -189,6 +189,7 @@ def safe_treasury_config() -> dict:
         "transfers_enabled": bool(
             account is not None
             and settings.treasury_transfers_live_armed
+            and settings.treasury_transfers_live_account_list
         ),
         "transfers_live_armed": (
             settings.treasury_transfers_live_armed
