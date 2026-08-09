@@ -58,6 +58,10 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
 os.environ["DEMO_MODE"] = "true"
 os.environ["POLL_SECONDS"] = "3600"
 os.environ["APP_ENV"] = "test"
+os.environ["GATE_TREASURY_FILE"] = (
+    "/tmp/gate_treasury_test_missing.json"
+)
+os.environ["TREASURY_MAIN_ACCOUNT"] = "zolnode"
 os.environ["DASHBOARD_USERS_FILE"] = str(TEST_USERS)
 os.environ["DASHBOARD_USERS_BACKUP_DIR"] = "/tmp/gate_bot_dashboard_user_backups"
 os.environ["DASHBOARD_USERS_BACKUP_KEEP"] = "5"

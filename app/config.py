@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     gate_base_url: str = "https://api.gateio.ws/api/v4"
     gate_accounts_file: Path = Path("/run/secrets/gate_accounts.json")
     gate_bot_control_file: Path = Path("/run/secrets/gate_bot_control.json")
+
+    # Treasury is deliberately isolated from Monitor and Bot Control.
+    # /run/config is the read-only secrets-directory mount.
+    gate_treasury_file: Path = Path("/run/config/gate_treasury.json")
+    treasury_main_account: str = "zolnode"
+
     dashboard_users_file: Path = Path("/run/secrets/dashboard_users.json")
     dashboard_users_backup_dir: Path = Path("/data/dashboard-user-backups")
     dashboard_users_backup_keep: int = 20
@@ -124,6 +130,19 @@ class Settings(BaseSettings):
     default_loss_alert_usdt: float = 100.0
     default_liquidation_distance_pct: float = 10.0
     alert_cooldown_seconds: int = 3600
+
+    @field_validator("treasury_main_account")
+    @classmethod
+    def normalize_treasury_main_account(
+        cls,
+        value: str,
+    ) -> str:
+        normalized = value.strip().lower()
+        if not normalized:
+            raise ValueError(
+                "TREASURY_MAIN_ACCOUNT cannot be empty"
+            )
+        return normalized
 
     @field_validator("gate_base_url")
     @classmethod

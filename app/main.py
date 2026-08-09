@@ -19,6 +19,7 @@ from .api import (
     deposit_history,
     me,
     system,
+    treasury,
     bot_control_attention,
 )
 from .bot_control_recovery import recover_stale_bot_control_requests
@@ -140,6 +141,7 @@ app.include_router(deposit.router)
 app.include_router(deposit.private_router)
 app.include_router(deposit_history.router)
 app.include_router(me.router)
+app.include_router(treasury.router)
 
 app.include_router(bot_control_attention.router)
 # Keep this last so /api routes take precedence.

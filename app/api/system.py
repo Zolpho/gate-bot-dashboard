@@ -14,6 +14,7 @@ from ..db import get_db
 from ..gate_client import GateAPIError, GateClient
 from ..metrics import account_to_dict
 from ..models import Bot, GateAccount, SyncRun
+from ..treasury import safe_treasury_config
 from ..security import (
     DashboardUser,
     UserConfigError,
@@ -158,9 +159,15 @@ def health(
         and collector_fresh
     )
 
+    treasury = safe_treasury_config()
+    treasury_config_error = str(
+        treasury.get("config_error") or ""
+    )
+
     degraded = bool(
         config_error
         or user_config_error
+        or treasury_config_error
         or not collector_healthy
     )
 
@@ -191,6 +198,20 @@ def health(
         "bot_stop_simulation": settings.bot_stop_simulation,
         "allow_bot_create": settings.allow_bot_create,
         "bot_create_simulation": settings.bot_create_simulation,
+
+        # T1 is structurally read-only. There are no Treasury
+        # transfer/withdrawal routes in this release.
+        "treasury_configured": bool(
+            treasury.get("configured")
+        ),
+        "treasury_main_account": (
+            settings.treasury_main_account
+        ),
+        "treasury_phase": "T1_READ_ONLY",
+        "treasury_transfers_enabled": False,
+        "treasury_withdrawals_enabled": False,
+        "treasury_config_error": treasury_config_error,
+
         "snapshot_retention_days": settings.snapshot_retention_days,
         "action_auth": users,
         "user_config_error": user_config_error,
