@@ -389,3 +389,72 @@ def ownership_balances(
         )
 
     return result
+
+
+def ownership_amount(
+    *,
+    owner_account_id: str,
+    custody_account_id: str,
+    currency: str,
+) -> Decimal:
+    owner = owner_account_id.strip().lower()
+    custody = custody_account_id.strip().lower()
+    symbol = currency.strip().upper()
+
+    total = Decimal("0")
+
+    with session_scope() as db:
+        rows = db.scalars(
+            select(
+                TreasuryOwnershipLedgerEntry
+            ).where(
+                TreasuryOwnershipLedgerEntry
+                .owner_account_id
+                == owner,
+                TreasuryOwnershipLedgerEntry
+                .custody_account_id
+                == custody,
+                TreasuryOwnershipLedgerEntry
+                .currency
+                == symbol,
+            )
+        ).all()
+
+        for row in rows:
+            total += Decimal(
+                row.delta_amount
+            )
+
+    return total
+
+
+def custody_liability_amount(
+    *,
+    custody_account_id: str,
+    currency: str,
+) -> Decimal:
+    custody = custody_account_id.strip().lower()
+    symbol = currency.strip().upper()
+
+    total = Decimal("0")
+
+    with session_scope() as db:
+        rows = db.scalars(
+            select(
+                TreasuryOwnershipLedgerEntry
+            ).where(
+                TreasuryOwnershipLedgerEntry
+                .custody_account_id
+                == custody,
+                TreasuryOwnershipLedgerEntry
+                .currency
+                == symbol,
+            )
+        ).all()
+
+        for row in rows:
+            total += Decimal(
+                row.delta_amount
+            )
+
+    return total

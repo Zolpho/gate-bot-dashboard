@@ -398,6 +398,18 @@ class GateClient:
             signed=False,
         )
 
+    async def get_withdraw_status(
+        self,
+        currency: str,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/wallet/withdraw_status",
+            params={
+                "currency": currency.upper(),
+            },
+        )
+
     async def get_deposit_address(
         self,
         currency: str,

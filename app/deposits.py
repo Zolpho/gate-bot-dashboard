@@ -63,6 +63,13 @@ def normalize_currency_chains(raw_chains: Any) -> list[dict[str, Any]]:
             )
         )
 
+        withdraw_disabled = _flag(
+            raw.get(
+                "is_withdraw_disabled",
+                raw.get("withdraw_disabled"),
+            )
+        )
+
         result.append(
             {
                 "chain": chain,
@@ -78,6 +85,9 @@ def normalize_currency_chains(raw_chains: Any) -> list[dict[str, Any]]:
                     or ""
                 ).strip(),
                 "deposit_enabled": not disabled and not deposit_disabled,
+                "withdraw_enabled": not disabled and not withdraw_disabled,
+                "deposit_disabled": deposit_disabled,
+                "withdraw_disabled": withdraw_disabled,
                 "disabled": disabled,
                 "requires_memo": _flag(raw.get("is_tag")),
                 "decimal": str(raw.get("decimal") or "").strip() or None,
