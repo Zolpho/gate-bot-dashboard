@@ -100,7 +100,10 @@ from ..treasury_withdrawal_locks import (
 from ..treasury_withdrawal_jit import (
     TreasuryWithdrawalJitPlanError,
     build_withdrawal_jit_plan,
+    classify_jit_transfer_status,
+    withdrawal_jit_execution_confirmation_text,
     withdrawal_jit_preparation_confirmation_text,
+    withdrawal_jit_transfer_request_id,
 )
 from ..treasury_withdrawal_workflow import (
     destination_snapshot_mismatches,
@@ -2576,6 +2579,12 @@ async def prepare_treasury_withdrawal_jit(
                 "jit_execution_not_enabled"
             ),
             "jit_plan": jit_plan,
+            "required_execution_confirmation": (
+                withdrawal_jit_execution_confirmation_text(
+                    request=row,
+                    plan=jit_plan,
+                )
+            ),
             "audit": row,
             "event": jit_event,
             "operation_lock": lock,
@@ -2837,9 +2846,1052 @@ async def prepare_treasury_withdrawal_jit(
             "jit_execution_not_enabled"
         ),
         "jit_plan": jit_plan,
+        "required_execution_confirmation": (
+            withdrawal_jit_execution_confirmation_text(
+                request=audit,
+                plan=jit_plan,
+            )
+        ),
         "audit": audit,
         "event": event,
         "operation_lock": lock,
+    }
+
+
+
+def _apply_withdrawal_jit_child_state(
+    *,
+    row: dict,
+    child: dict,
+    user: DashboardUser,
+) -> dict:
+    decision = classify_jit_transfer_status(
+        child.get("status")
+    )
+
+    new_status = decision[
+        "withdrawal_status"
+    ]
+
+    try:
+        audit, event, changed = (
+            transition_withdrawal_request(
+                row["request_id"],
+                expected_statuses={
+                    "jit_executing",
+                    "jit_reconciling",
+                },
+                new_status=new_status,
+                username=user.username,
+                action=decision["action"],
+                details={
+                    "child_transfer_request_id": (
+                        child["request_id"]
+                    ),
+                    "child_transfer_status": (
+                        child.get("status")
+                    ),
+                    "child_transfer": child,
+                    "gate_write_performed": bool(
+                        child.get(
+                            "write_performed"
+                        )
+                    ),
+                },
+                simulation=False,
+                completed=bool(
+                    decision["terminal"]
+                ),
+            )
+        )
+
+    except TreasuryWithdrawalStateError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": bool(
+                    child.get(
+                        "write_performed"
+                    )
+                ),
+            },
+        ) from exc
+
+    withdrawal_lock_released = False
+
+    if decision[
+        "release_withdrawal_lock"
+    ]:
+        withdrawal_lock_released = (
+            release_withdrawal_lock(
+                custody_account_id=(
+                    row["custody_account_id"]
+                ),
+                currency=row["currency"],
+                owner_request_id=(
+                    row["request_id"]
+                ),
+            )
+        )
+
+    return {
+        "status": new_status,
+        "state_changed": changed,
+        "requires_reconciliation": (
+            decision[
+                "requires_reconciliation"
+            ]
+        ),
+        "withdrawal_lock_released": (
+            withdrawal_lock_released
+        ),
+        "gate_write_performed": bool(
+            child.get("write_performed")
+        ),
+        "audit": audit,
+        "event": event,
+        "child_transfer": child,
+        "operation_lock": (
+            None
+            if withdrawal_lock_released
+            else get_withdrawal_lock_for_request(
+                row["request_id"]
+            )
+        ),
+    }
+
+
+def _block_withdrawal_jit_before_write(
+    *,
+    row: dict,
+    user: DashboardUser,
+    reason: str,
+    details: dict,
+) -> dict:
+    try:
+        audit, event, changed = (
+            transition_withdrawal_request(
+                row["request_id"],
+                expected_statuses={
+                    "jit_prepared",
+                },
+                new_status="blocked",
+                username=user.username,
+                action="jit_execution_blocked",
+                details={
+                    **details,
+                    "gate_write_performed": False,
+                },
+                error=reason,
+                simulation=False,
+                completed=True,
+            )
+        )
+
+    except TreasuryWithdrawalStateError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    released = release_withdrawal_lock(
+        custody_account_id=(
+            row["custody_account_id"]
+        ),
+        currency=row["currency"],
+        owner_request_id=row["request_id"],
+    )
+
+    return {
+        "audit": audit,
+        "event": event,
+        "state_changed": changed,
+        "lock_released": released,
+    }
+
+
+@router.post(
+    "/withdrawals/requests/{request_id}/jit/execute"
+)
+async def execute_treasury_withdrawal_jit(
+    request_id: str,
+    request: TreasuryWithdrawalReservationRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    if row["status"] in {
+        "jit_ready",
+        "jit_failed",
+    }:
+        child_id = (
+            withdrawal_jit_transfer_request_id(
+                request_id
+            )
+        )
+
+        return {
+            "phase": "T2C4C_JIT_EXECUTION",
+            "status": row["status"],
+            "idempotent_replay": True,
+            "gate_write_performed": False,
+            "gate_read_performed": False,
+            "withdrawals_enabled": False,
+            "audit": row,
+            "child_transfer": (
+                get_transfer_request(
+                    child_id
+                )
+            ),
+            "operation_lock": (
+                get_withdrawal_lock_for_request(
+                    request_id
+                )
+            ),
+        }
+
+    if row["status"] == "jit_reconciling":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "JIT transfer already requires "
+                    "reconciliation. No second transfer "
+                    "will be submitted."
+                ),
+                "status": row["status"],
+                "reconcile_path": (
+                    "/api/treasury/withdrawals/"
+                    f"requests/{request_id}/jit/reconcile"
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    if row["status"] == "jit_executing":
+        child_id = (
+            withdrawal_jit_transfer_request_id(
+                request_id
+            )
+        )
+
+        child = get_transfer_request(
+            child_id
+        )
+
+        if child is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "JIT execution was interrupted "
+                        "before a child transfer audit "
+                        "could be found. Reconcile this "
+                        "withdrawal before retrying."
+                    ),
+                    "status": "jit_executing",
+                    "reconcile_path": (
+                        "/api/treasury/withdrawals/"
+                        f"requests/{request_id}/"
+                        "jit/reconcile"
+                    ),
+                    "gate_write_performed": False,
+                },
+            )
+
+        recovered = (
+            _apply_withdrawal_jit_child_state(
+                row=row,
+                child=child,
+                user=user,
+            )
+        )
+
+        return {
+            "phase": "T2C4C_JIT_EXECUTION",
+            "idempotent_replay": True,
+            "gate_read_performed": False,
+            "withdrawals_enabled": False,
+            **recovered,
+        }
+
+    if row["status"] != "jit_prepared":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal request is not ready "
+                    "for JIT execution."
+                ),
+                "status": row["status"],
+                "gate_write_performed": False,
+            },
+        )
+
+    lock = get_withdrawal_lock_for_request(
+        request_id
+    )
+
+    if lock is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "JIT-prepared withdrawal request "
+                    "has no custody operation lock."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    # Fresh GET-only withdrawal preflight immediately
+    # before deriving the JIT amount.
+    preflight = await _fresh_request_preflight(
+        row=row,
+        user=user,
+    )
+
+    mismatches = (
+        destination_snapshot_mismatches(
+            row,
+            preflight,
+        )
+    )
+
+    if (
+        not preflight.get("preflight_valid")
+        or mismatches
+    ):
+        reason = (
+            "JIT execution was blocked by the "
+            "fresh withdrawal safety preflight."
+        )
+
+        blocked = (
+            _block_withdrawal_jit_before_write(
+                row=row,
+                user=user,
+                reason=reason,
+                details={
+                    "preflight": preflight,
+                    "destination_snapshot_mismatches": (
+                        mismatches
+                    ),
+                },
+            )
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": reason,
+                "errors": (
+                    preflight.get("errors")
+                    or []
+                ),
+                "destination_snapshot_mismatches": (
+                    mismatches
+                ),
+                "gate_write_performed": False,
+                **blocked,
+            },
+        )
+
+    try:
+        jit_plan = build_withdrawal_jit_plan(
+            request=row,
+            preflight=preflight,
+        )
+
+    except TreasuryWithdrawalJitPlanError as exc:
+        reason = (
+            "Fresh withdrawal preflight could not "
+            "produce a safe JIT execution plan."
+        )
+
+        blocked = (
+            _block_withdrawal_jit_before_write(
+                row=row,
+                user=user,
+                reason=reason,
+                details={
+                    "preflight": preflight,
+                    "jit_plan_error": str(exc),
+                },
+            )
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": reason,
+                "jit_plan_error": str(exc),
+                "gate_write_performed": False,
+                **blocked,
+            },
+        ) from exc
+
+    required_confirmation = (
+        withdrawal_jit_execution_confirmation_text(
+            request=row,
+            plan=jit_plan,
+        )
+    )
+
+    if (
+        request.confirmation
+        != required_confirmation
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid JIT execution confirmation. "
+                    "The amount may have changed since "
+                    "JIT preparation."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "jit_plan": jit_plan,
+                "gate_write_performed": False,
+            },
+        )
+
+    # If the fresh preflight now says the owner already
+    # has enough liquid main-account ownership, there is
+    # nothing to transfer.
+    if not jit_plan["jit_required"]:
+        try:
+            audit, event, changed = (
+                transition_withdrawal_request(
+                    request_id,
+                    expected_statuses={
+                        "jit_prepared",
+                    },
+                    new_status="jit_ready",
+                    username=user.username,
+                    action="jit_not_required",
+                    details={
+                        "preflight": preflight,
+                        "jit_plan": jit_plan,
+                        "gate_write_performed": False,
+                    },
+                    simulation=False,
+                    completed=False,
+                )
+            )
+
+        except TreasuryWithdrawalStateError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(exc),
+                    "gate_write_performed": False,
+                },
+            ) from exc
+
+        return {
+            "phase": "T2C4C_JIT_EXECUTION",
+            "status": "jit_ready",
+            "jit_required": False,
+            "state_changed": changed,
+            "gate_write_performed": False,
+            "gate_read_performed": True,
+            "withdrawals_enabled": False,
+            "audit": audit,
+            "event": event,
+            "child_transfer": None,
+            # Keep custody lock: external withdrawal has
+            # not happened yet.
+            "operation_lock": lock,
+        }
+
+    source_account_id = (
+        jit_plan["source_account_id"]
+    )
+
+    source_account = get_gate_account(
+        source_account_id
+    )
+
+    if (
+        source_account is None
+        or not source_account.enabled
+        or not source_account.configured
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": (
+                    "Monitor credentials are not "
+                    "configured for "
+                    f"{source_account_id}"
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    amount = as_decimal(
+        jit_plan["jit_amount_preview"]
+    )
+
+    if amount is None or amount <= 0:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Fresh JIT amount could not "
+                    "be validated."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    child_request_id = (
+        jit_plan[
+            "jit_transfer_request_id"
+        ]
+    )
+
+    if not child_request_id:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "JIT-required withdrawal has no "
+                    "deterministic child transfer ID."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    # A child must never exist while the parent is still
+    # jit_prepared. Fail closed rather than risk a second
+    # submission.
+    existing_child = get_transfer_request(
+        child_request_id
+    )
+
+    if existing_child is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "A child Treasury transfer already "
+                    "exists for this JIT withdrawal. "
+                    "No second transfer was submitted."
+                ),
+                "child_transfer": existing_child,
+                "gate_write_performed": False,
+            },
+        )
+
+    try:
+        gate_payload = (
+            build_gate_subaccount_transfer_payload(
+                source_account=source_account,
+                currency=row["currency"],
+                amount=amount,
+                request_id=child_request_id,
+            )
+        )
+
+    except TreasuryTransferValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    audit_payload = {
+        "operation": "subaccount_to_main",
+        "purpose": "withdrawal_jit",
+        "withdrawal_request_id": request_id,
+        "source_account_id": (
+            source_account_id
+        ),
+        "destination_account_id": (
+            row["custody_account_id"]
+        ),
+        "gate_payload": gate_payload,
+    }
+
+    # Fast application barriers before moving the parent
+    # into its non-cancellable execution state.
+    if not settings.treasury_transfers_live_armed:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "Live Treasury transfers are "
+                    "not armed."
+                ),
+                "reason": "live_not_armed",
+                "gate_write_performed": False,
+            },
+        )
+
+    if not (
+        settings
+        .treasury_transfers_live_account_allowed(
+            source_account_id
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "This source account is not "
+                    "enabled for live Treasury transfers."
+                ),
+                "reason": (
+                    "source_account_not_live_enabled"
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    _enforce_treasury_rate_limit(
+        user=user,
+        source_account_id=source_account_id,
+        action="execute",
+    )
+
+    treasury_account = (
+        _treasury_account_or_http()
+    )
+
+    # Atomic local boundary preventing cancellation from
+    # racing the subsequent child transfer submission.
+    try:
+        executing_audit, executing_event, _changed = (
+            transition_withdrawal_request(
+                request_id,
+                expected_statuses={
+                    "jit_prepared",
+                },
+                new_status="jit_executing",
+                username=user.username,
+                action="jit_execution_started",
+                details={
+                    "preflight": preflight,
+                    "jit_plan": jit_plan,
+                    "child_transfer_request_id": (
+                        child_request_id
+                    ),
+                    "gate_payload": gate_payload,
+                    "gate_write_performed": False,
+                },
+                simulation=False,
+                completed=False,
+            )
+        )
+
+    except TreasuryWithdrawalStateError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    try:
+        transfer_result = (
+            await execute_reserved_live_transfer(
+                settings=settings,
+                source_account=source_account,
+                treasury_account=treasury_account,
+                request_id=child_request_id,
+                username=user.username,
+                currency=row["currency"],
+                amount=amount,
+                audit_payload=audit_payload,
+                gate_payload=gate_payload,
+            )
+        )
+
+    except HTTPException as exc:
+        child = get_transfer_request(
+            child_request_id
+        )
+
+        state = None
+
+        if child is not None:
+            current_parent = (
+                _withdrawal_request_or_http(
+                    request_id
+                )
+            )
+
+            state = (
+                _apply_withdrawal_jit_child_state(
+                    row=current_parent,
+                    child=child,
+                    user=user,
+                )
+            )
+
+        original = (
+            exc.detail
+            if isinstance(exc.detail, dict)
+            else {
+                "message": str(exc.detail),
+            }
+        )
+
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={
+                **original,
+                "withdrawal_status": (
+                    state["status"]
+                    if state is not None
+                    else "jit_executing"
+                ),
+                "child_transfer_request_id": (
+                    child_request_id
+                ),
+                "jit_reconcile_path": (
+                    "/api/treasury/withdrawals/"
+                    f"requests/{request_id}/"
+                    "jit/reconcile"
+                ),
+            },
+            headers=exc.headers,
+        ) from exc
+
+    child = (
+        transfer_result.get("audit")
+        if isinstance(
+            transfer_result,
+            dict,
+        )
+        else None
+    )
+
+    if not isinstance(child, dict):
+        child = get_transfer_request(
+            child_request_id
+        )
+
+    if child is None:
+        # The child executor crossed a financial boundary,
+        # so absence of its final audit snapshot must never
+        # cause an automatic retry.
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": (
+                    "JIT child transfer outcome could "
+                    "not be bound back to the withdrawal. "
+                    "Do not retry. Reconcile instead."
+                ),
+                "status": "jit_executing",
+                "child_transfer_request_id": (
+                    child_request_id
+                ),
+                "jit_reconcile_path": (
+                    "/api/treasury/withdrawals/"
+                    f"requests/{request_id}/"
+                    "jit/reconcile"
+                ),
+            },
+        )
+
+    current_parent = (
+        _withdrawal_request_or_http(
+            request_id
+        )
+    )
+
+    state = (
+        _apply_withdrawal_jit_child_state(
+            row=current_parent,
+            child=child,
+            user=user,
+        )
+    )
+
+    return {
+        "phase": "T2C4C_JIT_EXECUTION",
+        "idempotent_replay": False,
+        "gate_read_performed": True,
+        "withdrawals_enabled": False,
+        "jit_plan": jit_plan,
+        "child_transfer_request_id": (
+            child_request_id
+        ),
+        "transfer_result": transfer_result,
+        "execution_event": executing_event,
+        **state,
+    }
+
+
+@router.post(
+    "/withdrawals/requests/{request_id}/jit/reconcile"
+)
+async def reconcile_treasury_withdrawal_jit(
+    request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    if row["status"] in {
+        "jit_ready",
+        "jit_failed",
+    }:
+        child = get_transfer_request(
+            withdrawal_jit_transfer_request_id(
+                request_id
+            )
+        )
+
+        return {
+            "phase": "T2C4C_JIT_EXECUTION",
+            "status": row["status"],
+            "idempotent_replay": True,
+            "gate_read_performed": False,
+            "gate_write_performed": False,
+            "withdrawals_enabled": False,
+            "audit": row,
+            "child_transfer": child,
+            "operation_lock": (
+                get_withdrawal_lock_for_request(
+                    request_id
+                )
+            ),
+        }
+
+    if row["status"] not in {
+        "jit_executing",
+        "jit_reconciling",
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal request has no JIT "
+                    "execution requiring reconciliation."
+                ),
+                "status": row["status"],
+                "gate_write_performed": False,
+            },
+        )
+
+    withdrawal_lock = (
+        get_withdrawal_lock_for_request(
+            request_id
+        )
+    )
+
+    if withdrawal_lock is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "JIT execution state requires the "
+                    "withdrawal custody lock, but no "
+                    "lock exists."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    child_request_id = (
+        withdrawal_jit_transfer_request_id(
+            request_id
+        )
+    )
+
+    child = get_transfer_request(
+        child_request_id
+    )
+
+    if child is None:
+        # execute_reserved_live_transfer always creates its
+        # child audit before it can reach the Gate POST.
+        # Therefore jit_executing + no child proves that
+        # execution stopped before the Gate write boundary.
+        if row["status"] == "jit_executing":
+            try:
+                audit, event, changed = (
+                    transition_withdrawal_request(
+                        request_id,
+                        expected_statuses={
+                            "jit_executing",
+                        },
+                        new_status="jit_prepared",
+                        username=user.username,
+                        action=(
+                            "jit_execution_recovered_"
+                            "before_child"
+                        ),
+                        details={
+                            "reason": (
+                                "No deterministic child "
+                                "transfer audit exists."
+                            ),
+                            "gate_read_performed": False,
+                            "gate_write_performed": False,
+                        },
+                        simulation=False,
+                        completed=False,
+                    )
+                )
+
+            except TreasuryWithdrawalStateError as exc:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": str(exc),
+                        "gate_write_performed": False,
+                    },
+                ) from exc
+
+            return {
+                "phase": "T2C4C_JIT_EXECUTION",
+                "status": "jit_prepared",
+                "recovered_before_child": True,
+                "state_changed": changed,
+                "gate_read_performed": False,
+                "gate_write_performed": False,
+                "withdrawals_enabled": False,
+                "audit": audit,
+                "event": event,
+                "child_transfer": None,
+                "operation_lock": withdrawal_lock,
+            }
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "JIT-reconciling withdrawal has "
+                    "no child transfer audit. Manual "
+                    "Treasury review is required."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    child_decision = (
+        classify_jit_transfer_status(
+            child.get("status")
+        )
+    )
+
+    # Definitive child status can be applied locally
+    # without another Gate read.
+    if not child_decision[
+        "requires_reconciliation"
+    ]:
+        state = (
+            _apply_withdrawal_jit_child_state(
+                row=row,
+                child=child,
+                user=user,
+            )
+        )
+
+        return {
+            "phase": "T2C4C_JIT_EXECUTION",
+            "idempotent_replay": False,
+            "gate_read_performed": False,
+            "withdrawals_enabled": False,
+            **state,
+        }
+
+    _enforce_treasury_rate_limit(
+        user=user,
+        source_account_id=(
+            row["owner_account_id"]
+        ),
+        action="reconcile",
+    )
+
+    treasury_account = (
+        _treasury_account_or_http()
+    )
+
+    transfer_result = (
+        await reconcile_live_transfer(
+            settings=settings,
+            record=child,
+            treasury_account=treasury_account,
+        )
+    )
+
+    reconciled_child = (
+        transfer_result.get("audit")
+    )
+
+    if not isinstance(
+        reconciled_child,
+        dict,
+    ):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": (
+                    "Transfer reconciliation returned "
+                    "no child audit snapshot."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    current_parent = (
+        _withdrawal_request_or_http(
+            request_id
+        )
+    )
+
+    state = (
+        _apply_withdrawal_jit_child_state(
+            row=current_parent,
+            child=reconciled_child,
+            user=user,
+        )
+    )
+
+    return {
+        "phase": "T2C4C_JIT_EXECUTION",
+        "idempotent_replay": False,
+        "gate_read_performed": True,
+        "withdrawals_enabled": False,
+        "transfer_reconciliation": (
+            transfer_result
+        ),
+        **state,
     }
 
 

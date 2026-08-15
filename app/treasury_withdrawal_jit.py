@@ -197,3 +197,135 @@ def build_withdrawal_jit_plan(
         "gate_write_performed": False,
         "transfer_audit_created": False,
     }
+
+
+def _compact_jit_amount(
+    value: Any,
+) -> str:
+    amount = as_decimal(value)
+
+    if amount is None:
+        raise TreasuryWithdrawalJitPlanError(
+            "JIT amount could not be parsed"
+        )
+
+    text = format(amount, "f")
+
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+
+    return text or "0"
+
+
+def withdrawal_jit_execution_confirmation_text(
+    *,
+    request: dict[str, Any],
+    plan: dict[str, Any],
+) -> str:
+    """
+    Bind the money-moving confirmation to the freshly
+    calculated source/currency/amount/custody intent.
+
+    The short REF is derived from the immutable withdrawal
+    request ID while keeping the complete confirmation below
+    the API request field's 255-character ceiling.
+    """
+    request_id = str(
+        request.get("request_id") or ""
+    ).strip()
+
+    if not request_id:
+        raise TreasuryWithdrawalJitPlanError(
+            "Withdrawal request ID is missing"
+        )
+
+    source = str(
+        plan.get("source_account_id") or ""
+    ).strip().lower()
+
+    custody = str(
+        plan.get("custody_account_id") or ""
+    ).strip().lower()
+
+    currency = str(
+        plan.get("currency") or ""
+    ).strip().upper()
+
+    amount = _compact_jit_amount(
+        plan.get("jit_amount_preview")
+    )
+
+    if not source or not custody or not currency:
+        raise TreasuryWithdrawalJitPlanError(
+            "JIT execution intent is incomplete"
+        )
+
+    ref = hashlib.sha256(
+        request_id.encode("utf-8")
+    ).hexdigest()[:16]
+
+    prefix = (
+        "LIVE WITHDRAWAL JIT"
+        if plan.get("jit_required")
+        else "READY WITHDRAWAL NO-JIT"
+    )
+
+    return " ".join(
+        (
+            prefix,
+            source,
+            currency,
+            amount,
+            "TO",
+            custody,
+            "REF",
+            ref,
+        )
+    )
+
+
+def classify_jit_transfer_status(
+    status: Any,
+) -> dict[str, Any]:
+    """
+    Map the child internal-transfer lifecycle onto the
+    parent withdrawal lifecycle.
+
+    Anything not definitively successful or definitively
+    failed stays reconciliation-required and keeps the
+    withdrawal custody lock.
+    """
+    normalized = str(
+        status or ""
+    ).strip().lower()
+
+    if normalized == "success":
+        return {
+            "withdrawal_status": "jit_ready",
+            "terminal": False,
+            "release_withdrawal_lock": False,
+            "requires_reconciliation": False,
+            "action": "jit_ready",
+        }
+
+    if normalized in {
+        "failed",
+        "rejected",
+        "blocked",
+        "preflight_failed",
+    }:
+        return {
+            "withdrawal_status": "jit_failed",
+            "terminal": True,
+            "release_withdrawal_lock": True,
+            "requires_reconciliation": False,
+            "action": "jit_failed",
+        }
+
+    return {
+        "withdrawal_status": "jit_reconciling",
+        "terminal": False,
+        "release_withdrawal_lock": False,
+        "requires_reconciliation": True,
+        "action": "jit_reconciling",
+    }
