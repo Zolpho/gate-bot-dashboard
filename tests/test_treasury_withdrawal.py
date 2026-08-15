@@ -8,6 +8,7 @@ from app.deposits import (
 )
 from app.security import DashboardUser
 from app.treasury_withdrawal import (
+    bind_destination_to_preflight,
     build_withdrawal_capabilities,
     build_withdrawal_preflight,
     normalize_withdraw_status,
@@ -519,7 +520,7 @@ async def test_preflight_api_is_owner_scoped():
             "USDT",
             user=user,
             owner_account_id="eqtydao",
-            chain="TRX",
+            destination_id="wd_not_reached",
             amount=Decimal("1"),
         )
 
@@ -561,4 +562,212 @@ def test_main_owner_can_see_main_custody_details():
     assert (
         availability["third_party_liabilities"]
         == "30"
+    )
+
+
+def _approved_destination(
+    *,
+    status: str = "approved",
+    chain: str = "TRX",
+    currency: str = "USDT",
+    memo: str = "",
+):
+    return {
+        "destination_id": (
+            "wd_0123456789abcdef"
+            "0123456789abcdef"
+        ),
+        "owner_account_id": "arnold",
+        "currency": currency,
+        "chain": chain,
+        "address": (
+            "0x111111111111111111111111"
+            "1111111111111111"
+        ),
+        "memo": memo,
+        "label": "Approved wallet",
+        "status": status,
+        "verification_method": (
+            "manual_admin_approval"
+        ),
+        "approved_by": "rootadmin",
+        "approved_at": (
+            "2026-08-15T12:30:16+00:00"
+        ),
+    }
+
+
+def test_destination_binding_accepts_exact_approved_destination():
+    base = build_withdrawal_preflight(
+        capabilities=_ready_capabilities(),
+        chain="TRX",
+        amount=Decimal("5"),
+    )
+
+    result = bind_destination_to_preflight(
+        preflight=base,
+        destination=_approved_destination(),
+        owner_account_id="arnold",
+        currency="USDT",
+    )
+
+    assert result["preflight_valid"] is True
+    assert result["executable"] is False
+
+    assert (
+        result["destination"]["status"]
+        == "approved"
+    )
+
+    assert (
+        result["destination"][
+            "valid_for_preflight"
+        ]
+        is True
+    )
+
+    assert (
+        result["checks"][
+            "destination_approved"
+        ]
+        is True
+    )
+
+
+def test_destination_binding_rejects_candidate():
+    base = build_withdrawal_preflight(
+        capabilities=_ready_capabilities(),
+        chain="TRX",
+        amount=Decimal("5"),
+    )
+
+    result = bind_destination_to_preflight(
+        preflight=base,
+        destination=_approved_destination(
+            status="candidate"
+        ),
+        owner_account_id="arnold",
+        currency="USDT",
+    )
+
+    assert result["preflight_valid"] is False
+
+    assert (
+        result["checks"][
+            "destination_approved"
+        ]
+        is False
+    )
+
+    assert (
+        "destination_approved"
+        in result["errors"]
+    )
+
+
+def test_destination_binding_rejects_wrong_chain():
+    base = build_withdrawal_preflight(
+        capabilities=_ready_capabilities(),
+        chain="TRX",
+        amount=Decimal("5"),
+    )
+
+    result = bind_destination_to_preflight(
+        preflight=base,
+        destination=_approved_destination(
+            chain="ETH"
+        ),
+        owner_account_id="arnold",
+        currency="USDT",
+    )
+
+    assert result["preflight_valid"] is False
+
+    assert (
+        result["checks"][
+            "destination_chain_match"
+        ]
+        is False
+    )
+
+
+def test_destination_binding_requires_memo_for_tag_network():
+    capabilities = build_withdrawal_capabilities(
+        owner_account_id="arnold",
+        main_account_id="zolnode",
+        currency="USDT",
+        spot_accounts=[
+            {
+                "currency": "USDT",
+                "available": "10",
+                "locked": "0",
+            }
+        ],
+        main_spot_accounts=[
+            {
+                "currency": "USDT",
+                "available": "20",
+                "locked": "0",
+            }
+        ],
+        raw_chains=[
+            {
+                "chain": "TON",
+                "name_en": "The Open Network",
+                "is_disabled": 0,
+                "is_deposit_disabled": 0,
+                "is_withdraw_disabled": 0,
+                "is_tag": 1,
+                "decimal": "6",
+            }
+        ],
+        raw_withdraw_status=[
+            {
+                "currency": "USDT",
+                "withdraw_percent": "0%",
+                "withdraw_fix": "0.3",
+                "withdraw_day_limit": "100000",
+                "withdraw_day_limit_remain": "50000",
+                "withdraw_amount_mini": "1",
+                "withdraw_eachtime_limit": "20000",
+                "withdraw_fix_on_chains": {
+                    "TON": "0.3",
+                },
+                "withdraw_percent_on_chains": {
+                    "TON": "0%",
+                },
+            }
+        ],
+        owner_main_held=Decimal("3"),
+        custody_liabilities=Decimal("3"),
+    )
+
+    base = build_withdrawal_preflight(
+        capabilities=capabilities,
+        chain="TON",
+        amount=Decimal("5"),
+    )
+
+    assert (
+        base["network"]["requires_memo"]
+        is True
+    )
+
+    result = bind_destination_to_preflight(
+        preflight=base,
+        destination=_approved_destination(
+            chain="TON",
+            memo="",
+        ),
+        owner_account_id="arnold",
+        currency="USDT",
+    )
+
+    assert result["preflight_valid"] is False
+
+    assert (
+        result["checks"][
+            "destination_memo_valid"
+        ]
+        is False
     )

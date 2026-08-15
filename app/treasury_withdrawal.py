@@ -851,6 +851,11 @@ def build_withdrawal_preflight(
                         "withdraw_enabled"
                     )
                 ),
+                "requires_memo": bool(
+                    selected_chain.get(
+                        "requires_memo"
+                    )
+                ),
                 "withdrawal_precision": (
                     precision
                 ),
@@ -938,5 +943,196 @@ def build_withdrawal_preflight(
         "destination": {
             "status": "not_in_scope",
             "phase": "T2C2",
+        },
+    }
+
+
+def bind_destination_to_preflight(
+    *,
+    preflight: dict[str, Any],
+    destination: dict[str, Any],
+    owner_account_id: str,
+    currency: str,
+) -> dict[str, Any]:
+    """
+    Bind a locally registered withdrawal destination to an
+    otherwise read-only Gate/funding preflight.
+
+    This performs no persistence and no Gate operation.
+    """
+    owner = str(
+        owner_account_id or ""
+    ).strip().lower()
+
+    symbol = str(
+        currency or ""
+    ).strip().upper()
+
+    destination_owner = str(
+        destination.get("owner_account_id")
+        or ""
+    ).strip().lower()
+
+    destination_currency = str(
+        destination.get("currency")
+        or ""
+    ).strip().upper()
+
+    destination_chain = str(
+        destination.get("chain")
+        or ""
+    ).strip().upper()
+
+    destination_status = str(
+        destination.get("status")
+        or ""
+    ).strip().lower()
+
+    destination_memo = str(
+        destination.get("memo")
+        or ""
+    ).strip()
+
+    network = (
+        preflight.get("network")
+        if isinstance(
+            preflight.get("network"),
+            dict,
+        )
+        else {}
+    )
+
+    preflight_chain = str(
+        network.get("chain")
+        or ""
+    ).strip().upper()
+
+    requires_memo = bool(
+        network.get("requires_memo")
+    )
+
+    destination_checks = {
+        "destination_owner_match": (
+            destination_owner == owner
+        ),
+        "destination_currency_match": (
+            destination_currency == symbol
+        ),
+        "destination_chain_match": (
+            bool(destination_chain)
+            and bool(preflight_chain)
+            and _chain_key(destination_chain)
+            == _chain_key(preflight_chain)
+        ),
+        "destination_approved": (
+            destination_status == "approved"
+        ),
+        "destination_memo_valid": (
+            bool(destination_memo)
+            if requires_memo
+            else True
+        ),
+    }
+
+    existing_checks = dict(
+        preflight.get("checks")
+        or {}
+    )
+
+    checks = {
+        **existing_checks,
+        **destination_checks,
+    }
+
+    destination_errors = [
+        name
+        for name, passed
+        in destination_checks.items()
+        if not passed
+    ]
+
+    errors = list(
+        preflight.get("errors")
+        or []
+    )
+
+    for error in destination_errors:
+        if error not in errors:
+            errors.append(error)
+
+    destination_valid = all(
+        destination_checks.values()
+    )
+
+    base_valid = bool(
+        preflight.get("preflight_valid")
+    )
+
+    preflight_valid = bool(
+        base_valid
+        and destination_valid
+    )
+
+    return {
+        **preflight,
+        "status": (
+            "ready"
+            if preflight_valid
+            else "invalid"
+        ),
+        "preflight_valid": preflight_valid,
+
+        # T2C.2B is still deliberately non-executable.
+        "executable": False,
+        "execution_block_reason": (
+            "withdrawal_execution_not_enabled"
+        ),
+        "gate_write_performed": False,
+
+        "checks": checks,
+        "errors": errors,
+
+        "destination": {
+            "destination_id": (
+                destination.get(
+                    "destination_id"
+                )
+            ),
+            "owner_account_id": (
+                destination_owner
+            ),
+            "currency": (
+                destination_currency
+            ),
+            "chain": destination_chain,
+            "address": destination.get(
+                "address"
+            ),
+            "memo": destination.get(
+                "memo"
+            ),
+            "label": destination.get(
+                "label"
+            ),
+            "status": destination_status,
+            "verification_method": (
+                destination.get(
+                    "verification_method"
+                )
+            ),
+            "approved_by": (
+                destination.get(
+                    "approved_by"
+                )
+            ),
+            "approved_at": (
+                destination.get(
+                    "approved_at"
+                )
+            ),
+            "requires_memo": requires_memo,
+            "valid_for_preflight": (
+                destination_valid
+            ),
         },
     }

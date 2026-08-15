@@ -66,6 +66,7 @@ from ..treasury_rate_limit import (
     enforce_treasury_rate_limit,
 )
 from ..treasury_withdrawal import (
+    bind_destination_to_preflight,
     build_withdrawal_capabilities,
     build_withdrawal_preflight,
 )
@@ -1743,10 +1744,10 @@ async def treasury_withdrawal_preflight(
         min_length=1,
         max_length=64,
     ),
-    chain: str = Query(
+    destination_id: str = Query(
         ...,
-        min_length=1,
-        max_length=64,
+        min_length=4,
+        max_length=128,
     ),
     amount: Decimal = Query(
         ...,
@@ -1757,6 +1758,74 @@ async def treasury_withdrawal_preflight(
         user,
         owner_account_id,
     )
+
+    selected_currency = _currency(currency)
+
+    destination = get_destination(
+        destination_id
+    )
+
+    # Do not disclose another owner's destination even
+    # if the caller somehow knows its opaque ID.
+    if (
+        destination is None
+        or str(
+            destination.get(
+                "owner_account_id"
+            )
+            or ""
+        ).strip().lower()
+        != owner
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Withdrawal destination not found"
+            ),
+        )
+
+    destination_currency = str(
+        destination.get("currency")
+        or ""
+    ).strip().upper()
+
+    if (
+        destination_currency
+        != selected_currency
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal destination currency "
+                    "does not match the requested currency"
+                ),
+                "preflight_valid": False,
+                "executable": False,
+                "gate_write_performed": False,
+            },
+        )
+
+    # The chain is security-sensitive and comes only from
+    # the stored destination. The caller cannot override it.
+    selected_chain = str(
+        destination.get("chain")
+        or ""
+    ).strip().upper()
+
+    if not selected_chain:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal destination does not "
+                    "contain a valid chain"
+                ),
+                "preflight_valid": False,
+                "executable": False,
+                "gate_write_performed": False,
+            },
+        )
 
     source_account = get_gate_account(owner)
 
@@ -1776,8 +1845,6 @@ async def treasury_withdrawal_preflight(
     treasury_account = (
         _treasury_account_or_http()
     )
-
-    selected_currency = _currency(currency)
 
     owner_main_held = ownership_amount(
         owner_account_id=owner,
@@ -1851,14 +1918,21 @@ async def treasury_withdrawal_preflight(
 
     preflight = build_withdrawal_preflight(
         capabilities=capabilities,
-        chain=chain,
+        chain=selected_chain,
         amount=amount,
+    )
+
+    preflight = bind_destination_to_preflight(
+        preflight=preflight,
+        destination=destination,
+        owner_account_id=owner,
+        currency=selected_currency,
     )
 
     return {
         "phase": "T2B_TRANSFER_CONTROL",
         "withdrawal_phase": (
-            "T2C1B_PREFLIGHT_READ_ONLY"
+            "T2C2B_DESTINATION_BOUND_PREFLIGHT"
         ),
         "gate_write_performed": False,
         "transfers_enabled": False,
