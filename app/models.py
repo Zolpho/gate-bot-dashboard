@@ -764,6 +764,218 @@ class TreasuryTransferLockResolution(Base):
     )
 
 
+class TreasuryWithdrawalDestination(Base):
+    __tablename__ = "treasury_withdrawal_destinations"
+    __table_args__ = (
+        UniqueConstraint(
+            "destination_id",
+            name="uq_treasury_withdrawal_destination_id",
+        ),
+        UniqueConstraint(
+            "owner_account_id",
+            "currency",
+            "chain",
+            "address",
+            "memo",
+            name=(
+                "uq_treasury_withdrawal_destination_"
+                "owner_currency_chain_address_memo"
+            ),
+        ),
+        Index(
+            "ix_treasury_withdrawal_destination_owner_status_created",
+            "owner_account_id",
+            "status",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_withdrawal_destination_owner_currency_chain",
+            "owner_account_id",
+            "currency",
+            "chain",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    destination_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    owner_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    chain: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    # Address and memo are intentionally preserved exactly
+    # apart from surrounding whitespace. Different networks
+    # have different case/canonicalization rules.
+    address: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    memo: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    label: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="candidate",
+    )
+
+    source: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="manual",
+    )
+
+    verification_method: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="unverified",
+    )
+
+    created_by: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    approved_by: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    approved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    revoked_by: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+        nullable=False,
+    )
+
+
+class TreasuryWithdrawalDestinationEvent(Base):
+    """
+    Append-only destination security audit.
+
+    Destination identity changes are never represented by
+    editing an approved destination. A different owner,
+    currency, chain, address, or memo is a new destination.
+    """
+
+    __tablename__ = "treasury_withdrawal_destination_events"
+    __table_args__ = (
+        Index(
+            "ix_treasury_withdrawal_destination_event_destination_created",
+            "destination_id",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_withdrawal_destination_event_owner_created",
+            "owner_account_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    destination_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    owner_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    from_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="",
+    )
+
+    to_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    reason: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    metadata_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
 class BotControlRequest(Base):
     __tablename__ = "bot_control_requests"
     __table_args__ = (

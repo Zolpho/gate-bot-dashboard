@@ -69,6 +69,15 @@ from ..treasury_withdrawal import (
     build_withdrawal_capabilities,
     build_withdrawal_preflight,
 )
+from ..treasury_withdrawal_destinations import (
+    TreasuryWithdrawalDestinationError,
+    approve_destination,
+    create_candidate_destination,
+    get_destination,
+    list_destination_events,
+    list_destinations,
+    revoke_destination,
+)
 from ..treasury_transfer_reconcile import (
     interpret_transfer_order_status,
     interpret_transfer_submission_error,
@@ -181,6 +190,58 @@ class TreasuryTransferExecutionRequest(
     confirmation: str = Field(
         min_length=1,
         max_length=255,
+    )
+
+
+
+class TreasuryWithdrawalDestinationCandidateRequest(
+    BaseModel
+):
+    owner_account_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$",
+    )
+
+    currency: str = Field(
+        min_length=1,
+        max_length=20,
+        pattern=r"^[A-Za-z0-9_]+$",
+    )
+
+    chain: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9._-]+$",
+    )
+
+    address: str = Field(
+        min_length=1,
+        max_length=512,
+    )
+
+    memo: str = Field(
+        default="",
+        max_length=512,
+    )
+
+    label: str = Field(
+        default="",
+        max_length=128,
+    )
+
+
+class TreasuryWithdrawalDestinationDecisionRequest(
+    BaseModel
+):
+    confirmation: str = Field(
+        min_length=1,
+        max_length=255,
+    )
+
+    reason: str = Field(
+        min_length=20,
+        max_length=1000,
     )
 
 
@@ -1387,6 +1448,284 @@ async def treasury_balance(
         "spot_accounts": spot.raw,
         "transfers_enabled": False,
         "withdrawals_enabled": False,
+    }
+
+
+@router.post(
+    "/withdrawals/destinations"
+)
+def create_treasury_withdrawal_destination(
+    request: TreasuryWithdrawalDestinationCandidateRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    owner = require_account_access(
+        user,
+        request.owner_account_id,
+    )
+
+    try:
+        result = create_candidate_destination(
+            owner_account_id=owner,
+            currency=request.currency,
+            chain=request.chain,
+            address=request.address,
+            memo=request.memo,
+            label=request.label,
+            username=user.username,
+        )
+
+    except TreasuryWithdrawalDestinationError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": "T2C2A_DESTINATION_REGISTRY",
+        "withdrawals_enabled": False,
+        "local_write_performed": bool(
+            result["created"]
+        ),
+        "gate_write_performed": False,
+        **result,
+    }
+
+
+@router.get(
+    "/withdrawals/destinations"
+)
+def treasury_withdrawal_destinations(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    owner_account_id: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=64,
+    ),
+    status: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=32,
+    ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=500,
+    ),
+):
+    if owner_account_id:
+        selected_owner = require_account_access(
+            user,
+            owner_account_id,
+        )
+        owner_ids: set[str] | None = {
+            selected_owner
+        }
+
+    else:
+        owner_ids = (
+            None
+            if user.is_super_admin
+            else set(user.account_ids)
+        )
+
+    try:
+        items = list_destinations(
+            owner_account_ids=owner_ids,
+            status=status,
+            limit=limit,
+        )
+
+    except TreasuryWithdrawalDestinationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "phase": "T2C2A_DESTINATION_REGISTRY",
+        "withdrawals_enabled": False,
+        "gate_write_performed": False,
+        "items": items,
+    }
+
+
+@router.get(
+    "/withdrawals/destinations/{destination_id}"
+)
+def treasury_withdrawal_destination_detail(
+    destination_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = get_destination(destination_id)
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Withdrawal destination not found",
+        )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    return {
+        "phase": "T2C2A_DESTINATION_REGISTRY",
+        "withdrawals_enabled": False,
+        "gate_write_performed": False,
+        "item": row,
+        "events": list_destination_events(
+            destination_id
+        ),
+    }
+
+
+@router.post(
+    "/withdrawals/destinations/"
+    "{destination_id}/approve"
+)
+def approve_treasury_withdrawal_destination(
+    destination_id: str,
+    request: TreasuryWithdrawalDestinationDecisionRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_super_admin),
+    ],
+):
+    required_confirmation = (
+        "APPROVE WITHDRAWAL DESTINATION "
+        + destination_id
+    )
+
+    if request.confirmation != required_confirmation:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid withdrawal destination "
+                    "approval confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        )
+
+    try:
+        result = approve_destination(
+            destination_id=destination_id,
+            username=user.username,
+            reason=request.reason,
+        )
+
+    except TreasuryWithdrawalDestinationError as exc:
+        status_code = (
+            404
+            if str(exc)
+            == "Withdrawal destination not found"
+            else 409
+        )
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "message": str(exc),
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": "T2C2A_DESTINATION_REGISTRY",
+        "withdrawals_enabled": False,
+        "local_write_performed": bool(
+            result["changed"]
+        ),
+        "gate_write_performed": False,
+        **result,
+    }
+
+
+@router.post(
+    "/withdrawals/destinations/"
+    "{destination_id}/revoke"
+)
+def revoke_treasury_withdrawal_destination(
+    destination_id: str,
+    request: TreasuryWithdrawalDestinationDecisionRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_super_admin),
+    ],
+):
+    required_confirmation = (
+        "REVOKE WITHDRAWAL DESTINATION "
+        + destination_id
+    )
+
+    if request.confirmation != required_confirmation:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid withdrawal destination "
+                    "revocation confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        )
+
+    try:
+        result = revoke_destination(
+            destination_id=destination_id,
+            username=user.username,
+            reason=request.reason,
+        )
+
+    except TreasuryWithdrawalDestinationError as exc:
+        status_code = (
+            404
+            if str(exc)
+            == "Withdrawal destination not found"
+            else 409
+        )
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "message": str(exc),
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": "T2C2A_DESTINATION_REGISTRY",
+        "withdrawals_enabled": False,
+        "local_write_performed": bool(
+            result["changed"]
+        ),
+        "gate_write_performed": False,
+        **result,
     }
 
 

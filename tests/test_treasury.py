@@ -230,7 +230,7 @@ def test_treasury_status_is_safe_when_unconfigured() -> None:
         assert payload["config_error"] == ""
 
 
-def test_treasury_t2b_allows_only_expected_mutation_routes() -> None:
+def test_treasury_t2c2a_allows_only_expected_mutation_routes() -> None:
     write_routes = []
 
     for route in app.routes:
@@ -263,13 +263,15 @@ def test_treasury_t2b_allows_only_expected_mutation_routes() -> None:
                 )
             )
 
-    assert set(
+    actual = {
         (
             path,
             frozenset(methods),
         )
         for path, methods in write_routes
-    ) == {
+    }
+
+    transfer_mutations = {
         (
             "/api/treasury/transfers/simulate",
             frozenset({"POST"}),
@@ -279,16 +281,86 @@ def test_treasury_t2b_allows_only_expected_mutation_routes() -> None:
             frozenset({"POST"}),
         ),
         (
-            "/api/treasury/transfers/{request_id}/reconcile",
+            (
+                "/api/treasury/transfers/"
+                "{request_id}/reconcile"
+            ),
             frozenset({"POST"}),
         ),
         (
-            "/api/treasury/transfers/{request_id}/lock/release",
+            (
+                "/api/treasury/transfers/"
+                "{request_id}/lock/release"
+            ),
             frozenset({"POST"}),
         ),
     }
 
+    local_destination_mutations = {
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "destinations"
+            ),
+            frozenset({"POST"}),
+        ),
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "destinations/"
+                "{destination_id}/approve"
+            ),
+            frozenset({"POST"}),
+        ),
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "destinations/"
+                "{destination_id}/revoke"
+            ),
+            frozenset({"POST"}),
+        ),
+    }
+
+    assert actual == (
+        transfer_mutations
+        | local_destination_mutations
+    )
+
+    withdrawal_mutation_paths = {
+        path
+        for path, _methods in write_routes
+        if "/withdrawals/" in path
+    }
+
+    assert withdrawal_mutation_paths == {
+        (
+            "/api/treasury/withdrawals/"
+            "destinations"
+        ),
+        (
+            "/api/treasury/withdrawals/"
+            "destinations/"
+            "{destination_id}/approve"
+        ),
+        (
+            "/api/treasury/withdrawals/"
+            "destinations/"
+            "{destination_id}/revoke"
+        ),
+    }
+
+    # The actual money-movement endpoint must not exist
+    # as an application mutation route.
     assert all(
-        "withdraw" not in path.lower()
+        path != "/api/treasury/withdrawals"
+        for path, _methods in write_routes
+    )
+
+    # Read-only capability/preflight routes must never
+    # accidentally become mutations.
+    assert all(
+        "/withdrawals/preflight" not in path
+        and "/withdrawals/capabilities" not in path
         for path, _methods in write_routes
     )
