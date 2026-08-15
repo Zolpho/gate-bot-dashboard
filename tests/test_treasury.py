@@ -230,7 +230,7 @@ def test_treasury_status_is_safe_when_unconfigured() -> None:
         assert payload["config_error"] == ""
 
 
-def test_treasury_t2c2a_allows_only_expected_mutation_routes() -> None:
+def test_treasury_t2c3a_allows_only_expected_mutation_routes() -> None:
     write_routes = []
 
     for route in app.routes:
@@ -296,7 +296,7 @@ def test_treasury_t2c2a_allows_only_expected_mutation_routes() -> None:
         ),
     }
 
-    local_destination_mutations = {
+    local_withdrawal_mutations = {
         (
             (
                 "/api/treasury/withdrawals/"
@@ -320,11 +320,18 @@ def test_treasury_t2c2a_allows_only_expected_mutation_routes() -> None:
             ),
             frozenset({"POST"}),
         ),
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "requests/simulate"
+            ),
+            frozenset({"POST"}),
+        ),
     }
 
     assert actual == (
         transfer_mutations
-        | local_destination_mutations
+        | local_withdrawal_mutations
     )
 
     withdrawal_mutation_paths = {
@@ -348,10 +355,14 @@ def test_treasury_t2c2a_allows_only_expected_mutation_routes() -> None:
             "destinations/"
             "{destination_id}/revoke"
         ),
+        (
+            "/api/treasury/withdrawals/"
+            "requests/simulate"
+        ),
     }
 
-    # The actual money-movement endpoint must not exist
-    # as an application mutation route.
+    # The actual external money-movement endpoint must
+    # still not exist as an application mutation route.
     assert all(
         path != "/api/treasury/withdrawals"
         for path, _methods in write_routes
@@ -362,5 +373,17 @@ def test_treasury_t2c2a_allows_only_expected_mutation_routes() -> None:
     assert all(
         "/withdrawals/preflight" not in path
         and "/withdrawals/capabilities" not in path
+        for path, _methods in write_routes
+    )
+
+    # T2C.3A permits persistence of a simulation/audit
+    # request only. There is still no withdrawal execute,
+    # submit, reconcile, or lock mutation route.
+    assert all(
+        "/withdrawals/requests/execute" not in path
+        and "/withdrawals/requests/submit" not in path
+        and "/withdrawals/requests/reserve" not in path
+        and "/withdrawals/requests/reconcile" not in path
+        and "/withdrawals/locks" not in path
         for path, _methods in write_routes
     )

@@ -976,6 +976,354 @@ class TreasuryWithdrawalDestinationEvent(Base):
     )
 
 
+class TreasuryWithdrawalRequest(Base):
+    __tablename__ = "treasury_withdrawal_requests"
+    __table_args__ = (
+        UniqueConstraint(
+            "request_id",
+            name="uq_treasury_withdrawal_request_id",
+        ),
+        Index(
+            "ix_treasury_withdrawal_owner_created",
+            "owner_account_id",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_withdrawal_status_created",
+            "status",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_withdrawal_destination_created",
+            "destination_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    owner_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    custody_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    destination_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    # Immutable destination snapshot captured when the
+    # request simulation is recorded.
+    currency: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    chain: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    address: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    memo: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    amount: Mapped[Decimal] = mapped_column(
+        TREASURY_AMOUNT,
+        nullable=False,
+    )
+
+    estimated_fee: Mapped[Decimal] = mapped_column(
+        TREASURY_AMOUNT,
+        nullable=False,
+        default=Decimal("0"),
+    )
+
+    conservative_funding_required: Mapped[Decimal] = (
+        mapped_column(
+            TREASURY_AMOUNT,
+            nullable=False,
+            default=Decimal("0"),
+        )
+    )
+
+    minimum_jit_transfer: Mapped[Decimal] = mapped_column(
+        TREASURY_AMOUNT,
+        nullable=False,
+        default=Decimal("0"),
+    )
+
+    jit_required: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="simulated",
+    )
+
+    request_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    request_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    preflight_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    destination_snapshot_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    # Reserved for later execution/reconciliation phases.
+    # T2C.3A never writes any of these Gate fields.
+    gate_withdraw_order_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    gate_withdrawal_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    gate_txid: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    gate_status: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    error: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    simulation: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+    )
+
+    write_performed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+        nullable=False,
+    )
+
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+
+class TreasuryWithdrawalReconciliation(Base):
+    __tablename__ = "treasury_withdrawal_reconciliations"
+    __table_args__ = (
+        Index(
+            "ix_treasury_withdrawal_reconcile_request_created",
+            "request_id",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_withdrawal_reconcile_owner_created",
+            "owner_account_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    owner_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    outcome: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    confidence: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="inconclusive",
+    )
+
+    gate_status: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    gate_withdrawal_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    gate_txid: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    summary: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    details_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
+class TreasuryWithdrawalOperationLock(Base):
+    __tablename__ = "treasury_withdrawal_operation_locks"
+    __table_args__ = (
+        UniqueConstraint(
+            "lock_key",
+            name="uq_treasury_withdrawal_operation_lock_key",
+        ),
+        Index(
+            "ix_treasury_withdrawal_lock_custody_currency",
+            "custody_account_id",
+            "currency",
+        ),
+        Index(
+            "ix_treasury_withdrawal_lock_owner",
+            "owner_request_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    lock_key: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    owner_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    custody_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    owner_request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    state: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="held",
+    )
+
+    acquired_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
 class BotControlRequest(Base):
     __tablename__ = "bot_control_requests"
     __table_args__ = (

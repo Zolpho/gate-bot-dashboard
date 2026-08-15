@@ -125,6 +125,9 @@ def migrate_database(engine: Engine) -> None:
         TreasuryTransferRequest,
         TreasuryWithdrawalDestination,
         TreasuryWithdrawalDestinationEvent,
+        TreasuryWithdrawalOperationLock,
+        TreasuryWithdrawalReconciliation,
+        TreasuryWithdrawalRequest,
     )
 
     raw = engine.raw_connection()
@@ -223,6 +226,36 @@ def migrate_database(engine: Engine) -> None:
                 raw,
                 engine,
                 TreasuryWithdrawalDestinationEvent.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "treasury_withdrawal_requests",
+        ):
+            _create_table(
+                raw,
+                engine,
+                TreasuryWithdrawalRequest.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "treasury_withdrawal_reconciliations",
+        ):
+            _create_table(
+                raw,
+                engine,
+                TreasuryWithdrawalReconciliation.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "treasury_withdrawal_operation_locks",
+        ):
+            _create_table(
+                raw,
+                engine,
+                TreasuryWithdrawalOperationLock.__table__,
             )
 
         # Deterministic, idempotent ownership backfill.

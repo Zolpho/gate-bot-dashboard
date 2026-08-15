@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..accounts import get_gate_account
 from ..config import get_settings
@@ -78,6 +78,14 @@ from ..treasury_withdrawal_destinations import (
     list_destination_events,
     list_destinations,
     revoke_destination,
+)
+from ..treasury_withdrawal_audit import (
+    TreasuryWithdrawalIdempotencyConflict,
+    find_matching_withdrawal_request,
+    get_withdrawal_request,
+    list_withdrawal_reconciliations,
+    list_withdrawal_requests,
+    record_withdrawal_simulation,
 )
 from ..treasury_transfer_reconcile import (
     interpret_transfer_order_status,
@@ -243,6 +251,53 @@ class TreasuryWithdrawalDestinationDecisionRequest(
     reason: str = Field(
         min_length=20,
         max_length=1000,
+    )
+
+
+class TreasuryWithdrawalSimulationRequest(
+    BaseModel
+):
+    # Fail closed rather than silently accepting obsolete
+    # client fields such as chain/address/memo.
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    request_id: str = Field(
+        min_length=8,
+        max_length=128,
+        pattern=(
+            r"^[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{7,127}$"
+        ),
+    )
+
+    owner_account_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=(
+            r"^[a-z0-9]"
+            r"[a-z0-9_-]{0,63}$"
+        ),
+    )
+
+    destination_id: str = Field(
+        min_length=4,
+        max_length=128,
+        pattern=(
+            r"^[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{3,127}$"
+        ),
+    )
+
+    currency: str = Field(
+        min_length=1,
+        max_length=20,
+        pattern=r"^[A-Za-z0-9_]+$",
+    )
+
+    amount: Decimal = Field(
+        gt=0,
     )
 
 
@@ -1947,6 +2002,330 @@ async def treasury_withdrawal_preflight(
             ),
         },
         "preflight": preflight,
+    }
+
+
+@router.post(
+    "/withdrawals/requests/simulate"
+)
+async def simulate_treasury_withdrawal_request(
+    request: TreasuryWithdrawalSimulationRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    owner = require_account_access(
+        user,
+        request.owner_account_id,
+    )
+
+    selected_currency = _currency(
+        request.currency
+    )
+
+    # Fingerprint contains only caller intent. Security-
+    # sensitive destination identity is resolved from the
+    # approved local registry and snapshotted separately.
+    audit_payload = {
+        "operation": "external_withdrawal_simulation",
+        "owner_account_id": owner,
+        "custody_account_id": (
+            settings.treasury_main_account
+        ),
+        "destination_id": request.destination_id,
+        "currency": selected_currency,
+        "amount": format(
+            request.amount,
+            "f",
+        ),
+    }
+
+    # Idempotency is checked before any fresh Gate read.
+    # A replay never creates another request record.
+    try:
+        existing = (
+            find_matching_withdrawal_request(
+                request_id=request.request_id,
+                owner_account_id=owner,
+                username=user.username,
+                payload=audit_payload,
+            )
+        )
+
+    except TreasuryWithdrawalIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    if existing is not None:
+        return {
+            "phase": (
+                "T2C3A_WITHDRAWAL_REQUEST_AUDIT"
+            ),
+            "status": "simulated_replay",
+            "simulation": True,
+            "idempotent_replay": True,
+            "current_preflight_rechecked": False,
+            "audit_recorded": True,
+            "audit_created": False,
+            "gate_write_performed": False,
+            "transfers_enabled": False,
+            "withdrawals_enabled": False,
+            "executable": False,
+            "audit": existing,
+            "preflight": existing["preflight"],
+        }
+
+    # Reuse the exact destination-bound preflight accepted
+    # in T2C.2B. This performs Gate GETs only.
+    preflight_response = (
+        await treasury_withdrawal_preflight(
+            selected_currency,
+            user=user,
+            owner_account_id=owner,
+            destination_id=(
+                request.destination_id
+            ),
+            amount=request.amount,
+        )
+    )
+
+    preflight = preflight_response[
+        "preflight"
+    ]
+
+    base_response = {
+        "phase": (
+            "T2C3A_WITHDRAWAL_REQUEST_AUDIT"
+        ),
+        "status": (
+            "ready"
+            if preflight.get(
+                "preflight_valid"
+            )
+            else "invalid"
+        ),
+        "simulation": True,
+        "idempotent_replay": False,
+        "gate_write_performed": False,
+        "transfers_enabled": False,
+        "withdrawals_enabled": False,
+        "executable": False,
+        "preflight": preflight,
+    }
+
+    if not preflight.get(
+        "preflight_valid"
+    ):
+        return {
+            **base_response,
+            "audit_recorded": False,
+            "audit_created": False,
+        }
+
+    destination = dict(
+        preflight.get("destination")
+        or {}
+    )
+
+    funding = dict(
+        preflight.get("funding")
+        or {}
+    )
+
+    fee = dict(
+        preflight.get("fee")
+        or {}
+    )
+
+    try:
+        estimated_fee = Decimal(
+            str(
+                fee["estimated_fee"]
+            )
+        )
+
+        conservative_required = Decimal(
+            str(
+                funding[
+                    "conservative_funding_required"
+                ]
+            )
+        )
+
+        minimum_jit_transfer = Decimal(
+            str(
+                funding[
+                    "minimum_jit_transfer"
+                ]
+            )
+        )
+
+        jit_required = bool(
+            funding["jit_required"]
+        )
+
+        chain = str(
+            destination["chain"]
+        )
+
+        address = str(
+            destination["address"]
+        )
+
+        memo = str(
+            destination.get("memo")
+            or ""
+        )
+
+    except (
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": (
+                    "Valid withdrawal preflight "
+                    "was missing required audit fields"
+                ),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    try:
+        audit, created = (
+            record_withdrawal_simulation(
+                request_id=request.request_id,
+                owner_account_id=owner,
+                custody_account_id=(
+                    settings.treasury_main_account
+                ),
+                username=user.username,
+                destination_id=(
+                    request.destination_id
+                ),
+                currency=selected_currency,
+                chain=chain,
+                address=address,
+                memo=memo,
+                amount=request.amount,
+                estimated_fee=estimated_fee,
+                conservative_funding_required=(
+                    conservative_required
+                ),
+                minimum_jit_transfer=(
+                    minimum_jit_transfer
+                ),
+                jit_required=jit_required,
+                payload=audit_payload,
+                preflight=preflight,
+                destination_snapshot=(
+                    destination
+                ),
+            )
+        )
+
+    except TreasuryWithdrawalIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        **base_response,
+        "audit_recorded": True,
+        "audit_created": created,
+        "audit": audit,
+    }
+
+
+@router.get(
+    "/withdrawals/requests"
+)
+def treasury_withdrawal_requests(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+    ),
+):
+    account_ids = (
+        None
+        if user.is_super_admin
+        else set(user.account_ids)
+    )
+
+    return {
+        "phase": (
+            "T2C3A_WITHDRAWAL_REQUEST_AUDIT"
+        ),
+        "withdrawals_enabled": False,
+        "gate_write_performed": False,
+        "items": list_withdrawal_requests(
+            limit=limit,
+            account_ids=account_ids,
+        ),
+    }
+
+
+@router.get(
+    "/withdrawals/requests/{request_id}"
+)
+def treasury_withdrawal_request_detail(
+    request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = get_withdrawal_request(
+        request_id
+    )
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Treasury withdrawal request "
+                "not found"
+            ),
+        )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    return {
+        "phase": (
+            "T2C3A_WITHDRAWAL_REQUEST_AUDIT"
+        ),
+        "withdrawals_enabled": False,
+        "gate_write_performed": False,
+        "item": row,
+        "reconciliations": (
+            list_withdrawal_reconciliations(
+                request_id
+            )
+        ),
+
+        # T2C.3A creates the operation-lock schema only.
+        # No withdrawal request can acquire one yet.
+        "operation_lock": None,
     }
 
 
