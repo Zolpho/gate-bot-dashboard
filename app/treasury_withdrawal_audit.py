@@ -5,17 +5,29 @@ import json
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
-from .db import session_scope, utcnow
+from .db import (
+    SessionLocal,
+    engine,
+    session_scope,
+    utcnow,
+)
 from .models import (
     TreasuryWithdrawalReconciliation,
     TreasuryWithdrawalRequest,
+    TreasuryWithdrawalRequestEvent,
 )
 
 
 class TreasuryWithdrawalIdempotencyConflict(
+    RuntimeError
+):
+    pass
+
+
+class TreasuryWithdrawalStateError(
     RuntimeError
 ):
     pass
@@ -453,3 +465,165 @@ def list_withdrawal_reconciliations(
             _reconciliation_snapshot(row)
             for row in rows
         ]
+
+def _event_snapshot(
+    row: TreasuryWithdrawalRequestEvent,
+) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "request_id": row.request_id,
+        "owner_account_id": (
+            row.owner_account_id
+        ),
+        "username": row.username,
+        "action": row.action,
+        "from_status": row.from_status,
+        "to_status": row.to_status,
+        "details": _load_json(
+            row.details_json
+        ),
+        "created_at": (
+            row.created_at.isoformat()
+            if row.created_at
+            else None
+        ),
+    }
+
+
+def list_withdrawal_request_events(
+    request_id: str,
+) -> list[dict[str, Any]]:
+    with session_scope() as db:
+        rows = db.scalars(
+            select(
+                TreasuryWithdrawalRequestEvent
+            )
+            .where(
+                TreasuryWithdrawalRequestEvent
+                .request_id
+                == request_id
+            )
+            .order_by(
+                TreasuryWithdrawalRequestEvent
+                .created_at.asc(),
+                TreasuryWithdrawalRequestEvent
+                .id.asc(),
+            )
+        ).all()
+
+        return [
+            _event_snapshot(row)
+            for row in rows
+        ]
+
+
+def transition_withdrawal_request(
+    request_id: str,
+    *,
+    expected_statuses: set[str],
+    new_status: str,
+    username: str,
+    action: str,
+    details: Any = None,
+    error: str = "",
+    simulation: bool | None = None,
+    completed: bool = False,
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any] | None,
+    bool,
+]:
+    session = SessionLocal()
+
+    try:
+        # Serialize state transitions so two concurrent
+        # reserve/confirm requests cannot both advance the
+        # same withdrawal lifecycle from the same state.
+        if engine.dialect.name == "sqlite":
+            session.execute(
+                text("BEGIN IMMEDIATE")
+            )
+
+        row = session.scalar(
+            select(
+                TreasuryWithdrawalRequest
+            ).where(
+                TreasuryWithdrawalRequest
+                .request_id
+                == request_id
+            )
+        )
+
+        if row is None:
+            raise TreasuryWithdrawalStateError(
+                "Treasury withdrawal request "
+                "not found"
+            )
+
+        current_status = row.status
+
+        if current_status == new_status:
+            snapshot = _snapshot(row)
+            session.commit()
+
+            return (
+                snapshot,
+                None,
+                False,
+            )
+
+        if current_status not in expected_statuses:
+            raise TreasuryWithdrawalStateError(
+                "Treasury withdrawal request "
+                f"cannot transition from "
+                f"{current_status!r} to "
+                f"{new_status!r}"
+            )
+
+        row.status = new_status
+        row.error = error
+
+        if simulation is not None:
+            row.simulation = simulation
+
+        if completed:
+            row.completed_at = utcnow()
+        else:
+            row.completed_at = None
+
+        event = TreasuryWithdrawalRequestEvent(
+            request_id=row.request_id,
+            owner_account_id=(
+                row.owner_account_id
+            ),
+            username=username,
+            action=action,
+            from_status=current_status,
+            to_status=new_status,
+            details_json=canonical_json(
+                details or {}
+            ),
+        )
+
+        session.add(event)
+        session.flush()
+
+        snapshot = _snapshot(row)
+        event_snapshot = (
+            _event_snapshot(event)
+        )
+
+        session.commit()
+
+        return (
+            snapshot,
+            event_snapshot,
+            True,
+        )
+
+    except Exception:
+        session.rollback()
+        raise
+
+    finally:
+        session.close()

@@ -230,7 +230,7 @@ def test_treasury_status_is_safe_when_unconfigured() -> None:
         assert payload["config_error"] == ""
 
 
-def test_treasury_t2c3a_allows_only_expected_mutation_routes() -> None:
+def test_treasury_t2c3b_allows_only_expected_mutation_routes() -> None:
     write_routes = []
 
     for route in app.routes:
@@ -327,6 +327,27 @@ def test_treasury_t2c3a_allows_only_expected_mutation_routes() -> None:
             ),
             frozenset({"POST"}),
         ),
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "requests/{request_id}/reserve"
+            ),
+            frozenset({"POST"}),
+        ),
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "requests/{request_id}/confirm"
+            ),
+            frozenset({"POST"}),
+        ),
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "requests/{request_id}/cancel"
+            ),
+            frozenset({"POST"}),
+        ),
     }
 
     assert actual == (
@@ -334,56 +355,32 @@ def test_treasury_t2c3a_allows_only_expected_mutation_routes() -> None:
         | local_withdrawal_mutations
     )
 
-    withdrawal_mutation_paths = {
+    withdrawal_paths = {
         path
         for path, _methods in write_routes
         if "/withdrawals/" in path
     }
 
-    assert withdrawal_mutation_paths == {
-        (
-            "/api/treasury/withdrawals/"
-            "destinations"
-        ),
-        (
-            "/api/treasury/withdrawals/"
-            "destinations/"
-            "{destination_id}/approve"
-        ),
-        (
-            "/api/treasury/withdrawals/"
-            "destinations/"
-            "{destination_id}/revoke"
-        ),
-        (
-            "/api/treasury/withdrawals/"
-            "requests/simulate"
-        ),
+    assert withdrawal_paths == {
+        path
+        for path, _methods
+        in local_withdrawal_mutations
     }
 
-    # The actual external money-movement endpoint must
-    # still not exist as an application mutation route.
     assert all(
         path != "/api/treasury/withdrawals"
         for path, _methods in write_routes
     )
 
-    # Read-only capability/preflight routes must never
-    # accidentally become mutations.
     assert all(
-        "/withdrawals/preflight" not in path
-        and "/withdrawals/capabilities" not in path
+        "/withdrawals/execute" not in path
+        and "/withdrawals/submit" not in path
+        and "/withdrawals/reconcile" not in path
         for path, _methods in write_routes
     )
 
-    # T2C.3A permits persistence of a simulation/audit
-    # request only. There is still no withdrawal execute,
-    # submit, reconcile, or lock mutation route.
     assert all(
-        "/withdrawals/requests/execute" not in path
-        and "/withdrawals/requests/submit" not in path
-        and "/withdrawals/requests/reserve" not in path
-        and "/withdrawals/requests/reconcile" not in path
-        and "/withdrawals/locks" not in path
+        "/withdrawals/preflight" not in path
+        and "/withdrawals/capabilities" not in path
         for path, _methods in write_routes
     )

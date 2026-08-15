@@ -1258,6 +1258,79 @@ class TreasuryWithdrawalReconciliation(Base):
     )
 
 
+class TreasuryWithdrawalRequestEvent(Base):
+    """
+    Append-only lifecycle audit for a withdrawal request.
+
+    The original T2C.3A simulation/preflight snapshots stay
+    untouched. Reservation and confirmation snapshots are
+    recorded here instead.
+    """
+
+    __tablename__ = "treasury_withdrawal_request_events"
+    __table_args__ = (
+        Index(
+            "ix_treasury_withdrawal_request_event_request_created",
+            "request_id",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_withdrawal_request_event_owner_created",
+            "owner_account_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    owner_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    from_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="",
+    )
+
+    to_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="",
+    )
+
+    details_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
 class TreasuryWithdrawalOperationLock(Base):
     __tablename__ = "treasury_withdrawal_operation_locks"
     __table_args__ = (

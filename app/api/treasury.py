@@ -81,11 +81,27 @@ from ..treasury_withdrawal_destinations import (
 )
 from ..treasury_withdrawal_audit import (
     TreasuryWithdrawalIdempotencyConflict,
+    TreasuryWithdrawalStateError,
     find_matching_withdrawal_request,
     get_withdrawal_request,
     list_withdrawal_reconciliations,
+    list_withdrawal_request_events,
     list_withdrawal_requests,
     record_withdrawal_simulation,
+    transition_withdrawal_request,
+)
+from ..treasury_withdrawal_locks import (
+    TreasuryWithdrawalLocked,
+    acquire_withdrawal_lock,
+    get_withdrawal_lock_for_request,
+    list_withdrawal_locks,
+    release_withdrawal_lock,
+)
+from ..treasury_withdrawal_workflow import (
+    destination_snapshot_mismatches,
+    withdrawal_cancel_confirmation_text,
+    withdrawal_confirmation_text,
+    withdrawal_reservation_confirmation_text,
 )
 from ..treasury_transfer_reconcile import (
     interpret_transfer_order_status,
@@ -298,6 +314,50 @@ class TreasuryWithdrawalSimulationRequest(
 
     amount: Decimal = Field(
         gt=0,
+    )
+
+
+class TreasuryWithdrawalReservationRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+
+class TreasuryWithdrawalConfirmationRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+
+class TreasuryWithdrawalCancellationRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+    reason: str = Field(
+        min_length=20,
+        max_length=1000,
     )
 
 
@@ -2322,10 +2382,697 @@ def treasury_withdrawal_request_detail(
                 request_id
             )
         ),
+        "events": (
+            list_withdrawal_request_events(
+                request_id
+            )
+        ),
+        "operation_lock": (
+            get_withdrawal_lock_for_request(
+                request_id
+            )
+        ),
+    }
 
-        # T2C.3A creates the operation-lock schema only.
-        # No withdrawal request can acquire one yet.
+
+def _withdrawal_request_or_http(
+    request_id: str,
+) -> dict:
+    row = get_withdrawal_request(
+        request_id
+    )
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Treasury withdrawal request "
+                "not found"
+            ),
+        )
+
+    return row
+
+
+async def _fresh_request_preflight(
+    *,
+    row: dict,
+    user: DashboardUser,
+) -> dict:
+    response = (
+        await treasury_withdrawal_preflight(
+            row["currency"],
+            user=user,
+            owner_account_id=(
+                row["owner_account_id"]
+            ),
+            destination_id=(
+                row["destination_id"]
+            ),
+            amount=Decimal(
+                str(row["amount"])
+            ),
+        )
+    )
+
+    return response["preflight"]
+
+
+@router.post(
+    "/withdrawals/requests/{request_id}/reserve"
+)
+async def reserve_treasury_withdrawal_request(
+    request_id: str,
+    request: TreasuryWithdrawalReservationRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    if row["status"] in {
+        "reserved",
+        "confirmed_ready",
+    }:
+        lock = (
+            get_withdrawal_lock_for_request(
+                request_id
+            )
+        )
+
+        if lock is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "Withdrawal request state "
+                        "requires an operation lock, "
+                        "but no lock exists."
+                    ),
+                    "gate_write_performed": False,
+                },
+            )
+
+        return {
+            "phase": (
+                "T2C3B_WITHDRAWAL_RESERVATION"
+            ),
+            "status": row["status"],
+            "idempotent_replay": True,
+            "current_preflight_rechecked": False,
+            "gate_write_performed": False,
+            "transfers_enabled": False,
+            "withdrawals_enabled": False,
+            "executable": False,
+            "audit": row,
+            "operation_lock": lock,
+        }
+
+    if row["status"] != "simulated":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal request is not "
+                    "eligible for reservation."
+                ),
+                "status": row["status"],
+                "gate_write_performed": False,
+            },
+        )
+
+    required_confirmation = (
+        withdrawal_reservation_confirmation_text(
+            request_id
+        )
+    )
+
+    if (
+        request.confirmation
+        != required_confirmation
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid withdrawal reservation "
+                    "confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    # Fresh Gate GET-only preflight. No lock exists yet.
+    preflight = await _fresh_request_preflight(
+        row=row,
+        user=user,
+    )
+
+    if not preflight.get(
+        "preflight_valid"
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Current withdrawal preflight "
+                    "rejected the reservation."
+                ),
+                "errors": (
+                    preflight.get("errors")
+                    or []
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    mismatches = (
+        destination_snapshot_mismatches(
+            row,
+            preflight,
+        )
+    )
+
+    if mismatches:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Current withdrawal destination "
+                    "does not match the immutable "
+                    "request snapshot."
+                ),
+                "reason": (
+                    "destination_snapshot_mismatch"
+                ),
+                "mismatches": mismatches,
+                "gate_write_performed": False,
+            },
+        )
+
+    try:
+        lock = acquire_withdrawal_lock(
+            owner_account_id=(
+                row["owner_account_id"]
+            ),
+            custody_account_id=(
+                row["custody_account_id"]
+            ),
+            currency=row["currency"],
+            owner_request_id=request_id,
+            username=user.username,
+        )
+
+    except TreasuryWithdrawalLocked as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Another unresolved withdrawal "
+                    "already owns the main-account "
+                    "custody/currency lock."
+                ),
+                "conflicting_lock": exc.lock,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    try:
+        audit, event, changed = (
+            transition_withdrawal_request(
+                request_id,
+                expected_statuses={
+                    "simulated",
+                },
+                new_status="reserved",
+                username=user.username,
+                action="reserved",
+                details={
+                    "preflight": preflight,
+                    "operation_lock": lock,
+                    "gate_write_performed": False,
+                },
+                simulation=False,
+                completed=False,
+            )
+        )
+
+    except TreasuryWithdrawalStateError as exc:
+        # No Gate write has happened. Release only the
+        # lock owned by this exact request.
+        release_withdrawal_lock(
+            custody_account_id=(
+                row["custody_account_id"]
+            ),
+            currency=row["currency"],
+            owner_request_id=request_id,
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C3B_WITHDRAWAL_RESERVATION"
+        ),
+        "status": "reserved",
+        "reservation_created": changed,
+        "idempotent_replay": False,
+        "current_preflight_rechecked": True,
+        "gate_write_performed": False,
+        "transfers_enabled": False,
+        "withdrawals_enabled": False,
+        "executable": False,
+        "execution_block_reason": (
+            "withdrawal_execution_not_enabled"
+        ),
+        "audit": audit,
+        "event": event,
+        "operation_lock": lock,
+        "required_confirmation": (
+            withdrawal_confirmation_text(
+                audit
+            )
+        ),
+    }
+
+
+@router.post(
+    "/withdrawals/requests/{request_id}/confirm"
+)
+async def confirm_treasury_withdrawal_request(
+    request_id: str,
+    request: TreasuryWithdrawalConfirmationRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    if row["status"] == "confirmed_ready":
+        lock = (
+            get_withdrawal_lock_for_request(
+                request_id
+            )
+        )
+
+        if lock is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "Confirmed withdrawal request "
+                        "has no operation lock."
+                    ),
+                    "gate_write_performed": False,
+                },
+            )
+
+        return {
+            "phase": (
+                "T2C3B_WITHDRAWAL_RESERVATION"
+            ),
+            "status": "confirmed_ready",
+            "idempotent_replay": True,
+            "current_preflight_rechecked": False,
+            "gate_write_performed": False,
+            "withdrawals_enabled": False,
+            "executable": False,
+            "audit": row,
+            "operation_lock": lock,
+        }
+
+    if row["status"] != "reserved":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal request must be "
+                    "reserved before confirmation."
+                ),
+                "status": row["status"],
+                "gate_write_performed": False,
+            },
+        )
+
+    lock = get_withdrawal_lock_for_request(
+        request_id
+    )
+
+    if lock is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Reserved withdrawal request "
+                    "has no operation lock."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    required_confirmation = (
+        withdrawal_confirmation_text(
+            row
+        )
+    )
+
+    if (
+        request.confirmation
+        != required_confirmation
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid withdrawal confirmation "
+                    "text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    # Confirmation gets another fresh Gate GET-only
+    # preflight. A transient Gate error leaves the request
+    # reserved and its lock held so the operator can retry
+    # safely; there is still no ambiguous Gate write.
+    preflight = await _fresh_request_preflight(
+        row=row,
+        user=user,
+    )
+
+    mismatches = (
+        destination_snapshot_mismatches(
+            row,
+            preflight,
+        )
+    )
+
+    if (
+        not preflight.get(
+            "preflight_valid"
+        )
+        or mismatches
+    ):
+        reason = (
+            "Withdrawal confirmation was blocked "
+            "by the fresh safety preflight."
+        )
+
+        try:
+            audit, event, _changed = (
+                transition_withdrawal_request(
+                    request_id,
+                    expected_statuses={
+                        "reserved",
+                    },
+                    new_status="blocked",
+                    username=user.username,
+                    action="confirmation_blocked",
+                    details={
+                        "preflight": preflight,
+                        "destination_snapshot_mismatches": (
+                            mismatches
+                        ),
+                        "gate_write_performed": False,
+                    },
+                    error=reason,
+                    simulation=False,
+                    completed=True,
+                )
+            )
+
+        except TreasuryWithdrawalStateError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(exc),
+                    "gate_write_performed": False,
+                },
+            ) from exc
+
+        released = (
+            release_withdrawal_lock(
+                custody_account_id=(
+                    row["custody_account_id"]
+                ),
+                currency=row["currency"],
+                owner_request_id=request_id,
+            )
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": reason,
+                "errors": (
+                    preflight.get("errors")
+                    or []
+                ),
+                "destination_snapshot_mismatches": (
+                    mismatches
+                ),
+                "lock_released": released,
+                "audit": audit,
+                "event": event,
+                "gate_write_performed": False,
+            },
+        )
+
+    try:
+        audit, event, changed = (
+            transition_withdrawal_request(
+                request_id,
+                expected_statuses={
+                    "reserved",
+                },
+                new_status="confirmed_ready",
+                username=user.username,
+                action="confirmed_ready",
+                details={
+                    "preflight": preflight,
+                    "gate_write_performed": False,
+                },
+                simulation=False,
+                completed=False,
+            )
+        )
+
+    except TreasuryWithdrawalStateError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C3B_WITHDRAWAL_RESERVATION"
+        ),
+        "status": "confirmed_ready",
+        "confirmation_created": changed,
+        "idempotent_replay": False,
+        "current_preflight_rechecked": True,
+        "gate_write_performed": False,
+        "transfers_enabled": False,
+        "withdrawals_enabled": False,
+        "executable": False,
+        "execution_block_reason": (
+            "withdrawal_execution_not_enabled"
+        ),
+        "audit": audit,
+        "event": event,
+        "operation_lock": lock,
+    }
+
+
+@router.post(
+    "/withdrawals/requests/{request_id}/cancel"
+)
+def cancel_treasury_withdrawal_request(
+    request_id: str,
+    request: TreasuryWithdrawalCancellationRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    if row["status"] == "cancelled":
+        return {
+            "phase": (
+                "T2C3B_WITHDRAWAL_RESERVATION"
+            ),
+            "status": "cancelled",
+            "cancelled": False,
+            "idempotent_replay": True,
+            "gate_write_performed": False,
+            "withdrawals_enabled": False,
+            "executable": False,
+            "audit": row,
+            "operation_lock": (
+                get_withdrawal_lock_for_request(
+                    request_id
+                )
+            ),
+        }
+
+    if row["status"] not in {
+        "reserved",
+        "confirmed_ready",
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal request is not in "
+                    "a cancellable state."
+                ),
+                "status": row["status"],
+                "gate_write_performed": False,
+            },
+        )
+
+    required_confirmation = (
+        withdrawal_cancel_confirmation_text(
+            request_id
+        )
+    )
+
+    if (
+        request.confirmation
+        != required_confirmation
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid withdrawal cancellation "
+                    "confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    try:
+        audit, event, changed = (
+            transition_withdrawal_request(
+                request_id,
+                expected_statuses={
+                    "reserved",
+                    "confirmed_ready",
+                },
+                new_status="cancelled",
+                username=user.username,
+                action="cancelled",
+                details={
+                    "reason": request.reason,
+                    "gate_write_performed": False,
+                },
+                simulation=False,
+                completed=True,
+            )
+        )
+
+    except TreasuryWithdrawalStateError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    released = release_withdrawal_lock(
+        custody_account_id=(
+            row["custody_account_id"]
+        ),
+        currency=row["currency"],
+        owner_request_id=request_id,
+    )
+
+    return {
+        "phase": (
+            "T2C3B_WITHDRAWAL_RESERVATION"
+        ),
+        "status": "cancelled",
+        "cancelled": changed,
+        "lock_released": released,
+        "gate_write_performed": False,
+        "withdrawals_enabled": False,
+        "executable": False,
+        "audit": audit,
+        "event": event,
         "operation_lock": None,
+    }
+
+
+@router.get(
+    "/withdrawals/locks"
+)
+def treasury_withdrawal_locks(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    owner_account_ids = (
+        None
+        if user.is_super_admin
+        else set(user.account_ids)
+    )
+
+    return {
+        "phase": (
+            "T2C3B_WITHDRAWAL_RESERVATION"
+        ),
+        "gate_write_performed": False,
+        "withdrawals_enabled": False,
+        "items": list_withdrawal_locks(
+            owner_account_ids=(
+                owner_account_ids
+            )
+        ),
     }
 
 

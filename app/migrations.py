@@ -128,6 +128,7 @@ def migrate_database(engine: Engine) -> None:
         TreasuryWithdrawalOperationLock,
         TreasuryWithdrawalReconciliation,
         TreasuryWithdrawalRequest,
+        TreasuryWithdrawalRequestEvent,
     )
 
     raw = engine.raw_connection()
@@ -246,6 +247,16 @@ def migrate_database(engine: Engine) -> None:
                 raw,
                 engine,
                 TreasuryWithdrawalReconciliation.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "treasury_withdrawal_request_events",
+        ):
+            _create_table(
+                raw,
+                engine,
+                TreasuryWithdrawalRequestEvent.__table__,
             )
 
         if not _table_exists(
