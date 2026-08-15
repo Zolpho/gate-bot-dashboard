@@ -37,6 +37,16 @@ def _decimal_text(
     return text or "0"
 
 
+def _decimal_places(value: Decimal) -> int:
+    exponent = value.as_tuple().exponent
+
+    return (
+        -exponent
+        if exponent < 0
+        else 0
+    )
+
+
 def _chain_key(value: Any) -> str:
     return re.sub(
         r"[^A-Z0-9]",
@@ -96,6 +106,43 @@ def _spot_balance(
     )
 
     return available, locked
+
+
+def _withdrawal_precision(
+    value: Any,
+) -> int | None:
+    text = str(value or "").strip()
+
+    if not text.isdigit():
+        return None
+
+    precision = int(text)
+
+    if precision < 0 or precision > 36:
+        return None
+
+    return precision
+
+
+def _percent_fraction(
+    value: Any,
+) -> Decimal | None:
+    text = str(value or "").strip()
+
+    # Gate currently documents and returns percentage
+    # withdrawal fees with an explicit "%" suffix.
+    # Refuse ambiguous values instead of guessing.
+    if not text.endswith("%"):
+        return None
+
+    percent = _decimal(
+        text[:-1].strip()
+    )
+
+    if percent is None or percent < 0:
+        return None
+
+    return percent / Decimal("100")
 
 
 def normalize_withdraw_status(
@@ -196,6 +243,7 @@ def build_withdrawal_capabilities(
     raw_withdraw_status: Any,
     owner_main_held: Decimal,
     custody_liabilities: Decimal,
+    main_spot_accounts: Any = None,
 ) -> dict[str, Any]:
     owner = owner_account_id.strip().lower()
     main = main_account_id.strip().lower()
@@ -206,22 +254,46 @@ def build_withdrawal_capabilities(
         symbol,
     )
 
+    if owner == main:
+        main_available = available
+        main_locked = locked
+    else:
+        (
+            main_available,
+            main_locked,
+        ) = _spot_balance(
+            main_spot_accounts,
+            symbol,
+        )
+
     owner_main_held = Decimal(
         owner_main_held
     )
+
     custody_liabilities = Decimal(
         custody_liabilities
     )
 
-    if owner == main:
-        third_party_liabilities = max(
-            Decimal("0"),
-            custody_liabilities
-            - owner_main_held,
-        )
+    positive_owner_main_held = max(
+        Decimal("0"),
+        owner_main_held,
+    )
 
+    third_party_liabilities = max(
+        Decimal("0"),
+        custody_liabilities
+        - positive_owner_main_held,
+    )
+
+    custody_liquidity_shortfall = max(
+        Decimal("0"),
+        custody_liabilities
+        - main_available,
+    )
+
+    if owner == main:
         raw_economic = (
-            available
+            main_available
             - third_party_liabilities
         )
 
@@ -235,20 +307,48 @@ def build_withdrawal_capabilities(
             -raw_economic,
         )
 
+        owner_liquid_main_held = Decimal("0")
+
+        withdrawal_funding_available = (
+            economic_available
+        )
+
         availability_model = (
             "main_physical_minus_third_party_"
             "main_held_liabilities"
         )
 
     else:
-        third_party_liabilities = Decimal("0")
-
-        economic_available = (
+        raw_economic = (
             available
             + owner_main_held
         )
 
-        accounting_shortfall = Decimal("0")
+        economic_available = max(
+            Decimal("0"),
+            raw_economic,
+        )
+
+        accounting_shortfall = max(
+            Decimal("0"),
+            -raw_economic,
+        )
+
+        main_after_other_liabilities = max(
+            Decimal("0"),
+            main_available
+            - third_party_liabilities,
+        )
+
+        owner_liquid_main_held = min(
+            positive_owner_main_held,
+            main_after_other_liabilities,
+        )
+
+        withdrawal_funding_available = (
+            available
+            + owner_liquid_main_held
+        )
 
         availability_model = (
             "owner_subaccount_available_plus_"
@@ -330,14 +430,9 @@ def build_withdrawal_capabilities(
                     owner_main_held
                 )
             ),
-            "custody_liabilities": (
+            "owner_liquid_main_held": (
                 _decimal_text(
-                    custody_liabilities
-                )
-            ),
-            "third_party_liabilities": (
-                _decimal_text(
-                    third_party_liabilities
+                    owner_liquid_main_held
                 )
             ),
             "economic_available": (
@@ -345,10 +440,42 @@ def build_withdrawal_capabilities(
                     economic_available
                 )
             ),
+            "withdrawal_funding_available": (
+                _decimal_text(
+                    withdrawal_funding_available
+                )
+            ),
             "accounting_shortfall": (
                 _decimal_text(
                     accounting_shortfall
                 )
+            ),
+            **(
+                {
+                    "main_spot_available": (
+                        _decimal_text(main_available)
+                    ),
+                    "main_spot_locked": (
+                        _decimal_text(main_locked)
+                    ),
+                    "custody_liabilities": (
+                        _decimal_text(
+                            custody_liabilities
+                        )
+                    ),
+                    "third_party_liabilities": (
+                        _decimal_text(
+                            third_party_liabilities
+                        )
+                    ),
+                    "custody_liquidity_shortfall": (
+                        _decimal_text(
+                            custody_liquidity_shortfall
+                        )
+                    ),
+                }
+                if owner == main
+                else {}
             ),
         },
         "gate_limits": {
@@ -371,4 +498,445 @@ def build_withdrawal_capabilities(
             ),
         },
         "chains": chains,
+    }
+
+
+def build_withdrawal_preflight(
+    *,
+    capabilities: dict[str, Any],
+    chain: str,
+    amount: Decimal,
+) -> dict[str, Any]:
+    amount = Decimal(amount)
+
+    requested_chain = str(
+        chain or ""
+    ).strip()
+
+    amount_positive = bool(
+        amount.is_finite()
+        and amount > 0
+    )
+
+    selected_chain = next(
+        (
+            item
+            for item in (
+                capabilities.get("chains")
+                or []
+            )
+            if isinstance(item, dict)
+            and _chain_key(
+                item.get("chain")
+            )
+            == _chain_key(requested_chain)
+        ),
+        None,
+    )
+
+    gate_limits = (
+        capabilities.get("gate_limits")
+        or {}
+    )
+
+    availability = (
+        capabilities.get("availability")
+        or {}
+    )
+
+    gate_status_available = bool(
+        gate_limits.get("status_available")
+    )
+
+    chain_known = (
+        selected_chain is not None
+    )
+
+    chain_available = bool(
+        selected_chain
+        and selected_chain.get(
+            "capability_ready"
+        )
+    )
+
+    precision = (
+        _withdrawal_precision(
+            selected_chain.get("decimal")
+        )
+        if selected_chain
+        else None
+    )
+
+    precision_valid = bool(
+        amount_positive
+        and precision is not None
+        and _decimal_places(amount)
+        <= precision
+    )
+
+    minimum = _decimal(
+        gate_limits.get("minimum")
+    )
+
+    maximum = _decimal(
+        gate_limits.get(
+            "maximum_per_withdrawal"
+        )
+    )
+
+    daily_remaining = _decimal(
+        gate_limits.get(
+            "daily_limit_remaining"
+        )
+    )
+
+    minimum_valid = bool(
+        amount_positive
+        and minimum is not None
+        and amount >= minimum
+    )
+
+    maximum_valid = bool(
+        amount_positive
+        and maximum is not None
+        and amount <= maximum
+    )
+
+    daily_limit_valid = bool(
+        amount_positive
+        and daily_remaining is not None
+        and amount <= daily_remaining
+    )
+
+    fixed_fee = (
+        _decimal(
+            selected_chain.get("fixed_fee")
+        )
+        if selected_chain
+        else None
+    )
+
+    percent_fraction = (
+        _percent_fraction(
+            selected_chain.get(
+                "percent_fee"
+            )
+        )
+        if selected_chain
+        else None
+    )
+
+    fee_known = bool(
+        fixed_fee is not None
+        and fixed_fee >= 0
+        and percent_fraction is not None
+        and percent_fraction >= 0
+    )
+
+    estimated_fee = None
+
+    if fee_known:
+        estimated_fee = (
+            fixed_fee
+            + (
+                amount
+                * percent_fraction
+            )
+        )
+
+    conservative_funding_required = (
+        amount + estimated_fee
+        if (
+            amount_positive
+            and estimated_fee is not None
+        )
+        else None
+    )
+
+    economic_available = _decimal(
+        availability.get(
+            "economic_available"
+        )
+    )
+
+    funding_available = _decimal(
+        availability.get(
+            "withdrawal_funding_available"
+        )
+    )
+
+    source_available = (
+        _decimal(
+            availability.get(
+                "source_spot_available"
+            )
+        )
+        or Decimal("0")
+    )
+
+    owner_liquid_main_held = (
+        _decimal(
+            availability.get(
+                "owner_liquid_main_held"
+            )
+        )
+        or Decimal("0")
+    )
+
+    economic_balance_valid = bool(
+        conservative_funding_required
+        is not None
+        and economic_available is not None
+        and economic_available
+        >= conservative_funding_required
+    )
+
+    funding_balance_valid = bool(
+        conservative_funding_required
+        is not None
+        and funding_available is not None
+        and funding_available
+        >= conservative_funding_required
+    )
+
+    owner = str(
+        capabilities.get(
+            "owner_account_id"
+        )
+        or ""
+    ).lower()
+
+    main = str(
+        capabilities.get(
+            "main_account_id"
+        )
+        or ""
+    ).lower()
+
+    if (
+        conservative_funding_required
+        is None
+    ):
+        minimum_jit_transfer = None
+
+    elif owner == main:
+        minimum_jit_transfer = Decimal("0")
+
+    else:
+        minimum_jit_transfer = max(
+            Decimal("0"),
+            conservative_funding_required
+            - owner_liquid_main_held,
+        )
+
+    jit_required = bool(
+        minimum_jit_transfer is not None
+        and minimum_jit_transfer > 0
+    )
+
+    jit_source_balance_valid = bool(
+        minimum_jit_transfer is not None
+        and (
+            owner == main
+            or source_available
+            >= minimum_jit_transfer
+        )
+    )
+
+    checks = {
+        "amount_positive": amount_positive,
+        "gate_status_available": (
+            gate_status_available
+        ),
+        "chain_known": chain_known,
+        "chain_available": chain_available,
+        "precision_known": (
+            precision is not None
+        ),
+        "precision_valid": precision_valid,
+        "minimum_known": (
+            minimum is not None
+        ),
+        "minimum_valid": minimum_valid,
+        "maximum_known": (
+            maximum is not None
+        ),
+        "maximum_valid": maximum_valid,
+        "daily_limit_known": (
+            daily_remaining is not None
+        ),
+        "daily_limit_valid": (
+            daily_limit_valid
+        ),
+        "fee_known": fee_known,
+        "economic_balance_valid": (
+            economic_balance_valid
+        ),
+        "funding_balance_valid": (
+            funding_balance_valid
+        ),
+        "jit_source_balance_valid": (
+            jit_source_balance_valid
+        ),
+    }
+
+    required_checks = (
+        "amount_positive",
+        "gate_status_available",
+        "chain_known",
+        "chain_available",
+        "precision_known",
+        "precision_valid",
+        "minimum_known",
+        "minimum_valid",
+        "maximum_known",
+        "maximum_valid",
+        "daily_limit_known",
+        "daily_limit_valid",
+        "fee_known",
+        "economic_balance_valid",
+        "funding_balance_valid",
+        "jit_source_balance_valid",
+    )
+
+    preflight_valid = all(
+        checks[name]
+        for name in required_checks
+    )
+
+    errors = [
+        name
+        for name in required_checks
+        if not checks[name]
+    ]
+
+    return {
+        "status": (
+            "ready"
+            if preflight_valid
+            else "invalid"
+        ),
+        "preflight_valid": preflight_valid,
+
+        # T2C.1B deliberately cannot execute.
+        "executable": False,
+        "execution_block_reason": (
+            "withdrawal_execution_not_enabled"
+        ),
+        "gate_write_performed": False,
+
+        "owner_account_id": owner,
+        "main_account_id": main,
+        "currency": capabilities.get(
+            "currency"
+        ),
+
+        "request": {
+            "chain": requested_chain,
+            "amount": _decimal_text(
+                amount
+            ),
+        },
+
+        "network": (
+            {
+                "chain": selected_chain.get(
+                    "chain"
+                ),
+                "name": selected_chain.get(
+                    "name"
+                ),
+                "withdraw_enabled": (
+                    selected_chain.get(
+                        "withdraw_enabled"
+                    )
+                ),
+                "withdrawal_precision": (
+                    precision
+                ),
+            }
+            if selected_chain
+            else None
+        ),
+
+        "limits": {
+            "minimum": (
+                _decimal_text(minimum)
+            ),
+            "maximum_per_withdrawal": (
+                _decimal_text(maximum)
+            ),
+            "daily_limit_remaining": (
+                _decimal_text(
+                    daily_remaining
+                )
+            ),
+        },
+
+        "fee": {
+            "fixed_fee": (
+                _decimal_text(fixed_fee)
+            ),
+            "percent_fee": (
+                selected_chain.get(
+                    "percent_fee"
+                )
+                if selected_chain
+                else None
+            ),
+            "estimated_fee": (
+                _decimal_text(
+                    estimated_fee
+                )
+            ),
+            "estimate_only": True,
+            "semantics_verified": False,
+        },
+
+        "funding": {
+            "economic_available": (
+                _decimal_text(
+                    economic_available
+                )
+            ),
+            "withdrawal_funding_available": (
+                _decimal_text(
+                    funding_available
+                )
+            ),
+            "source_spot_available": (
+                _decimal_text(
+                    source_available
+                )
+            ),
+            "owner_main_held": (
+                availability.get(
+                    "owner_main_held"
+                )
+            ),
+            "owner_liquid_main_held": (
+                _decimal_text(
+                    owner_liquid_main_held
+                )
+            ),
+            "conservative_funding_required": (
+                _decimal_text(
+                    conservative_funding_required
+                )
+            ),
+            "jit_required": jit_required,
+            "minimum_jit_transfer": (
+                _decimal_text(
+                    minimum_jit_transfer
+                )
+            ),
+        },
+
+        "checks": checks,
+        "errors": errors,
+
+        "destination": {
+            "status": "not_in_scope",
+            "phase": "T2C2",
+        },
     }

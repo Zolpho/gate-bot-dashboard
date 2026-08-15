@@ -67,6 +67,7 @@ from ..treasury_rate_limit import (
 )
 from ..treasury_withdrawal import (
     build_withdrawal_capabilities,
+    build_withdrawal_preflight,
 )
 from ..treasury_transfer_reconcile import (
     interpret_transfer_order_status,
@@ -1390,6 +1391,153 @@ async def treasury_balance(
 
 
 @router.get(
+    "/withdrawals/preflight/{currency}"
+)
+async def treasury_withdrawal_preflight(
+    currency: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    owner_account_id: str = Query(
+        ...,
+        min_length=1,
+        max_length=64,
+    ),
+    chain: str = Query(
+        ...,
+        min_length=1,
+        max_length=64,
+    ),
+    amount: Decimal = Query(
+        ...,
+        gt=0,
+    ),
+):
+    owner = require_account_access(
+        user,
+        owner_account_id,
+    )
+
+    source_account = get_gate_account(owner)
+
+    if (
+        source_account is None
+        or not source_account.enabled
+        or not source_account.configured
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Monitor credentials are not configured "
+                f"for {owner}"
+            ),
+        )
+
+    treasury_account = (
+        _treasury_account_or_http()
+    )
+
+    selected_currency = _currency(currency)
+
+    owner_main_held = ownership_amount(
+        owner_account_id=owner,
+        custody_account_id=(
+            settings.treasury_main_account
+        ),
+        currency=selected_currency,
+    )
+
+    custody_liabilities = (
+        custody_liability_amount(
+            custody_account_id=(
+                settings.treasury_main_account
+            ),
+            currency=selected_currency,
+        )
+    )
+
+    try:
+        async with GateClient(
+            settings,
+            source_account,
+        ) as client:
+            source_spot = (
+                await client.list_spot_accounts()
+            )
+
+        async with GateClient(
+            settings,
+            treasury_account,
+        ) as client:
+            main_spot = (
+                await client.list_spot_accounts()
+            )
+
+            chains = (
+                await client.list_currency_chains(
+                    selected_currency
+                )
+            )
+
+            withdrawal_status = (
+                await client.get_withdraw_status(
+                    selected_currency
+                )
+            )
+
+    except GateAPIError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    capabilities = build_withdrawal_capabilities(
+        owner_account_id=owner,
+        main_account_id=(
+            settings.treasury_main_account
+        ),
+        currency=selected_currency,
+        spot_accounts=source_spot.data,
+        main_spot_accounts=main_spot.data,
+        raw_chains=chains.data,
+        raw_withdraw_status=(
+            withdrawal_status.data
+        ),
+        owner_main_held=owner_main_held,
+        custody_liabilities=(
+            custody_liabilities
+        ),
+    )
+
+    preflight = build_withdrawal_preflight(
+        capabilities=capabilities,
+        chain=chain,
+        amount=amount,
+    )
+
+    return {
+        "phase": "T2B_TRANSFER_CONTROL",
+        "withdrawal_phase": (
+            "T2C1B_PREFLIGHT_READ_ONLY"
+        ),
+        "gate_write_performed": False,
+        "transfers_enabled": False,
+        "withdrawals_enabled": False,
+        "credential_profiles": {
+            "source_balance": "monitor",
+            "main_liquidity": (
+                "treasury_read_only"
+            ),
+            "withdrawal_status": (
+                "treasury_read_only"
+            ),
+        },
+        "preflight": preflight,
+    }
+
+
+@router.get(
     "/withdrawals/capabilities/{currency}"
 )
 async def treasury_withdrawal_capabilities(
@@ -1463,6 +1611,10 @@ async def treasury_withdrawal_capabilities(
             settings,
             treasury_account,
         ) as client:
+            main_spot = (
+                await client.list_spot_accounts()
+            )
+
             chains = await client.list_currency_chains(
                 selected_currency
             )

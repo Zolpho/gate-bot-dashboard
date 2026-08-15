@@ -9,6 +9,7 @@ from app.deposits import (
 from app.security import DashboardUser
 from app.treasury_withdrawal import (
     build_withdrawal_capabilities,
+    build_withdrawal_preflight,
     normalize_withdraw_status,
 )
 
@@ -268,3 +269,296 @@ async def test_capability_api_is_owner_scoped():
         )
 
     assert exc_info.value.status_code == 403
+
+
+def test_subaccount_main_held_is_capped_by_main_liquidity():
+    result = build_withdrawal_capabilities(
+        owner_account_id="arnold",
+        main_account_id="zolnode",
+        currency="USDT",
+        spot_accounts=[
+            {
+                "currency": "USDT",
+                "available": "10",
+                "locked": "0",
+            }
+        ],
+        main_spot_accounts=[
+            {
+                "currency": "USDT",
+                "available": "7",
+                "locked": "0",
+            }
+        ],
+        raw_chains=CHAINS,
+        raw_withdraw_status=STATUS,
+        owner_main_held=Decimal("5"),
+        custody_liabilities=Decimal("10"),
+    )
+
+    availability = result["availability"]
+
+    assert (
+        availability["economic_available"]
+        == "15"
+    )
+
+    assert (
+        availability["owner_liquid_main_held"]
+        == "2"
+    )
+
+    assert (
+        availability[
+            "withdrawal_funding_available"
+        ]
+        == "12"
+    )
+
+    # Main custody details are used internally for
+    # the calculation but must not be exposed to
+    # a subaccount owner.
+    assert "main_spot_available" not in availability
+    assert "main_spot_locked" not in availability
+    assert "custody_liabilities" not in availability
+    assert "third_party_liabilities" not in availability
+    assert (
+        "custody_liquidity_shortfall"
+        not in availability
+    )
+
+
+def _ready_capabilities():
+    return build_withdrawal_capabilities(
+        owner_account_id="arnold",
+        main_account_id="zolnode",
+        currency="USDT",
+        spot_accounts=[
+            {
+                "currency": "USDT",
+                "available": "10",
+                "locked": "0",
+            }
+        ],
+        main_spot_accounts=[
+            {
+                "currency": "USDT",
+                "available": "20",
+                "locked": "0",
+            }
+        ],
+        raw_chains=CHAINS,
+        raw_withdraw_status=STATUS,
+        owner_main_held=Decimal("3"),
+        custody_liabilities=Decimal("3"),
+    )
+
+
+def test_withdrawal_preflight_ready_and_jit_calculated():
+    result = build_withdrawal_preflight(
+        capabilities=_ready_capabilities(),
+        chain="TRX",
+        amount=Decimal("5"),
+    )
+
+    assert result["preflight_valid"] is True
+    assert result["executable"] is False
+    assert (
+        result["execution_block_reason"]
+        == "withdrawal_execution_not_enabled"
+    )
+
+    assert (
+        result["fee"]["estimated_fee"]
+        == "1"
+    )
+
+    assert (
+        result["funding"][
+            "conservative_funding_required"
+        ]
+        == "6"
+    )
+
+    assert (
+        result["funding"][
+            "minimum_jit_transfer"
+        ]
+        == "3"
+    )
+
+    assert (
+        result["funding"]["jit_required"]
+        is True
+    )
+
+
+def test_withdrawal_preflight_rejects_below_minimum():
+    result = build_withdrawal_preflight(
+        capabilities=_ready_capabilities(),
+        chain="TRX",
+        amount=Decimal("0.5"),
+    )
+
+    assert result["preflight_valid"] is False
+    assert (
+        result["checks"]["minimum_valid"]
+        is False
+    )
+
+
+def test_withdrawal_preflight_rejects_precision():
+    result = build_withdrawal_preflight(
+        capabilities=_ready_capabilities(),
+        chain="TRX",
+        amount=Decimal("1.0000001"),
+    )
+
+    assert result["preflight_valid"] is False
+    assert (
+        result["checks"]["precision_valid"]
+        is False
+    )
+
+
+def test_withdrawal_preflight_rejects_disabled_chain():
+    result = build_withdrawal_preflight(
+        capabilities=_ready_capabilities(),
+        chain="ETH",
+        amount=Decimal("5"),
+    )
+
+    assert result["preflight_valid"] is False
+    assert (
+        result["checks"]["chain_available"]
+        is False
+    )
+
+
+def test_withdrawal_preflight_reserves_fee_for_funding():
+    capabilities = (
+        build_withdrawal_capabilities(
+            owner_account_id="arnold",
+            main_account_id="zolnode",
+            currency="USDT",
+            spot_accounts=[],
+            main_spot_accounts=[
+                {
+                    "currency": "USDT",
+                    "available": "1",
+                    "locked": "0",
+                }
+            ],
+            raw_chains=CHAINS,
+            raw_withdraw_status=STATUS,
+            owner_main_held=Decimal("1"),
+            custody_liabilities=Decimal("1"),
+        )
+    )
+
+    result = build_withdrawal_preflight(
+        capabilities=capabilities,
+        chain="TRX",
+        amount=Decimal("1"),
+    )
+
+    assert (
+        result["funding"][
+            "conservative_funding_required"
+        ]
+        == "2"
+    )
+
+    assert (
+        result["checks"][
+            "economic_balance_valid"
+        ]
+        is False
+    )
+
+    assert (
+        result["checks"][
+            "funding_balance_valid"
+        ]
+        is False
+    )
+
+    assert result["preflight_valid"] is False
+
+
+def test_withdrawal_preflight_rejects_unknown_chain():
+    result = build_withdrawal_preflight(
+        capabilities=_ready_capabilities(),
+        chain="BASE",
+        amount=Decimal("5"),
+    )
+
+    assert result["preflight_valid"] is False
+    assert (
+        result["checks"]["chain_known"]
+        is False
+    )
+
+
+@pytest.mark.asyncio
+async def test_preflight_api_is_owner_scoped():
+    from app.api.treasury import (
+        treasury_withdrawal_preflight,
+    )
+
+    user = DashboardUser(
+        username="arnold",
+        role="account_operator",
+        account_ids=("arnold",),
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as exc_info:
+        await treasury_withdrawal_preflight(
+            "USDT",
+            user=user,
+            owner_account_id="eqtydao",
+            chain="TRX",
+            amount=Decimal("1"),
+        )
+
+    assert exc_info.value.status_code == 403
+
+
+def test_main_owner_can_see_main_custody_details():
+    result = build_withdrawal_capabilities(
+        owner_account_id="zolnode",
+        main_account_id="zolnode",
+        currency="USDT",
+        spot_accounts=[
+            {
+                "currency": "USDT",
+                "available": "100",
+                "locked": "2",
+            }
+        ],
+        raw_chains=CHAINS,
+        raw_withdraw_status=STATUS,
+        owner_main_held=Decimal("0"),
+        custody_liabilities=Decimal("30"),
+    )
+
+    availability = result["availability"]
+
+    assert (
+        availability["main_spot_available"]
+        == "100"
+    )
+    assert (
+        availability["main_spot_locked"]
+        == "2"
+    )
+    assert (
+        availability["custody_liabilities"]
+        == "30"
+    )
+    assert (
+        availability["third_party_liabilities"]
+        == "30"
+    )
