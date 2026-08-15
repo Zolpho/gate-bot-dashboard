@@ -8,6 +8,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, S
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base, utcnow
+from .exact_decimal import ExactDecimal
 
 DECIMAL = Numeric(36, 12)
 
@@ -273,7 +274,7 @@ class AlertEvent(Base):
     bot: Mapped[Optional[Bot]] = relationship(back_populates="alert_events")
 
 
-TREASURY_AMOUNT = Numeric(48, 24)
+TREASURY_AMOUNT = ExactDecimal(48, 24)
 
 
 class TreasuryTransferRequest(Base):

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy import Engine
 from sqlalchemy.schema import CreateIndex, CreateTable
 
 logger = logging.getLogger(__name__)
+
+
+from .exact_decimal import exact_decimal_text
 
 
 def _quote(identifier: str) -> str:
@@ -97,6 +102,520 @@ def _rebuild_table(
         f"SELECT {', '.join(select_expressions)} FROM {_quote(old_name)}"
     )
     raw_connection.execute(f"DROP TABLE {_quote(old_name)}")
+
+
+def _declared_column_type(
+    raw_connection: Any,
+    table_name: str,
+    column_name: str,
+) -> str:
+    rows = raw_connection.execute(
+        f"PRAGMA table_info({_quote(table_name)})"
+    ).fetchall()
+
+    for row in rows:
+        if str(row[1]) == column_name:
+            return str(row[2] or "").upper()
+
+    raise RuntimeError(
+        f"Missing column {table_name}.{column_name}"
+    )
+
+
+def _json_object(
+    value: Any,
+    *,
+    context: str,
+) -> dict[str, Any]:
+    try:
+        parsed = json.loads(
+            str(value or "{}")
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            f"Invalid immutable JSON for {context}"
+        ) from exc
+
+    if not isinstance(parsed, dict):
+        raise RuntimeError(
+            f"Immutable JSON for {context} "
+            "is not an object"
+        )
+
+    return parsed
+
+
+def _legacy_decimal_matches(
+    legacy_value: Any,
+    canonical_text: str,
+    *,
+    context: str,
+) -> None:
+    try:
+        legacy_decimal = Decimal(
+            str(legacy_value)
+        )
+
+        canonical_decimal = Decimal(
+            canonical_text
+        )
+    except (
+        InvalidOperation,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise RuntimeError(
+            f"Cannot validate legacy Treasury "
+            f"decimal for {context}"
+        ) from exc
+
+    if (
+        not legacy_decimal.is_finite()
+        or not canonical_decimal.is_finite()
+        or legacy_decimal
+        != canonical_decimal
+    ):
+        raise RuntimeError(
+            "Treasury exact-decimal migration "
+            f"mismatch for {context}: "
+            f"legacy={legacy_value!r}, "
+            f"canonical={canonical_text!r}"
+        )
+
+
+def _canonical_transfer_amount(
+    request_json: Any,
+    *,
+    request_id: str,
+) -> str:
+    payload = _json_object(
+        request_json,
+        context=(
+            f"transfer request {request_id}"
+        ),
+    )
+
+    value = payload.get("amount")
+
+    if value is None:
+        gate_payload = payload.get(
+            "gate_payload"
+        )
+
+        if isinstance(gate_payload, dict):
+            value = gate_payload.get(
+                "amount"
+            )
+
+    if value is None:
+        raise RuntimeError(
+            "Treasury exact-decimal migration "
+            "cannot find canonical transfer amount "
+            f"for {request_id}"
+        )
+
+    return exact_decimal_text(value)
+
+
+def _canonical_withdrawal_values(
+    *,
+    request_id: str,
+    request_json: Any,
+    preflight_json: Any,
+) -> dict[str, str]:
+    request = _json_object(
+        request_json,
+        context=(
+            f"withdrawal request {request_id}"
+        ),
+    )
+
+    preflight = _json_object(
+        preflight_json,
+        context=(
+            f"withdrawal preflight {request_id}"
+        ),
+    )
+
+    fee = preflight.get("fee")
+    funding = preflight.get("funding")
+
+    if not isinstance(fee, dict):
+        raise RuntimeError(
+            "Treasury exact-decimal migration "
+            f"missing fee snapshot for {request_id}"
+        )
+
+    if not isinstance(funding, dict):
+        raise RuntimeError(
+            "Treasury exact-decimal migration "
+            f"missing funding snapshot for {request_id}"
+        )
+
+    sources = {
+        "amount": request.get("amount"),
+        "estimated_fee": (
+            fee.get("estimated_fee")
+        ),
+        "conservative_funding_required": (
+            funding.get(
+                "conservative_funding_required"
+            )
+        ),
+        "minimum_jit_transfer": (
+            funding.get(
+                "minimum_jit_transfer"
+            )
+        ),
+    }
+
+    result: dict[str, str] = {}
+
+    for column, value in sources.items():
+        if value is None:
+            raise RuntimeError(
+                "Treasury exact-decimal migration "
+                f"missing {column} canonical value "
+                f"for {request_id}"
+            )
+
+        result[column] = (
+            exact_decimal_text(value)
+        )
+
+    return result
+
+
+def _migrate_transfer_exact_decimal(
+    raw_connection: Any,
+    engine: Engine,
+    table: Any,
+) -> None:
+    table_name = "treasury_transfer_requests"
+
+    if not _table_exists(
+        raw_connection,
+        table_name,
+    ):
+        return
+
+    if (
+        _declared_column_type(
+            raw_connection,
+            table_name,
+            "amount",
+        )
+        == "TEXT"
+    ):
+        return
+
+    rows = raw_connection.execute(
+        """
+        SELECT
+            request_id,
+            amount,
+            request_json
+        FROM treasury_transfer_requests
+        ORDER BY id
+        """
+    ).fetchall()
+
+    canonical: dict[str, str] = {}
+
+    for row in rows:
+        request_id = str(row[0])
+
+        amount = _canonical_transfer_amount(
+            row[2],
+            request_id=request_id,
+        )
+
+        _legacy_decimal_matches(
+            row[1],
+            amount,
+            context=(
+                f"transfer {request_id}.amount"
+            ),
+        )
+
+        canonical[request_id] = amount
+
+    logger.info(
+        "Migrating Treasury transfer amounts "
+        "to exact SQLite TEXT decimals"
+    )
+
+    _rebuild_table(
+        raw_connection,
+        engine,
+        table,
+    )
+
+    for request_id, amount in canonical.items():
+        raw_connection.execute(
+            """
+            UPDATE treasury_transfer_requests
+            SET amount=?
+            WHERE request_id=?
+            """,
+            (
+                amount,
+                request_id,
+            ),
+        )
+
+
+def _migrate_withdrawal_exact_decimals(
+    raw_connection: Any,
+    engine: Engine,
+    table: Any,
+) -> None:
+    table_name = "treasury_withdrawal_requests"
+
+    columns = (
+        "amount",
+        "estimated_fee",
+        "conservative_funding_required",
+        "minimum_jit_transfer",
+    )
+
+    if not _table_exists(
+        raw_connection,
+        table_name,
+    ):
+        return
+
+    declared_types = {
+        _declared_column_type(
+            raw_connection,
+            table_name,
+            column,
+        )
+        for column in columns
+    }
+
+    if declared_types == {"TEXT"}:
+        return
+
+    rows = raw_connection.execute(
+        """
+        SELECT
+            request_id,
+            amount,
+            estimated_fee,
+            conservative_funding_required,
+            minimum_jit_transfer,
+            request_json,
+            preflight_json
+        FROM treasury_withdrawal_requests
+        ORDER BY id
+        """
+    ).fetchall()
+
+    canonical: dict[
+        str,
+        dict[str, str],
+    ] = {}
+
+    for row in rows:
+        request_id = str(row[0])
+
+        values = (
+            _canonical_withdrawal_values(
+                request_id=request_id,
+                request_json=row[5],
+                preflight_json=row[6],
+            )
+        )
+
+        for index, column in enumerate(
+            columns,
+            start=1,
+        ):
+            _legacy_decimal_matches(
+                row[index],
+                values[column],
+                context=(
+                    f"withdrawal "
+                    f"{request_id}.{column}"
+                ),
+            )
+
+        canonical[request_id] = values
+
+    logger.info(
+        "Migrating Treasury withdrawal amounts "
+        "to exact SQLite TEXT decimals"
+    )
+
+    _rebuild_table(
+        raw_connection,
+        engine,
+        table,
+    )
+
+    for request_id, values in canonical.items():
+        raw_connection.execute(
+            """
+            UPDATE treasury_withdrawal_requests
+            SET
+                amount=?,
+                estimated_fee=?,
+                conservative_funding_required=?,
+                minimum_jit_transfer=?
+            WHERE request_id=?
+            """,
+            (
+                values["amount"],
+                values["estimated_fee"],
+                values[
+                    "conservative_funding_required"
+                ],
+                values[
+                    "minimum_jit_transfer"
+                ],
+                request_id,
+            ),
+        )
+
+
+def _migrate_ownership_exact_decimal(
+    raw_connection: Any,
+    engine: Engine,
+    table: Any,
+) -> None:
+    table_name = "treasury_ownership_ledger"
+
+    if not _table_exists(
+        raw_connection,
+        table_name,
+    ):
+        return
+
+    if (
+        _declared_column_type(
+            raw_connection,
+            table_name,
+            "delta_amount",
+        )
+        == "TEXT"
+    ):
+        return
+
+    rows = raw_connection.execute(
+        """
+        SELECT
+            event_id,
+            delta_amount,
+            entry_type,
+            source_request_id
+        FROM treasury_ownership_ledger
+        ORDER BY id
+        """
+    ).fetchall()
+
+    canonical: dict[str, str] = {}
+
+    for row in rows:
+        event_id = str(row[0])
+        entry_type = str(row[2] or "")
+        source_request_id = str(
+            row[3] or ""
+        )
+
+        if (
+            entry_type
+            != "internal_transfer_credit"
+            or not source_request_id
+        ):
+            raise RuntimeError(
+                "Treasury exact-decimal migration "
+                "cannot prove ownership ledger "
+                f"value for event {event_id}"
+            )
+
+        transfer = raw_connection.execute(
+            """
+            SELECT request_json
+            FROM treasury_transfer_requests
+            WHERE request_id=?
+            """,
+            (source_request_id,),
+        ).fetchone()
+
+        if transfer is None:
+            raise RuntimeError(
+                "Treasury exact-decimal migration "
+                "cannot find source transfer "
+                f"{source_request_id} for "
+                f"ownership event {event_id}"
+            )
+
+        amount = _canonical_transfer_amount(
+            transfer[0],
+            request_id=source_request_id,
+        )
+
+        _legacy_decimal_matches(
+            row[1],
+            amount,
+            context=(
+                f"ownership {event_id}.delta_amount"
+            ),
+        )
+
+        canonical[event_id] = amount
+
+    logger.info(
+        "Migrating Treasury ownership amounts "
+        "to exact SQLite TEXT decimals"
+    )
+
+    _rebuild_table(
+        raw_connection,
+        engine,
+        table,
+    )
+
+    for event_id, amount in canonical.items():
+        raw_connection.execute(
+            """
+            UPDATE treasury_ownership_ledger
+            SET delta_amount=?
+            WHERE event_id=?
+            """,
+            (
+                amount,
+                event_id,
+            ),
+        )
+
+
+def _migrate_treasury_exact_decimals(
+    raw_connection: Any,
+    engine: Engine,
+    *,
+    transfer_table: Any,
+    withdrawal_table: Any,
+    ownership_table: Any,
+) -> None:
+    _migrate_transfer_exact_decimal(
+        raw_connection,
+        engine,
+        transfer_table,
+    )
+
+    _migrate_withdrawal_exact_decimals(
+        raw_connection,
+        engine,
+        withdrawal_table,
+    )
+
+    _migrate_ownership_exact_decimal(
+        raw_connection,
+        engine,
+        ownership_table,
+    )
 
 
 def migrate_database(engine: Engine) -> None:
@@ -268,6 +787,25 @@ def migrate_database(engine: Engine) -> None:
                 engine,
                 TreasuryWithdrawalOperationLock.__table__,
             )
+
+        # T2C.3C: SQLite NUMERIC affinity is not exact
+        # for fractional Treasury values. Rebuild only the
+        # Treasury monetary tables as exact TEXT decimals,
+        # deriving every existing value from immutable audit
+        # evidence and failing closed on any mismatch.
+        _migrate_treasury_exact_decimals(
+            raw,
+            engine,
+            transfer_table=(
+                TreasuryTransferRequest.__table__
+            ),
+            withdrawal_table=(
+                TreasuryWithdrawalRequest.__table__
+            ),
+            ownership_table=(
+                TreasuryOwnershipLedgerEntry.__table__
+            ),
+        )
 
         # Deterministic, idempotent ownership backfill.
         #
