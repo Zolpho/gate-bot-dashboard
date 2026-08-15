@@ -2419,6 +2419,71 @@ async def _fresh_request_preflight(
     row: dict,
     user: DashboardUser,
 ) -> dict:
+    # The Numeric(48, 24) SQLite column can return a
+    # logically integral amount such as 5 as
+    # Decimal("5.000000000000000000000000").
+    #
+    # Withdrawal precision validation deliberately checks
+    # the Decimal exponent, so do not use the DB storage
+    # scale as the user's requested precision.
+    #
+    # request_json is the immutable, fingerprinted T2C.3A
+    # caller-intent snapshot and preserves the canonical
+    # amount text used during the original valid preflight.
+    request_payload = row.get("request")
+
+    if not isinstance(request_payload, dict):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Stored withdrawal request is missing "
+                    "its immutable request payload."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    canonical_amount = as_decimal(
+        request_payload.get("amount")
+    )
+
+    stored_amount = as_decimal(
+        row.get("amount")
+    )
+
+    if (
+        canonical_amount is None
+        or stored_amount is None
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Stored withdrawal amount could not "
+                    "be validated."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    # Fail closed if the numeric DB column and immutable
+    # caller-intent snapshot ever disagree.
+    if stored_amount != canonical_amount:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Stored withdrawal amount does not "
+                    "match the immutable request payload."
+                ),
+                "reason": (
+                    "withdrawal_amount_snapshot_mismatch"
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
     response = (
         await treasury_withdrawal_preflight(
             row["currency"],
@@ -2429,9 +2494,7 @@ async def _fresh_request_preflight(
             destination_id=(
                 row["destination_id"]
             ),
-            amount=Decimal(
-                str(row["amount"])
-            ),
+            amount=canonical_amount,
         )
     )
 

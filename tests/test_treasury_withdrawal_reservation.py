@@ -802,3 +802,126 @@ async def test_cancel_releases_withdrawal_lock(
         )
         is None
     )
+
+
+@pytest.mark.asyncio
+async def test_fresh_preflight_uses_original_amount_precision(
+    monkeypatch,
+):
+    row, destination_id, address = (
+        _create_request()
+    )
+
+    # Reproduce SQLite Numeric(48, 24) storage scale.
+    row = dict(row)
+    row["amount"] = Decimal(
+        "5.000000000000000000000000"
+    )
+
+    # The immutable request payload preserves what the
+    # caller actually submitted and what T2C.3A validated.
+    row["request"] = dict(
+        row["request"]
+    )
+    row["request"]["amount"] = "5"
+
+    observed = {}
+
+    async def fake_preflight(
+        currency,
+        *,
+        user,
+        owner_account_id,
+        destination_id,
+        amount,
+    ):
+        observed["amount"] = amount
+
+        return {
+            "preflight": _preflight(
+                destination_id=destination_id,
+                address=address,
+                valid=True,
+            ),
+        }
+
+    monkeypatch.setattr(
+        treasury_api,
+        "treasury_withdrawal_preflight",
+        fake_preflight,
+    )
+
+    result = await (
+        treasury_api._fresh_request_preflight(
+            row=row,
+            user=_user(),
+        )
+    )
+
+    assert result["preflight_valid"] is True
+
+    amount = observed["amount"]
+
+    assert amount == Decimal("5")
+
+    # Equality alone is insufficient:
+    # Decimal("5.000") == Decimal("5").
+    # We specifically require the original precision.
+    assert amount.as_tuple().exponent == 0
+
+
+@pytest.mark.asyncio
+async def test_fresh_preflight_fails_closed_on_amount_snapshot_mismatch(
+    monkeypatch,
+):
+    row, destination_id, address = (
+        _create_request()
+    )
+
+    row = dict(row)
+
+    row["amount"] = Decimal(
+        "6.000000000000000000000000"
+    )
+
+    row["request"] = dict(
+        row["request"]
+    )
+    row["request"]["amount"] = "5"
+
+    called = False
+
+    async def fake_preflight(*args, **kwargs):
+        nonlocal called
+        called = True
+
+        raise AssertionError(
+            "Gate/read preflight must not be called "
+            "after amount mismatch"
+        )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "treasury_withdrawal_preflight",
+        fake_preflight,
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as exc_info:
+        await (
+            treasury_api
+            ._fresh_request_preflight(
+                row=row,
+                user=_user(),
+            )
+        )
+
+    assert exc_info.value.status_code == 409
+
+    assert (
+        exc_info.value.detail["reason"]
+        == "withdrawal_amount_snapshot_mismatch"
+    )
+
+    assert called is False
