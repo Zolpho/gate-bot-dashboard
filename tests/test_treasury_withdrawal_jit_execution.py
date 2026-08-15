@@ -45,6 +45,7 @@ from app.treasury_withdrawal_locks import (
 )
 from app.treasury_withdrawal_workflow import (
     withdrawal_cancel_confirmation_text,
+    withdrawal_hold_on_main_confirmation_text,
 )
 
 
@@ -1191,4 +1192,333 @@ def test_cancellation_forbidden_after_jit_money_boundary():
             row["request_id"]
         )
         is not None
+    )
+
+
+def _move_parent_to_jit_ready(
+    row: dict,
+    *,
+    action: str = "jit_not_required",
+) -> dict:
+    transition_withdrawal_request(
+        row["request_id"],
+        expected_statuses={
+            "jit_prepared",
+        },
+        new_status="jit_ready",
+        username="arnold",
+        action=action,
+        details={
+            "gate_write_performed": (
+                action == "jit_ready"
+            ),
+        },
+        simulation=False,
+        completed=False,
+    )
+
+    result = get_withdrawal_request(
+        row["request_id"]
+    )
+
+    assert result is not None
+    assert result["status"] == "jit_ready"
+
+    return result
+
+
+def test_hold_on_main_after_success_preserves_ownership_and_releases_lock():
+    row = _create_jit_prepared_request()
+
+    child_id = (
+        withdrawal_jit_transfer_request_id(
+            row["request_id"]
+        )
+    )
+
+    audit_payload = {
+        "operation": "subaccount_to_main",
+        "purpose": "withdrawal_jit",
+        "withdrawal_request_id": (
+            row["request_id"]
+        ),
+        "source_account_id": "arnold",
+        "destination_account_id": "zolnode",
+        "gate_payload": {
+            "sub_account": "58601346",
+            "sub_account_type": "spot",
+            "currency": "USDT",
+            "amount": "4.05",
+            "direction": "from",
+            "client_order_id": (
+                "hold-on-main-test"
+            ),
+        },
+    }
+
+    child = _create_child(
+        request_id=child_id,
+        amount=Decimal("4.05"),
+        audit_payload=audit_payload,
+        status="success",
+        write_performed=True,
+    )
+
+    assert child["status"] == "success"
+
+    row = _move_parent_to_jit_ready(
+        row,
+        action="jit_ready",
+    )
+
+    event_id = (
+        internal_transfer_credit_event_id(
+            child_id
+        )
+    )
+
+    with session_scope() as db:
+        ownership_before = db.scalar(
+            select(
+                TreasuryOwnershipLedgerEntry
+            ).where(
+                TreasuryOwnershipLedgerEntry
+                .event_id
+                == event_id
+            )
+        )
+
+        assert ownership_before is not None
+        amount_before = Decimal(
+            ownership_before.delta_amount
+        )
+
+    result = (
+        treasury_api
+        .hold_treasury_withdrawal_funds_on_main(
+            row["request_id"],
+            TreasuryWithdrawalCancellationRequest(
+                confirmation=(
+                    withdrawal_hold_on_main_confirmation_text(
+                        row["request_id"]
+                    )
+                ),
+                reason=(
+                    "External withdrawal intentionally "
+                    "abandoned; retain economic ownership "
+                    "on main."
+                ),
+            ),
+            user=_user(),
+        )
+    )
+
+    assert (
+        result["status"]
+        == "funds_held_on_main"
+    )
+
+    assert result["lock_released"] is True
+
+    assert (
+        result["gate_write_performed"]
+        is False
+    )
+
+    assert (
+        result["ownership_ledger_changed"]
+        is False
+    )
+
+    assert (
+        result["funds_returned_to_source"]
+        is False
+    )
+
+    assert (
+        get_withdrawal_lock_for_request(
+            row["request_id"]
+        )
+        is None
+    )
+
+    with session_scope() as db:
+        ownership_after = db.scalar(
+            select(
+                TreasuryOwnershipLedgerEntry
+            ).where(
+                TreasuryOwnershipLedgerEntry
+                .event_id
+                == event_id
+            )
+        )
+
+        assert ownership_after is not None
+
+        assert (
+            Decimal(
+                ownership_after.delta_amount
+            )
+            == amount_before
+            == Decimal("4.05")
+        )
+
+
+def test_hold_on_main_supports_no_jit_ready():
+    row = _create_jit_prepared_request()
+
+    row = _move_parent_to_jit_ready(
+        row,
+        action="jit_not_required",
+    )
+
+    child_id = (
+        withdrawal_jit_transfer_request_id(
+            row["request_id"]
+        )
+    )
+
+    assert (
+        get_transfer_request(child_id)
+        is None
+    )
+
+    result = (
+        treasury_api
+        .hold_treasury_withdrawal_funds_on_main(
+            row["request_id"],
+            TreasuryWithdrawalCancellationRequest(
+                confirmation=(
+                    withdrawal_hold_on_main_confirmation_text(
+                        row["request_id"]
+                    )
+                ),
+                reason=(
+                    "No JIT was required; abandon the "
+                    "external withdrawal and release "
+                    "custody reservation."
+                ),
+            ),
+            user=_user(),
+        )
+    )
+
+    assert (
+        result["status"]
+        == "funds_held_on_main"
+    )
+
+    assert result["child_transfer"] is None
+    assert result["lock_released"] is True
+
+    assert (
+        result["gate_write_performed"]
+        is False
+    )
+
+
+def test_hold_on_main_rejects_unresolved_jit():
+    row = _create_jit_prepared_request()
+
+    transition_withdrawal_request(
+        row["request_id"],
+        expected_statuses={
+            "jit_prepared",
+        },
+        new_status="jit_reconciling",
+        username="arnold",
+        action="jit_reconciling",
+        details={
+            "gate_write_performed": True,
+        },
+        simulation=False,
+        completed=False,
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as captured:
+        treasury_api.hold_treasury_withdrawal_funds_on_main(
+            row["request_id"],
+            TreasuryWithdrawalCancellationRequest(
+                confirmation=(
+                    withdrawal_hold_on_main_confirmation_text(
+                        row["request_id"]
+                    )
+                ),
+                reason="Unresolved JIT must remain locked.",
+            ),
+            user=_user(),
+        )
+
+    assert captured.value.status_code == 409
+
+    assert (
+        captured.value.detail["status"]
+        == "jit_reconciling"
+    )
+
+    assert (
+        get_withdrawal_lock_for_request(
+            row["request_id"]
+        )
+        is not None
+    )
+
+
+def test_hold_on_main_replay_recovers_stranded_lock():
+    row = _create_jit_prepared_request()
+
+    row = _move_parent_to_jit_ready(
+        row,
+    )
+
+    transition_withdrawal_request(
+        row["request_id"],
+        expected_statuses={
+            "jit_ready",
+        },
+        new_status="funds_held_on_main",
+        username="arnold",
+        action="funds_held_on_main",
+        details={
+            "gate_write_performed": False,
+        },
+        simulation=False,
+        completed=True,
+    )
+
+    # Simulate process death after lifecycle commit but
+    # before release_withdrawal_lock().
+    assert (
+        get_withdrawal_lock_for_request(
+            row["request_id"]
+        )
+        is not None
+    )
+
+    result = (
+        treasury_api
+        .hold_treasury_withdrawal_funds_on_main(
+            row["request_id"],
+            TreasuryWithdrawalCancellationRequest(
+                confirmation=(
+                    withdrawal_hold_on_main_confirmation_text(
+                        row["request_id"]
+                    )
+                ),
+                reason="Recovery replay releases stranded lock.",
+            ),
+            user=_user(),
+        )
+    )
+
+    assert result["idempotent_replay"] is True
+    assert result["lock_released"] is True
+
+    assert (
+        get_withdrawal_lock_for_request(
+            row["request_id"]
+        )
+        is None
     )

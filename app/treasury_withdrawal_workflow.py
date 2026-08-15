@@ -132,3 +132,21 @@ def destination_snapshot_mismatches(
         ) in checks.items()
         if expected != actual
     ]
+
+
+def withdrawal_hold_on_main_confirmation_text(
+    request_id: str,
+) -> str:
+    normalized = str(
+        request_id or ""
+    ).strip()
+
+    if not normalized:
+        raise ValueError(
+            "Withdrawal request ID is required"
+        )
+
+    return (
+        "HOLD WITHDRAWAL FUNDS ON MAIN "
+        + normalized
+    )

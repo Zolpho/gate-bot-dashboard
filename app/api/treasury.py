@@ -109,6 +109,7 @@ from ..treasury_withdrawal_workflow import (
     destination_snapshot_mismatches,
     withdrawal_cancel_confirmation_text,
     withdrawal_confirmation_text,
+    withdrawal_hold_on_main_confirmation_text,
     withdrawal_reservation_confirmation_text,
 )
 from ..treasury_transfer_reconcile import (
@@ -3892,6 +3893,253 @@ async def reconcile_treasury_withdrawal_jit(
             transfer_result
         ),
         **state,
+    }
+
+
+@router.post(
+    "/withdrawals/requests/{request_id}/hold-on-main"
+)
+def hold_treasury_withdrawal_funds_on_main(
+    request_id: str,
+    request: TreasuryWithdrawalCancellationRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    # Recovery/idempotency case:
+    # the lifecycle transition may have committed but the
+    # process could have stopped before releasing the lock.
+    if row["status"] == "funds_held_on_main":
+        released = release_withdrawal_lock(
+            custody_account_id=(
+                row["custody_account_id"]
+            ),
+            currency=row["currency"],
+            owner_request_id=request_id,
+        )
+
+        return {
+            "phase": "T2C4D_POST_JIT_HOLD",
+            "status": "funds_held_on_main",
+            "held_on_main": False,
+            "idempotent_replay": True,
+            "lock_released": released,
+            "gate_read_performed": False,
+            "gate_write_performed": False,
+            "ownership_ledger_changed": False,
+            "funds_returned_to_source": False,
+            "withdrawals_enabled": False,
+            "audit": row,
+            "operation_lock": (
+                get_withdrawal_lock_for_request(
+                    request_id
+                )
+            ),
+        }
+
+    if row["status"] != "jit_ready":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal funds can be left on "
+                    "main only after JIT reaches the "
+                    "definitive jit_ready state."
+                ),
+                "status": row["status"],
+                "gate_write_performed": False,
+            },
+        )
+
+    lock = get_withdrawal_lock_for_request(
+        request_id
+    )
+
+    if lock is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "JIT-ready withdrawal request has "
+                    "no custody operation lock."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    required_confirmation = (
+        withdrawal_hold_on_main_confirmation_text(
+            request_id
+        )
+    )
+
+    if (
+        request.confirmation
+        != required_confirmation
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid hold-on-main "
+                    "confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    child_request_id = (
+        withdrawal_jit_transfer_request_id(
+            request_id
+        )
+    )
+
+    child = get_transfer_request(
+        child_request_id
+    )
+
+    # jit_ready can legitimately have no child when the
+    # fresh preflight determined that no JIT was required.
+    #
+    # If a child does exist, however, it must be a
+    # definitive successful live transfer before we release
+    # the withdrawal custody lock.
+    if child is not None:
+        if (
+            child.get("status") != "success"
+            or not bool(
+                child.get("write_performed")
+            )
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "JIT-ready withdrawal has a "
+                        "child transfer that is not a "
+                        "definitive successful live "
+                        "transfer. Manual review is "
+                        "required."
+                    ),
+                    "child_transfer": child,
+                    "gate_write_performed": False,
+                },
+            )
+
+    try:
+        audit, event, changed = (
+            transition_withdrawal_request(
+                request_id,
+                expected_statuses={
+                    "jit_ready",
+                },
+                new_status=(
+                    "funds_held_on_main"
+                ),
+                username=user.username,
+                action=(
+                    "funds_held_on_main"
+                ),
+                details={
+                    "reason": request.reason,
+                    "economic_owner_account_id": (
+                        row["owner_account_id"]
+                    ),
+                    "custody_account_id": (
+                        row["custody_account_id"]
+                    ),
+                    "currency": row["currency"],
+                    "child_transfer_request_id": (
+                        child_request_id
+                        if child is not None
+                        else None
+                    ),
+                    "child_transfer": child,
+                    "funds_returned_to_source": False,
+                    "ownership_ledger_changed": False,
+                    "external_withdrawal_performed": False,
+                    "gate_write_performed": False,
+                },
+                simulation=False,
+                completed=True,
+            )
+        )
+
+    except TreasuryWithdrawalStateError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    # Deliberately separate from the state transaction.
+    # If the process stops here, replay of this exact route
+    # will safely release only this request's lock.
+    released = release_withdrawal_lock(
+        custody_account_id=(
+            row["custody_account_id"]
+        ),
+        currency=row["currency"],
+        owner_request_id=request_id,
+    )
+
+    remaining_lock = (
+        get_withdrawal_lock_for_request(
+            request_id
+        )
+    )
+
+    if remaining_lock is not None:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": (
+                    "Withdrawal was marked as funds "
+                    "held on main but its custody lock "
+                    "could not be released. Replay this "
+                    "same hold-on-main operation."
+                ),
+                "status": (
+                    "funds_held_on_main"
+                ),
+                "lock_released": released,
+                "operation_lock": (
+                    remaining_lock
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    return {
+        "phase": "T2C4D_POST_JIT_HOLD",
+        "status": "funds_held_on_main",
+        "held_on_main": changed,
+        "idempotent_replay": False,
+        "lock_released": released,
+        "gate_read_performed": False,
+        "gate_write_performed": False,
+        "ownership_ledger_changed": False,
+        "funds_returned_to_source": False,
+        "withdrawals_enabled": False,
+        "audit": audit,
+        "event": event,
+        "child_transfer": child,
+        "operation_lock": None,
     }
 
 
