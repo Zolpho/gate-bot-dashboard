@@ -97,6 +97,11 @@ from ..treasury_withdrawal_locks import (
     list_withdrawal_locks,
     release_withdrawal_lock,
 )
+from ..treasury_withdrawal_jit import (
+    TreasuryWithdrawalJitPlanError,
+    build_withdrawal_jit_plan,
+    withdrawal_jit_preparation_confirmation_text,
+)
 from ..treasury_withdrawal_workflow import (
     destination_snapshot_mismatches,
     withdrawal_cancel_confirmation_text,
@@ -2464,6 +2469,381 @@ async def confirm_treasury_withdrawal_request(
 
 
 @router.post(
+    "/withdrawals/requests/{request_id}/jit/prepare"
+)
+async def prepare_treasury_withdrawal_jit(
+    request_id: str,
+    request: TreasuryWithdrawalReservationRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    # Exact replay of an already-prepared local JIT
+    # snapshot. Do not re-read Gate and do not create
+    # another lifecycle event.
+    if row["status"] == "jit_prepared":
+        lock = (
+            get_withdrawal_lock_for_request(
+                request_id
+            )
+        )
+
+        if lock is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "JIT-prepared withdrawal request "
+                        "has no operation lock."
+                    ),
+                    "gate_write_performed": False,
+                },
+            )
+
+        events = (
+            list_withdrawal_request_events(
+                request_id
+            )
+        )
+
+        jit_event = next(
+            (
+                event
+                for event in reversed(events)
+                if event["action"]
+                == "jit_prepared"
+            ),
+            None,
+        )
+
+        if jit_event is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "JIT-prepared withdrawal request "
+                        "has no preparation audit event."
+                    ),
+                    "gate_write_performed": False,
+                },
+            )
+
+        jit_plan = (
+            jit_event.get("details", {})
+            .get("jit_plan")
+        )
+
+        if not isinstance(
+            jit_plan,
+            dict,
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "Stored JIT preparation event "
+                        "has no valid JIT plan."
+                    ),
+                    "gate_write_performed": False,
+                },
+            )
+
+        return {
+            "phase": (
+                "T2C4B_JIT_PREPARATION"
+            ),
+            "status": "jit_prepared",
+            "jit_preparation_created": False,
+            "idempotent_replay": True,
+            "current_preflight_rechecked": False,
+            "gate_write_performed": False,
+            "transfer_audit_created": False,
+            "transfers_enabled": False,
+            "withdrawals_enabled": False,
+            "jit_execution_enabled": False,
+            "executable": False,
+            "execution_block_reason": (
+                "jit_execution_not_enabled"
+            ),
+            "jit_plan": jit_plan,
+            "audit": row,
+            "event": jit_event,
+            "operation_lock": lock,
+        }
+
+    if row["status"] != "confirmed_ready":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal request must be "
+                    "confirmed before JIT preparation."
+                ),
+                "status": row["status"],
+                "gate_write_performed": False,
+            },
+        )
+
+    lock = get_withdrawal_lock_for_request(
+        request_id
+    )
+
+    if lock is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Confirmed withdrawal request "
+                    "has no operation lock."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    required_confirmation = (
+        withdrawal_jit_preparation_confirmation_text(
+            request_id
+        )
+    )
+
+    if (
+        request.confirmation
+        != required_confirmation
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid withdrawal JIT preparation "
+                    "confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    # Another fresh GET-only withdrawal preflight.
+    # This remains before any possible future JIT write.
+    preflight = await _fresh_request_preflight(
+        row=row,
+        user=user,
+    )
+
+    mismatches = (
+        destination_snapshot_mismatches(
+            row,
+            preflight,
+        )
+    )
+
+    if (
+        not preflight.get(
+            "preflight_valid"
+        )
+        or mismatches
+    ):
+        reason = (
+            "Withdrawal JIT preparation was blocked "
+            "by the fresh safety preflight."
+        )
+
+        try:
+            audit, event, _changed = (
+                transition_withdrawal_request(
+                    request_id,
+                    expected_statuses={
+                        "confirmed_ready",
+                    },
+                    new_status="blocked",
+                    username=user.username,
+                    action=(
+                        "jit_preparation_blocked"
+                    ),
+                    details={
+                        "preflight": preflight,
+                        "destination_snapshot_mismatches": (
+                            mismatches
+                        ),
+                        "gate_write_performed": False,
+                        "transfer_audit_created": False,
+                    },
+                    error=reason,
+                    simulation=False,
+                    completed=True,
+                )
+            )
+
+        except TreasuryWithdrawalStateError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(exc),
+                    "gate_write_performed": False,
+                },
+            ) from exc
+
+        released = (
+            release_withdrawal_lock(
+                custody_account_id=(
+                    row["custody_account_id"]
+                ),
+                currency=row["currency"],
+                owner_request_id=request_id,
+            )
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": reason,
+                "errors": (
+                    preflight.get("errors")
+                    or []
+                ),
+                "destination_snapshot_mismatches": (
+                    mismatches
+                ),
+                "lock_released": released,
+                "audit": audit,
+                "event": event,
+                "gate_write_performed": False,
+                "transfer_audit_created": False,
+            },
+        )
+
+    try:
+        jit_plan = build_withdrawal_jit_plan(
+            request=row,
+            preflight=preflight,
+        )
+
+    except TreasuryWithdrawalJitPlanError as exc:
+        reason = (
+            "Withdrawal JIT preparation could not "
+            "derive a safe JIT plan."
+        )
+
+        try:
+            audit, event, _changed = (
+                transition_withdrawal_request(
+                    request_id,
+                    expected_statuses={
+                        "confirmed_ready",
+                    },
+                    new_status="blocked",
+                    username=user.username,
+                    action=(
+                        "jit_preparation_blocked"
+                    ),
+                    details={
+                        "preflight": preflight,
+                        "jit_plan_error": str(exc),
+                        "gate_write_performed": False,
+                        "transfer_audit_created": False,
+                    },
+                    error=reason,
+                    simulation=False,
+                    completed=True,
+                )
+            )
+
+        except TreasuryWithdrawalStateError as state_exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(state_exc),
+                    "gate_write_performed": False,
+                },
+            ) from state_exc
+
+        released = (
+            release_withdrawal_lock(
+                custody_account_id=(
+                    row["custody_account_id"]
+                ),
+                currency=row["currency"],
+                owner_request_id=request_id,
+            )
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": reason,
+                "jit_plan_error": str(exc),
+                "lock_released": released,
+                "audit": audit,
+                "event": event,
+                "gate_write_performed": False,
+                "transfer_audit_created": False,
+            },
+        ) from exc
+
+    try:
+        audit, event, changed = (
+            transition_withdrawal_request(
+                request_id,
+                expected_statuses={
+                    "confirmed_ready",
+                },
+                new_status="jit_prepared",
+                username=user.username,
+                action="jit_prepared",
+                details={
+                    "preflight": preflight,
+                    "jit_plan": jit_plan,
+                    "gate_write_performed": False,
+                    "transfer_audit_created": False,
+                },
+                simulation=False,
+                completed=False,
+            )
+        )
+
+    except TreasuryWithdrawalStateError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": "T2C4B_JIT_PREPARATION",
+        "status": "jit_prepared",
+        "jit_preparation_created": changed,
+        "idempotent_replay": False,
+        "current_preflight_rechecked": True,
+        "gate_write_performed": False,
+        "transfer_audit_created": False,
+        "transfers_enabled": False,
+        "withdrawals_enabled": False,
+        "jit_execution_enabled": False,
+        "executable": False,
+        "execution_block_reason": (
+            "jit_execution_not_enabled"
+        ),
+        "jit_plan": jit_plan,
+        "audit": audit,
+        "event": event,
+        "operation_lock": lock,
+    }
+
+
+@router.post(
     "/withdrawals/requests/{request_id}/cancel"
 )
 def cancel_treasury_withdrawal_request(
@@ -2505,6 +2885,7 @@ def cancel_treasury_withdrawal_request(
     if row["status"] not in {
         "reserved",
         "confirmed_ready",
+        "jit_prepared",
     }:
         raise HTTPException(
             status_code=409,
@@ -2549,6 +2930,7 @@ def cancel_treasury_withdrawal_request(
                 expected_statuses={
                     "reserved",
                     "confirmed_ready",
+                    "jit_prepared",
                 },
                 new_status="cancelled",
                 username=user.username,
