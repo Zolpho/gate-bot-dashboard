@@ -1638,6 +1638,7 @@ async def treasury_withdrawal_capabilities(
         ),
         currency=selected_currency,
         spot_accounts=spot.data,
+        main_spot_accounts=main_spot.data,
         raw_chains=chains.data,
         raw_withdraw_status=(
             withdrawal_status.data
