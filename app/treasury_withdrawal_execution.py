@@ -209,25 +209,58 @@ def withdrawal_execution_confirmation_text(
     return result
 
 
+def _positive_block_number(
+    value: Any,
+) -> bool:
+    try:
+        return int(str(value or "0").strip()) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 def classify_withdrawal_status(
     status: Any,
+    *,
+    block_number: Any = None,
 ) -> WithdrawalStatusDecision:
     normalized = str(
         status or ""
     ).strip().upper()
 
     if normalized == "DONE":
+        if _positive_block_number(
+            block_number
+        ):
+            return WithdrawalStatusDecision(
+                gate_status=normalized,
+                request_status=(
+                    "withdrawal_done_unsettled"
+                ),
+                outcome="success",
+                confidence="definitive",
+                terminal=True,
+                success=True,
+                requires_reconciliation=False,
+                summary=(
+                    "Gate confirmed the external "
+                    "withdrawal completed on-chain."
+                ),
+            )
+
         return WithdrawalStatusDecision(
             gate_status=normalized,
-            request_status="withdrawal_done",
-            outcome="success",
-            confidence="definitive",
-            terminal=True,
-            success=True,
-            requires_reconciliation=False,
+            request_status=(
+                "withdrawal_reconciling"
+            ),
+            outcome="pending",
+            confidence="pending",
+            terminal=False,
+            success=False,
+            requires_reconciliation=True,
             summary=(
-                "Gate confirmed the external "
-                "withdrawal completed."
+                "Gate reports DONE but no positive "
+                "block number proves on-chain "
+                "completion yet."
             ),
         )
 
@@ -250,9 +283,8 @@ def classify_withdrawal_status(
             ),
         )
 
-    # Gate documents FAIL as an on-chain failure
-    # still waiting for confirmation. It is therefore
-    # deliberately NON-terminal here.
+    # FAIL is explicitly non-terminal in Gate's
+    # withdrawal history semantics.
     if normalized in {
         "REQUEST",
         "MANUAL",
@@ -297,7 +329,6 @@ def classify_withdrawal_status(
             "withdrawal status."
         ),
     )
-
 
 def _flatten_records(
     value: Any,

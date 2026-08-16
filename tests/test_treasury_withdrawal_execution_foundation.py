@@ -98,21 +98,39 @@ def test_execution_confirmation_binds_owner_amount_chain_and_destination():
     assert len(confirmation) <= 255
 
 
-def test_done_is_definitive_success():
-    decision = classify_withdrawal_status(
-        "DONE"
+def test_done_requires_positive_block_number():
+    pending = classify_withdrawal_status(
+        "DONE",
+        block_number="0",
     )
 
-    assert decision.request_status == (
-        "withdrawal_done"
+    assert pending.request_status == (
+        "withdrawal_reconciling"
     )
-    assert decision.outcome == "success"
-    assert decision.confidence == "definitive"
-    assert decision.terminal is True
-    assert decision.success is True
-
+    assert pending.terminal is False
+    assert pending.success is False
     assert (
-        decision.requires_reconciliation
+        pending.requires_reconciliation
+        is True
+    )
+
+    definitive = classify_withdrawal_status(
+        "DONE",
+        block_number="123456",
+    )
+
+    assert definitive.request_status == (
+        "withdrawal_done_unsettled"
+    )
+    assert definitive.outcome == "success"
+    assert (
+        definitive.confidence
+        == "definitive"
+    )
+    assert definitive.terminal is True
+    assert definitive.success is True
+    assert (
+        definitive.requires_reconciliation
         is False
     )
 

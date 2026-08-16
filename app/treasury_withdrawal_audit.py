@@ -627,3 +627,513 @@ def transition_withdrawal_request(
 
     finally:
         session.close()
+
+
+def begin_withdrawal_submission(
+    request_id: str,
+    *,
+    username: str,
+    gate_withdraw_order_id: str,
+    details: Any = None,
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any] | None,
+    bool,
+]:
+    """
+    Persist the deterministic Gate order ID and enter
+    withdrawal_submitting BEFORE any Gate POST occurs.
+
+    Once this state has been committed, automatic
+    submission retry is forbidden even if the process
+    dies before/while crossing the HTTP boundary.
+    """
+    session = SessionLocal()
+
+    try:
+        if engine.dialect.name == "sqlite":
+            session.execute(
+                text("BEGIN IMMEDIATE")
+            )
+
+        row = session.scalar(
+            select(
+                TreasuryWithdrawalRequest
+            ).where(
+                TreasuryWithdrawalRequest
+                .request_id
+                == request_id
+            )
+        )
+
+        if row is None:
+            raise TreasuryWithdrawalStateError(
+                "Treasury withdrawal request "
+                "not found"
+            )
+
+        order_id = str(
+            gate_withdraw_order_id or ""
+        ).strip()
+
+        if not order_id:
+            raise TreasuryWithdrawalStateError(
+                "Gate withdraw_order_id is required"
+            )
+
+        if (
+            row.gate_withdraw_order_id
+            and row.gate_withdraw_order_id
+            != order_id
+        ):
+            raise TreasuryWithdrawalStateError(
+                "Withdrawal request is already "
+                "bound to a different Gate "
+                "withdraw_order_id"
+            )
+
+        if row.status == "withdrawal_submitting":
+            if (
+                row.gate_withdraw_order_id
+                != order_id
+            ):
+                raise TreasuryWithdrawalStateError(
+                    "Submitting withdrawal has "
+                    "unexpected Gate order ID"
+                )
+
+            snapshot = _snapshot(row)
+            session.commit()
+
+            return snapshot, None, False
+
+        if row.status != "jit_ready":
+            raise TreasuryWithdrawalStateError(
+                "Treasury withdrawal request "
+                f"cannot begin submission from "
+                f"{row.status!r}"
+            )
+
+        old_status = row.status
+
+        row.gate_withdraw_order_id = order_id
+        row.status = "withdrawal_submitting"
+        row.error = ""
+        row.simulation = False
+        row.write_performed = False
+        row.completed_at = None
+
+        event = TreasuryWithdrawalRequestEvent(
+            request_id=row.request_id,
+            owner_account_id=(
+                row.owner_account_id
+            ),
+            username=username,
+            action=(
+                "withdrawal_submission_started"
+            ),
+            from_status=old_status,
+            to_status="withdrawal_submitting",
+            details_json=canonical_json(
+                {
+                    "gate_withdraw_order_id": (
+                        order_id
+                    ),
+                    "gate_write_performed": False,
+                    **(
+                        details
+                        if isinstance(details, dict)
+                        else {}
+                    ),
+                }
+            ),
+        )
+
+        session.add(event)
+        session.flush()
+
+        snapshot = _snapshot(row)
+        event_snapshot = _event_snapshot(
+            event
+        )
+
+        session.commit()
+
+        return (
+            snapshot,
+            event_snapshot,
+            True,
+        )
+
+    except Exception:
+        session.rollback()
+        raise
+
+    finally:
+        session.close()
+
+
+def mark_withdrawal_submission_attempt(
+    request_id: str,
+    *,
+    username: str,
+    gate_withdraw_order_id: str,
+    new_status: str,
+    gate_withdrawal_id: str = "",
+    gate_txid: str = "",
+    gate_status: str = "",
+    error: str = "",
+    details: Any = None,
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any] | None,
+    bool,
+]:
+    if new_status not in {
+        "withdrawal_submitted",
+        "withdrawal_reconciling",
+    }:
+        raise ValueError(
+            "Invalid post-submission state"
+        )
+
+    session = SessionLocal()
+
+    try:
+        if engine.dialect.name == "sqlite":
+            session.execute(
+                text("BEGIN IMMEDIATE")
+            )
+
+        row = session.scalar(
+            select(
+                TreasuryWithdrawalRequest
+            ).where(
+                TreasuryWithdrawalRequest
+                .request_id
+                == request_id
+            )
+        )
+
+        if row is None:
+            raise TreasuryWithdrawalStateError(
+                "Treasury withdrawal request "
+                "not found"
+            )
+
+        order_id = str(
+            gate_withdraw_order_id or ""
+        ).strip()
+
+        if (
+            not row.gate_withdraw_order_id
+            or row.gate_withdraw_order_id
+            != order_id
+        ):
+            raise TreasuryWithdrawalStateError(
+                "Withdrawal submission Gate "
+                "order ID mismatch"
+            )
+
+        if row.status == new_status:
+            snapshot = _snapshot(row)
+            session.commit()
+
+            return snapshot, None, False
+
+        if row.status != "withdrawal_submitting":
+            raise TreasuryWithdrawalStateError(
+                "Withdrawal submission result "
+                f"cannot be applied from "
+                f"{row.status!r}"
+            )
+
+        old_status = row.status
+
+        row.status = new_status
+        row.simulation = False
+
+        # This function is called only after
+        # create_withdrawal() has been invoked.
+        # It records that the Gate write boundary
+        # was crossed/attempted, not that the
+        # withdrawal definitively completed.
+        row.write_performed = True
+
+        if gate_withdrawal_id:
+            row.gate_withdrawal_id = (
+                gate_withdrawal_id
+            )
+
+        if gate_txid:
+            row.gate_txid = gate_txid
+
+        if gate_status:
+            row.gate_status = gate_status
+
+        row.error = error
+        row.completed_at = None
+
+        event = TreasuryWithdrawalRequestEvent(
+            request_id=row.request_id,
+            owner_account_id=(
+                row.owner_account_id
+            ),
+            username=username,
+            action=(
+                "withdrawal_submitted"
+                if new_status
+                == "withdrawal_submitted"
+                else
+                "withdrawal_submission_uncertain"
+            ),
+            from_status=old_status,
+            to_status=new_status,
+            details_json=canonical_json(
+                {
+                    "gate_withdraw_order_id": (
+                        order_id
+                    ),
+                    "gate_withdrawal_id": (
+                        gate_withdrawal_id
+                        or None
+                    ),
+                    "gate_txid": (
+                        gate_txid or None
+                    ),
+                    "gate_status": (
+                        gate_status or None
+                    ),
+                    "gate_write_performed": True,
+                    **(
+                        details
+                        if isinstance(details, dict)
+                        else {}
+                    ),
+                }
+            ),
+        )
+
+        session.add(event)
+        session.flush()
+
+        snapshot = _snapshot(row)
+        event_snapshot = _event_snapshot(
+            event
+        )
+
+        session.commit()
+
+        return (
+            snapshot,
+            event_snapshot,
+            True,
+        )
+
+    except Exception:
+        session.rollback()
+        raise
+
+    finally:
+        session.close()
+
+
+def apply_withdrawal_reconciliation(
+    request_id: str,
+    *,
+    username: str,
+    gate_withdraw_order_id: str,
+    expected_statuses: set[str],
+    new_status: str,
+    outcome: str,
+    confidence: str,
+    gate_status: str = "",
+    gate_withdrawal_id: str = "",
+    gate_txid: str = "",
+    summary: str = "",
+    details: Any = None,
+    write_performed: bool | None = None,
+    error: str = "",
+    completed: bool = False,
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any] | None,
+    bool,
+]:
+    """
+    Atomically persist the reconciliation observation and
+    the local withdrawal lifecycle state.
+
+    Repeated pending observations create reconciliation
+    history rows without fabricating lifecycle transitions.
+    """
+    session = SessionLocal()
+
+    try:
+        if engine.dialect.name == "sqlite":
+            session.execute(
+                text("BEGIN IMMEDIATE")
+            )
+
+        row = session.scalar(
+            select(
+                TreasuryWithdrawalRequest
+            ).where(
+                TreasuryWithdrawalRequest
+                .request_id
+                == request_id
+            )
+        )
+
+        if row is None:
+            raise TreasuryWithdrawalStateError(
+                "Treasury withdrawal request "
+                "not found"
+            )
+
+        order_id = str(
+            gate_withdraw_order_id or ""
+        ).strip()
+
+        if (
+            not row.gate_withdraw_order_id
+            or row.gate_withdraw_order_id
+            != order_id
+        ):
+            raise TreasuryWithdrawalStateError(
+                "Withdrawal reconciliation Gate "
+                "order ID mismatch"
+            )
+
+        old_status = row.status
+
+        if (
+            old_status not in expected_statuses
+            and old_status != new_status
+        ):
+            raise TreasuryWithdrawalStateError(
+                "Withdrawal reconciliation cannot "
+                f"transition from {old_status!r} "
+                f"to {new_status!r}"
+            )
+
+        row.status = new_status
+        row.simulation = False
+
+        if write_performed is not None:
+            row.write_performed = bool(
+                write_performed
+            )
+
+        if gate_withdrawal_id:
+            row.gate_withdrawal_id = (
+                gate_withdrawal_id
+            )
+
+        if gate_txid:
+            row.gate_txid = gate_txid
+
+        if gate_status:
+            row.gate_status = gate_status
+
+        row.error = error
+
+        if completed:
+            row.completed_at = utcnow()
+        else:
+            row.completed_at = None
+
+        reconciliation = (
+            TreasuryWithdrawalReconciliation(
+                request_id=row.request_id,
+                owner_account_id=(
+                    row.owner_account_id
+                ),
+                username=username,
+                outcome=outcome,
+                confidence=confidence,
+                gate_status=gate_status,
+                gate_withdrawal_id=(
+                    gate_withdrawal_id
+                ),
+                gate_txid=gate_txid,
+                summary=summary,
+                details_json=canonical_json(
+                    details or {}
+                ),
+            )
+        )
+
+        session.add(reconciliation)
+
+        event = None
+
+        if old_status != new_status:
+            event = (
+                TreasuryWithdrawalRequestEvent(
+                    request_id=row.request_id,
+                    owner_account_id=(
+                        row.owner_account_id
+                    ),
+                    username=username,
+                    action=(
+                        "withdrawal_reconciled"
+                    ),
+                    from_status=old_status,
+                    to_status=new_status,
+                    details_json=canonical_json(
+                        {
+                            "outcome": outcome,
+                            "confidence": confidence,
+                            "gate_status": (
+                                gate_status or None
+                            ),
+                            "gate_withdrawal_id": (
+                                gate_withdrawal_id
+                                or None
+                            ),
+                            "gate_txid": (
+                                gate_txid or None
+                            ),
+                            "gate_write_performed": (
+                                row.write_performed
+                            ),
+                        }
+                    ),
+                )
+            )
+
+            session.add(event)
+
+        session.flush()
+
+        snapshot = _snapshot(row)
+
+        reconciliation_snapshot = (
+            _reconciliation_snapshot(
+                reconciliation
+            )
+        )
+
+        event_snapshot = (
+            _event_snapshot(event)
+            if event is not None
+            else None
+        )
+
+        session.commit()
+
+        return (
+            snapshot,
+            reconciliation_snapshot,
+            event_snapshot,
+            old_status != new_status,
+        )
+
+    except Exception:
+        session.rollback()
+        raise
+
+    finally:
+        session.close()
