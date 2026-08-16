@@ -558,3 +558,120 @@ def test_ownership_api_super_admin_can_see_all() -> None:
         == request_id
         for item in ledger["items"]
     )
+
+
+def test_ownership_api_custodian_can_see_held_funds() -> None:
+    from app.api.treasury import (
+        treasury_ownership_balances,
+        treasury_ownership_ledger,
+    )
+    from app.security import DashboardUser
+
+    owner_a = (
+        "custody-a-" + uuid4().hex[:10]
+    )
+    owner_b = (
+        "custody-b-" + uuid4().hex[:10]
+    )
+
+    request_ids = set()
+
+    for owner in (owner_a, owner_b):
+        request_id = _request_id(
+            "custody-scope"
+        )
+        request_ids.add(request_id)
+
+        reserve_live_transfer(
+            request_id=request_id,
+            source_account_id=owner,
+            destination_account_id="zolnode",
+            username="ownership-test",
+            currency="USDT",
+            amount=Decimal("1"),
+            payload=_live_payload(owner),
+        )
+
+        mark_transfer_request(
+            request_id,
+            status="success",
+            response={
+                "status": "SUCCESS",
+            },
+            write_performed=True,
+            completed=True,
+        )
+
+    # The custodian must see funds it physically holds,
+    # even though another account is the economic owner.
+    custodian_user = DashboardUser(
+        username="zolnode-user",
+        role="account_operator",
+        account_ids=("zolnode",),
+    )
+
+    balances = treasury_ownership_balances(
+        user=custodian_user,
+    )
+
+    ledger = treasury_ownership_ledger(
+        user=custodian_user,
+        limit=500,
+    )
+
+    balance_owners = {
+        item["owner_account_id"]
+        for item in balances["items"]
+    }
+
+    assert owner_a in balance_owners
+    assert owner_b in balance_owners
+
+    ledger_request_ids = {
+        item["source_request_id"]
+        for item in ledger["items"]
+    }
+
+    assert request_ids.issubset(
+        ledger_request_ids
+    )
+
+    # An unrelated account must still see none
+    # of these ownership records.
+    unrelated_user = DashboardUser(
+        username="unrelated-user",
+        role="account_operator",
+        account_ids=(
+            "unrelated-" + uuid4().hex[:10],
+        ),
+    )
+
+    unrelated_balances = (
+        treasury_ownership_balances(
+            user=unrelated_user,
+        )
+    )
+
+    unrelated_ledger = (
+        treasury_ownership_ledger(
+            user=unrelated_user,
+            limit=500,
+        )
+    )
+
+    assert owner_a not in {
+        item["owner_account_id"]
+        for item in unrelated_balances["items"]
+    }
+
+    assert owner_b not in {
+        item["owner_account_id"]
+        for item in unrelated_balances["items"]
+    }
+
+    assert request_ids.isdisjoint(
+        {
+            item["source_request_id"]
+            for item in unrelated_ledger["items"]
+        }
+    )

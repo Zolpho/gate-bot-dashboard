@@ -4,7 +4,7 @@ import json
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from .db import session_scope
@@ -296,10 +296,18 @@ def list_ownership_entries(
         )
 
         if account_ids is not None:
+            scoped_account_ids = sorted(account_ids)
+
             statement = statement.where(
-                TreasuryOwnershipLedgerEntry
-                .owner_account_id.in_(
-                    sorted(account_ids)
+                or_(
+                    TreasuryOwnershipLedgerEntry
+                    .owner_account_id.in_(
+                        scoped_account_ids
+                    ),
+                    TreasuryOwnershipLedgerEntry
+                    .custody_account_id.in_(
+                        scoped_account_ids
+                    ),
                 )
             )
 
@@ -338,10 +346,18 @@ def ownership_balances(
         )
 
         if account_ids is not None:
+            scoped_account_ids = sorted(account_ids)
+
             statement = statement.where(
-                TreasuryOwnershipLedgerEntry
-                .owner_account_id.in_(
-                    sorted(account_ids)
+                or_(
+                    TreasuryOwnershipLedgerEntry
+                    .owner_account_id.in_(
+                        scoped_account_ids
+                    ),
+                    TreasuryOwnershipLedgerEntry
+                    .custody_account_id.in_(
+                        scoped_account_ids
+                    ),
                 )
             )
 
