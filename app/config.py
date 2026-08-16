@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     treasury_transfers_live_accounts: str = ""
     treasury_transfer_confirmation_text: str = "LIVE TRANSFER"
 
+    # External withdrawals have their own independent
+    # live arm. Enabling internal Treasury transfers must
+    # never enable an external withdrawal.
+    treasury_withdrawals_live_armed: bool = False
+    treasury_withdrawals_live_accounts: str = ""
+
     # Persistent Treasury operation rate limiting.
     treasury_rate_limit_enabled: bool = True
 
@@ -271,6 +277,35 @@ class Settings(BaseSettings):
     ) -> bool:
         allowed = (
             self.treasury_transfers_live_account_list
+        )
+
+        account_id = account_id.strip().lower()
+
+        return (
+            "*" in allowed
+            or account_id in allowed
+        )
+
+
+    @property
+    def treasury_withdrawals_live_account_list(
+        self,
+    ) -> set[str]:
+        return {
+            item.strip().lower()
+            for item in (
+                self.treasury_withdrawals_live_accounts
+                .split(",")
+            )
+            if item.strip()
+        }
+
+    def treasury_withdrawals_live_account_allowed(
+        self,
+        account_id: str,
+    ) -> bool:
+        allowed = (
+            self.treasury_withdrawals_live_account_list
         )
 
         account_id = account_id.strip().lower()

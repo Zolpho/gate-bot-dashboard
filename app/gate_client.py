@@ -410,6 +410,44 @@ class GateClient:
             },
         )
 
+    async def create_withdrawal(
+        self,
+        payload: dict[str, Any],
+    ) -> GateResponse:
+        return await self.request(
+            "POST",
+            "/withdrawals",
+            json_body=payload,
+        )
+
+    async def list_withdrawals(
+        self,
+        *,
+        currency: str | None = None,
+        withdraw_id: str | None = None,
+        withdraw_order_id: str | None = None,
+        from_timestamp: int | None = None,
+        to_timestamp: int | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/wallet/withdrawals",
+            params=[
+                ("currency", currency),
+                ("withdraw_id", withdraw_id),
+                (
+                    "withdraw_order_id",
+                    withdraw_order_id,
+                ),
+                ("from", from_timestamp),
+                ("to", to_timestamp),
+                ("limit", max(1, min(limit, 100))),
+                ("offset", max(0, offset)),
+            ],
+        )
+
     async def get_deposit_address(
         self,
         currency: str,
