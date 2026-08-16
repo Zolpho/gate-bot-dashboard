@@ -365,6 +365,20 @@ def test_treasury_t2c3b_allows_only_expected_mutation_routes() -> None:
         (
             (
                 "/api/treasury/withdrawals/"
+                "requests/{request_id}/execute"
+            ),
+            frozenset({"POST"}),
+        ),
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "requests/{request_id}/reconcile"
+            ),
+            frozenset({"POST"}),
+        ),
+        (
+            (
+                "/api/treasury/withdrawals/"
                 "requests/{request_id}/hold-on-main"
             ),
             frozenset({"POST"}),

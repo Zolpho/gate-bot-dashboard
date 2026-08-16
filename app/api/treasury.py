@@ -112,6 +112,15 @@ from ..treasury_withdrawal_workflow import (
     withdrawal_hold_on_main_confirmation_text,
     withdrawal_reservation_confirmation_text,
 )
+from ..treasury_withdrawal_execution import (
+    TreasuryWithdrawalExecutionError,
+    withdrawal_execution_confirmation_text,
+)
+from ..treasury_withdrawal_submission import (
+    TreasuryWithdrawalSubmissionError,
+    reconcile_withdrawal as reconcile_withdrawal_service,
+    submit_withdrawal_once,
+)
 from ..treasury_transfer_reconcile import (
     interpret_transfer_order_status,
     interpret_transfer_submission_error,
@@ -3893,6 +3902,501 @@ async def reconcile_treasury_withdrawal_jit(
             transfer_result
         ),
         **state,
+    }
+
+
+
+@router.post(
+    "/withdrawals/requests/{request_id}/execute"
+)
+async def execute_treasury_external_withdrawal(
+    request_id: str,
+    request: TreasuryWithdrawalReservationRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    reconcile_path = (
+        "/api/treasury/withdrawals/"
+        f"requests/{request_id}/reconcile"
+    )
+
+    # Never allow the execution endpoint to cross the
+    # POST boundary again once submission may have begun.
+    if row["status"] in {
+        "withdrawal_submitting",
+        "withdrawal_submitted",
+        "withdrawal_reconciling",
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "External withdrawal submission has "
+                    "already started. No second Gate "
+                    "withdrawal will be submitted. "
+                    "Reconcile the existing request."
+                ),
+                "status": row["status"],
+                "reconcile_path": reconcile_path,
+                "automatic_retry_allowed": False,
+                "gate_write_performed": False,
+            },
+        )
+
+    if row["status"] in {
+        "withdrawal_done_unsettled",
+        "withdrawal_failed",
+    }:
+        return {
+            "phase": (
+                "T2C5C_EXTERNAL_WITHDRAWAL_API"
+            ),
+            "status": row["status"],
+            "idempotent_replay": True,
+            "gate_read_performed": False,
+            "gate_write_performed": False,
+            "automatic_retry_allowed": False,
+            "requires_reconciliation": False,
+            "reconcile_path": reconcile_path,
+            "withdrawals_enabled": bool(
+                settings
+                .treasury_withdrawals_live_armed
+            ),
+            "audit": row,
+            "operation_lock": (
+                get_withdrawal_lock_for_request(
+                    request_id
+                )
+            ),
+        }
+
+    if row["status"] != "jit_ready":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal request must be in "
+                    "jit_ready state before external "
+                    "withdrawal execution."
+                ),
+                "status": row["status"],
+                "gate_write_performed": False,
+            },
+        )
+
+    lock = get_withdrawal_lock_for_request(
+        request_id
+    )
+
+    if lock is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "JIT-ready withdrawal request has "
+                    "no custody operation lock."
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    # Fresh Gate GET-only safety preflight immediately
+    # before the external-write policy barriers.
+    preflight = await _fresh_request_preflight(
+        row=row,
+        user=user,
+    )
+
+    if not preflight.get(
+        "preflight_valid"
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Fresh withdrawal preflight "
+                    "rejected external execution."
+                ),
+                "errors": (
+                    preflight.get("errors")
+                    or []
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    mismatches = (
+        destination_snapshot_mismatches(
+            row,
+            preflight,
+        )
+    )
+
+    if mismatches:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Fresh withdrawal destination does "
+                    "not match the immutable request "
+                    "snapshot."
+                ),
+                "reason": (
+                    "destination_snapshot_mismatch"
+                ),
+                "mismatches": mismatches,
+                "gate_write_performed": False,
+            },
+        )
+
+    # Fee/funding terms are also security-sensitive.
+    # A changed Gate fee requires a fresh withdrawal
+    # request and fresh human confirmation.
+    fee = preflight.get("fee")
+    funding = preflight.get("funding")
+
+    if (
+        not isinstance(fee, dict)
+        or not isinstance(funding, dict)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Fresh withdrawal preflight is "
+                    "missing fee/funding data."
+                ),
+                "reason": (
+                    "withdrawal_funding_snapshot_invalid"
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    fresh_fee = as_decimal(
+        fee.get("estimated_fee")
+    )
+
+    stored_fee = as_decimal(
+        row.get("estimated_fee")
+    )
+
+    fresh_required = as_decimal(
+        funding.get(
+            "conservative_funding_required"
+        )
+    )
+
+    stored_required = as_decimal(
+        row.get(
+            "conservative_funding_required"
+        )
+    )
+
+    if (
+        fresh_fee is None
+        or stored_fee is None
+        or fresh_required is None
+        or stored_required is None
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal funding snapshot "
+                    "could not be validated."
+                ),
+                "reason": (
+                    "withdrawal_funding_snapshot_invalid"
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    if (
+        fresh_fee != stored_fee
+        or fresh_required != stored_required
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal fee or conservative "
+                    "funding requirement changed since "
+                    "the request was confirmed. Create "
+                    "a fresh withdrawal request."
+                ),
+                "reason": (
+                    "withdrawal_funding_snapshot_changed"
+                ),
+                "stored_estimated_fee": (
+                    format(stored_fee, "f")
+                ),
+                "fresh_estimated_fee": (
+                    format(fresh_fee, "f")
+                ),
+                "stored_conservative_funding_required": (
+                    format(stored_required, "f")
+                ),
+                "fresh_conservative_funding_required": (
+                    format(fresh_required, "f")
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    try:
+        jit_plan = build_withdrawal_jit_plan(
+            request=row,
+            preflight=preflight,
+        )
+
+    except TreasuryWithdrawalJitPlanError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Fresh funding state could not "
+                    "produce a safe withdrawal plan."
+                ),
+                "reason": (
+                    "fresh_withdrawal_plan_invalid"
+                ),
+                "jit_plan_error": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    # jit_ready means all required source funds must
+    # already be physically on main. If fresh data now
+    # requires another JIT transfer, external withdrawal
+    # must not proceed.
+    if jit_plan.get("jit_required"):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Fresh preflight now requires "
+                    "additional JIT funding. External "
+                    "withdrawal was not submitted."
+                ),
+                "reason": "fresh_jit_required",
+                "jit_plan": jit_plan,
+                "gate_write_performed": False,
+            },
+        )
+
+    try:
+        required_confirmation = (
+            withdrawal_execution_confirmation_text(
+                row
+            )
+        )
+
+    except TreasuryWithdrawalExecutionError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    if (
+        request.confirmation
+        != required_confirmation
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid external withdrawal "
+                    "confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    # External withdrawals have a completely separate
+    # live arm from internal Treasury transfers.
+    if not (
+        settings
+        .treasury_withdrawals_live_armed
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "Live external Treasury "
+                    "withdrawals are not armed."
+                ),
+                "reason": "live_not_armed",
+                "gate_write_performed": False,
+            },
+        )
+
+    if not (
+        settings
+        .treasury_withdrawals_live_account_allowed(
+            row["owner_account_id"]
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "This economic owner is not "
+                    "enabled for live external "
+                    "withdrawals."
+                ),
+                "reason": (
+                    "owner_account_not_live_enabled"
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    _enforce_treasury_rate_limit(
+        user=user,
+        source_account_id=(
+            row["owner_account_id"]
+        ),
+        action="execute",
+    )
+
+    treasury_account = (
+        _treasury_account_or_http()
+    )
+
+    try:
+        result = await submit_withdrawal_once(
+            settings=settings,
+            request_id=request_id,
+            username=user.username,
+            treasury_account=treasury_account,
+        )
+
+    except TreasuryWithdrawalSubmissionError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "automatic_retry_allowed": False,
+                "reconcile_path": reconcile_path,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C5C_EXTERNAL_WITHDRAWAL_API"
+        ),
+        "withdrawals_enabled": bool(
+            settings.treasury_withdrawals_live_armed
+        ),
+        "current_preflight_rechecked": True,
+        "fresh_jit_required": False,
+        "reconcile_path": reconcile_path,
+        **result,
+    }
+
+
+@router.post(
+    "/withdrawals/requests/{request_id}/reconcile"
+)
+async def reconcile_treasury_external_withdrawal(
+    request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    require_account_access(
+        user,
+        row["owner_account_id"],
+    )
+
+    allowed = {
+        "withdrawal_submitting",
+        "withdrawal_submitted",
+        "withdrawal_reconciling",
+        "withdrawal_done_unsettled",
+        "withdrawal_failed",
+    }
+
+    if row["status"] not in allowed:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal request has not crossed "
+                    "the external submission boundary."
+                ),
+                "status": row["status"],
+                "gate_write_performed": False,
+            },
+        )
+
+    # Reconciliation deliberately remains available
+    # even when live withdrawals are DISARMED.
+    _enforce_treasury_rate_limit(
+        user=user,
+        source_account_id=(
+            row["owner_account_id"]
+        ),
+        action="reconcile",
+    )
+
+    treasury_account = (
+        _treasury_account_or_http()
+    )
+
+    try:
+        result = (
+            await reconcile_withdrawal_service(
+                settings=settings,
+                request_id=request_id,
+                username=user.username,
+                treasury_account=treasury_account,
+            )
+        )
+
+    except TreasuryWithdrawalSubmissionError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C5C_EXTERNAL_WITHDRAWAL_API"
+        ),
+        "withdrawals_enabled": bool(
+            settings.treasury_withdrawals_live_armed
+        ),
+        "reconciliation_only": True,
+        **result,
     }
 
 
