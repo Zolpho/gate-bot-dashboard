@@ -121,6 +121,11 @@ from ..treasury_withdrawal_submission import (
     reconcile_withdrawal as reconcile_withdrawal_service,
     submit_withdrawal_once,
 )
+from ..treasury_withdrawal_orphan_resolution import (
+    TreasuryWithdrawalOrphanResolutionError,
+    abandon_unresolved_withdrawal,
+    withdrawal_abandon_confirmation_text,
+)
 from ..treasury_transfer_reconcile import (
     interpret_transfer_order_status,
     interpret_transfer_submission_error,
@@ -367,6 +372,24 @@ class TreasuryWithdrawalConfirmationRequest(
 
 
 class TreasuryWithdrawalCancellationRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+    reason: str = Field(
+        min_length=20,
+        max_length=1000,
+    )
+
+
+class TreasuryWithdrawalAbandonRequest(
     BaseModel
 ):
     model_config = ConfigDict(
@@ -4396,6 +4419,135 @@ async def reconcile_treasury_external_withdrawal(
             settings.treasury_withdrawals_live_armed
         ),
         "reconciliation_only": True,
+        **result,
+    }
+
+
+
+@router.post(
+    "/withdrawals/requests/{request_id}/abandon"
+)
+async def abandon_treasury_withdrawal_request(
+    request_id: str,
+    request: TreasuryWithdrawalAbandonRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_super_admin),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    required_confirmation = (
+        withdrawal_abandon_confirmation_text(
+            row
+        )
+    )
+
+    if (
+        request.confirmation
+        != required_confirmation
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid withdrawal orphan-"
+                    "resolution confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "gate_write_performed": False,
+                "local_write_performed": False,
+                "ownership_settlement_performed": (
+                    False
+                ),
+            },
+        )
+
+    # Administrative resolution is only legal while
+    # external withdrawals are fail-closed. The service
+    # independently repeats this check before querying
+    # Gate or changing local state.
+    if (
+        settings
+        .treasury_withdrawals_live_armed
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal orphan resolution "
+                    "requires live withdrawals "
+                    "to be disarmed."
+                ),
+                "gate_write_performed": False,
+                "local_write_performed": False,
+                "ownership_settlement_performed": (
+                    False
+                ),
+            },
+        )
+
+    # Reuse the existing privileged lock-release
+    # rate-limit policy. This operation ultimately
+    # releases a money-movement custody lock.
+    _enforce_treasury_rate_limit(
+        user=user,
+        source_account_id=(
+            row["owner_account_id"]
+        ),
+        action="lock_release",
+    )
+
+    treasury_account = (
+        _treasury_account_or_http()
+    )
+
+    try:
+        result = (
+            await abandon_unresolved_withdrawal(
+                settings=settings,
+                request_id=request_id,
+                username=user.username,
+                reason=request.reason,
+                confirmation=(
+                    request.confirmation
+                ),
+                treasury_account=(
+                    treasury_account
+                ),
+            )
+        )
+
+    except (
+        TreasuryWithdrawalOrphanResolutionError
+    ) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "request_id": request_id,
+                "gate_write_performed": False,
+                "ownership_settlement_performed": (
+                    False
+                ),
+                "automatic_retry_allowed": (
+                    False
+                ),
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C5F_WITHDRAWAL_ORPHAN_RESOLUTION"
+        ),
+        "withdrawals_enabled": bool(
+            settings
+            .treasury_withdrawals_live_armed
+        ),
         **result,
     }
 
