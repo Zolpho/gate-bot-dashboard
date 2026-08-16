@@ -1090,3 +1090,833 @@ async def test_transport_error_preserves_nonempty_evidence(
         )
         is not None
     )
+
+
+# --- T2C.5F-A orphan resolution tests ---
+
+
+def _orphan_resolution_settings(
+    *,
+    armed=False,
+):
+    from app.config import Settings
+
+    return Settings(
+        _env_file=None,
+        treasury_main_account="zolnode",
+        treasury_withdrawals_live_armed=armed,
+    )
+
+
+def _prepare_orphan_request(
+    request_id,
+    *,
+    reconciliation_count=3,
+):
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import (
+        TreasuryWithdrawalRequest,
+        TreasuryWithdrawalRequestEvent,
+    )
+    from app.treasury_withdrawal_audit import (
+        canonical_json,
+        record_withdrawal_reconciliation,
+    )
+    from app.treasury_withdrawal_execution import (
+        gate_withdraw_order_id,
+    )
+
+    order_id = gate_withdraw_order_id(
+        request_id
+    )
+
+    with session_scope() as db:
+        row = db.scalar(
+            select(
+                TreasuryWithdrawalRequest
+            ).where(
+                TreasuryWithdrawalRequest
+                .request_id
+                == request_id
+            )
+        )
+
+        assert row is not None
+
+        row.status = "withdrawal_reconciling"
+        row.write_performed = True
+        row.gate_withdraw_order_id = (
+            order_id
+        )
+        row.gate_withdrawal_id = ""
+        row.gate_txid = ""
+        row.gate_status = ""
+        row.completed_at = None
+
+        db.add(
+            TreasuryWithdrawalRequestEvent(
+                request_id=request_id,
+                owner_account_id="arnold",
+                username="arnold",
+                action=(
+                    "withdrawal_submission_started"
+                ),
+                from_status="jit_ready",
+                to_status=(
+                    "withdrawal_submitting"
+                ),
+                details_json=canonical_json(
+                    {
+                        "gate_withdraw_order_id": (
+                            order_id
+                        ),
+                        "gate_write_performed": (
+                            False
+                        ),
+                    }
+                ),
+            )
+        )
+
+    for _ in range(
+        reconciliation_count
+    ):
+        record_withdrawal_reconciliation(
+            request_id=request_id,
+            owner_account_id="arnold",
+            username="arnold",
+            outcome="inconclusive",
+            confidence="inconclusive",
+            summary=(
+                "No unique Gate withdrawal "
+                "record matched."
+            ),
+            details={
+                "gate_read_performed": True,
+                "gate_write_performed": False,
+                "automatic_retry_allowed": (
+                    False
+                ),
+            },
+        )
+
+    return order_id
+
+
+def _install_orphan_gate(
+    monkeypatch,
+    *,
+    exact_rows=None,
+    recent_rows=None,
+):
+    from types import SimpleNamespace
+
+    import app.treasury_withdrawal_orphan_resolution \
+        as orphan
+
+    exact_rows = list(
+        exact_rows or []
+    )
+    recent_rows = list(
+        recent_rows or []
+    )
+
+    calls = {
+        "exact": 0,
+        "recent": 0,
+    }
+
+    class FakeGateClient:
+        def __init__(
+            self,
+            settings,
+            account,
+        ):
+            self.settings = settings
+            self.account = account
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(
+            self,
+            exc_type,
+            exc,
+            tb,
+        ):
+            return None
+
+        async def list_withdrawals(
+            self,
+            **kwargs,
+        ):
+            if kwargs.get(
+                "withdraw_order_id"
+            ):
+                calls["exact"] += 1
+
+                rows = exact_rows
+
+            else:
+                calls["recent"] += 1
+
+                rows = recent_rows
+
+            return SimpleNamespace(
+                data=rows,
+                raw=rows,
+                status_code=200,
+            )
+
+    monkeypatch.setattr(
+        orphan,
+        "GateClient",
+        FakeGateClient,
+    )
+
+    return calls
+
+
+def _abandon_confirmation(
+    request_id,
+):
+    from app.treasury_withdrawal_audit import (
+        get_withdrawal_request,
+    )
+    from app.treasury_withdrawal_orphan_resolution import (
+        withdrawal_abandon_confirmation_text,
+    )
+
+    row = get_withdrawal_request(
+        request_id
+    )
+
+    assert row is not None
+
+    return withdrawal_abandon_confirmation_text(
+        row
+    )
+
+
+@pytest.mark.asyncio
+async def test_orphan_resolution_is_atomic_and_terminal(
+    monkeypatch,
+    withdrawal_request,
+):
+    import app.treasury_withdrawal_orphan_resolution \
+        as orphan
+
+    from app.treasury_withdrawal_audit import (
+        get_withdrawal_request,
+        list_withdrawal_reconciliations,
+        list_withdrawal_request_events,
+    )
+    from app.treasury_withdrawal_locks import (
+        get_withdrawal_lock_for_request,
+    )
+
+    request_id = withdrawal_request
+
+    _prepare_orphan_request(
+        request_id
+    )
+
+    calls = _install_orphan_gate(
+        monkeypatch,
+    )
+
+    result = (
+        await orphan.abandon_unresolved_withdrawal(
+            settings=(
+                _orphan_resolution_settings()
+            ),
+            request_id=request_id,
+            username="rootadmin",
+            reason=(
+                "Operator verified repeated Gate "
+                "no-record evidence for this request."
+            ),
+            confirmation=(
+                _abandon_confirmation(
+                    request_id
+                )
+            ),
+            treasury_account=(
+                treasury_account()
+            ),
+            minimum_age_seconds=0,
+            minimum_reconciliations=3,
+        )
+    )
+
+    assert calls == {
+        "exact": 1,
+        "recent": 1,
+    }
+
+    assert (
+        result["status"]
+        == "withdrawal_abandoned"
+    )
+
+    assert (
+        result["gate_write_performed"]
+        is False
+    )
+
+    assert (
+        result[
+            "ownership_settlement_performed"
+        ]
+        is False
+    )
+
+    assert (
+        result[
+            "automatic_retry_allowed"
+        ]
+        is False
+    )
+
+    assert result["lock_released"] is True
+
+    assert (
+        get_withdrawal_lock_for_request(
+            request_id
+        )
+        is None
+    )
+
+    row = get_withdrawal_request(
+        request_id
+    )
+
+    assert (
+        row["status"]
+        == "withdrawal_abandoned"
+    )
+
+    assert row["write_performed"] is True
+    assert row["completed_at"] is not None
+
+    reconciliations = (
+        list_withdrawal_reconciliations(
+            request_id
+        )
+    )
+
+    assert (
+        reconciliations[-1]["outcome"]
+        == "abandoned_no_gate_record"
+    )
+
+    assert (
+        reconciliations[-1]["confidence"]
+        == "operator_reviewed"
+    )
+
+    events = (
+        list_withdrawal_request_events(
+            request_id
+        )
+    )
+
+    assert (
+        events[-1]["action"]
+        == "withdrawal_abandoned"
+    )
+
+    assert (
+        events[-1]["from_status"]
+        == "withdrawal_reconciling"
+    )
+
+    assert (
+        events[-1]["to_status"]
+        == "withdrawal_abandoned"
+    )
+
+
+@pytest.mark.asyncio
+async def test_orphan_resolution_requires_disarmed_withdrawals(
+    monkeypatch,
+    withdrawal_request,
+):
+    import app.treasury_withdrawal_orphan_resolution \
+        as orphan
+
+    request_id = withdrawal_request
+
+    _prepare_orphan_request(
+        request_id
+    )
+
+    class NoGate:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError(
+                "Gate must not be contacted "
+                "while withdrawal arm is enabled"
+            )
+
+    monkeypatch.setattr(
+        orphan,
+        "GateClient",
+        NoGate,
+    )
+
+    with pytest.raises(
+        orphan.TreasuryWithdrawalOrphanResolutionError,
+        match="disarmed",
+    ):
+        await orphan.abandon_unresolved_withdrawal(
+            settings=(
+                _orphan_resolution_settings(
+                    armed=True
+                )
+            ),
+            request_id=request_id,
+            username="rootadmin",
+            reason=(
+                "Operator requested safe orphan "
+                "resolution after review."
+            ),
+            confirmation=(
+                _abandon_confirmation(
+                    request_id
+                )
+            ),
+            treasury_account=(
+                treasury_account()
+            ),
+            minimum_age_seconds=0,
+        )
+
+
+@pytest.mark.asyncio
+async def test_orphan_resolution_requires_exact_confirmation(
+    monkeypatch,
+    withdrawal_request,
+):
+    import app.treasury_withdrawal_orphan_resolution \
+        as orphan
+
+    request_id = withdrawal_request
+
+    _prepare_orphan_request(
+        request_id
+    )
+
+    class NoGate:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError(
+                "Gate must not be contacted "
+                "before confirmation passes"
+            )
+
+    monkeypatch.setattr(
+        orphan,
+        "GateClient",
+        NoGate,
+    )
+
+    with pytest.raises(
+        orphan.TreasuryWithdrawalOrphanResolutionError,
+        match="Exact",
+    ):
+        await orphan.abandon_unresolved_withdrawal(
+            settings=(
+                _orphan_resolution_settings()
+            ),
+            request_id=request_id,
+            username="rootadmin",
+            reason=(
+                "Operator requested safe orphan "
+                "resolution after review."
+            ),
+            confirmation="WRONG",
+            treasury_account=(
+                treasury_account()
+            ),
+            minimum_age_seconds=0,
+        )
+
+
+@pytest.mark.asyncio
+async def test_orphan_resolution_enforces_age_gate(
+    monkeypatch,
+    withdrawal_request,
+):
+    import app.treasury_withdrawal_orphan_resolution \
+        as orphan
+
+    request_id = withdrawal_request
+
+    _prepare_orphan_request(
+        request_id
+    )
+
+    class NoGate:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError(
+                "Gate must not be contacted "
+                "before age gate passes"
+            )
+
+    monkeypatch.setattr(
+        orphan,
+        "GateClient",
+        NoGate,
+    )
+
+    with pytest.raises(
+        orphan.TreasuryWithdrawalOrphanResolutionError,
+        match="too recent",
+    ):
+        await orphan.abandon_unresolved_withdrawal(
+            settings=(
+                _orphan_resolution_settings()
+            ),
+            request_id=request_id,
+            username="rootadmin",
+            reason=(
+                "Operator requested safe orphan "
+                "resolution after review."
+            ),
+            confirmation=(
+                _abandon_confirmation(
+                    request_id
+                )
+            ),
+            treasury_account=(
+                treasury_account()
+            ),
+            minimum_age_seconds=3600,
+        )
+
+
+@pytest.mark.asyncio
+async def test_orphan_resolution_requires_repeated_inconclusive_reads(
+    monkeypatch,
+    withdrawal_request,
+):
+    import app.treasury_withdrawal_orphan_resolution \
+        as orphan
+
+    request_id = withdrawal_request
+
+    _prepare_orphan_request(
+        request_id,
+        reconciliation_count=2,
+    )
+
+    class NoGate:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError(
+                "Gate must not be contacted "
+                "before reconciliation gate passes"
+            )
+
+    monkeypatch.setattr(
+        orphan,
+        "GateClient",
+        NoGate,
+    )
+
+    with pytest.raises(
+        orphan.TreasuryWithdrawalOrphanResolutionError,
+        match="Not enough",
+    ):
+        await orphan.abandon_unresolved_withdrawal(
+            settings=(
+                _orphan_resolution_settings()
+            ),
+            request_id=request_id,
+            username="rootadmin",
+            reason=(
+                "Operator requested safe orphan "
+                "resolution after review."
+            ),
+            confirmation=(
+                _abandon_confirmation(
+                    request_id
+                )
+            ),
+            treasury_account=(
+                treasury_account()
+            ),
+            minimum_age_seconds=0,
+            minimum_reconciliations=3,
+        )
+
+
+@pytest.mark.asyncio
+async def test_exact_gate_record_blocks_orphan_resolution(
+    monkeypatch,
+    withdrawal_request,
+):
+    import app.treasury_withdrawal_orphan_resolution \
+        as orphan
+
+    from app.treasury_withdrawal_audit import (
+        get_withdrawal_request,
+    )
+    from app.treasury_withdrawal_locks import (
+        get_withdrawal_lock_for_request,
+    )
+
+    request_id = withdrawal_request
+
+    order_id = _prepare_orphan_request(
+        request_id
+    )
+
+    calls = _install_orphan_gate(
+        monkeypatch,
+        exact_rows=[
+            {
+                "id": "w123",
+                "withdraw_order_id": (
+                    order_id
+                ),
+                "status": "REQUEST",
+            }
+        ],
+    )
+
+    with pytest.raises(
+        orphan.TreasuryWithdrawalOrphanResolutionError,
+        match="now has a withdrawal record",
+    ):
+        await orphan.abandon_unresolved_withdrawal(
+            settings=(
+                _orphan_resolution_settings()
+            ),
+            request_id=request_id,
+            username="rootadmin",
+            reason=(
+                "Operator requested safe orphan "
+                "resolution after review."
+            ),
+            confirmation=(
+                _abandon_confirmation(
+                    request_id
+                )
+            ),
+            treasury_account=(
+                treasury_account()
+            ),
+            minimum_age_seconds=0,
+        )
+
+    assert calls["exact"] == 1
+    assert calls["recent"] == 0
+
+    assert (
+        get_withdrawal_request(
+            request_id
+        )["status"]
+        == "withdrawal_reconciling"
+    )
+
+    assert (
+        get_withdrawal_lock_for_request(
+            request_id
+        )
+        is not None
+    )
+
+
+@pytest.mark.asyncio
+async def test_plausible_recent_gate_record_blocks_resolution(
+    monkeypatch,
+    withdrawal_request,
+):
+    import app.treasury_withdrawal_orphan_resolution \
+        as orphan
+
+    from app.treasury_withdrawal_audit import (
+        get_withdrawal_request,
+    )
+    from app.treasury_withdrawal_locks import (
+        get_withdrawal_lock_for_request,
+    )
+
+    request_id = withdrawal_request
+
+    _prepare_orphan_request(
+        request_id
+    )
+
+    row = get_withdrawal_request(
+        request_id
+    )
+
+    _install_orphan_gate(
+        monkeypatch,
+        recent_rows=[
+            {
+                "id": "w-other",
+                "currency": row["currency"],
+                "amount": str(
+                    row["amount"]
+                ),
+                "address": row["address"],
+                "chain": row["chain"],
+                "memo": row["memo"],
+                "status": "REQUEST",
+            }
+        ],
+    )
+
+    with pytest.raises(
+        orphan.TreasuryWithdrawalOrphanResolutionError,
+        match="plausible record",
+    ):
+        await orphan.abandon_unresolved_withdrawal(
+            settings=(
+                _orphan_resolution_settings()
+            ),
+            request_id=request_id,
+            username="rootadmin",
+            reason=(
+                "Operator requested safe orphan "
+                "resolution after review."
+            ),
+            confirmation=(
+                _abandon_confirmation(
+                    request_id
+                )
+            ),
+            treasury_account=(
+                treasury_account()
+            ),
+            minimum_age_seconds=0,
+        )
+
+    assert (
+        get_withdrawal_request(
+            request_id
+        )["status"]
+        == "withdrawal_reconciling"
+    )
+
+    assert (
+        get_withdrawal_lock_for_request(
+            request_id
+        )
+        is not None
+    )
+
+
+@pytest.mark.asyncio
+async def test_abandoned_request_replay_never_queries_gate(
+    monkeypatch,
+    withdrawal_request,
+):
+    import app.treasury_withdrawal_orphan_resolution \
+        as orphan
+
+    request_id = withdrawal_request
+
+    _prepare_orphan_request(
+        request_id
+    )
+
+    _install_orphan_gate(
+        monkeypatch,
+    )
+
+    kwargs = {
+        "settings": (
+            _orphan_resolution_settings()
+        ),
+        "request_id": request_id,
+        "username": "rootadmin",
+        "reason": (
+            "Operator verified repeated Gate "
+            "no-record evidence for this request."
+        ),
+        "confirmation": (
+            _abandon_confirmation(
+                request_id
+            )
+        ),
+        "treasury_account": (
+            treasury_account()
+        ),
+        "minimum_age_seconds": 0,
+    }
+
+    first = (
+        await orphan
+        .abandon_unresolved_withdrawal(
+            **kwargs
+        )
+    )
+
+    assert (
+        first["status"]
+        == "withdrawal_abandoned"
+    )
+
+    class NoSecondGate:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError(
+                "Abandoned request replay "
+                "must not contact Gate"
+            )
+
+    monkeypatch.setattr(
+        orphan,
+        "GateClient",
+        NoSecondGate,
+    )
+
+    replay = (
+        await orphan
+        .abandon_unresolved_withdrawal(
+            **kwargs
+        )
+    )
+
+    assert (
+        replay["idempotent_replay"]
+        is True
+    )
+
+    assert (
+        replay["gate_read_performed"]
+        is False
+    )
+
+    assert (
+        replay["gate_write_performed"]
+        is False
+    )
+
+
+def test_orphan_resolution_has_no_gate_write_or_ownership_write():
+    from pathlib import Path
+
+    import app.treasury_withdrawal_orphan_resolution \
+        as orphan
+
+    source = Path(
+        orphan.__file__
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    assert "create_withdrawal(" not in source
+    assert 'request("POST"' not in source
+    assert "TreasuryOwnershipLedgerEntry" not in source
+    assert "treasury_ownership" not in source
+
+    assert (
+        source.count(
+            ".list_withdrawals("
+        )
+        == 2
+    )
