@@ -3863,6 +3863,115 @@ function treasurySignedAmount(
 }
 
 
+function treasuryOwnershipLabels(rows = []) {
+  const user = state.adminUser;
+
+  const generic = {
+    title: 'Main-held economic ownership',
+    subtitle: (
+      'Funds physically held by the Gate main account '
+      + 'but economically owned by a dashboard account.'
+    ),
+    amountHeader: 'Main-held amount',
+    empty: 'No main-held ownership balances.',
+  };
+
+  if (
+    !user
+    || user.role === 'super_admin'
+  ) {
+    return generic;
+  }
+
+  const accountIds = new Set(
+    (user.account_ids || []).map(
+      value => String(value || '').trim()
+    )
+  );
+
+  let visibleAsOwner = false;
+  let visibleAsCustodian = false;
+
+  for (const item of rows) {
+    const owner = String(
+      item.owner_account_id || ''
+    ).trim();
+
+    const custody = String(
+      item.custody_account_id || ''
+    ).trim();
+
+    if (accountIds.has(owner)) {
+      visibleAsOwner = true;
+    }
+
+    if (
+      accountIds.has(custody)
+      && !accountIds.has(owner)
+    ) {
+      visibleAsCustodian = true;
+    }
+  }
+
+  if (
+    visibleAsCustodian
+    && !visibleAsOwner
+  ) {
+    return {
+      title: 'Custody liabilities',
+      subtitle: (
+        'Funds physically held by this Gate account '
+        + 'but economically owned by other dashboard accounts.'
+      ),
+      amountHeader: 'Custody amount',
+      empty: 'No custody liabilities.',
+    };
+  }
+
+  if (
+    visibleAsOwner
+    && !visibleAsCustodian
+  ) {
+    return {
+      title: 'Main-held economic ownership',
+      subtitle: (
+        'Funds economically owned by this dashboard account '
+        + 'but physically held by the Gate main account.'
+      ),
+      amountHeader: 'Main-held amount',
+      empty: 'No main-held ownership balances.',
+    };
+  }
+
+  return generic;
+}
+
+
+function applyTreasuryOwnershipLabels(rows = []) {
+  const labels = treasuryOwnershipLabels(rows);
+
+  const title = $('#treasuryOwnershipTitle');
+  const subtitle = $('#treasuryOwnershipSubtitle');
+  const amountHeader = $(
+    '#treasuryOwnershipAmountHeader'
+  );
+
+  if (title) {
+    title.textContent = labels.title;
+  }
+
+  if (subtitle) {
+    subtitle.textContent = labels.subtitle;
+  }
+
+  if (amountHeader) {
+    amountHeader.textContent = labels.amountHeader;
+  }
+
+  return labels;
+}
+
+
 function renderTreasuryOwnershipBalances() {
   const body = $(
     '#treasuryOwnershipBalanceBody'
@@ -3874,11 +3983,15 @@ function renderTreasuryOwnershipBalances() {
     state.treasuryOwnershipBalances || []
   );
 
+  const labels = applyTreasuryOwnershipLabels(
+    rows
+  );
+
   if (!rows.length) {
     body.innerHTML = (
       '<tr>'
       + '<td colspan="4" class="empty-state">'
-      + 'No main-held ownership balances.'
+      + escapeHtml(labels.empty)
       + '</td>'
       + '</tr>'
     );
