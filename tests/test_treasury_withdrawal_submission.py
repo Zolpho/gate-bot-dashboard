@@ -746,3 +746,347 @@ def test_reconciliation_source_has_no_gate_write():
 
     assert "create_withdrawal(" not in source
     assert "list_withdrawals(" in source
+
+
+@pytest.mark.asyncio
+async def test_explicit_gate_4xx_is_definitive_rejection(
+    monkeypatch,
+    withdrawal_request,
+):
+    from app.gate_client import GateAPIError
+
+    request_id = withdrawal_request
+
+    calls = install_fake(
+        monkeypatch,
+        post_error=GateAPIError(
+            "Gate API returned 403: forbidden",
+            status_code=403,
+            label="FORBIDDEN",
+            response={
+                "label": "FORBIDDEN",
+                "message": (
+                    "Account has no permission "
+                    "to request operation"
+                ),
+            },
+        ),
+    )
+
+    result = (
+        await submission.submit_withdrawal_once(
+            settings=live_settings(),
+            request_id=request_id,
+            username="arnold",
+            treasury_account=(
+                treasury_account()
+            ),
+        )
+    )
+
+    assert calls["post"] == 1
+
+    assert (
+        result["status"]
+        == "withdrawal_failed"
+    )
+
+    assert (
+        result["gate_write_accepted"]
+        is False
+    )
+
+    assert (
+        result["requires_reconciliation"]
+        is False
+    )
+
+    assert (
+        result["automatic_retry_allowed"]
+        is False
+    )
+
+    assert (
+        result["definitive_rejection"]
+        is True
+    )
+
+    evidence = result[
+        "submission_error"
+    ]
+
+    assert (
+        evidence["classification"]
+        == "explicit_gate_rejection"
+    )
+
+    assert evidence["http_status"] == 403
+    assert evidence["gate_label"] == "FORBIDDEN"
+
+    row = get_withdrawal_request(
+        request_id
+    )
+
+    assert row is not None
+
+    assert (
+        row["status"]
+        == "withdrawal_failed"
+    )
+
+    assert row["write_performed"] is True
+    assert row["error"]
+
+    assert (
+        get_withdrawal_lock_for_request(
+            request_id
+        )
+        is None
+    )
+
+    assert result["lock_released"] is True
+
+    assert (
+        result["event"]["action"]
+        == "withdrawal_submission_rejected"
+    )
+
+
+@pytest.mark.asyncio
+async def test_order_exists_remains_ambiguous_and_locked(
+    monkeypatch,
+    withdrawal_request,
+):
+    from app.gate_client import GateAPIError
+
+    request_id = withdrawal_request
+
+    calls = install_fake(
+        monkeypatch,
+        post_error=GateAPIError(
+            "Gate API returned 400: order exists",
+            status_code=400,
+            label="ORDER_EXISTS",
+            response={
+                "label": "ORDER_EXISTS",
+                "message": (
+                    "Order already exists, "
+                    "do not resubmit"
+                ),
+            },
+        ),
+    )
+
+    first = (
+        await submission.submit_withdrawal_once(
+            settings=live_settings(),
+            request_id=request_id,
+            username="arnold",
+            treasury_account=(
+                treasury_account()
+            ),
+        )
+    )
+
+    assert calls["post"] == 1
+
+    assert (
+        first["status"]
+        == "withdrawal_reconciling"
+    )
+
+    assert (
+        first["gate_write_accepted"]
+        is None
+    )
+
+    assert (
+        first["requires_reconciliation"]
+        is True
+    )
+
+    assert (
+        first["definitive_rejection"]
+        is False
+    )
+
+    evidence = first[
+        "submission_error"
+    ]
+
+    assert (
+        evidence["classification"]
+        == "duplicate_or_existing_request"
+    )
+
+    assert (
+        evidence["duplicate_or_existing"]
+        is True
+    )
+
+    assert (
+        get_withdrawal_lock_for_request(
+            request_id
+        )
+        is not None
+    )
+
+    # Replay must never POST a second time.
+    second = (
+        await submission.submit_withdrawal_once(
+            settings=live_settings(),
+            request_id=request_id,
+            username="arnold",
+            treasury_account=(
+                treasury_account()
+            ),
+        )
+    )
+
+    assert calls["post"] == 1
+
+    assert (
+        second["idempotent_replay"]
+        is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_gate_5xx_remains_uncertain_and_locked(
+    monkeypatch,
+    withdrawal_request,
+):
+    from app.gate_client import GateAPIError
+
+    request_id = withdrawal_request
+
+    calls = install_fake(
+        monkeypatch,
+        post_error=GateAPIError(
+            (
+                "Gate API returned 500: "
+                "internal error"
+            ),
+            status_code=500,
+            label="INTERNAL_SERVER_ERROR",
+            response={
+                "label": (
+                    "INTERNAL_SERVER_ERROR"
+                ),
+                "message": (
+                    "Operation failed"
+                ),
+            },
+        ),
+    )
+
+    result = (
+        await submission.submit_withdrawal_once(
+            settings=live_settings(),
+            request_id=request_id,
+            username="arnold",
+            treasury_account=(
+                treasury_account()
+            ),
+        )
+    )
+
+    assert calls["post"] == 1
+
+    assert (
+        result["status"]
+        == "withdrawal_reconciling"
+    )
+
+    assert (
+        result["requires_reconciliation"]
+        is True
+    )
+
+    assert (
+        result["definitive_rejection"]
+        is False
+    )
+
+    evidence = result[
+        "submission_error"
+    ]
+
+    assert (
+        evidence["classification"]
+        == "gate_server_or_http_error"
+    )
+
+    assert evidence["http_status"] == 500
+
+    assert (
+        get_withdrawal_lock_for_request(
+            request_id
+        )
+        is not None
+    )
+
+
+@pytest.mark.asyncio
+async def test_transport_error_preserves_nonempty_evidence(
+    monkeypatch,
+    withdrawal_request,
+):
+    request_id = withdrawal_request
+
+    calls = install_fake(
+        monkeypatch,
+        post_error=TimeoutError(
+            "simulated transport timeout"
+        ),
+    )
+
+    result = (
+        await submission.submit_withdrawal_once(
+            settings=live_settings(),
+            request_id=request_id,
+            username="arnold",
+            treasury_account=(
+                treasury_account()
+            ),
+        )
+    )
+
+    assert calls["post"] == 1
+
+    assert (
+        result["status"]
+        == "withdrawal_reconciling"
+    )
+
+    evidence = result[
+        "submission_error"
+    ]
+
+    assert (
+        evidence["classification"]
+        == "transport_or_unknown_error"
+    )
+
+    assert evidence["http_status"] is None
+
+    assert (
+        evidence["exception_type"]
+        == "TimeoutError"
+    )
+
+    assert "simulated transport timeout" in (
+        evidence["error"]
+    )
+
+    assert (
+        result["requires_reconciliation"]
+        is True
+    )
+
+    assert (
+        get_withdrawal_lock_for_request(
+            request_id
+        )
+        is not None
+    )

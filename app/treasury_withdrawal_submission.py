@@ -245,6 +245,157 @@ def _record_details(
     }
 
 
+
+_AMBIGUOUS_GATE_SUBMISSION_LABELS = {
+    "DUPLICATE_REQUEST",
+    "ORDER_EXISTS",
+}
+
+
+def _safe_submission_error_response(
+    response,
+):
+    if response is None:
+        return None
+
+    if isinstance(response, dict):
+        # Persist only the structured Gate error fields
+        # useful to an operator. Do not blindly retain
+        # an arbitrary response object.
+        result = {}
+
+        for key in (
+            "label",
+            "message",
+            "detail",
+        ):
+            value = response.get(key)
+
+            if value is not None:
+                result[key] = str(value)[:2000]
+
+        return result or {
+            "response_type": "dict",
+        }
+
+    if isinstance(
+        response,
+        (str, int, float, bool),
+    ):
+        return {
+            "response_type": (
+                type(response).__name__
+            ),
+            "text": str(response)[:2000],
+        }
+
+    return {
+        "response_type": (
+            type(response).__name__
+        ),
+    }
+
+
+def _submission_error_evidence(
+    exc: Exception,
+) -> dict:
+    raw_status = getattr(
+        exc,
+        "status_code",
+        None,
+    )
+
+    status_code = (
+        raw_status
+        if isinstance(raw_status, int)
+        else None
+    )
+
+    label = str(
+        getattr(
+            exc,
+            "label",
+            "",
+        )
+        or ""
+    ).strip().upper()
+
+    error = str(exc).strip()
+
+    if not error:
+        error = type(exc).__name__
+
+    response_summary = (
+        _safe_submission_error_response(
+            getattr(
+                exc,
+                "response",
+                None,
+            )
+        )
+    )
+
+    duplicate_or_existing = (
+        label
+        in _AMBIGUOUS_GATE_SUBMISSION_LABELS
+    )
+
+    explicit_http_error = (
+        status_code is not None
+        and status_code >= 400
+    )
+
+    # A complete Gate 4xx response is direct evidence
+    # that THIS HTTP request was rejected. Duplicate /
+    # order-exists labels are excluded because they can
+    # mean an earlier request already exists at Gate.
+    definitive_rejection = (
+        status_code is not None
+        and 400 <= status_code < 500
+        and not duplicate_or_existing
+    )
+
+    if definitive_rejection:
+        classification = (
+            "explicit_gate_rejection"
+        )
+
+    elif duplicate_or_existing:
+        classification = (
+            "duplicate_or_existing_request"
+        )
+
+    elif explicit_http_error:
+        classification = (
+            "gate_server_or_http_error"
+        )
+
+    else:
+        classification = (
+            "transport_or_unknown_error"
+        )
+
+    return {
+        "classification": classification,
+        "exception_type": (
+            type(exc).__name__
+        ),
+        "error": error[:4000],
+        "http_status": status_code,
+        "gate_label": label or None,
+        "gate_response": response_summary,
+        "explicit_http_error": (
+            explicit_http_error
+        ),
+        "duplicate_or_existing": (
+            duplicate_or_existing
+        ),
+        "definitive_rejection": (
+            definitive_rejection
+        ),
+    }
+
+
 async def submit_withdrawal_once(
     *,
     settings: Settings,
@@ -374,7 +525,35 @@ async def submit_withdrawal_once(
             )
 
     except Exception as exc:
-        error = _safe_error(exc)
+        evidence = (
+            _submission_error_evidence(
+                exc
+            )
+        )
+
+        error = evidence["error"]
+
+        definitive_rejection = bool(
+            evidence[
+                "definitive_rejection"
+            ]
+        )
+
+        target_status = (
+            "withdrawal_failed"
+            if definitive_rejection
+            else "withdrawal_reconciling"
+        )
+
+        reason = (
+            "Gate explicitly rejected the "
+            "withdrawal POST."
+            if definitive_rejection
+            else (
+                "Gate POST outcome is not "
+                "safely known."
+            )
+        )
 
         audit, event, _changed = (
             mark_withdrawal_submission_attempt(
@@ -383,34 +562,63 @@ async def submit_withdrawal_once(
                 gate_withdraw_order_id=(
                     order_id
                 ),
-                new_status=(
-                    "withdrawal_reconciling"
-                ),
+                new_status=target_status,
                 error=error,
                 details={
-                    "reason": (
-                        "Gate POST outcome is "
-                        "not safely known."
-                    ),
+                    "reason": reason,
                     "automatic_retry_allowed": (
                         False
                     ),
+                    "submission_error": evidence,
                 },
             )
         )
 
+        lock_released = False
+
+        if definitive_rejection:
+            # Release only the lock owned by this
+            # exact withdrawal request. No ownership
+            # settlement occurs on rejection.
+            lock_released = (
+                release_withdrawal_lock(
+                    custody_account_id=(
+                        row[
+                            "custody_account_id"
+                        ]
+                    ),
+                    currency=row["currency"],
+                    owner_request_id=(
+                        request_id
+                    ),
+                )
+            )
+
         return {
-            "status": (
-                "withdrawal_reconciling"
-            ),
+            "status": target_status,
             "gate_write_performed": True,
-            "gate_write_accepted": None,
-            "requires_reconciliation": True,
+            "gate_write_accepted": (
+                False
+                if definitive_rejection
+                else None
+            ),
+            "requires_reconciliation": (
+                not definitive_rejection
+            ),
             "automatic_retry_allowed": False,
+            "definitive_rejection": (
+                definitive_rejection
+            ),
+            "submission_error": evidence,
             "error": error,
+            "lock_released": lock_released,
             "audit": audit,
             "event": event,
-            "operation_lock": lock,
+            "operation_lock": (
+                get_withdrawal_lock_for_request(
+                    request_id
+                )
+            ),
         }
 
     data = (

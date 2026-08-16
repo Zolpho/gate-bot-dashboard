@@ -792,6 +792,7 @@ def mark_withdrawal_submission_attempt(
     if new_status not in {
         "withdrawal_submitted",
         "withdrawal_reconciling",
+        "withdrawal_failed",
     }:
         raise ValueError(
             "Invalid post-submission state"
@@ -872,7 +873,12 @@ def mark_withdrawal_submission_attempt(
             row.gate_status = gate_status
 
         row.error = error
-        row.completed_at = None
+        row.completed_at = (
+            utcnow()
+            if new_status
+            == "withdrawal_failed"
+            else None
+        )
 
         event = TreasuryWithdrawalRequestEvent(
             request_id=row.request_id,
@@ -884,8 +890,13 @@ def mark_withdrawal_submission_attempt(
                 "withdrawal_submitted"
                 if new_status
                 == "withdrawal_submitted"
-                else
-                "withdrawal_submission_uncertain"
+                else (
+                    "withdrawal_submission_rejected"
+                    if new_status
+                    == "withdrawal_failed"
+                    else
+                    "withdrawal_submission_uncertain"
+                )
             ),
             from_status=old_status,
             to_status=new_status,
