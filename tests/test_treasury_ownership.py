@@ -675,3 +675,110 @@ def test_ownership_api_custodian_can_see_held_funds() -> None:
             for item in unrelated_ledger["items"]
         }
     )
+
+
+def test_transfer_request_detail_is_readable_by_custodian() -> None:
+    from fastapi import HTTPException
+
+    from app.api.treasury import (
+        treasury_transfer_request_detail,
+    )
+    from app.security import DashboardUser
+
+    owner = (
+        "detail-owner-" + uuid4().hex[:10]
+    )
+
+    request_id = _request_id(
+        "detail-custody"
+    )
+
+    reserve_live_transfer(
+        request_id=request_id,
+        source_account_id=owner,
+        destination_account_id="zolnode",
+        username="ownership-test",
+        currency="USDT",
+        amount=Decimal("1"),
+        payload=_live_payload(owner),
+    )
+
+    mark_transfer_request(
+        request_id,
+        status="success",
+        response={
+            "status": "SUCCESS",
+        },
+        write_performed=True,
+        completed=True,
+    )
+
+    owner_user = DashboardUser(
+        username="owner-user",
+        role="account_operator",
+        account_ids=(owner,),
+    )
+
+    custodian_user = DashboardUser(
+        username="custodian-user",
+        role="account_operator",
+        account_ids=("zolnode",),
+    )
+
+    unrelated_user = DashboardUser(
+        username="unrelated-user",
+        role="account_operator",
+        account_ids=(
+            "unrelated-" + uuid4().hex[:10],
+        ),
+    )
+
+    super_admin = DashboardUser(
+        username="scope-admin",
+        role="super_admin",
+        account_ids=(),
+    )
+
+    owner_result = (
+        treasury_transfer_request_detail(
+            request_id=request_id,
+            user=owner_user,
+        )
+    )
+
+    custodian_result = (
+        treasury_transfer_request_detail(
+            request_id=request_id,
+            user=custodian_user,
+        )
+    )
+
+    admin_result = (
+        treasury_transfer_request_detail(
+            request_id=request_id,
+            user=super_admin,
+        )
+    )
+
+    assert (
+        owner_result["item"]["request_id"]
+        == request_id
+    )
+
+    assert (
+        custodian_result["item"]["request_id"]
+        == request_id
+    )
+
+    assert (
+        admin_result["item"]["request_id"]
+        == request_id
+    )
+
+    with pytest.raises(HTTPException) as error:
+        treasury_transfer_request_detail(
+            request_id=request_id,
+            user=unrelated_user,
+        )
+
+    assert error.value.status_code == 403

@@ -891,10 +891,34 @@ def treasury_transfer_request_detail(
             detail="Treasury transfer request not found",
         )
 
-    require_account_access(
-        user,
-        row["source_account_id"],
+    source_account_id = str(
+        row.get("source_account_id") or ""
+    ).strip().lower()
+
+    destination_account_id = str(
+        row.get("destination_account_id") or ""
+    ).strip().lower()
+
+    can_read = (
+        user.is_super_admin
+        or (
+            source_account_id
+            and user.can_manage(source_account_id)
+        )
+        or (
+            destination_account_id
+            and user.can_manage(destination_account_id)
+        )
     )
+
+    if not can_read:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You are not allowed to view this "
+                "Treasury transfer request"
+            ),
+        )
 
     return {
         "phase": "T2B_TRANSFER_CONTROL",
