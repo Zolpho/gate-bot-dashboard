@@ -2105,7 +2105,82 @@ def treasury_withdrawal_request_detail(
                         "ui_execution_exposed": False,
                     }
 
+    external_execution_preview = None
+
+    if row["status"] == "jit_ready":
+        try:
+            required_confirmation = (
+                withdrawal_execution_confirmation_text(
+                    row
+                )
+            )
+
+        except TreasuryWithdrawalExecutionError as exc:
+            external_execution_preview = {
+                "available": False,
+                "reason": (
+                    "withdrawal_confirmation_invalid"
+                ),
+                "error": str(exc),
+                "gate_write_performed": False,
+                "ui_execution_exposed": True,
+            }
+
+        else:
+            owner_account_id = str(
+                row.get("owner_account_id")
+                or ""
+            ).strip().lower()
+
+            live_withdrawals_armed = bool(
+                settings
+                .treasury_withdrawals_live_armed
+            )
+
+            owner_account_live_enabled = bool(
+                owner_account_id
+                and settings
+                .treasury_withdrawals_live_account_allowed(
+                    owner_account_id
+                )
+            )
+
+            external_execution_preview = {
+                "available": True,
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "live_withdrawals_armed": (
+                    live_withdrawals_armed
+                ),
+                "owner_account_live_enabled": (
+                    owner_account_live_enabled
+                ),
+                "application_barriers_open": (
+                    live_withdrawals_armed
+                    and owner_account_live_enabled
+                ),
+                "owner_account_id": owner_account_id,
+                "currency": row.get("currency"),
+                "amount": row.get("amount"),
+                "chain": row.get("chain"),
+                "destination_id": (
+                    row.get("destination_id")
+                ),
+                "estimated_fee": (
+                    row.get("estimated_fee")
+                ),
+                "conservative_funding_required": (
+                    row.get(
+                        "conservative_funding_required"
+                    )
+                ),
+                "gate_write_performed": False,
+                "ui_execution_exposed": True,
+            }
+
     return {
+        "external_execution_preview": external_execution_preview,
         "phase": (
             "T2C3A_WITHDRAWAL_REQUEST_AUDIT"
         ),

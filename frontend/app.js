@@ -5128,12 +5128,311 @@ function renderTreasuryWithdrawalJitExecutionPreview(
 }
 
 
+
+function renderTreasuryWithdrawalExternalExecutionPreview(
+  payload
+) {
+  const element = $(
+    '#treasuryWithdrawalExternalExecutionPreview'
+  );
+
+  if (!element) return;
+
+  const item = payload?.item || {};
+  const preview = (
+    payload?.external_execution_preview
+  );
+
+  const status = String(
+    item.status || ''
+  ).toLowerCase();
+
+  const executionVisible = Boolean(
+    status === 'jit_ready'
+    && preview
+  );
+
+  const reconciliationVisible = (
+    status === 'withdrawal_submitting'
+    || status === 'withdrawal_submitted'
+    || status === 'withdrawal_reconciling'
+  );
+
+  const doneVisible = (
+    status === 'withdrawal_done_unsettled'
+  );
+
+  const failedVisible = (
+    status === 'withdrawal_failed'
+  );
+
+  const visible = (
+    executionVisible
+    || reconciliationVisible
+    || doneVisible
+    || failedVisible
+  );
+
+  element.classList.toggle(
+    'hidden',
+    !visible
+  );
+
+  if (!visible) {
+    element.innerHTML = '';
+    return;
+  }
+
+  if (reconciliationVisible) {
+    element.innerHTML = (
+      '<div class="treasury-section-header">'
+      + '<div>'
+      + '<h3>External withdrawal reconciliation</h3>'
+      + '<p>'
+      + 'Submission has crossed or may have crossed '
+      + 'the Gate write boundary. Do not execute again.'
+      + '</p>'
+      + '</div>'
+      + '</div>'
+
+      + '<div class="treasury-withdrawal-safety-note">'
+      + 'Use reconciliation only. It performs Gate reads '
+      + 'and never submits a second withdrawal.'
+      + '</div>'
+
+      + '<div class="treasury-withdrawal-actions">'
+      + '<button '
+      + 'type="button" '
+      + 'class="button secondary" '
+      + 'id="reconcileTreasuryExternalWithdrawal">'
+      + 'Reconcile withdrawal'
+      + '</button>'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  if (doneVisible) {
+    element.innerHTML = (
+      '<div class="treasury-section-header">'
+      + '<div>'
+      + '<h3>External withdrawal confirmed</h3>'
+      + '<p>'
+      + 'Gate reconciliation is definitive. Ownership '
+      + 'settlement remains a separate super-admin step.'
+      + '</p>'
+      + '</div>'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  if (failedVisible) {
+    element.innerHTML = (
+      '<div class="treasury-section-header">'
+      + '<div>'
+      + '<h3>External withdrawal failed</h3>'
+      + '<p>'
+      + 'This request is terminal. Do not resubmit it.'
+      + '</p>'
+      + '</div>'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  if (!preview?.available) {
+    element.innerHTML = (
+      '<strong>'
+      + 'External withdrawal preview unavailable'
+      + '</strong>'
+      + `<p>${escapeHtml(
+          preview?.error
+          || preview?.reason
+          || 'Withdrawal execution data is incomplete.'
+        )}</p>`
+    );
+
+    return;
+  }
+
+  const barriersOpen = Boolean(
+    preview.application_barriers_open
+  );
+
+  const confirmation = String(
+    preview.required_confirmation || ''
+  );
+
+  element.innerHTML = (
+    '<div class="treasury-section-header">'
+    + '<div>'
+    + '<h3>External withdrawal execution</h3>'
+    + '<p>'
+    + 'The server performs a fresh Gate preflight '
+    + 'before crossing the withdrawal boundary.'
+    + '</p>'
+    + '</div>'
+    + '</div>'
+
+    + '<div class="treasury-request-grid">'
+
+    + '<div>'
+    + '<span>Owner</span>'
+    + `<strong>${escapeHtml(
+        preview.owner_account_id || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Amount</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          preview.amount,
+          preview.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Estimated fee</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          preview.estimated_fee,
+          preview.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Network</span>'
+    + `<strong>${escapeHtml(
+        preview.chain || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Destination</span>'
+    + `<strong>${escapeHtml(
+        shortTreasuryRequestId(
+          preview.destination_id || ''
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Live withdrawal arm</span>'
+    + `<strong>${
+        preview.live_withdrawals_armed
+          ? 'ARMED'
+          : 'DISABLED'
+      }</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Owner allowlist</span>'
+    + `<strong>${
+        preview.owner_account_live_enabled
+          ? 'Allowed'
+          : 'Blocked'
+      }</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Application barriers</span>'
+    + `<strong>${
+        barriersOpen
+          ? 'Open'
+          : 'Blocked'
+      }</strong>`
+    + '</div>'
+
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-safety-note">'
+    + 'A fresh server-side preflight must still match '
+    + 'the immutable destination, fee and funding '
+    + 'snapshot before Gate submission.'
+    + '</div>'
+
+    + '<label>'
+    + 'Exact money-moving confirmation'
+    + `<code>${escapeHtml(
+        confirmation || '—'
+      )}</code>`
+    + '<input '
+    + 'id="treasuryExternalWithdrawalConfirmation" '
+    + 'type="text" '
+    + 'autocomplete="off" '
+    + 'spellcheck="false">'
+    + '</label>'
+
+    + '<div class="treasury-withdrawal-actions">'
+    + '<button '
+    + 'type="button" '
+    + 'class="button" '
+    + 'id="executeTreasuryExternalWithdrawal" '
+    + 'disabled>'
+    + 'Execute external withdrawal'
+    + '</button>'
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-safety-note">'
+    + (
+        barriersOpen
+          ? (
+              'Application barriers are open. '
+              + 'Exact confirmation is still required.'
+            )
+          : (
+              'Execution remains blocked while live '
+              + 'external withdrawals are disarmed.'
+            )
+      )
+    + '</div>'
+  );
+
+  const input = $(
+    '#treasuryExternalWithdrawalConfirmation'
+  );
+
+  const button = $(
+    '#executeTreasuryExternalWithdrawal'
+  );
+
+  const update = () => {
+    if (!button) return;
+
+    button.disabled = !(
+      barriersOpen
+      && confirmation
+      && String(input?.value || '')
+        === confirmation
+    );
+  };
+
+  input?.addEventListener(
+    'input',
+    update,
+  );
+
+  update();
+}
+
+
 function renderTreasuryWithdrawalRequestDetail(
   payload
 ) {
   state.treasuryWithdrawalRequestDetail = payload;
 
   renderTreasuryWithdrawalJitExecutionPreview(
+    payload
+  );
+
+  renderTreasuryWithdrawalExternalExecutionPreview(
     payload
   );
 
@@ -5928,6 +6227,182 @@ async function reconcileCurrentTreasuryWithdrawalJit() {
     });
   } catch (_refreshError) {
     // Leave the visible state unchanged for manual review.
+  }
+}
+
+
+
+async function executeCurrentTreasuryExternalWithdrawal() {
+  const payload = (
+    state.treasuryWithdrawalRequestDetail
+  );
+
+  const item = payload?.item || {};
+  const preview = (
+    payload?.external_execution_preview
+    || {}
+  );
+
+  if (
+    String(item.status || '').toLowerCase()
+      !== 'jit_ready'
+    || !preview.application_barriers_open
+  ) {
+    return;
+  }
+
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  const required = String(
+    preview.required_confirmation || ''
+  );
+
+  const confirmation = String(
+    $('#treasuryExternalWithdrawalConfirmation')
+      ?.value
+    || ''
+  );
+
+  if (
+    !requestId
+    || !required
+    || confirmation !== required
+  ) {
+    return;
+  }
+
+  const button = $(
+    '#executeTreasuryExternalWithdrawal'
+  );
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Submitting withdrawal…';
+  }
+
+  try {
+    const result = await adminApi(
+      `/api/treasury/withdrawals/requests/${
+        encodeURIComponent(requestId)
+      }/execute`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          confirmation,
+        }),
+      },
+    );
+
+    showToast(
+      result.gate_write_performed
+        ? (
+            'Withdrawal submission crossed the Gate '
+            + 'write boundary. Reconciliation required.'
+          )
+        : (
+            'Withdrawal stage completed without '
+            + 'a Gate write.'
+          )
+    );
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+
+    // Never retry automatically. Refresh the persisted
+    // state and use reconciliation if submission began.
+  }
+
+  try {
+    await refreshTreasuryWithdrawalRequestDetail(
+      requestId
+    );
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+  } catch (_refreshError) {
+    // Preserve visible state for manual review.
+  }
+}
+
+
+async function reconcileCurrentTreasuryExternalWithdrawal() {
+  const payload = (
+    state.treasuryWithdrawalRequestDetail
+  );
+
+  const item = payload?.item || {};
+
+  const status = String(
+    item.status || ''
+  ).toLowerCase();
+
+  if (
+    status !== 'withdrawal_submitting'
+    && status !== 'withdrawal_submitted'
+    && status !== 'withdrawal_reconciling'
+  ) {
+    return;
+  }
+
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  if (!requestId) return;
+
+  const button = $(
+    '#reconcileTreasuryExternalWithdrawal'
+  );
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Reconciling…';
+  }
+
+  try {
+    const result = await adminApi(
+      `/api/treasury/withdrawals/requests/${
+        encodeURIComponent(requestId)
+      }/reconcile`,
+      {
+        method: 'POST',
+      },
+    );
+
+    if (result.gate_write_performed) {
+      throw new Error(
+        'Safety invariant failed: withdrawal '
+        + 'reconciliation reported a Gate write.'
+      );
+    }
+
+    showToast(
+      'Withdrawal reconciliation completed.'
+    );
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+  }
+
+  try {
+    await refreshTreasuryWithdrawalRequestDetail(
+      requestId
+    );
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+  } catch (_refreshError) {
+    // Leave request available for manual review.
   }
 }
 
@@ -9503,6 +9978,24 @@ function bindEvents() {
   $('#treasuryWithdrawalRequestDialog')?.addEventListener(
     'click',
     event => {
+      if (
+        event.target.closest(
+          '#executeTreasuryExternalWithdrawal'
+        )
+      ) {
+        executeCurrentTreasuryExternalWithdrawal();
+        return;
+      }
+
+      if (
+        event.target.closest(
+          '#reconcileTreasuryExternalWithdrawal'
+        )
+      ) {
+        reconcileCurrentTreasuryExternalWithdrawal();
+        return;
+      }
+
       if (
         event.target.closest(
           '#executeTreasuryWithdrawalJit'
