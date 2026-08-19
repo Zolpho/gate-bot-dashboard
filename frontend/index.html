@@ -1497,6 +1497,136 @@
   </div>
 </footer>  
   <dialog
+    id="treasuryWithdrawalRequestDialog"
+    class="treasury-request-dialog"
+  >
+    <div class="dialog-header">
+      <div>
+        <h2>Treasury Withdrawal Request</h2>
+        <p>
+          Persistent withdrawal lifecycle and safety review
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeTreasuryWithdrawalRequestDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <div class="treasury-request-content">
+      <div id="treasuryWithdrawalRequestSummary"></div>
+
+      <div
+        id="treasuryWithdrawalRequestError"
+        class="treasury-message error hidden"
+        role="alert"
+      ></div>
+
+      <section
+        id="treasuryWithdrawalLifecycleSection"
+        class="treasury-withdrawal-lifecycle"
+      >
+        <div class="treasury-section-header">
+          <div>
+            <h3>Next safe lifecycle step</h3>
+            <p>
+              Reserve and confirm perform fresh Gate reads and
+              local audit/lock changes only. They do not submit
+              an external withdrawal.
+            </p>
+          </div>
+        </div>
+
+        <div
+          id="treasuryWithdrawalLifecycleNotice"
+          class="treasury-withdrawal-safety-note"
+        ></div>
+
+        <div
+          id="treasuryWithdrawalConfirmationBlock"
+          class="treasury-withdrawal-confirmation hidden"
+        >
+          <label>
+            Type the exact confirmation
+
+            <code
+              id="treasuryWithdrawalRequiredConfirmation"
+            ></code>
+
+            <input
+              id="treasuryWithdrawalConfirmation"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+            >
+          </label>
+
+          <div class="treasury-withdrawal-actions">
+            <button
+              type="button"
+              class="button"
+              id="reserveTreasuryWithdrawalRequest"
+              disabled
+            >
+              Reserve withdrawal
+            </button>
+
+            <button
+              type="button"
+              class="button"
+              id="confirmTreasuryWithdrawalRequest"
+              disabled
+            >
+              Confirm withdrawal
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="treasury-section-header">
+          <div>
+            <h3>Operation lock</h3>
+            <p>
+              Custody/currency collision protection for this
+              withdrawal request.
+            </p>
+          </div>
+        </div>
+
+        <div id="treasuryWithdrawalLockDetail"></div>
+      </section>
+
+      <section>
+        <div class="treasury-section-header">
+          <div>
+            <h3>Lifecycle events</h3>
+            <p>
+              Append-only local withdrawal audit events.
+            </p>
+          </div>
+        </div>
+
+        <div
+          id="treasuryWithdrawalEventHistory"
+          class="treasury-history-list"
+        ></div>
+      </section>
+
+      <details class="treasury-json-details">
+        <summary>Withdrawal request snapshot</summary>
+        <pre
+          id="treasuryWithdrawalRequestJson"
+          class="treasury-json"
+        ></pre>
+      </details>
+    </div>
+  </dialog>
+
+  <dialog
     id="treasuryRequestDialog"
     class="treasury-request-dialog"
   >

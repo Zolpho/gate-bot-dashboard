@@ -63,6 +63,8 @@ const state = {
   treasuryWithdrawalDestinations: [],
   treasuryWithdrawalRequests: [],
   treasuryWithdrawalPreflight: null,
+  treasuryWithdrawalRequestDetail: null,
+  treasuryWithdrawalRequiredConfirmation: '',
   treasuryRequestDetail: null,
   botStopPrepared: null,
   botStopRequestId: '',
@@ -4436,11 +4438,20 @@ function renderTreasuryWithdrawalRequests() {
             item.gate_status || '—'
           )}</td>`
 
-        + `<td title="${escapeHtml(requestId)}">${
+        + '<td>'
+        + `<button
+            type="button"
+            class="treasury-request-link"
+            data-treasury-withdrawal-request="${
+              escapeHtml(requestId)
+            }"
+            title="${escapeHtml(requestId)}"
+          >${
             escapeHtml(
               shortTreasuryRequestId(requestId)
             )
-          }</td>`
+          }</button>`
+        + '</td>'
 
         + '</tr>'
       );
@@ -4658,6 +4669,699 @@ async function createTreasuryWithdrawalRequest() {
 function invalidateTreasuryWithdrawalPreflight() {
   clearTreasuryWithdrawalPreflight();
   renderTreasuryWithdrawalDestinationSummary();
+}
+
+
+
+function treasuryCompactDecimal(value) {
+  let text = String(
+    value === null || value === undefined
+      ? ''
+      : value
+  ).trim();
+
+  if (text.includes('.')) {
+    text = text
+      .replace(/0+$/, '')
+      .replace(/\.$/, '');
+  }
+
+  return text;
+}
+
+
+function treasuryWithdrawalReserveConfirmation(item) {
+  return (
+    `RESERVE WITHDRAWAL ${
+      String(item?.request_id || '')
+    }`
+  );
+}
+
+
+function treasuryWithdrawalConfirmConfirmation(item) {
+  return [
+    'CONFIRM WITHDRAWAL',
+    String(item?.request_id || ''),
+    String(item?.owner_account_id || ''),
+    String(item?.currency || ''),
+    treasuryCompactDecimal(item?.amount),
+    String(item?.chain || ''),
+    String(item?.destination_id || ''),
+  ].join(' ');
+}
+
+
+function treasuryWithdrawalLifecycleConfirmation(
+  item
+) {
+  const status = String(
+    item?.status || ''
+  ).toLowerCase();
+
+  if (status === 'simulated') {
+    return treasuryWithdrawalReserveConfirmation(
+      item
+    );
+  }
+
+  if (status === 'reserved') {
+    return (
+      state.treasuryWithdrawalRequiredConfirmation
+      || treasuryWithdrawalConfirmConfirmation(item)
+    );
+  }
+
+  return '';
+}
+
+
+function updateTreasuryWithdrawalLifecycleButtons() {
+  const payload = (
+    state.treasuryWithdrawalRequestDetail
+  );
+
+  const item = payload?.item || {};
+
+  const status = String(
+    item.status || ''
+  ).toLowerCase();
+
+  const required = (
+    treasuryWithdrawalLifecycleConfirmation(item)
+  );
+
+  const typed = String(
+    $('#treasuryWithdrawalConfirmation')?.value
+    || ''
+  );
+
+  const exact = Boolean(
+    required && typed === required
+  );
+
+  const reserve = $(
+    '#reserveTreasuryWithdrawalRequest'
+  );
+
+  const confirm = $(
+    '#confirmTreasuryWithdrawalRequest'
+  );
+
+  if (reserve) {
+    reserve.classList.toggle(
+      'hidden',
+      status !== 'simulated'
+    );
+
+    reserve.disabled = !(
+      status === 'simulated' && exact
+    );
+  }
+
+  if (confirm) {
+    confirm.classList.toggle(
+      'hidden',
+      status !== 'reserved'
+    );
+
+    confirm.disabled = !(
+      status === 'reserved' && exact
+    );
+  }
+}
+
+
+function renderTreasuryWithdrawalEvents(rows = []) {
+  const element = $('#treasuryWithdrawalEventHistory');
+
+  if (!element) return;
+
+  if (!rows.length) {
+    element.innerHTML = (
+      '<div class="treasury-empty">'
+      + 'No withdrawal lifecycle events.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  element.innerHTML = rows.map(row => {
+    const details = row.details || {};
+
+    return (
+      '<article class="treasury-history-card">'
+      + '<div class="treasury-history-head">'
+      + `<strong>${escapeHtml(
+          reconciliationLabel(
+            row.action || 'unknown'
+          )
+        )}</strong>`
+      + `<span>${escapeHtml(
+          row.username || '—'
+        )}</span>`
+      + '</div>'
+      + `<div class="treasury-history-meta">${
+          escapeHtml(fmtDate(row.created_at))
+        }</div>`
+      + (
+          Object.keys(details).length
+            ? (
+                '<details class="treasury-json-details">'
+                + '<summary>Event details</summary>'
+                + `<pre class="treasury-json">${
+                    escapeHtml(
+                      JSON.stringify(
+                        details,
+                        null,
+                        2
+                      )
+                    )
+                  }</pre>`
+                + '</details>'
+              )
+            : ''
+        )
+      + '</article>'
+    );
+  }).join('');
+}
+
+
+function renderTreasuryWithdrawalRequestDetail(
+  payload
+) {
+  state.treasuryWithdrawalRequestDetail = payload;
+
+  const item = payload?.item || {};
+  const lock = payload?.operation_lock || null;
+
+  const status = String(
+    item.status || 'unknown'
+  ).toLowerCase();
+
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  const address = String(
+    item.address || ''
+  );
+
+  $('#treasuryWithdrawalRequestSummary').innerHTML = `
+    <article class="treasury-request-card">
+      <div class="treasury-request-heading">
+        <div>
+          <h3>
+            ${escapeHtml(
+              treasuryAmount(
+                item.amount,
+                item.currency
+              )
+            )}
+          </h3>
+
+          <small>
+            External withdrawal lifecycle
+          </small>
+        </div>
+
+        <span
+          class="treasury-status ${
+            escapeHtml(
+              treasuryWithdrawalRequestStatusClass(
+                status
+              )
+            )
+          }"
+        >
+          ${escapeHtml(status)}
+        </span>
+      </div>
+
+      <div class="treasury-request-id">
+        <span>Request ID</span>
+        <strong>${escapeHtml(requestId || '—')}</strong>
+      </div>
+
+      <div class="treasury-request-grid">
+        <div>
+          <span>Economic owner</span>
+          <strong>${escapeHtml(
+            item.owner_account_id || '—'
+          )}</strong>
+        </div>
+
+        <div>
+          <span>Custody</span>
+          <strong>${escapeHtml(
+            item.custody_account_id || '—'
+          )}</strong>
+        </div>
+
+        <div>
+          <span>Asset</span>
+          <strong>${escapeHtml(
+            item.currency || '—'
+          )}</strong>
+        </div>
+
+        <div>
+          <span>Network</span>
+          <strong>${escapeHtml(
+            item.chain || '—'
+          )}</strong>
+        </div>
+
+        <div>
+          <span>Destination</span>
+          <strong>${escapeHtml(
+            shortTreasuryRequestId(
+              item.destination_id || ''
+            )
+          )}</strong>
+        </div>
+
+        <div>
+          <span>Address</span>
+          <strong title="${escapeHtml(address)}">
+            ${escapeHtml(
+              shortTreasuryGateId(address)
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>Estimated fee</span>
+          <strong>${escapeHtml(
+            treasuryAmount(
+              item.estimated_fee,
+              item.currency
+            )
+          )}</strong>
+        </div>
+
+        <div>
+          <span>JIT required</span>
+          <strong>${
+            item.jit_required ? 'Yes' : 'No'
+          }</strong>
+        </div>
+
+        <div>
+          <span>Minimum JIT</span>
+          <strong>${escapeHtml(
+            treasuryAmount(
+              item.minimum_jit_transfer,
+              item.currency
+            )
+          )}</strong>
+        </div>
+
+        <div>
+          <span>Gate status</span>
+          <strong>${escapeHtml(
+            item.gate_status || '—'
+          )}</strong>
+        </div>
+      </div>
+    </article>
+  `;
+
+  const errorBox = $(
+    '#treasuryWithdrawalRequestError'
+  );
+
+  if (item.error) {
+    errorBox.textContent = item.error;
+    errorBox.classList.remove('hidden');
+  } else {
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+
+  const lockElement = $(
+    '#treasuryWithdrawalLockDetail'
+  );
+
+  if (lock) {
+    lockElement.innerHTML = (
+      '<article class="treasury-lock-card">'
+      + '<div class="treasury-lock-field">'
+      + '<span>State</span>'
+      + `<strong>${escapeHtml(
+          lock.state || 'held'
+        )}</strong>`
+      + '</div>'
+      + '<div class="treasury-lock-field">'
+      + '<span>Custody</span>'
+      + `<strong>${escapeHtml(
+          lock.custody_account_id || '—'
+        )}</strong>`
+      + '</div>'
+      + '<div class="treasury-lock-field">'
+      + '<span>Currency</span>'
+      + `<strong>${escapeHtml(
+          lock.currency || '—'
+        )}</strong>`
+      + '</div>'
+      + '</article>'
+    );
+  } else {
+    lockElement.innerHTML = (
+      '<div class="treasury-empty">'
+      + 'No active withdrawal lock.'
+      + '</div>'
+    );
+  }
+
+  renderTreasuryWithdrawalEvents(
+    payload?.events || []
+  );
+
+  $('#treasuryWithdrawalRequestJson').textContent = (
+    JSON.stringify(item, null, 2)
+  );
+
+  const required = (
+    treasuryWithdrawalLifecycleConfirmation(item)
+  );
+
+  const confirmationBlock = $(
+    '#treasuryWithdrawalConfirmationBlock'
+  );
+
+  const lifecycleNotice = $(
+    '#treasuryWithdrawalLifecycleNotice'
+  );
+
+  const actionable = (
+    status === 'simulated'
+    || status === 'reserved'
+  );
+
+  confirmationBlock?.classList.toggle(
+    'hidden',
+    !actionable
+  );
+
+  if ($('#treasuryWithdrawalRequiredConfirmation')) {
+    $('#treasuryWithdrawalRequiredConfirmation')
+      .textContent = required;
+  }
+
+  if ($('#treasuryWithdrawalConfirmation')) {
+    $('#treasuryWithdrawalConfirmation').value = '';
+  }
+
+  if (lifecycleNotice) {
+    if (status === 'simulated') {
+      lifecycleNotice.textContent = (
+        'Reserve performs a fresh Gate GET-only '
+        + 'preflight and acquires the withdrawal '
+        + 'custody/currency lock.'
+      );
+
+    } else if (status === 'reserved') {
+      lifecycleNotice.textContent = (
+        'Confirm performs another fresh Gate GET-only '
+        + 'preflight. No external withdrawal is '
+        + 'submitted.'
+      );
+
+    } else if (status === 'confirmed_ready') {
+      lifecycleNotice.textContent = (
+        'Request is confirmed and ready for the next '
+        + 'Treasury phase. Execution controls are not '
+        + 'exposed in this UI version.'
+      );
+
+    } else {
+      lifecycleNotice.textContent = (
+        'This withdrawal request is view-only in the '
+        + 'current Treasury UI.'
+      );
+    }
+  }
+
+  updateTreasuryWithdrawalLifecycleButtons();
+}
+
+
+async function openTreasuryWithdrawalRequestDetail(
+  requestId
+) {
+  if (!requestId) return;
+
+  try {
+    state.treasuryWithdrawalRequiredConfirmation = '';
+
+    const payload = await adminApi(
+      `/api/treasury/withdrawals/requests/${
+        encodeURIComponent(requestId)
+      }`
+    );
+
+    renderTreasuryWithdrawalRequestDetail(payload);
+
+    const dialog = $(
+      '#treasuryWithdrawalRequestDialog'
+    );
+
+    const content = dialog?.querySelector(
+      '.treasury-request-content'
+    );
+
+    if (content) {
+      content.scrollTop = 0;
+    }
+
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+  }
+}
+
+
+async function refreshTreasuryWithdrawalRequestDetail(
+  requestId
+) {
+  const payload = await adminApi(
+    `/api/treasury/withdrawals/requests/${
+      encodeURIComponent(requestId)
+    }`
+  );
+
+  renderTreasuryWithdrawalRequestDetail(payload);
+}
+
+
+async function reserveCurrentTreasuryWithdrawal() {
+  const payload = (
+    state.treasuryWithdrawalRequestDetail
+  );
+
+  const item = payload?.item || {};
+
+  if (
+    String(item.status || '').toLowerCase()
+    !== 'simulated'
+  ) {
+    return;
+  }
+
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  const confirmation = String(
+    $('#treasuryWithdrawalConfirmation')?.value
+    || ''
+  );
+
+  const required = (
+    treasuryWithdrawalReserveConfirmation(item)
+  );
+
+  if (
+    !requestId
+    || confirmation !== required
+  ) {
+    return;
+  }
+
+  const button = $(
+    '#reserveTreasuryWithdrawalRequest'
+  );
+
+  button.disabled = true;
+  button.textContent = 'Reserving…';
+
+  try {
+    const result = await adminApi(
+      `/api/treasury/withdrawals/requests/${
+        encodeURIComponent(requestId)
+      }/reserve`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          confirmation,
+        }),
+      },
+    );
+
+    if (result.gate_write_performed) {
+      throw new Error(
+        'Safety invariant failed: reservation '
+        + 'reported a Gate write.'
+      );
+    }
+
+    state.treasuryWithdrawalRequiredConfirmation = (
+      String(result.required_confirmation || '')
+    );
+
+    showToast(
+      'Withdrawal reserved. No Gate write performed.'
+    );
+
+    await refreshTreasuryWithdrawalRequestDetail(
+      requestId
+    );
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+
+    try {
+      await refreshTreasuryWithdrawalRequestDetail(
+        requestId
+      );
+
+      await loadTreasuryOverview({
+        quiet: true,
+      });
+    } catch (_refreshError) {
+      // Preserve the original operation error.
+    }
+
+  } finally {
+    button.textContent = 'Reserve withdrawal';
+    updateTreasuryWithdrawalLifecycleButtons();
+  }
+}
+
+
+async function confirmCurrentTreasuryWithdrawal() {
+  const payload = (
+    state.treasuryWithdrawalRequestDetail
+  );
+
+  const item = payload?.item || {};
+
+  if (
+    String(item.status || '').toLowerCase()
+    !== 'reserved'
+  ) {
+    return;
+  }
+
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  const confirmation = String(
+    $('#treasuryWithdrawalConfirmation')?.value
+    || ''
+  );
+
+  const required = (
+    treasuryWithdrawalLifecycleConfirmation(item)
+  );
+
+  if (
+    !requestId
+    || confirmation !== required
+  ) {
+    return;
+  }
+
+  const button = $(
+    '#confirmTreasuryWithdrawalRequest'
+  );
+
+  button.disabled = true;
+  button.textContent = 'Confirming…';
+
+  try {
+    const result = await adminApi(
+      `/api/treasury/withdrawals/requests/${
+        encodeURIComponent(requestId)
+      }/confirm`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          confirmation,
+        }),
+      },
+    );
+
+    if (result.gate_write_performed) {
+      throw new Error(
+        'Safety invariant failed: confirmation '
+        + 'reported a Gate write.'
+      );
+    }
+
+    state.treasuryWithdrawalRequiredConfirmation = '';
+
+    showToast(
+      'Withdrawal confirmed. No Gate write performed.'
+    );
+
+    await refreshTreasuryWithdrawalRequestDetail(
+      requestId
+    );
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+
+    try {
+      await refreshTreasuryWithdrawalRequestDetail(
+        requestId
+      );
+
+      await loadTreasuryOverview({
+        quiet: true,
+      });
+    } catch (_refreshError) {
+      // A blocked confirmation may have changed state.
+    }
+
+  } finally {
+    button.textContent = 'Confirm withdrawal';
+    updateTreasuryWithdrawalLifecycleButtons();
+  }
 }
 
 
@@ -8187,6 +8891,53 @@ function bindEvents() {
   $('#createTreasuryWithdrawalRequest')?.addEventListener(
     'click',
     createTreasuryWithdrawalRequest,
+  );
+
+  $('#treasuryWithdrawalRequestBody')?.addEventListener(
+    'click',
+    event => {
+      const button = event.target.closest(
+        '[data-treasury-withdrawal-request]'
+      );
+
+      if (!button) return;
+
+      openTreasuryWithdrawalRequestDetail(
+        button.dataset.treasuryWithdrawalRequest
+      );
+    },
+  );
+
+  $('#treasuryWithdrawalConfirmation')?.addEventListener(
+    'input',
+    updateTreasuryWithdrawalLifecycleButtons,
+  );
+
+  $('#reserveTreasuryWithdrawalRequest')?.addEventListener(
+    'click',
+    reserveCurrentTreasuryWithdrawal,
+  );
+
+  $('#confirmTreasuryWithdrawalRequest')?.addEventListener(
+    'click',
+    confirmCurrentTreasuryWithdrawal,
+  );
+
+  $('#closeTreasuryWithdrawalRequestDialog')?.addEventListener(
+    'click',
+    () => $('#treasuryWithdrawalRequestDialog').close(),
+  );
+
+  $('#treasuryWithdrawalRequestDialog')?.addEventListener(
+    'click',
+    event => {
+      if (
+        event.target
+        === $('#treasuryWithdrawalRequestDialog')
+      ) {
+        $('#treasuryWithdrawalRequestDialog').close();
+      }
+    },
   );
 
   $('#treasuryActivityBody')?.addEventListener(
