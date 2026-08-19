@@ -290,6 +290,18 @@ def test_settlement_is_idempotent_and_never_double_debits():
     assert second["idempotent_replay"] is True
 
     assert (
+        second[
+            "ownership_settlement_performed"
+        ]
+        is False
+    )
+
+    assert (
+        second["state_changed"]
+        is False
+    )
+
+    assert (
         second["ledger_event_id"]
         == withdrawal_debit_event_id(
             request_id
@@ -585,6 +597,18 @@ def test_gate_verified_settlement_releases_lock(
         assert (
             replay["idempotent_replay"]
             is True
+        )
+
+        assert (
+            replay["state_changed"]
+            is False
+        )
+
+        assert (
+            replay[
+                "ownership_settlement_performed"
+            ]
+            is False
         )
 
         assert (

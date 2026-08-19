@@ -642,7 +642,7 @@ def apply_withdrawal_ownership_settlement(
                 not changed
             ),
             "ownership_settlement_performed": (
-                True
+                existing is None
             ),
             "ownership_ledger_changed": (
                 existing is None
@@ -854,7 +854,7 @@ async def settle_withdrawal_from_gate(
             "status": "withdrawal_settled",
             "state_changed": False,
             "idempotent_replay": True,
-            "ownership_settlement_performed": True,
+            "ownership_settlement_performed": False,
             "ownership_ledger_changed": False,
             "settlement_amount": str(
                 row["amount"]
