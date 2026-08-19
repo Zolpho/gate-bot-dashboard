@@ -4894,10 +4894,23 @@ function renderTreasuryWithdrawalJitExecutionPreview(
     payload?.jit_execution_preview
   );
 
-  const visible = Boolean(
-    String(item.status || '').toLowerCase()
-      === 'jit_prepared'
+  const status = String(
+    item.status || ''
+  ).toLowerCase();
+
+  const previewVisible = Boolean(
+    status === 'jit_prepared'
     && preview
+  );
+
+  const reconcileVisible = (
+    status === 'jit_executing'
+    || status === 'jit_reconciling'
+  );
+
+  const visible = (
+    previewVisible
+    || reconcileVisible
   );
 
   element.classList.toggle(
@@ -4907,6 +4920,37 @@ function renderTreasuryWithdrawalJitExecutionPreview(
 
   if (!visible) {
     element.innerHTML = '';
+    return;
+  }
+
+  if (reconcileVisible) {
+    element.innerHTML = (
+      '<div class="treasury-section-header">'
+      + '<div>'
+      + '<h3>JIT reconciliation required</h3>'
+      + '<p>'
+      + 'The JIT transfer may have crossed the Gate '
+      + 'submission boundary. Do not execute again.'
+      + '</p>'
+      + '</div>'
+      + '</div>'
+
+      + '<div class="treasury-withdrawal-safety-note">'
+      + 'Reconciliation performs the existing safe '
+      + 'recovery path and does not submit a second '
+      + 'Treasury transfer.'
+      + '</div>'
+
+      + '<div class="treasury-withdrawal-actions">'
+      + '<button '
+      + 'type="button" '
+      + 'class="button secondary" '
+      + 'id="reconcileTreasuryWithdrawalJit">'
+      + 'Reconcile JIT'
+      + '</button>'
+      + '</div>'
+    );
+
     return;
   }
 
@@ -4929,13 +4973,17 @@ function renderTreasuryWithdrawalJitExecutionPreview(
     preview.application_barriers_open
   );
 
+  const confirmation = String(
+    preview.required_confirmation || ''
+  );
+
   element.innerHTML = (
     '<div class="treasury-section-header">'
     + '<div>'
-    + '<h3>JIT execution preview</h3>'
+    + '<h3>JIT execution</h3>'
     + '<p>'
-    + 'Read-only view of the persisted JIT plan. '
-    + 'No execution endpoint is exposed in this UI stage.'
+    + 'The transfer amount is recalculated by a fresh '
+    + 'Gate preflight immediately before execution.'
     + '</p>'
     + '</div>'
     + '</div>'
@@ -5010,34 +5058,73 @@ function renderTreasuryWithdrawalJitExecutionPreview(
     + '</div>'
 
     + '<div class="treasury-withdrawal-safety-note">'
-    + 'The amount shown here is a preview only. '
-    + 'The execution route recomputes a fresh Gate '
-    + 'preflight before any transfer.'
+    + 'The amount above is not execution authority. '
+    + 'The server recomputes the JIT plan before '
+    + 'crossing the transfer boundary.'
     + '</div>'
 
     + '<label>'
-    + 'Money-moving confirmation'
+    + 'Exact money-moving confirmation'
     + `<code>${escapeHtml(
-        preview.required_confirmation || '—'
+        confirmation || '—'
       )}</code>`
+    + '<input '
+    + 'id="treasuryWithdrawalJitExecutionConfirmation" '
+    + 'type="text" '
+    + 'autocomplete="off" '
+    + 'spellcheck="false">'
     + '</label>'
+
+    + '<div class="treasury-withdrawal-actions">'
+    + '<button '
+    + 'type="button" '
+    + 'class="button" '
+    + 'id="executeTreasuryWithdrawalJit" '
+    + 'disabled>'
+    + 'Execute JIT transfer'
+    + '</button>'
+    + '</div>'
 
     + '<div class="treasury-withdrawal-safety-note">'
     + (
         barriersOpen
           ? (
-              'Application transfer barriers are currently open, '
-              + 'but this dashboard version still exposes no '
-              + 'JIT execution control.'
+              'Application barriers are open. Execution '
+              + 'still requires the exact confirmation.'
             )
           : (
-              'JIT execution is blocked by the application '
-              + 'arming policy. No Gate write can be started '
-              + 'from this dialog.'
+              'Execution remains blocked while the live '
+              + 'Treasury transfer arm is disabled.'
             )
       )
     + '</div>'
   );
+
+  const input = $(
+    '#treasuryWithdrawalJitExecutionConfirmation'
+  );
+
+  const button = $(
+    '#executeTreasuryWithdrawalJit'
+  );
+
+  const update = () => {
+    if (!button) return;
+
+    button.disabled = !(
+      barriersOpen
+      && confirmation
+      && String(input?.value || '')
+        === confirmation
+    );
+  };
+
+  input?.addEventListener(
+    'input',
+    update,
+  );
+
+  update();
 }
 
 
@@ -5672,6 +5759,175 @@ async function prepareCurrentTreasuryWithdrawalJit() {
   } finally {
     button.textContent = 'Prepare JIT';
     updateTreasuryWithdrawalLifecycleButtons();
+  }
+}
+
+
+
+async function executeCurrentTreasuryWithdrawalJit() {
+  const payload = (
+    state.treasuryWithdrawalRequestDetail
+  );
+
+  const item = payload?.item || {};
+  const preview = (
+    payload?.jit_execution_preview
+    || {}
+  );
+
+  if (
+    String(item.status || '').toLowerCase()
+    !== 'jit_prepared'
+    || !preview.application_barriers_open
+  ) {
+    return;
+  }
+
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  const required = String(
+    preview.required_confirmation || ''
+  );
+
+  const confirmation = String(
+    $('#treasuryWithdrawalJitExecutionConfirmation')
+      ?.value
+    || ''
+  );
+
+  if (
+    !requestId
+    || !required
+    || confirmation !== required
+  ) {
+    return;
+  }
+
+  const button = $(
+    '#executeTreasuryWithdrawalJit'
+  );
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Executing JIT…';
+  }
+
+  try {
+    const result = await adminApi(
+      `/api/treasury/withdrawals/requests/${
+        encodeURIComponent(requestId)
+      }/jit/execute`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          confirmation,
+        }),
+      },
+    );
+
+    showToast(
+      result.gate_write_performed
+        ? 'JIT transfer submitted. Verify definitive state.'
+        : 'JIT stage completed without a Gate write.'
+    );
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+
+    // Never retry automatically. The server state decides
+    // whether reconciliation is required.
+  }
+
+  try {
+    await refreshTreasuryWithdrawalRequestDetail(
+      requestId
+    );
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+  } catch (_refreshError) {
+    // Preserve the money-movement outcome for manual review.
+  }
+}
+
+
+async function reconcileCurrentTreasuryWithdrawalJit() {
+  const payload = (
+    state.treasuryWithdrawalRequestDetail
+  );
+
+  const item = payload?.item || {};
+
+  const status = String(
+    item.status || ''
+  ).toLowerCase();
+
+  if (
+    status !== 'jit_executing'
+    && status !== 'jit_reconciling'
+  ) {
+    return;
+  }
+
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  if (!requestId) return;
+
+  const button = $(
+    '#reconcileTreasuryWithdrawalJit'
+  );
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Reconciling…';
+  }
+
+  try {
+    const result = await adminApi(
+      `/api/treasury/withdrawals/requests/${
+        encodeURIComponent(requestId)
+      }/jit/reconcile`,
+      {
+        method: 'POST',
+      },
+    );
+
+    if (result.gate_write_performed) {
+      throw new Error(
+        'Safety invariant failed: JIT reconciliation '
+        + 'reported a Gate write.'
+      );
+    }
+
+    showToast(
+      'JIT reconciliation completed.'
+    );
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+  }
+
+  try {
+    await refreshTreasuryWithdrawalRequestDetail(
+      requestId
+    );
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+  } catch (_refreshError) {
+    // Leave the visible state unchanged for manual review.
   }
 }
 
@@ -9247,6 +9503,24 @@ function bindEvents() {
   $('#treasuryWithdrawalRequestDialog')?.addEventListener(
     'click',
     event => {
+      if (
+        event.target.closest(
+          '#executeTreasuryWithdrawalJit'
+        )
+      ) {
+        executeCurrentTreasuryWithdrawalJit();
+        return;
+      }
+
+      if (
+        event.target.closest(
+          '#reconcileTreasuryWithdrawalJit'
+        )
+      ) {
+        reconcileCurrentTreasuryWithdrawalJit();
+        return;
+      }
+
       if (
         event.target
         === $('#treasuryWithdrawalRequestDialog')
