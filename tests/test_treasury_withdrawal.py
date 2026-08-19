@@ -842,7 +842,7 @@ def _gate_done_withdrawal(
     }
 
 
-def test_gate_address_normal_saved_and_prior_use_is_eligible():
+def test_gate_normal_saved_address_is_not_api_eligible_even_with_prior_use():
     now = 2_000_000
 
     result = (
@@ -866,7 +866,7 @@ def test_gate_address_normal_saved_and_prior_use_is_eligible():
         )
     )
 
-    assert result["preflight_valid"] is True
+    assert result["preflight_valid"] is False
 
     assert (
         result["checks"][
@@ -877,24 +877,41 @@ def test_gate_address_normal_saved_and_prior_use_is_eligible():
 
     assert (
         result["checks"][
+            "gate_saved_address_verified"
+        ]
+        is False
+    )
+
+    assert (
+        result["checks"][
             "gate_address_eligible"
         ]
-        is True
+        is False
+    )
+
+    assert (
+        "gate_saved_address_verified"
+        in result["errors"]
+    )
+
+    assert (
+        "gate_address_eligible"
+        in result["errors"]
     )
 
     evidence = result[
         "gate_address_eligibility"
     ]
 
-    assert (
-        evidence["eligible_via"]
-        == "prior_completed_withdrawal"
-    )
-
+    # Historical use remains useful audit evidence,
+    # but it no longer authorizes an API withdrawal.
     assert (
         evidence["prior_withdrawal_id"]
         == "w100395584"
     )
+
+    assert evidence["eligible"] is False
+    assert evidence["eligible_via"] == ""
 
 
 def test_gate_verified_saved_address_needs_no_history():
@@ -914,6 +931,13 @@ def test_gate_verified_saved_address_needs_no_history():
     )
 
     assert result["preflight_valid"] is True
+
+    assert (
+        result["checks"][
+            "gate_saved_address_verified"
+        ]
+        is True
+    )
 
     assert (
         result[

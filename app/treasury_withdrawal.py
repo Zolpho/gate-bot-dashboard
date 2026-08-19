@@ -1184,21 +1184,19 @@ def bind_gate_address_eligibility_to_preflight(
 
     gate_address_eligible = bool(
         saved_address_match
-        and (
-            saved_verified
-            or prior_use_qualified
-        )
+        and saved_verified
     )
-
     eligibility_checks = {
         "gate_saved_address_match": (
             saved_address_match
+        ),
+        "gate_saved_address_verified": (
+            saved_verified
         ),
         "gate_address_eligible": (
             gate_address_eligible
         ),
     }
-
     checks = {
         **dict(
             preflight.get("checks")
@@ -1232,14 +1230,11 @@ def bind_gate_address_eligibility_to_preflight(
         )
     )
 
-    eligible_via = ""
-
-    if gate_address_eligible:
-        eligible_via = (
-            "verified_address"
-            if saved_verified
-            else "prior_completed_withdrawal"
-        )
+    eligible_via = (
+        "verified_address"
+        if gate_address_eligible
+        else ""
+    )
 
     evidence = {
         "saved_address_matches": len(
