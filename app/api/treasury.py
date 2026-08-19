@@ -1990,6 +1990,121 @@ def treasury_withdrawal_request_detail(
         row["owner_account_id"],
     )
 
+    events = (
+        list_withdrawal_request_events(
+            request_id
+        )
+    )
+
+    jit_execution_preview = None
+
+    if row["status"] == "jit_prepared":
+        jit_event = next(
+            (
+                event
+                for event in reversed(events)
+                if event.get("action")
+                == "jit_prepared"
+            ),
+            None,
+        )
+
+        if jit_event is None:
+            jit_execution_preview = {
+                "available": False,
+                "reason": (
+                    "jit_preparation_event_missing"
+                ),
+                "gate_write_performed": False,
+                "ui_execution_exposed": False,
+            }
+
+        else:
+            details = (
+                jit_event.get("details")
+                or {}
+            )
+
+            jit_plan = details.get(
+                "jit_plan"
+            )
+
+            if not isinstance(
+                jit_plan,
+                dict,
+            ):
+                jit_execution_preview = {
+                    "available": False,
+                    "reason": (
+                        "jit_plan_missing"
+                    ),
+                    "gate_write_performed": False,
+                    "ui_execution_exposed": False,
+                }
+
+            else:
+                try:
+                    required_confirmation = (
+                        withdrawal_jit_execution_confirmation_text(
+                            request=row,
+                            plan=jit_plan,
+                        )
+                    )
+
+                except TreasuryWithdrawalJitPlanError as exc:
+                    jit_execution_preview = {
+                        "available": False,
+                        "reason": (
+                            "jit_confirmation_invalid"
+                        ),
+                        "error": str(exc),
+                        "jit_plan": jit_plan,
+                        "gate_write_performed": False,
+                        "ui_execution_exposed": False,
+                    }
+
+                else:
+                    source_account_id = str(
+                        jit_plan.get(
+                            "source_account_id"
+                        )
+                        or ""
+                    ).strip().lower()
+
+                    live_transfers_armed = bool(
+                        settings
+                        .treasury_transfers_live_armed
+                    )
+
+                    source_account_live_enabled = bool(
+                        source_account_id
+                        and settings
+                        .treasury_transfers_live_account_allowed(
+                            source_account_id
+                        )
+                    )
+
+                    jit_execution_preview = {
+                        "available": True,
+                        "jit_plan": jit_plan,
+                        "required_confirmation": (
+                            required_confirmation
+                        ),
+                        "live_transfers_armed": (
+                            live_transfers_armed
+                        ),
+                        "source_account_live_enabled": (
+                            source_account_live_enabled
+                        ),
+                        "application_barriers_open": (
+                            live_transfers_armed
+                            and source_account_live_enabled
+                        ),
+                        "withdrawal_arm_required_for_jit": False,
+                        "gate_write_performed": False,
+                        "ui_execution_exposed": False,
+                    }
+
     return {
         "phase": (
             "T2C3A_WITHDRAWAL_REQUEST_AUDIT"
@@ -2002,15 +2117,14 @@ def treasury_withdrawal_request_detail(
                 request_id
             )
         ),
-        "events": (
-            list_withdrawal_request_events(
-                request_id
-            )
-        ),
+        "events": events,
         "operation_lock": (
             get_withdrawal_lock_for_request(
                 request_id
             )
+        ),
+        "jit_execution_preview": (
+            jit_execution_preview
         ),
     }
 

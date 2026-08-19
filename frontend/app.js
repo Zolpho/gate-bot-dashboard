@@ -4879,10 +4879,176 @@ function renderTreasuryWithdrawalEvents(rows = []) {
 }
 
 
+
+function renderTreasuryWithdrawalJitExecutionPreview(
+  payload
+) {
+  const element = $(
+    '#treasuryWithdrawalJitExecutionPreview'
+  );
+
+  if (!element) return;
+
+  const item = payload?.item || {};
+  const preview = (
+    payload?.jit_execution_preview
+  );
+
+  const visible = Boolean(
+    String(item.status || '').toLowerCase()
+      === 'jit_prepared'
+    && preview
+  );
+
+  element.classList.toggle(
+    'hidden',
+    !visible
+  );
+
+  if (!visible) {
+    element.innerHTML = '';
+    return;
+  }
+
+  if (!preview.available) {
+    element.innerHTML = (
+      '<strong>JIT execution preview unavailable</strong>'
+      + `<p>${escapeHtml(
+          preview.error
+          || preview.reason
+          || 'Stored JIT preparation data is incomplete.'
+        )}</p>`
+    );
+
+    return;
+  }
+
+  const plan = preview.jit_plan || {};
+
+  const barriersOpen = Boolean(
+    preview.application_barriers_open
+  );
+
+  element.innerHTML = (
+    '<div class="treasury-section-header">'
+    + '<div>'
+    + '<h3>JIT execution preview</h3>'
+    + '<p>'
+    + 'Read-only view of the persisted JIT plan. '
+    + 'No execution endpoint is exposed in this UI stage.'
+    + '</p>'
+    + '</div>'
+    + '</div>'
+
+    + '<div class="treasury-request-grid">'
+
+    + '<div>'
+    + '<span>Source</span>'
+    + `<strong>${escapeHtml(
+        plan.source_account_id || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Custody</span>'
+    + `<strong>${escapeHtml(
+        plan.custody_account_id || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Currency</span>'
+    + `<strong>${escapeHtml(
+        plan.currency || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>JIT required</span>'
+    + `<strong>${
+        plan.jit_required ? 'Yes' : 'No'
+      }</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>JIT amount preview</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          plan.jit_amount_preview,
+          plan.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Live transfer arm</span>'
+    + `<strong>${
+        preview.live_transfers_armed
+          ? 'ARMED'
+          : 'DISABLED'
+      }</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Source allowlist</span>'
+    + `<strong>${
+        preview.source_account_live_enabled
+          ? 'Allowed'
+          : 'Blocked'
+      }</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Application barriers</span>'
+    + `<strong>${
+        barriersOpen
+          ? 'Open'
+          : 'Blocked'
+      }</strong>`
+    + '</div>'
+
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-safety-note">'
+    + 'The amount shown here is a preview only. '
+    + 'The execution route recomputes a fresh Gate '
+    + 'preflight before any transfer.'
+    + '</div>'
+
+    + '<label>'
+    + 'Money-moving confirmation'
+    + `<code>${escapeHtml(
+        preview.required_confirmation || '—'
+      )}</code>`
+    + '</label>'
+
+    + '<div class="treasury-withdrawal-safety-note">'
+    + (
+        barriersOpen
+          ? (
+              'Application transfer barriers are currently open, '
+              + 'but this dashboard version still exposes no '
+              + 'JIT execution control.'
+            )
+          : (
+              'JIT execution is blocked by the application '
+              + 'arming policy. No Gate write can be started '
+              + 'from this dialog.'
+            )
+      )
+    + '</div>'
+  );
+}
+
+
 function renderTreasuryWithdrawalRequestDetail(
   payload
 ) {
   state.treasuryWithdrawalRequestDetail = payload;
+
+  renderTreasuryWithdrawalJitExecutionPreview(
+    payload
+  );
 
   const item = payload?.item || {};
   const lock = payload?.operation_lock || null;
