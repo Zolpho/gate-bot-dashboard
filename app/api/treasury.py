@@ -128,6 +128,11 @@ from ..treasury_withdrawal_orphan_resolution import (
     abandon_unresolved_withdrawal,
     withdrawal_abandon_confirmation_text,
 )
+from ..treasury_withdrawal_settlement import (
+    TreasuryWithdrawalSettlementError,
+    settle_withdrawal_from_gate,
+    withdrawal_settlement_confirmation_text,
+)
 from ..treasury_transfer_reconcile import (
     interpret_transfer_order_status,
     interpret_transfer_submission_error,
@@ -361,6 +366,19 @@ class TreasuryWithdrawalReservationRequest(
 
 
 class TreasuryWithdrawalConfirmationRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+
+class TreasuryWithdrawalSettlementRequest(
     BaseModel
 ):
     model_config = ConfigDict(
@@ -4498,6 +4516,141 @@ async def reconcile_treasury_external_withdrawal(
         **result,
     }
 
+
+
+@router.post(
+    "/withdrawals/requests/{request_id}/settle"
+)
+async def settle_treasury_withdrawal_request(
+    request_id: str,
+    request: TreasuryWithdrawalSettlementRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_super_admin),
+    ],
+):
+    row = _withdrawal_request_or_http(
+        request_id
+    )
+
+    required_confirmation = (
+        withdrawal_settlement_confirmation_text(
+            row
+        )
+    )
+
+    if (
+        request.confirmation
+        != required_confirmation
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid withdrawal settlement "
+                    "confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "gate_read_performed": False,
+                "gate_write_performed": False,
+                "local_write_performed": False,
+                "ownership_settlement_performed": (
+                    False
+                ),
+            },
+        )
+
+    if (
+        settings
+        .treasury_withdrawals_live_armed
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal settlement requires "
+                    "live withdrawals to be disarmed."
+                ),
+                "gate_read_performed": False,
+                "gate_write_performed": False,
+                "local_write_performed": False,
+                "ownership_settlement_performed": (
+                    False
+                ),
+            },
+        )
+
+    treasury_account = None
+
+    # A fully settled request may be replayed solely to
+    # recover/release a lock after an interrupted process.
+    # That recovery requires no Gate credential/read.
+    if (
+        row["status"]
+        != "withdrawal_settled"
+    ):
+        _enforce_treasury_rate_limit(
+            user=user,
+            source_account_id=(
+                row["owner_account_id"]
+            ),
+            action="lock_release",
+        )
+
+        treasury_account = (
+            _treasury_account_or_http()
+        )
+
+    try:
+        result = (
+            await settle_withdrawal_from_gate(
+                settings=settings,
+                request_id=request_id,
+                username=user.username,
+                treasury_account=(
+                    treasury_account
+                ),
+            )
+        )
+
+    except GateAPIError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": str(exc),
+                "label": exc.label or None,
+                "gate_status_code": (
+                    exc.status_code
+                ),
+                "request_id": request_id,
+                "gate_read_performed": True,
+                "gate_write_performed": False,
+                "local_write_performed": False,
+                "ownership_settlement_performed": (
+                    False
+                ),
+            },
+        ) from exc
+
+    except TreasuryWithdrawalSettlementError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "request_id": request_id,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C5H_WITHDRAWAL_OWNERSHIP_SETTLEMENT"
+        ),
+        "withdrawals_enabled": False,
+        **result,
+    }
 
 
 @router.post(
