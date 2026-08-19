@@ -44,6 +44,20 @@ class Settings(BaseSettings):
     treasury_withdrawals_live_armed: bool = False
     treasury_withdrawals_live_accounts: str = ""
 
+    # Must mirror Gate:
+    # API Withdrawal Settings.
+    #
+    # verification_free:
+    #   saved address must have Gate verified=1.
+    #
+    # address_book:
+    #   exact Gate Address Book membership is enough.
+    #
+    # Default remains fail-closed.
+    treasury_withdrawal_address_policy: str = (
+        "verification_free"
+    )
+
     # Persistent Treasury operation rate limiting.
     treasury_rate_limit_enabled: bool = True
 

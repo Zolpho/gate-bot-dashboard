@@ -976,6 +976,7 @@ def bind_gate_address_eligibility_to_preflight(
     saved_addresses: Any,
     withdrawals: Any,
     now_timestamp: int,
+    address_policy: str = "verification_free",
     minimum_age_seconds: int = 86400,
     history_window_seconds: int = 2592000,
 ) -> dict[str, Any]:
@@ -1182,10 +1183,45 @@ def bind_gate_address_eligibility_to_preflight(
         >= int(minimum_age_seconds)
     )
 
+    requested_address_policy = str(
+        address_policy or ""
+    ).strip().lower()
+
+    allowed_address_policies = {
+        "verification_free",
+        "address_book",
+    }
+
+    address_policy_valid = (
+        requested_address_policy
+        in allowed_address_policies
+    )
+
+    # Unknown/missing policy is evaluated using the
+    # stricter mode and is also explicitly invalid.
+    effective_address_policy = (
+        requested_address_policy
+        if address_policy_valid
+        else "verification_free"
+    )
+
+    verification_required = (
+        effective_address_policy
+        == "verification_free"
+    )
+
     gate_address_eligible = bool(
         saved_address_match
-        and saved_verified
+        and (
+            saved_verified
+            if verification_required
+            else True
+        )
     )
+
+    # These are visible facts. In address_book mode a
+    # normal saved address may legitimately have
+    # gate_saved_address_verified=False.
     eligibility_checks = {
         "gate_saved_address_match": (
             saved_address_match
@@ -1193,10 +1229,33 @@ def bind_gate_address_eligibility_to_preflight(
         "gate_saved_address_verified": (
             saved_verified
         ),
+        "gate_address_policy_valid": (
+            address_policy_valid
+        ),
         "gate_address_eligible": (
             gate_address_eligible
         ),
     }
+
+    # Only policy-required checks participate in
+    # validity/errors.
+    required_eligibility_checks = {
+        "gate_saved_address_match": (
+            saved_address_match
+        ),
+        "gate_address_policy_valid": (
+            address_policy_valid
+        ),
+        "gate_address_eligible": (
+            gate_address_eligible
+        ),
+    }
+
+    if verification_required:
+        required_eligibility_checks[
+            "gate_saved_address_verified"
+        ] = saved_verified
+
     checks = {
         **dict(
             preflight.get("checks")
@@ -1211,7 +1270,7 @@ def bind_gate_address_eligibility_to_preflight(
     )
 
     for name, passed in (
-        eligibility_checks.items()
+        required_eligibility_checks.items()
     ):
         if (
             not passed
@@ -1226,15 +1285,18 @@ def bind_gate_address_eligibility_to_preflight(
     preflight_valid = bool(
         base_valid
         and all(
-            eligibility_checks.values()
+            required_eligibility_checks.values()
         )
     )
 
-    eligible_via = (
-        "verified_address"
-        if gate_address_eligible
-        else ""
-    )
+    if not gate_address_eligible:
+        eligible_via = ""
+
+    elif verification_required:
+        eligible_via = "verified_address"
+
+    else:
+        eligible_via = "address_book"
 
     evidence = {
         "saved_address_matches": len(
@@ -1242,6 +1304,15 @@ def bind_gate_address_eligibility_to_preflight(
         ),
         "saved_address_verified": (
             saved_verified
+        ),
+        "address_policy": (
+            effective_address_policy
+        ),
+        "address_policy_valid": (
+            address_policy_valid
+        ),
+        "verification_required": (
+            verification_required
         ),
         "eligible": (
             gate_address_eligible

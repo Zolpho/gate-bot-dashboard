@@ -1634,6 +1634,9 @@ async def treasury_withdrawal_preflight(
                 prior_withdrawals.data
             ),
             now_timestamp=now_timestamp,
+            address_policy=(
+                settings.treasury_withdrawal_address_policy
+            ),
             minimum_age_seconds=(
                 24 * 60 * 60
             ),

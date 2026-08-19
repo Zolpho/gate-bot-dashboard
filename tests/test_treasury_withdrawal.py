@@ -1072,3 +1072,129 @@ def test_gate_evm_address_match_is_case_insensitive():
     )
 
     assert result["preflight_valid"] is True
+
+
+def test_gate_address_book_policy_accepts_normal_saved_address():
+    result = (
+        bind_gate_address_eligibility_to_preflight(
+            preflight=(
+                _gate_eligibility_base_preflight()
+            ),
+            saved_addresses=[
+                _gate_saved_address(
+                    verified="0"
+                )
+            ],
+            withdrawals=[],
+            now_timestamp=2_000_000,
+            address_policy="address_book",
+        )
+    )
+
+    assert result["preflight_valid"] is True
+
+    assert (
+        result["checks"][
+            "gate_saved_address_match"
+        ]
+        is True
+    )
+
+    # This remains the actual Gate fact.
+    assert (
+        result["checks"][
+            "gate_saved_address_verified"
+        ]
+        is False
+    )
+
+    assert (
+        result["checks"][
+            "gate_address_policy_valid"
+        ]
+        is True
+    )
+
+    assert (
+        result["checks"][
+            "gate_address_eligible"
+        ]
+        is True
+    )
+
+    assert (
+        "gate_saved_address_verified"
+        not in result["errors"]
+    )
+
+    evidence = result[
+        "gate_address_eligibility"
+    ]
+
+    assert (
+        evidence["address_policy"]
+        == "address_book"
+    )
+
+    assert (
+        evidence["verification_required"]
+        is False
+    )
+
+    assert evidence["eligible"] is True
+
+    assert (
+        evidence["eligible_via"]
+        == "address_book"
+    )
+
+
+def test_gate_unknown_address_policy_fails_closed():
+    result = (
+        bind_gate_address_eligibility_to_preflight(
+            preflight=(
+                _gate_eligibility_base_preflight()
+            ),
+            saved_addresses=[
+                _gate_saved_address(
+                    verified="1"
+                )
+            ],
+            withdrawals=[],
+            now_timestamp=2_000_000,
+            address_policy="something_invalid",
+        )
+    )
+
+    assert result["preflight_valid"] is False
+
+    assert (
+        result["checks"][
+            "gate_address_policy_valid"
+        ]
+        is False
+    )
+
+    assert (
+        "gate_address_policy_valid"
+        in result["errors"]
+    )
+
+    evidence = result[
+        "gate_address_eligibility"
+    ]
+
+    assert (
+        evidence["address_policy"]
+        == "verification_free"
+    )
+
+    assert (
+        evidence["address_policy_valid"]
+        is False
+    )
+
+    assert (
+        evidence["verification_required"]
+        is True
+    )
