@@ -4712,6 +4712,15 @@ function treasuryWithdrawalConfirmConfirmation(item) {
 }
 
 
+function treasuryWithdrawalJitPrepareConfirmation(item) {
+  return (
+    `PREPARE WITHDRAWAL JIT ${
+      String(item?.request_id || '')
+    }`
+  );
+}
+
+
 function treasuryWithdrawalLifecycleConfirmation(
   item
 ) {
@@ -4729,6 +4738,12 @@ function treasuryWithdrawalLifecycleConfirmation(
     return (
       state.treasuryWithdrawalRequiredConfirmation
       || treasuryWithdrawalConfirmConfirmation(item)
+    );
+  }
+
+  if (status === 'confirmed_ready') {
+    return treasuryWithdrawalJitPrepareConfirmation(
+      item
     );
   }
 
@@ -4768,6 +4783,10 @@ function updateTreasuryWithdrawalLifecycleButtons() {
     '#confirmTreasuryWithdrawalRequest'
   );
 
+  const prepareJit = $(
+    '#prepareTreasuryWithdrawalJit'
+  );
+
   if (reserve) {
     reserve.classList.toggle(
       'hidden',
@@ -4787,6 +4806,17 @@ function updateTreasuryWithdrawalLifecycleButtons() {
 
     confirm.disabled = !(
       status === 'reserved' && exact
+    );
+  }
+
+  if (prepareJit) {
+    prepareJit.classList.toggle(
+      'hidden',
+      status !== 'confirmed_ready'
+    );
+
+    prepareJit.disabled = !(
+      status === 'confirmed_ready' && exact
     );
   }
 }
@@ -5059,6 +5089,7 @@ function renderTreasuryWithdrawalRequestDetail(
   const actionable = (
     status === 'simulated'
     || status === 'reserved'
+    || status === 'confirmed_ready'
   );
 
   confirmationBlock?.classList.toggle(
@@ -5092,9 +5123,10 @@ function renderTreasuryWithdrawalRequestDetail(
 
     } else if (status === 'confirmed_ready') {
       lifecycleNotice.textContent = (
-        'Request is confirmed and ready for the next '
-        + 'Treasury phase. Execution controls are not '
-        + 'exposed in this UI version.'
+        'Prepare JIT performs another fresh Gate '
+        + 'GET-only preflight and persists the '
+        + 'deterministic JIT plan. No transfer is '
+        + 'submitted.'
       );
 
     } else {
@@ -5360,6 +5392,119 @@ async function confirmCurrentTreasuryWithdrawal() {
 
   } finally {
     button.textContent = 'Confirm withdrawal';
+    updateTreasuryWithdrawalLifecycleButtons();
+  }
+}
+
+
+
+async function prepareCurrentTreasuryWithdrawalJit() {
+  const payload = (
+    state.treasuryWithdrawalRequestDetail
+  );
+
+  const item = payload?.item || {};
+
+  if (
+    String(item.status || '').toLowerCase()
+    !== 'confirmed_ready'
+  ) {
+    return;
+  }
+
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  const confirmation = String(
+    $('#treasuryWithdrawalConfirmation')?.value
+    || ''
+  );
+
+  const required = (
+    treasuryWithdrawalJitPrepareConfirmation(item)
+  );
+
+  if (
+    !requestId
+    || confirmation !== required
+  ) {
+    return;
+  }
+
+  const button = $(
+    '#prepareTreasuryWithdrawalJit'
+  );
+
+  button.disabled = true;
+  button.textContent = 'Preparing JIT…';
+
+  try {
+    const result = await adminApi(
+      `/api/treasury/withdrawals/requests/${
+        encodeURIComponent(requestId)
+      }/jit/prepare`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          confirmation,
+        }),
+      },
+    );
+
+    if (
+      result.gate_write_performed !== false
+      || result.transfer_audit_created !== false
+    ) {
+      throw new Error(
+        'Safety invariant failed: JIT preparation '
+        + 'reported a money-movement write.'
+      );
+    }
+
+    if (
+      result.status !== 'jit_prepared'
+      || result.jit_execution_enabled !== false
+      || result.executable !== false
+    ) {
+      throw new Error(
+        'Safety invariant failed: unexpected '
+        + 'JIT preparation response.'
+      );
+    }
+
+    showToast(
+      'JIT plan prepared. No Gate write performed.'
+    );
+
+    await refreshTreasuryWithdrawalRequestDetail(
+      requestId
+    );
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+
+    try {
+      await refreshTreasuryWithdrawalRequestDetail(
+        requestId
+      );
+
+      await loadTreasuryOverview({
+        quiet: true,
+      });
+    } catch (_refreshError) {
+      // Fresh preflight may have blocked and changed state.
+    }
+
+  } finally {
+    button.textContent = 'Prepare JIT';
     updateTreasuryWithdrawalLifecycleButtons();
   }
 }
@@ -8921,6 +9066,11 @@ function bindEvents() {
   $('#confirmTreasuryWithdrawalRequest')?.addEventListener(
     'click',
     confirmCurrentTreasuryWithdrawal,
+  );
+
+  $('#prepareTreasuryWithdrawalJit')?.addEventListener(
+    'click',
+    prepareCurrentTreasuryWithdrawalJit,
   );
 
   $('#closeTreasuryWithdrawalRequestDialog')?.addEventListener(
