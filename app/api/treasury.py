@@ -2179,7 +2179,71 @@ def treasury_withdrawal_request_detail(
                 "ui_execution_exposed": True,
             }
 
+    settlement_preview = None
+
+    if row["status"] in {
+        "withdrawal_done_unsettled",
+        "withdrawal_settled",
+    }:
+        try:
+            settlement_confirmation = (
+                withdrawal_settlement_confirmation_text(
+                    row
+                )
+            )
+
+        except TreasuryWithdrawalSettlementError as exc:
+            settlement_preview = {
+                "available": False,
+                "reason": (
+                    "settlement_confirmation_invalid"
+                ),
+                "error": str(exc),
+                "gate_write_performed": False,
+            }
+
+        else:
+            settlement_preview = {
+                "available": True,
+                "required_confirmation": (
+                    settlement_confirmation
+                ),
+                "withdrawals_live_armed": bool(
+                    settings
+                    .treasury_withdrawals_live_armed
+                ),
+                "settlement_allowed": not bool(
+                    settings
+                    .treasury_withdrawals_live_armed
+                ),
+                "owner_account_id": (
+                    row.get("owner_account_id")
+                ),
+                "currency": row.get("currency"),
+                "amount": row.get("amount"),
+                "estimated_fee": (
+                    row.get("estimated_fee")
+                ),
+                "gate_status": (
+                    row.get("gate_status")
+                ),
+                "gate_withdrawal_id": (
+                    row.get("gate_withdrawal_id")
+                ),
+                "gate_withdraw_order_id": (
+                    row.get("gate_withdraw_order_id")
+                ),
+                "gate_txid": (
+                    row.get("gate_txid")
+                ),
+                "gate_block_number": (
+                    row.get("gate_block_number")
+                ),
+                "gate_write_performed": False,
+            }
+
     return {
+        "settlement_preview": settlement_preview,
         "external_execution_preview": external_execution_preview,
         "phase": (
             "T2C3A_WITHDRAWAL_REQUEST_AUDIT"

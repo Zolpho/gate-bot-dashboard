@@ -5423,6 +5423,246 @@ function renderTreasuryWithdrawalExternalExecutionPreview(
 }
 
 
+
+function renderTreasuryWithdrawalSettlementPreview(
+  payload
+) {
+  const element = $(
+    '#treasuryWithdrawalSettlementPreview'
+  );
+
+  if (!element) return;
+
+  const item = payload?.item || {};
+  const preview = payload?.settlement_preview;
+
+  const status = String(
+    item.status || ''
+  ).toLowerCase();
+
+  const visible = (
+    status === 'withdrawal_done_unsettled'
+    || status === 'withdrawal_settled'
+  );
+
+  element.classList.toggle(
+    'hidden',
+    !visible
+  );
+
+  if (!visible) {
+    element.innerHTML = '';
+    return;
+  }
+
+  if (status === 'withdrawal_settled') {
+    element.innerHTML = (
+      '<div class="treasury-section-header">'
+      + '<div>'
+      + '<h3>Ownership settled</h3>'
+      + '<p>'
+      + 'The Gate withdrawal and local economic '
+      + 'ownership settlement are complete.'
+      + '</p>'
+      + '</div>'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  const isSuperAdmin = (
+    state.adminUser?.role === 'super_admin'
+  );
+
+  if (!isSuperAdmin) {
+    element.innerHTML = (
+      '<div class="treasury-section-header">'
+      + '<div>'
+      + '<h3>Ownership settlement pending</h3>'
+      + '<p>'
+      + 'A super administrator must settle the '
+      + 'definitive Gate withdrawal.'
+      + '</p>'
+      + '</div>'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  if (!preview?.available) {
+    element.innerHTML = (
+      '<strong>Settlement preview unavailable</strong>'
+      + `<p>${escapeHtml(
+          preview?.error
+          || preview?.reason
+          || 'Settlement evidence is incomplete.'
+        )}</p>`
+    );
+
+    return;
+  }
+
+  const confirmation = String(
+    preview.required_confirmation || ''
+  );
+
+  const settlementAllowed = Boolean(
+    preview.settlement_allowed
+  );
+
+  element.innerHTML = (
+    '<div class="treasury-section-header">'
+    + '<div>'
+    + '<h3>Settle withdrawal ownership</h3>'
+    + '<p>'
+    + 'Final super-admin accounting step after '
+    + 'definitive Gate completion.'
+    + '</p>'
+    + '</div>'
+    + '</div>'
+
+    + '<div class="treasury-request-grid">'
+
+    + '<div>'
+    + '<span>Owner</span>'
+    + `<strong>${escapeHtml(
+        preview.owner_account_id || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Debit amount</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          preview.amount,
+          preview.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Gate fee evidence</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          preview.estimated_fee,
+          preview.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Gate status</span>'
+    + `<strong>${escapeHtml(
+        preview.gate_status || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Gate withdrawal ID</span>'
+    + `<strong>${escapeHtml(
+        preview.gate_withdrawal_id || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Order ID</span>'
+    + `<strong>${escapeHtml(
+        preview.gate_withdraw_order_id || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Block</span>'
+    + `<strong>${escapeHtml(
+        preview.gate_block_number || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Live withdrawal arm</span>'
+    + `<strong>${
+        preview.withdrawals_live_armed
+          ? 'ARMED'
+          : 'DISABLED'
+      }</strong>`
+    + '</div>'
+
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-safety-note">'
+    + 'Settlement debits economic ownership by the '
+    + 'Gate withdrawal amount. The Gate fee remains '
+    + 'evidence and is not an additional ownership debit.'
+    + '</div>'
+
+    + '<label>'
+    + 'Exact settlement confirmation'
+    + `<code>${escapeHtml(
+        confirmation || '—'
+      )}</code>`
+    + '<input '
+    + 'id="treasuryWithdrawalSettlementConfirmation" '
+    + 'type="text" '
+    + 'autocomplete="off" '
+    + 'spellcheck="false">'
+    + '</label>'
+
+    + '<div class="treasury-withdrawal-actions">'
+    + '<button '
+    + 'type="button" '
+    + 'class="button" '
+    + 'id="settleTreasuryWithdrawal" '
+    + 'disabled>'
+    + 'Settle ownership'
+    + '</button>'
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-safety-note">'
+    + (
+        settlementAllowed
+          ? (
+              'Live withdrawals are disarmed. '
+              + 'Settlement may proceed after exact '
+              + 'confirmation.'
+            )
+          : (
+              'Settlement is blocked while live '
+              + 'withdrawals are armed.'
+            )
+      )
+    + '</div>'
+  );
+
+  const input = $(
+    '#treasuryWithdrawalSettlementConfirmation'
+  );
+
+  const button = $(
+    '#settleTreasuryWithdrawal'
+  );
+
+  const update = () => {
+    if (!button) return;
+
+    button.disabled = !(
+      settlementAllowed
+      && confirmation
+      && String(input?.value || '')
+        === confirmation
+    );
+  };
+
+  input?.addEventListener(
+    'input',
+    update,
+  );
+
+  update();
+}
+
+
 function renderTreasuryWithdrawalRequestDetail(
   payload
 ) {
@@ -5433,6 +5673,10 @@ function renderTreasuryWithdrawalRequestDetail(
   );
 
   renderTreasuryWithdrawalExternalExecutionPreview(
+    payload
+  );
+
+  renderTreasuryWithdrawalSettlementPreview(
     payload
   );
 
@@ -6403,6 +6647,110 @@ async function reconcileCurrentTreasuryExternalWithdrawal() {
     });
   } catch (_refreshError) {
     // Leave request available for manual review.
+  }
+}
+
+
+
+async function settleCurrentTreasuryWithdrawal() {
+  const payload = (
+    state.treasuryWithdrawalRequestDetail
+  );
+
+  const item = payload?.item || {};
+  const preview = (
+    payload?.settlement_preview || {}
+  );
+
+  if (
+    state.adminUser?.role !== 'super_admin'
+    || String(item.status || '').toLowerCase()
+      !== 'withdrawal_done_unsettled'
+    || !preview.settlement_allowed
+  ) {
+    return;
+  }
+
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  const required = String(
+    preview.required_confirmation || ''
+  );
+
+  const confirmation = String(
+    $('#treasuryWithdrawalSettlementConfirmation')
+      ?.value
+    || ''
+  );
+
+  if (
+    !requestId
+    || !required
+    || confirmation !== required
+  ) {
+    return;
+  }
+
+  const button = $('#settleTreasuryWithdrawal');
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Settling…';
+  }
+
+  try {
+    const result = await adminApi(
+      `/api/treasury/withdrawals/requests/${
+        encodeURIComponent(requestId)
+      }/settle`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          confirmation,
+        }),
+      },
+    );
+
+    if (result.gate_write_performed) {
+      throw new Error(
+        'Safety invariant failed: settlement '
+        + 'reported a Gate write.'
+      );
+    }
+
+    if (
+      result.status !== 'withdrawal_settled'
+    ) {
+      throw new Error(
+        'Settlement did not reach withdrawal_settled.'
+      );
+    }
+
+    showToast(
+      result.state_changed
+        ? 'Withdrawal ownership settled.'
+        : 'Withdrawal was already settled.'
+    );
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(error),
+      true,
+    );
+  }
+
+  try {
+    await refreshTreasuryWithdrawalRequestDetail(
+      requestId
+    );
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+  } catch (_refreshError) {
+    // Preserve settlement outcome for manual review.
   }
 }
 
@@ -9978,6 +10326,15 @@ function bindEvents() {
   $('#treasuryWithdrawalRequestDialog')?.addEventListener(
     'click',
     event => {
+      if (
+        event.target.closest(
+          '#settleTreasuryWithdrawal'
+        )
+      ) {
+        settleCurrentTreasuryWithdrawal();
+        return;
+      }
+
       if (
         event.target.closest(
           '#executeTreasuryExternalWithdrawal'
