@@ -644,6 +644,36 @@ def build_withdrawal_preflight(
             )
         )
 
+    # Gate exposes the withdrawal minimum and chain fee
+    # separately. Fail closed when the estimated amount
+    # remaining after the fee would be zero/negative or
+    # below Gate's advertised minimum.
+    #
+    # This is intentionally an estimate because Gate's
+    # public API documentation does not explicitly define
+    # the minimum-vs-fee arithmetic.
+    recipient_amount_estimate = None
+    recipient_amount_positive = False
+    recipient_minimum_valid = False
+
+    if (
+        amount_positive
+        and estimated_fee is not None
+    ):
+        recipient_amount_estimate = (
+            amount - estimated_fee
+        )
+
+        recipient_amount_positive = bool(
+            recipient_amount_estimate > 0
+        )
+
+        recipient_minimum_valid = bool(
+            minimum is not None
+            and recipient_amount_estimate
+            >= minimum
+        )
+
     conservative_funding_required = (
         amount + estimated_fee
         if (
@@ -769,6 +799,12 @@ def build_withdrawal_preflight(
             daily_limit_valid
         ),
         "fee_known": fee_known,
+        "recipient_amount_positive": (
+            recipient_amount_positive
+        ),
+        "recipient_minimum_valid": (
+            recipient_minimum_valid
+        ),
         "economic_balance_valid": (
             economic_balance_valid
         ),
@@ -794,6 +830,8 @@ def build_withdrawal_preflight(
         "daily_limit_known",
         "daily_limit_valid",
         "fee_known",
+        "recipient_amount_positive",
+        "recipient_minimum_valid",
         "economic_balance_valid",
         "funding_balance_valid",
         "jit_source_balance_valid",
@@ -892,6 +930,11 @@ def build_withdrawal_preflight(
             "estimated_fee": (
                 _decimal_text(
                     estimated_fee
+                )
+            ),
+            "recipient_amount_estimate": (
+                _decimal_text(
+                    recipient_amount_estimate
                 )
             ),
             "estimate_only": True,

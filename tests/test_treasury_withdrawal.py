@@ -409,6 +409,66 @@ def test_withdrawal_preflight_rejects_below_minimum():
     )
 
 
+def test_withdrawal_preflight_rejects_amount_consumed_by_fee():
+    result = build_withdrawal_preflight(
+        capabilities=_ready_capabilities(),
+        chain="TRX",
+        amount=Decimal("1"),
+    )
+
+    # Regression for the real Gate rejection where:
+    #
+    # requested amount = 1
+    # Gate minimum     = 1
+    # fixed fee        = 1
+    #
+    # The old preflight accepted this because the gross
+    # amount met the minimum even though nothing remained
+    # after the fee.
+    assert (
+        result["checks"]["minimum_valid"]
+        is True
+    )
+
+    assert (
+        result["fee"]["estimated_fee"]
+        == "1"
+    )
+
+    assert (
+        result["fee"][
+            "recipient_amount_estimate"
+        ]
+        == "0"
+    )
+
+    assert (
+        result["checks"][
+            "recipient_amount_positive"
+        ]
+        is False
+    )
+
+    assert (
+        result["checks"][
+            "recipient_minimum_valid"
+        ]
+        is False
+    )
+
+    assert result["preflight_valid"] is False
+
+    assert (
+        "recipient_amount_positive"
+        in result["errors"]
+    )
+
+    assert (
+        "recipient_minimum_valid"
+        in result["errors"]
+    )
+
+
 def test_withdrawal_preflight_rejects_precision():
     result = build_withdrawal_preflight(
         capabilities=_ready_capabilities(),
