@@ -199,8 +199,8 @@ def health(
         "allow_bot_create": settings.allow_bot_create,
         "bot_create_simulation": settings.bot_create_simulation,
 
-        # T1 is structurally read-only. There are no Treasury
-        # transfer/withdrawal routes in this release.
+        # Treasury live-write flags report the actual runtime
+        # arming state. Production normally remains disarmed.
         "treasury_configured": bool(
             treasury.get("configured")
         ),
@@ -215,7 +215,9 @@ def health(
                 False,
             )
         ),
-        "treasury_withdrawals_enabled": False,
+        "treasury_withdrawals_enabled": bool(
+            settings.treasury_withdrawals_live_armed
+        ),
         "treasury_config_error": treasury_config_error,
 
         "snapshot_retention_days": settings.snapshot_retention_days,

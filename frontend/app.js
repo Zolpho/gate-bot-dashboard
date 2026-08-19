@@ -5928,6 +5928,30 @@ function renderTreasuryWithdrawalRequestDetail(
         + 'submitted.'
       );
 
+    } else if (
+      status === 'withdrawal_done_unsettled'
+    ) {
+      lifecycleNotice.textContent = (
+        'Gate withdrawal is definitively complete. '
+        + 'Economic ownership settlement is pending.'
+      );
+
+    } else if (
+      status === 'withdrawal_settled'
+    ) {
+      lifecycleNotice.textContent = (
+        'Withdrawal lifecycle complete. Gate withdrawal '
+        + 'and economic ownership settlement are complete.'
+      );
+
+    } else if (
+      status === 'withdrawal_failed'
+    ) {
+      lifecycleNotice.textContent = (
+        'Withdrawal failed definitively. This request '
+        + 'is terminal and cannot be resubmitted.'
+      );
+
     } else {
       lifecycleNotice.textContent = (
         'This withdrawal request is view-only in the '
