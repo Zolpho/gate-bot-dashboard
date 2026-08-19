@@ -60,6 +60,9 @@ const state = {
   treasuryLocks: [],
   treasuryOwnershipBalances: [],
   treasuryOwnershipLedger: [],
+  treasuryWithdrawalDestinations: [],
+  treasuryWithdrawalRequests: [],
+  treasuryWithdrawalPreflight: null,
   treasuryRequestDetail: null,
   botStopPrepared: null,
   botStopRequestId: '',
@@ -3972,6 +3975,692 @@ function applyTreasuryOwnershipLabels(rows = []) {
 }
 
 
+
+function treasuryApprovedWithdrawalDestinations() {
+  return (
+    state.treasuryWithdrawalDestinations || []
+  ).filter(item => (
+    String(item.status || '').toLowerCase()
+    === 'approved'
+  ));
+}
+
+
+function treasurySelectedWithdrawalDestination() {
+  const id = String(
+    $('#treasuryWithdrawalDestination')?.value
+    || ''
+  );
+
+  return treasuryApprovedWithdrawalDestinations()
+    .find(item => (
+      String(item.destination_id || '') === id
+    )) || null;
+}
+
+
+function clearTreasuryWithdrawalPreflight() {
+  state.treasuryWithdrawalPreflight = null;
+
+  renderTreasuryWithdrawalPreflight();
+}
+
+
+function renderTreasuryWithdrawalDestinations() {
+  const select = $('#treasuryWithdrawalDestination');
+
+  if (!select) return;
+
+  const rows = treasuryApprovedWithdrawalDestinations();
+  const previous = select.value;
+
+  if (!rows.length) {
+    select.innerHTML = (
+      '<option value="">'
+      + 'No approved destinations available'
+      + '</option>'
+    );
+
+    select.disabled = true;
+
+  } else {
+    select.disabled = false;
+
+    select.innerHTML = rows.map(item => {
+      const destinationId = String(
+        item.destination_id || ''
+      );
+
+      const label = String(
+        item.label
+        || shortTreasuryGateId(item.address)
+        || destinationId
+      );
+
+      const text = [
+        item.owner_account_id || '—',
+        item.currency || '—',
+        item.chain || '—',
+        label,
+      ].join(' · ');
+
+      return (
+        `<option value="${escapeHtml(destinationId)}">`
+        + `${escapeHtml(text)}`
+        + '</option>'
+      );
+    }).join('');
+
+    const availableIds = rows.map(
+      item => String(item.destination_id || '')
+    );
+
+    if (
+      previous
+      && availableIds.includes(previous)
+    ) {
+      select.value = previous;
+    }
+  }
+
+  const count = $('#treasuryWithdrawalDestinationCount');
+
+  if (count) {
+    count.textContent = (
+      `${rows.length} approved destination${
+        rows.length === 1 ? '' : 's'
+      }`
+    );
+  }
+
+  renderTreasuryWithdrawalDestinationSummary();
+}
+
+
+function renderTreasuryWithdrawalDestinationSummary() {
+  const element = $(
+    '#treasuryWithdrawalDestinationSummary'
+  );
+
+  if (!element) return;
+
+  const item = treasurySelectedWithdrawalDestination();
+
+  if (!item) {
+    element.innerHTML = (
+      '<div class="treasury-empty">'
+      + 'Select an approved destination.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  const address = String(item.address || '');
+
+  element.innerHTML = (
+    '<div class="treasury-withdrawal-summary-field">'
+    + '<span>Economic owner</span>'
+    + `<strong>${escapeHtml(
+        item.owner_account_id || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-summary-field">'
+    + '<span>Asset</span>'
+    + `<strong>${escapeHtml(
+        item.currency || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-summary-field">'
+    + '<span>Network</span>'
+    + `<strong>${escapeHtml(
+        item.chain || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-summary-field">'
+    + '<span>Address</span>'
+    + `<strong title="${escapeHtml(address)}">${
+        escapeHtml(
+          shortTreasuryGateId(address)
+        )
+      }</strong>`
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-summary-field">'
+    + '<span>Memo / tag</span>'
+    + `<strong>${escapeHtml(
+        item.memo || 'None'
+      )}</strong>`
+    + '</div>'
+  );
+}
+
+
+function treasuryWithdrawalPreflightMatchesForm() {
+  const snapshot = state.treasuryWithdrawalPreflight;
+  const destination = treasurySelectedWithdrawalDestination();
+
+  if (!snapshot || !destination) {
+    return false;
+  }
+
+  const amount = String(
+    $('#treasuryWithdrawalAmount')?.value
+    || ''
+  ).trim();
+
+  return Boolean(
+    snapshot.destinationId
+      === String(destination.destination_id || '')
+    && snapshot.owner
+      === String(destination.owner_account_id || '')
+    && snapshot.currency
+      === String(destination.currency || '').toUpperCase()
+    && snapshot.amount === amount
+  );
+}
+
+
+function renderTreasuryWithdrawalPreflight() {
+  const element = $('#treasuryWithdrawalPreflight');
+  const createButton = $(
+    '#createTreasuryWithdrawalRequest'
+  );
+
+  if (!element) return;
+
+  const snapshot = state.treasuryWithdrawalPreflight;
+
+  if (!snapshot) {
+    element.innerHTML = (
+      '<div class="treasury-empty">'
+      + 'Run a preflight to review Gate limits, fee, '
+      + 'recipient estimate, ownership and JIT requirements.'
+      + '</div>'
+    );
+
+    if (createButton) {
+      createButton.disabled = true;
+    }
+
+    return;
+  }
+
+  const response = snapshot.response || {};
+  const preflight = response.preflight || {};
+  const fee = preflight.fee || {};
+  const funding = preflight.funding || {};
+  const eligibility = (
+    preflight.gate_address_eligibility || {}
+  );
+
+  const valid = Boolean(
+    preflight.preflight_valid
+    && treasuryWithdrawalPreflightMatchesForm()
+  );
+
+  const errors = (
+    preflight.errors || []
+  ).map(value => String(value));
+
+  element.innerHTML = (
+    `<div class="treasury-withdrawal-preflight-head ${
+      valid ? 'valid' : 'invalid'
+    }">`
+    + `<strong>${
+        valid
+          ? 'Preflight passed'
+          : 'Preflight blocked'
+      }</strong>`
+    + `<span>${
+        valid
+          ? 'No Gate write performed'
+          : escapeHtml(
+              errors.length
+                ? errors.join(', ')
+                : 'Safety checks did not pass'
+            )
+      }</span>`
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-preflight-grid">'
+
+    + '<div>'
+    + '<span>Requested</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          snapshot.amount,
+          snapshot.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Estimated fee</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          fee.estimated_fee,
+          snapshot.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Recipient estimate</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          fee.recipient_amount_estimate,
+          snapshot.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Main-held ownership</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          funding.owner_main_held,
+          snapshot.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Conservative funding</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          funding.conservative_funding_required,
+          snapshot.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>JIT required</span>'
+    + `<strong>${
+        funding.jit_required ? 'Yes' : 'No'
+      }</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Minimum JIT</span>'
+    + `<strong>${escapeHtml(
+        treasuryAmount(
+          funding.minimum_jit_transfer,
+          snapshot.currency
+        )
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Address policy</span>'
+    + `<strong>${escapeHtml(
+        eligibility.address_policy || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Eligible via</span>'
+    + `<strong>${escapeHtml(
+        eligibility.eligible_via || '—'
+      )}</strong>`
+    + '</div>'
+
+    + '</div>'
+  );
+
+  if (createButton) {
+    createButton.disabled = !valid;
+  }
+}
+
+
+function treasuryWithdrawalRequestStatusClass(value) {
+  const status = String(
+    value || ''
+  ).toLowerCase();
+
+  if (status === 'withdrawal_settled') {
+    return 'success';
+  }
+
+  if (
+    status === 'withdrawal_failed'
+    || status === 'blocked'
+    || status === 'cancelled'
+    || status === 'jit_failed'
+  ) {
+    return 'failed';
+  }
+
+  if (
+    status === 'withdrawal_submitting'
+    || status === 'withdrawal_submitted'
+    || status === 'withdrawal_reconciling'
+    || status === 'jit_executing'
+    || status === 'jit_reconciling'
+  ) {
+    return 'pending';
+  }
+
+  if (
+    status === 'withdrawal_done_unsettled'
+    || status === 'jit_ready'
+    || status === 'jit_prepared'
+    || status === 'confirmed_ready'
+    || status === 'reserved'
+  ) {
+    return 'warning';
+  }
+
+  return '';
+}
+
+
+function renderTreasuryWithdrawalRequests() {
+  const body = $('#treasuryWithdrawalRequestBody');
+
+  if (!body) return;
+
+  const rows = (
+    state.treasuryWithdrawalRequests || []
+  );
+
+  if (!rows.length) {
+    body.innerHTML = (
+      '<tr>'
+      + '<td colspan="8" class="empty-state">'
+      + 'No withdrawal requests recorded.'
+      + '</td>'
+      + '</tr>'
+    );
+
+  } else {
+    body.innerHTML = rows.map(item => {
+      const destinationId = String(
+        item.destination_id || ''
+      );
+
+      const requestId = String(
+        item.request_id || ''
+      );
+
+      const status = String(
+        item.status || 'unknown'
+      );
+
+      return (
+        '<tr>'
+        + `<td>${escapeHtml(
+            fmtDate(item.created_at)
+          )}</td>`
+
+        + `<td><strong>${escapeHtml(
+            item.owner_account_id || '—'
+          )}</strong></td>`
+
+        + `<td title="${escapeHtml(destinationId)}">${
+            escapeHtml(
+              shortTreasuryRequestId(destinationId)
+            )
+          }</td>`
+
+        + `<td>${escapeHtml(
+            treasuryAmount(
+              item.amount,
+              item.currency
+            )
+          )}</td>`
+
+        + `<td>${escapeHtml(
+            treasuryAmount(
+              item.estimated_fee,
+              item.currency
+            )
+          )}</td>`
+
+        + '<td>'
+        + `<span class="treasury-status ${
+            escapeHtml(
+              treasuryWithdrawalRequestStatusClass(
+                status
+              )
+            )
+          }">${escapeHtml(status)}</span>`
+        + '</td>'
+
+        + `<td>${escapeHtml(
+            item.gate_status || '—'
+          )}</td>`
+
+        + `<td title="${escapeHtml(requestId)}">${
+            escapeHtml(
+              shortTreasuryRequestId(requestId)
+            )
+          }</td>`
+
+        + '</tr>'
+      );
+    }).join('');
+  }
+
+  const count = $('#treasuryWithdrawalRequestCount');
+
+  if (count) {
+    count.textContent = (
+      `${rows.length} request${
+        rows.length === 1 ? '' : 's'
+      }`
+    );
+  }
+}
+
+
+function generateTreasuryWithdrawalRequestId() {
+  const timestamp = Date.now().toString(36);
+
+  const random = new Uint32Array(2);
+  crypto.getRandomValues(random);
+
+  const suffix = Array.from(random)
+    .map(value => (
+      value.toString(16).padStart(8, '0')
+    ))
+    .join('');
+
+  return `wd-ui-${timestamp}-${suffix}`;
+}
+
+
+async function runTreasuryWithdrawalPreflight(event) {
+  event?.preventDefault();
+
+  const destination = treasurySelectedWithdrawalDestination();
+  const amount = String(
+    $('#treasuryWithdrawalAmount')?.value
+    || ''
+  ).trim();
+
+  const button = $('#treasuryWithdrawalPreflightButton');
+  const errorBox = $('#treasuryWithdrawalFormError');
+
+  errorBox?.classList.add('hidden');
+
+  if (!destination || !amount) {
+    return;
+  }
+
+  const owner = String(
+    destination.owner_account_id || ''
+  );
+
+  const currency = String(
+    destination.currency || ''
+  ).toUpperCase();
+
+  const destinationId = String(
+    destination.destination_id || ''
+  );
+
+  if (
+    !owner
+    || !currency
+    || !destinationId
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Checking…';
+
+  state.treasuryWithdrawalPreflight = null;
+  renderTreasuryWithdrawalPreflight();
+
+  try {
+    const params = new URLSearchParams({
+      owner_account_id: owner,
+      destination_id: destinationId,
+      amount,
+    });
+
+    const response = await adminApi(
+      `/api/treasury/withdrawals/preflight/${
+        encodeURIComponent(currency)
+      }?${params.toString()}`
+    );
+
+    state.treasuryWithdrawalPreflight = {
+      owner,
+      currency,
+      destinationId,
+      amount,
+      requestId: generateTreasuryWithdrawalRequestId(),
+      response,
+    };
+
+    renderTreasuryWithdrawalPreflight();
+
+  } catch (error) {
+    const message = treasuryErrorMessage(error);
+
+    if (errorBox) {
+      errorBox.textContent = message;
+      errorBox.classList.remove('hidden');
+    }
+
+    showToast(message, true);
+
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Run safety preflight';
+  }
+}
+
+
+async function createTreasuryWithdrawalRequest() {
+  const snapshot = state.treasuryWithdrawalPreflight;
+  const button = $('#createTreasuryWithdrawalRequest');
+  const errorBox = $('#treasuryWithdrawalFormError');
+
+  if (
+    !snapshot
+    || !treasuryWithdrawalPreflightMatchesForm()
+    || !snapshot.response?.preflight?.preflight_valid
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Creating…';
+
+  errorBox?.classList.add('hidden');
+
+  const requestId = String(
+    snapshot.requestId || ''
+  );
+
+  if (!requestId) {
+    return;
+  }
+
+  try {
+    const result = await adminApi(
+      '/api/treasury/withdrawals/requests/simulate',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          request_id: requestId,
+          owner_account_id: snapshot.owner,
+          destination_id: snapshot.destinationId,
+          currency: snapshot.currency,
+          amount: snapshot.amount,
+        }),
+      },
+    );
+
+    const audit = result.audit || {};
+
+    if (
+      result.gate_write_performed
+      || audit.gate_write_performed
+      || audit.write_performed
+    ) {
+      throw new Error(
+        'Safety invariant failed: request creation '
+        + 'reported a Gate write.'
+      );
+    }
+
+    if (
+      result.audit_recorded !== true
+      || !audit.request_id
+      || String(audit.request_id) !== requestId
+    ) {
+      throw new Error(
+        'Withdrawal request was not recorded. '
+        + 'The safety preflight may have changed; '
+        + 'run a fresh preflight and try again.'
+      );
+    }
+
+    state.treasuryWithdrawalPreflight = null;
+    renderTreasuryWithdrawalPreflight();
+
+    showToast(
+      `Withdrawal request created: ${requestId}`
+    );
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+
+  } catch (error) {
+    const message = treasuryErrorMessage(error);
+
+    if (errorBox) {
+      errorBox.textContent = message;
+      errorBox.classList.remove('hidden');
+    }
+
+    showToast(message, true);
+
+  } finally {
+    button.textContent = 'Create withdrawal request';
+
+    renderTreasuryWithdrawalPreflight();
+  }
+}
+
+
+function invalidateTreasuryWithdrawalPreflight() {
+  clearTreasuryWithdrawalPreflight();
+  renderTreasuryWithdrawalDestinationSummary();
+}
+
+
 function renderTreasuryOwnershipBalances() {
   const body = $(
     '#treasuryOwnershipBalanceBody'
@@ -4719,11 +5408,17 @@ async function loadTreasuryOverview(
     state.treasuryLocks = [];
     state.treasuryOwnershipBalances = [];
     state.treasuryOwnershipLedger = [];
+    state.treasuryWithdrawalDestinations = [];
+    state.treasuryWithdrawalRequests = [];
+    state.treasuryWithdrawalPreflight = null;
 
     renderTreasuryTransfers();
     renderTreasuryLocks();
     renderTreasuryOwnershipBalances();
     renderTreasuryOwnershipLedger();
+    renderTreasuryWithdrawalDestinations();
+    renderTreasuryWithdrawalRequests();
+    renderTreasuryWithdrawalPreflight();
     return;
   }
 
@@ -4744,6 +5439,8 @@ async function loadTreasuryOverview(
       locks,
       ownershipBalances,
       ownershipLedger,
+      withdrawalDestinations,
+      withdrawalRequests,
     ] = await Promise.all([
       api('/api/health'),
       adminApi(
@@ -4757,6 +5454,14 @@ async function loadTreasuryOverview(
       ),
       adminApi(
         '/api/treasury/ownership/ledger?limit=200'
+      ),
+      adminApi(
+        '/api/treasury/withdrawals/'
+        + 'destinations?status=approved&limit=100'
+      ),
+      adminApi(
+        '/api/treasury/withdrawals/'
+        + 'requests?limit=50'
       ),
     ]);
 
@@ -4778,9 +5483,20 @@ async function loadTreasuryOverview(
       ownershipLedger.items || []
     );
 
+    state.treasuryWithdrawalDestinations = (
+      withdrawalDestinations.items || []
+    );
+
+    state.treasuryWithdrawalRequests = (
+      withdrawalRequests.items || []
+    );
+
     renderTreasurySafety();
     renderTreasuryOwnershipBalances();
     renderTreasuryOwnershipLedger();
+    renderTreasuryWithdrawalDestinations();
+    renderTreasuryWithdrawalRequests();
+    renderTreasuryWithdrawalPreflight();
     renderTreasuryLocks();
     renderTreasuryTransfers();
 
@@ -7451,6 +8167,26 @@ function bindEvents() {
   $('#refreshTreasury')?.addEventListener(
     'click',
     () => loadTreasuryOverview(),
+  );
+
+  $('#treasuryWithdrawalForm')?.addEventListener(
+    'submit',
+    runTreasuryWithdrawalPreflight,
+  );
+
+  $('#treasuryWithdrawalDestination')?.addEventListener(
+    'change',
+    invalidateTreasuryWithdrawalPreflight,
+  );
+
+  $('#treasuryWithdrawalAmount')?.addEventListener(
+    'input',
+    invalidateTreasuryWithdrawalPreflight,
+  );
+
+  $('#createTreasuryWithdrawalRequest')?.addEventListener(
+    'click',
+    createTreasuryWithdrawalRequest,
   );
 
   $('#treasuryActivityBody')?.addEventListener(

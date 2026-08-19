@@ -264,7 +264,7 @@
               <span>Withdrawals</span>
               <strong id="treasuryWithdrawalState">—</strong>
               <small>
-                No withdrawal controls are exposed
+                UI preparation is available; live execution remains separately armed
               </small>
             </section>
 
@@ -276,6 +276,148 @@
               </small>
             </section>
           </div>
+
+          <section class="treasury-withdrawal-section">
+            <div class="treasury-section-header">
+              <div>
+                <h3>Withdraw funds</h3>
+                <p>
+                  Prepare an account-scoped withdrawal using an
+                  approved destination. Preflight performs Gate
+                  reads only; creating the request does not submit
+                  a withdrawal to Gate.
+                </p>
+              </div>
+
+              <span
+                id="treasuryWithdrawalDestinationCount"
+                class="treasury-count"
+              >0 approved destinations</span>
+            </div>
+
+            <form
+              id="treasuryWithdrawalForm"
+              class="treasury-withdrawal-form"
+            >
+              <label>
+                Approved destination
+
+                <select
+                  id="treasuryWithdrawalDestination"
+                  required
+                >
+                  <option value="">
+                    No approved destinations loaded
+                  </option>
+                </select>
+              </label>
+
+              <div
+                id="treasuryWithdrawalDestinationSummary"
+                class="treasury-withdrawal-destination-summary"
+              >
+                Select an approved destination.
+              </div>
+
+              <label>
+                Amount
+
+                <input
+                  id="treasuryWithdrawalAmount"
+                  type="text"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  placeholder="0.00"
+                  required
+                >
+              </label>
+
+              <div class="treasury-withdrawal-actions">
+                <button
+                  type="submit"
+                  class="button secondary"
+                  id="treasuryWithdrawalPreflightButton"
+                >
+                  Run safety preflight
+                </button>
+
+                <button
+                  type="button"
+                  class="button"
+                  id="createTreasuryWithdrawalRequest"
+                  disabled
+                >
+                  Create withdrawal request
+                </button>
+              </div>
+            </form>
+
+            <div
+              id="treasuryWithdrawalFormError"
+              class="treasury-message error hidden"
+              role="alert"
+            ></div>
+
+            <div
+              id="treasuryWithdrawalPreflight"
+              class="treasury-withdrawal-preflight"
+            >
+              <div class="treasury-empty">
+                Run a preflight to review Gate limits, fee,
+                recipient estimate, ownership and JIT requirements.
+              </div>
+            </div>
+
+            <div class="treasury-withdrawal-safety-note">
+              The browser never supplies the withdrawal address,
+              network or memo to the request API. Those values come
+              from the approved destination snapshot maintained by
+              the server.
+            </div>
+          </section>
+
+          <section class="treasury-withdrawal-section">
+            <div class="treasury-section-header">
+              <div>
+                <h3>Withdrawal requests</h3>
+                <p>
+                  Persistent withdrawal lifecycle records.
+                  Live execution controls are intentionally not
+                  exposed in this UI stage.
+                </p>
+              </div>
+
+              <span
+                id="treasuryWithdrawalRequestCount"
+                class="treasury-count"
+              >0 requests</span>
+            </div>
+
+            <div class="table-scroll">
+              <table class="treasury-withdrawal-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Owner</th>
+                    <th>Destination</th>
+                    <th>Amount</th>
+                    <th>Fee</th>
+                    <th>Status</th>
+                    <th>Gate status</th>
+                    <th>Request</th>
+                  </tr>
+                </thead>
+
+                <tbody id="treasuryWithdrawalRequestBody">
+                  <tr>
+                    <td colspan="8" class="empty-state">
+                      No withdrawal requests loaded.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
 
           <section class="treasury-ownership-section">
             <div class="treasury-section-header">
@@ -423,8 +565,7 @@
           </section>
 
           <div class="treasury-footnote">
-            This dashboard does not arm Treasury, enable Gate
-            write permissions, or expose withdrawal submission.
+            This dashboard does not arm Treasury or change Gate API permissions. The current withdrawal UI performs read-only preflight and local audited request creation only. JIT transfer, external submission and ownership settlement remain unavailable from the browser.
           </div>
         </article>
       </section>
