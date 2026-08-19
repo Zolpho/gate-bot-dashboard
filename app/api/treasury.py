@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from decimal import Decimal
 from typing import Annotated
 
@@ -67,6 +68,7 @@ from ..treasury_rate_limit import (
 )
 from ..treasury_withdrawal import (
     bind_destination_to_preflight,
+    bind_gate_address_eligibility_to_preflight,
     build_withdrawal_capabilities,
     build_withdrawal_preflight,
 )
@@ -1528,6 +1530,12 @@ async def treasury_withdrawal_preflight(
         )
     )
 
+    now_timestamp = int(time.time())
+
+    withdrawal_history_window_seconds = (
+        30 * 24 * 60 * 60
+    )
+
     try:
         async with GateClient(
             settings,
@@ -1554,6 +1562,28 @@ async def treasury_withdrawal_preflight(
             withdrawal_status = (
                 await client.get_withdraw_status(
                     selected_currency
+                )
+            )
+
+            saved_addresses = (
+                await client.list_saved_addresses(
+                    currency=selected_currency,
+                    chain=selected_chain,
+                    limit=100,
+                    page=1,
+                )
+            )
+
+            prior_withdrawals = (
+                await client.list_withdrawals(
+                    currency=selected_currency,
+                    from_timestamp=(
+                        now_timestamp
+                        - withdrawal_history_window_seconds
+                    ),
+                    to_timestamp=now_timestamp,
+                    limit=100,
+                    offset=0,
                 )
             )
 
@@ -1592,6 +1622,25 @@ async def treasury_withdrawal_preflight(
         destination=destination,
         owner_account_id=owner,
         currency=selected_currency,
+    )
+
+    preflight = (
+        bind_gate_address_eligibility_to_preflight(
+            preflight=preflight,
+            saved_addresses=(
+                saved_addresses.data
+            ),
+            withdrawals=(
+                prior_withdrawals.data
+            ),
+            now_timestamp=now_timestamp,
+            minimum_age_seconds=(
+                24 * 60 * 60
+            ),
+            history_window_seconds=(
+                withdrawal_history_window_seconds
+            ),
+        )
     )
 
     return {

@@ -947,6 +947,366 @@ def build_withdrawal_preflight(
     }
 
 
+def _withdrawal_address_key(
+    value: Any,
+) -> tuple[str, str]:
+    text = str(value or "").strip()
+
+    # EVM addresses are hexadecimal and case-insensitive.
+    # Preserve exact case semantics for non-EVM address
+    # formats such as Base58.
+    if (
+        len(text) == 42
+        and text.startswith(("0x", "0X"))
+    ):
+        payload = text[2:]
+
+        if all(
+            char in "0123456789abcdefABCDEF"
+            for char in payload
+        ):
+            return ("evm", text.lower())
+
+    return ("exact", text)
+
+
+def bind_gate_address_eligibility_to_preflight(
+    *,
+    preflight: dict[str, Any],
+    saved_addresses: Any,
+    withdrawals: Any,
+    now_timestamp: int,
+    minimum_age_seconds: int = 86400,
+    history_window_seconds: int = 2592000,
+) -> dict[str, Any]:
+    """
+    Bind read-only Gate address-book and prior-use
+    evidence to an existing destination-bound preflight.
+
+    No persistence and no Gate write is performed.
+    """
+    destination = (
+        preflight.get("destination")
+        if isinstance(
+            preflight.get("destination"),
+            dict,
+        )
+        else {}
+    )
+
+    currency = str(
+        destination.get("currency") or ""
+    ).strip().upper()
+
+    chain = str(
+        destination.get("chain") or ""
+    ).strip().upper()
+
+    address = str(
+        destination.get("address") or ""
+    ).strip()
+
+    memo = str(
+        destination.get("memo") or ""
+    ).strip()
+
+    address_key = _withdrawal_address_key(
+        address
+    )
+
+    saved_rows = (
+        saved_addresses
+        if isinstance(saved_addresses, list)
+        else []
+    )
+
+    saved_matches = []
+
+    for row in saved_rows:
+        if not isinstance(row, dict):
+            continue
+
+        row_currency = str(
+            row.get("currency") or ""
+        ).strip().upper()
+
+        row_chain = str(
+            row.get("chain") or ""
+        ).strip().upper()
+
+        row_address_key = (
+            _withdrawal_address_key(
+                row.get("address")
+            )
+        )
+
+        row_tag = str(
+            row.get("tag") or ""
+        ).strip()
+
+        if (
+            row_currency == currency
+            and _chain_key(row_chain)
+            == _chain_key(chain)
+            and row_address_key == address_key
+            and row_tag == memo
+        ):
+            saved_matches.append(row)
+
+    saved_address_match = bool(
+        saved_matches
+    )
+
+    saved_verified = any(
+        str(
+            row.get("verified") or ""
+        ).strip() == "1"
+        for row in saved_matches
+    )
+
+    withdrawal_rows = (
+        withdrawals
+        if isinstance(withdrawals, list)
+        else []
+    )
+
+    matching_done = []
+
+    for row in withdrawal_rows:
+        if not isinstance(row, dict):
+            continue
+
+        row_currency = str(
+            row.get("currency") or ""
+        ).strip().upper()
+
+        row_chain = str(
+            row.get("chain") or ""
+        ).strip().upper()
+
+        row_address_key = (
+            _withdrawal_address_key(
+                row.get("address")
+            )
+        )
+
+        row_memo = str(
+            row.get("memo") or ""
+        ).strip()
+
+        status = str(
+            row.get("status") or ""
+        ).strip().upper()
+
+        if (
+            row_currency != currency
+            or _chain_key(row_chain)
+            != _chain_key(chain)
+            or row_address_key != address_key
+            or row_memo != memo
+            or status != "DONE"
+        ):
+            continue
+
+        try:
+            completed_at = int(
+                str(
+                    row.get("timestamp2")
+                    or "0"
+                )
+            )
+        except (TypeError, ValueError):
+            completed_at = 0
+
+        try:
+            block_number = int(
+                str(
+                    row.get("block_number")
+                    or "0"
+                )
+            )
+        except (TypeError, ValueError):
+            block_number = 0
+
+        if (
+            completed_at <= 0
+            or block_number <= 0
+        ):
+            continue
+
+        matching_done.append(
+            (
+                completed_at,
+                block_number,
+                row,
+            )
+        )
+
+    matching_done.sort(
+        key=lambda item: item[0],
+        reverse=True,
+    )
+
+    prior_row = (
+        matching_done[0][2]
+        if matching_done
+        else None
+    )
+
+    prior_completed_at = (
+        matching_done[0][0]
+        if matching_done
+        else 0
+    )
+
+    prior_block_number = (
+        matching_done[0][1]
+        if matching_done
+        else 0
+    )
+
+    prior_age_seconds = (
+        max(
+            0,
+            int(now_timestamp)
+            - prior_completed_at,
+        )
+        if prior_completed_at
+        else None
+    )
+
+    prior_use_qualified = bool(
+        prior_row is not None
+        and prior_age_seconds is not None
+        and prior_age_seconds
+        >= int(minimum_age_seconds)
+    )
+
+    gate_address_eligible = bool(
+        saved_address_match
+        and (
+            saved_verified
+            or prior_use_qualified
+        )
+    )
+
+    eligibility_checks = {
+        "gate_saved_address_match": (
+            saved_address_match
+        ),
+        "gate_address_eligible": (
+            gate_address_eligible
+        ),
+    }
+
+    checks = {
+        **dict(
+            preflight.get("checks")
+            or {}
+        ),
+        **eligibility_checks,
+    }
+
+    errors = list(
+        preflight.get("errors")
+        or []
+    )
+
+    for name, passed in (
+        eligibility_checks.items()
+    ):
+        if (
+            not passed
+            and name not in errors
+        ):
+            errors.append(name)
+
+    base_valid = bool(
+        preflight.get("preflight_valid")
+    )
+
+    preflight_valid = bool(
+        base_valid
+        and all(
+            eligibility_checks.values()
+        )
+    )
+
+    eligible_via = ""
+
+    if gate_address_eligible:
+        eligible_via = (
+            "verified_address"
+            if saved_verified
+            else "prior_completed_withdrawal"
+        )
+
+    evidence = {
+        "saved_address_matches": len(
+            saved_matches
+        ),
+        "saved_address_verified": (
+            saved_verified
+        ),
+        "eligible": (
+            gate_address_eligible
+        ),
+        "eligible_via": eligible_via,
+        "minimum_age_seconds": int(
+            minimum_age_seconds
+        ),
+        "history_window_seconds": int(
+            history_window_seconds
+        ),
+        "prior_withdrawal_id": (
+            prior_row.get("id")
+            if prior_row
+            else None
+        ),
+        "prior_withdrawal_timestamp2": (
+            str(prior_completed_at)
+            if prior_completed_at
+            else None
+        ),
+        "prior_withdrawal_age_seconds": (
+            prior_age_seconds
+        ),
+        "prior_withdrawal_block_number": (
+            str(prior_block_number)
+            if prior_block_number
+            else None
+        ),
+        "prior_withdrawal_txid": (
+            prior_row.get("txid")
+            if prior_row
+            else None
+        ),
+        "gate_write_performed": False,
+    }
+
+    return {
+        **preflight,
+        "status": (
+            "ready"
+            if preflight_valid
+            else "invalid"
+        ),
+        "preflight_valid": (
+            preflight_valid
+        ),
+        "executable": False,
+        "execution_block_reason": (
+            "withdrawal_execution_not_enabled"
+        ),
+        "gate_write_performed": False,
+        "checks": checks,
+        "errors": errors,
+        "gate_address_eligibility": (
+            evidence
+        ),
+    }
+
+
 def bind_destination_to_preflight(
     *,
     preflight: dict[str, Any],

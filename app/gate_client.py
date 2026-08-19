@@ -420,6 +420,36 @@ class GateClient:
             json_body=payload,
         )
 
+    async def list_saved_addresses(
+        self,
+        *,
+        currency: str | None = None,
+        chain: str | None = None,
+        verified: str | None = None,
+        limit: int = 100,
+        page: int = 1,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/wallet/saved_address",
+            params=[
+                (
+                    "currency",
+                    currency.upper()
+                    if currency
+                    else None,
+                ),
+                ("chain", chain),
+                ("verified", verified),
+                (
+                    "limit",
+                    max(1, min(limit, 100)),
+                ),
+                ("page", max(1, page)),
+            ],
+        )
+
+
     async def list_withdrawals(
         self,
         *,

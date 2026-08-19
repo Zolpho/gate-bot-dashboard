@@ -9,6 +9,7 @@ from app.deposits import (
 from app.security import DashboardUser
 from app.treasury_withdrawal import (
     bind_destination_to_preflight,
+    bind_gate_address_eligibility_to_preflight,
     build_withdrawal_capabilities,
     build_withdrawal_preflight,
     normalize_withdraw_status,
@@ -771,3 +772,279 @@ def test_destination_binding_requires_memo_for_tag_network():
         ]
         is False
     )
+
+
+def _gate_eligibility_base_preflight():
+    return {
+        "status": "ready",
+        "preflight_valid": True,
+        "executable": False,
+        "gate_write_performed": False,
+        "checks": {
+            "destination_approved": True,
+        },
+        "errors": [],
+        "destination": {
+            "destination_id": "wd_test_eth",
+            "owner_account_id": "arnold",
+            "currency": "USDT",
+            "chain": "ETH",
+            "address": (
+                "0x4De063Bf69f6efb12bCbBb9B70C0E1BA96FD680a"
+            ),
+            "memo": "",
+            "status": "approved",
+        },
+    }
+
+
+def _gate_saved_address(
+    *,
+    verified="0",
+    chain="ETH",
+    address=None,
+    tag="",
+):
+    return {
+        "currency": "USDT",
+        "chain": chain,
+        "address": (
+            address
+            or "0x4De063Bf69f6efb12bCbBb9B70C0E1BA96FD680a"
+        ),
+        "name": "EQTY Treasury ERC20",
+        "tag": tag,
+        "verified": verified,
+    }
+
+
+def _gate_done_withdrawal(
+    *,
+    timestamp2,
+    chain="ETH",
+    address=None,
+    memo="",
+    block_number="25769009",
+):
+    return {
+        "id": "w100395584",
+        "currency": "USDT",
+        "chain": chain,
+        "address": (
+            address
+            or "0x4De063Bf69f6efb12bCbBb9B70C0E1BA96FD680a"
+        ),
+        "memo": memo,
+        "status": "DONE",
+        "timestamp2": str(timestamp2),
+        "block_number": str(block_number),
+        "txid": "0xtest",
+    }
+
+
+def test_gate_address_normal_saved_and_prior_use_is_eligible():
+    now = 2_000_000
+
+    result = (
+        bind_gate_address_eligibility_to_preflight(
+            preflight=(
+                _gate_eligibility_base_preflight()
+            ),
+            saved_addresses=[
+                _gate_saved_address(
+                    verified="0"
+                )
+            ],
+            withdrawals=[
+                _gate_done_withdrawal(
+                    timestamp2=(
+                        now - 90000
+                    )
+                )
+            ],
+            now_timestamp=now,
+        )
+    )
+
+    assert result["preflight_valid"] is True
+
+    assert (
+        result["checks"][
+            "gate_saved_address_match"
+        ]
+        is True
+    )
+
+    assert (
+        result["checks"][
+            "gate_address_eligible"
+        ]
+        is True
+    )
+
+    evidence = result[
+        "gate_address_eligibility"
+    ]
+
+    assert (
+        evidence["eligible_via"]
+        == "prior_completed_withdrawal"
+    )
+
+    assert (
+        evidence["prior_withdrawal_id"]
+        == "w100395584"
+    )
+
+
+def test_gate_verified_saved_address_needs_no_history():
+    result = (
+        bind_gate_address_eligibility_to_preflight(
+            preflight=(
+                _gate_eligibility_base_preflight()
+            ),
+            saved_addresses=[
+                _gate_saved_address(
+                    verified="1"
+                )
+            ],
+            withdrawals=[],
+            now_timestamp=2_000_000,
+        )
+    )
+
+    assert result["preflight_valid"] is True
+
+    assert (
+        result[
+            "gate_address_eligibility"
+        ]["eligible_via"]
+        == "verified_address"
+    )
+
+
+def test_gate_saved_address_absent_fails_closed():
+    now = 2_000_000
+
+    result = (
+        bind_gate_address_eligibility_to_preflight(
+            preflight=(
+                _gate_eligibility_base_preflight()
+            ),
+            saved_addresses=[],
+            withdrawals=[
+                _gate_done_withdrawal(
+                    timestamp2=(
+                        now - 90000
+                    )
+                )
+            ],
+            now_timestamp=now,
+        )
+    )
+
+    assert result["preflight_valid"] is False
+
+    assert (
+        "gate_saved_address_match"
+        in result["errors"]
+    )
+
+    assert (
+        "gate_address_eligible"
+        in result["errors"]
+    )
+
+
+def test_gate_prior_use_younger_than_24h_fails():
+    now = 2_000_000
+
+    result = (
+        bind_gate_address_eligibility_to_preflight(
+            preflight=(
+                _gate_eligibility_base_preflight()
+            ),
+            saved_addresses=[
+                _gate_saved_address(
+                    verified="0"
+                )
+            ],
+            withdrawals=[
+                _gate_done_withdrawal(
+                    timestamp2=(
+                        now - 86399
+                    )
+                )
+            ],
+            now_timestamp=now,
+        )
+    )
+
+    assert result["preflight_valid"] is False
+
+    assert (
+        result["checks"][
+            "gate_saved_address_match"
+        ]
+        is True
+    )
+
+    assert (
+        result["checks"][
+            "gate_address_eligible"
+        ]
+        is False
+    )
+
+
+def test_gate_saved_address_wrong_chain_fails():
+    now = 2_000_000
+
+    result = (
+        bind_gate_address_eligibility_to_preflight(
+            preflight=(
+                _gate_eligibility_base_preflight()
+            ),
+            saved_addresses=[
+                _gate_saved_address(
+                    chain="ARBEVM",
+                    verified="1",
+                )
+            ],
+            withdrawals=[],
+            now_timestamp=now,
+        )
+    )
+
+    assert result["preflight_valid"] is False
+
+    assert (
+        result["checks"][
+            "gate_saved_address_match"
+        ]
+        is False
+    )
+
+
+def test_gate_evm_address_match_is_case_insensitive():
+    now = 2_000_000
+
+    result = (
+        bind_gate_address_eligibility_to_preflight(
+            preflight=(
+                _gate_eligibility_base_preflight()
+            ),
+            saved_addresses=[
+                _gate_saved_address(
+                    verified="1",
+                    address=(
+                        "0x4de063bf69f6efb12bcbbb9b70c0e1ba96fd680a"
+                    ),
+                )
+            ],
+            withdrawals=[],
+            now_timestamp=now,
+        )
+    )
+
+    assert result["preflight_valid"] is True
