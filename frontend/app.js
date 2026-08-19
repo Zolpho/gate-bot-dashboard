@@ -5546,7 +5546,10 @@ function renderTreasuryWithdrawalSettlementPreview(
     + '<span>Gate fee evidence</span>'
     + `<strong>${escapeHtml(
         treasuryAmount(
-          preview.estimated_fee,
+          (
+            preview.gate_fee
+            ?? preview.estimated_fee
+          ),
           preview.currency
         )
       )}</strong>`

@@ -2185,6 +2185,162 @@ def treasury_withdrawal_request_detail(
         "withdrawal_done_unsettled",
         "withdrawal_settled",
     }:
+        settlement_reconciliations = (
+            list_withdrawal_reconciliations(
+                request_id
+            )
+        )
+
+        definitive_gate_record = None
+
+        for reconciliation in (
+            settlement_reconciliations
+        ):
+            if (
+                reconciliation.get("outcome")
+                != "success"
+                or reconciliation.get("confidence")
+                != "definitive"
+                or str(
+                    reconciliation.get(
+                        "gate_status"
+                    )
+                    or ""
+                ).strip().upper()
+                != "DONE"
+            ):
+                continue
+
+            details = (
+                reconciliation.get("details")
+                or {}
+            )
+
+            if not isinstance(details, dict):
+                continue
+
+            gate_record = details.get(
+                "gate_record"
+            )
+
+            if not isinstance(
+                gate_record,
+                dict,
+            ):
+                continue
+
+            if (
+                str(
+                    gate_record.get("status")
+                    or ""
+                ).strip().upper()
+                != "DONE"
+            ):
+                continue
+
+            try:
+                block_number = int(
+                    str(
+                        gate_record.get(
+                            "block_number"
+                        )
+                        or "0"
+                    ).strip()
+                )
+            except (TypeError, ValueError):
+                block_number = 0
+
+            if block_number <= 0:
+                continue
+
+            if (
+                str(
+                    gate_record.get(
+                        "withdraw_order_id"
+                    )
+                    or ""
+                ).strip()
+                != str(
+                    row.get(
+                        "gate_withdraw_order_id"
+                    )
+                    or ""
+                ).strip()
+            ):
+                continue
+
+            if (
+                str(
+                    gate_record.get("id")
+                    or gate_record.get(
+                        "withdraw_id"
+                    )
+                    or ""
+                ).strip()
+                != str(
+                    row.get(
+                        "gate_withdrawal_id"
+                    )
+                    or ""
+                ).strip()
+            ):
+                continue
+
+            if (
+                str(
+                    gate_record.get("txid")
+                    or ""
+                ).strip()
+                != str(
+                    row.get("gate_txid")
+                    or ""
+                ).strip()
+            ):
+                continue
+
+            if (
+                str(
+                    gate_record.get(
+                        "currency"
+                    )
+                    or ""
+                ).strip().upper()
+                != str(
+                    row.get("currency")
+                    or ""
+                ).strip().upper()
+            ):
+                continue
+
+            if (
+                str(
+                    gate_record.get("chain")
+                    or ""
+                ).strip()
+                != str(
+                    row.get("chain")
+                    or ""
+                ).strip()
+            ):
+                continue
+
+            if (
+                str(
+                    gate_record.get("amount")
+                    or ""
+                ).strip()
+                != str(
+                    row.get("amount")
+                    or ""
+                ).strip()
+            ):
+                continue
+
+            definitive_gate_record = (
+                gate_record
+            )
+            break
+
         try:
             settlement_confirmation = (
                 withdrawal_settlement_confirmation_text(
@@ -2203,44 +2359,108 @@ def treasury_withdrawal_request_detail(
             }
 
         else:
-            settlement_preview = {
-                "available": True,
-                "required_confirmation": (
-                    settlement_confirmation
-                ),
-                "withdrawals_live_armed": bool(
+            if (
+                row["status"]
+                == "withdrawal_done_unsettled"
+                and definitive_gate_record
+                is None
+            ):
+                settlement_preview = {
+                    "available": False,
+                    "reason": (
+                        "definitive_reconciliation_"
+                        "evidence_missing"
+                    ),
+                    "error": (
+                        "No persisted definitive Gate "
+                        "reconciliation record with a "
+                        "positive block number matches "
+                        "this withdrawal request."
+                    ),
+                    "gate_write_performed": False,
+                }
+
+            else:
+                gate_record = (
+                    definitive_gate_record
+                    or {}
+                )
+
+                withdrawals_live_armed = bool(
                     settings
                     .treasury_withdrawals_live_armed
-                ),
-                "settlement_allowed": not bool(
-                    settings
-                    .treasury_withdrawals_live_armed
-                ),
-                "owner_account_id": (
-                    row.get("owner_account_id")
-                ),
-                "currency": row.get("currency"),
-                "amount": row.get("amount"),
-                "estimated_fee": (
-                    row.get("estimated_fee")
-                ),
-                "gate_status": (
-                    row.get("gate_status")
-                ),
-                "gate_withdrawal_id": (
-                    row.get("gate_withdrawal_id")
-                ),
-                "gate_withdraw_order_id": (
-                    row.get("gate_withdraw_order_id")
-                ),
-                "gate_txid": (
-                    row.get("gate_txid")
-                ),
-                "gate_block_number": (
-                    row.get("gate_block_number")
-                ),
-                "gate_write_performed": False,
-            }
+                )
+
+                settlement_preview = {
+                    "available": True,
+                    "required_confirmation": (
+                        settlement_confirmation
+                    ),
+                    "withdrawals_live_armed": (
+                        withdrawals_live_armed
+                    ),
+                    "settlement_allowed": (
+                        not withdrawals_live_armed
+                    ),
+                    "owner_account_id": (
+                        row.get(
+                            "owner_account_id"
+                        )
+                    ),
+                    "currency": (
+                        gate_record.get(
+                            "currency"
+                        )
+                        or row.get("currency")
+                    ),
+                    "amount": (
+                        gate_record.get("amount")
+                        or row.get("amount")
+                    ),
+                    "estimated_fee": (
+                        row.get("estimated_fee")
+                    ),
+                    "gate_fee": (
+                        gate_record.get("fee")
+                    ),
+                    "gate_status": (
+                        gate_record.get("status")
+                        or row.get(
+                            "gate_status"
+                        )
+                    ),
+                    "gate_withdrawal_id": (
+                        gate_record.get("id")
+                        or gate_record.get(
+                            "withdraw_id"
+                        )
+                        or row.get(
+                            "gate_withdrawal_id"
+                        )
+                    ),
+                    "gate_withdraw_order_id": (
+                        gate_record.get(
+                            "withdraw_order_id"
+                        )
+                        or row.get(
+                            "gate_withdraw_order_id"
+                        )
+                    ),
+                    "gate_txid": (
+                        gate_record.get("txid")
+                        or row.get("gate_txid")
+                    ),
+                    "gate_block_number": (
+                        gate_record.get(
+                            "block_number"
+                        )
+                    ),
+                    "definitive_reconciliation_evidence": (
+                        definitive_gate_record
+                        is not None
+                    ),
+                    "gate_write_performed": False,
+                }
 
     return {
         "settlement_preview": settlement_preview,
