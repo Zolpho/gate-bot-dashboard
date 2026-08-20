@@ -273,6 +273,14 @@ def test_treasury_t2c3b_allows_only_expected_mutation_routes() -> None:
 
     transfer_mutations = {
         (
+            "/api/treasury/user-transfers/preview",
+            frozenset({"POST"}),
+        ),
+        (
+            "/api/treasury/user-transfers/execute",
+            frozenset({"POST"}),
+        ),
+        (
             "/api/treasury/transfers/simulate",
             frozenset({"POST"}),
         ),

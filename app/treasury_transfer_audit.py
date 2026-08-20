@@ -5,7 +5,7 @@ import json
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 
 from .db import session_scope, utcnow
@@ -13,10 +13,10 @@ from .models import (
     TreasuryTransferReconciliation,
     TreasuryTransferRequest,
 )
-from .treasury_transfer import gate_client_order_id
 from .treasury_ownership import (
     ensure_internal_transfer_credit_for_row,
 )
+from .treasury_transfer import gate_client_order_id
 
 
 class TreasuryTransferIdempotencyConflict(RuntimeError):
@@ -229,10 +229,18 @@ def list_transfer_requests(
         )
 
         if account_ids is not None:
+            scoped_account_ids = sorted(account_ids)
+
             statement = statement.where(
-                TreasuryTransferRequest
-                .source_account_id.in_(
-                    sorted(account_ids)
+                or_(
+                    TreasuryTransferRequest
+                    .source_account_id.in_(
+                        scoped_account_ids
+                    ),
+                    TreasuryTransferRequest
+                    .destination_account_id.in_(
+                        scoped_account_ids
+                    ),
                 )
             )
 
@@ -337,6 +345,100 @@ def reserve_live_transfer(
         with session_scope() as db:
             existing = db.scalar(
                 select(TreasuryTransferRequest).where(
+                    TreasuryTransferRequest.request_id
+                    == request_id
+                )
+            )
+
+            if existing is None:
+                raise
+
+            _verify_match(
+                existing,
+                source_account_id=(
+                    source_account_id
+                ),
+                username=username,
+                fingerprint=fingerprint,
+            )
+
+            return _snapshot(existing), False
+
+
+def reserve_user_transfer_attempt(
+    *,
+    request_id: str,
+    source_account_id: str,
+    destination_account_id: str,
+    username: str,
+    currency: str,
+    amount: Decimal,
+    payload: Any,
+) -> tuple[dict[str, Any], bool]:
+    """
+    Persist one dashboard ownership-transfer intent.
+
+    This record never represents a Gate write. The actual
+    financial mutation is the paired ownership-ledger
+    debit/credit created by treasury_user_transfer.
+    """
+    fingerprint = request_fingerprint(payload)
+
+    try:
+        with session_scope() as db:
+            existing = db.scalar(
+                select(
+                    TreasuryTransferRequest
+                ).where(
+                    TreasuryTransferRequest.request_id
+                    == request_id
+                )
+            )
+
+            if existing is not None:
+                _verify_match(
+                    existing,
+                    source_account_id=(
+                        source_account_id
+                    ),
+                    username=username,
+                    fingerprint=fingerprint,
+                )
+
+                return _snapshot(existing), False
+
+            row = TreasuryTransferRequest(
+                request_id=request_id,
+                source_account_id=(
+                    source_account_id
+                ),
+                destination_account_id=(
+                    destination_account_id
+                ),
+                username=username,
+                direction="ownership",
+                currency=currency,
+                amount=amount,
+                status="reserved",
+                request_hash=fingerprint,
+                request_json=canonical_json(payload),
+                response_json="{}",
+                client_order_id="",
+                simulation=False,
+                write_performed=False,
+            )
+
+            db.add(row)
+            db.flush()
+
+            return _snapshot(row), True
+
+    except IntegrityError:
+        with session_scope() as db:
+            existing = db.scalar(
+                select(
+                    TreasuryTransferRequest
+                ).where(
                     TreasuryTransferRequest.request_id
                     == request_id
                 )

@@ -13,6 +13,8 @@ from ..config import get_settings
 from ..gate_client import GateAPIError, GateClient
 from ..security import (
     DashboardUser,
+    UserConfigError,
+    load_dashboard_users,
     require_account_access,
     require_super_admin,
     require_user,
@@ -24,9 +26,13 @@ from ..treasury import (
 )
 from ..treasury_ownership import (
     custody_liability_amount,
-    ownership_amount,
     list_ownership_entries,
+    ownership_amount,
     ownership_balances,
+)
+from ..treasury_rate_limit import (
+    TreasuryRateLimitExceeded,
+    enforce_treasury_rate_limit,
 )
 from ..treasury_transfer import (
     TreasuryTransferValidationError,
@@ -44,42 +50,34 @@ from ..treasury_transfer_audit import (
     list_transfer_requests,
     mark_transfer_request,
     record_simulation,
-    record_transfer_reconciliation,
-    reserve_live_transfer,
+    reserve_user_transfer_attempt,
 )
-from ..treasury_transfer_live_policy import (
-    evaluate_live_transfer_policy,
-)
-from ..treasury_transfer_locks import (
-    TreasuryTransferLocked,
-    acquire_transfer_lock,
-    get_transfer_lock_for_request,
-    list_transfer_locks,
-    release_transfer_lock,
+from ..treasury_transfer_execution import (
+    execute_reserved_live_transfer,
+    existing_live_transfer_result,
+    reconcile_live_transfer,
 )
 from ..treasury_transfer_lock_resolution import (
     TreasuryLockResolutionError,
     list_lock_resolutions,
     manual_release_transfer_lock,
 )
-from ..treasury_rate_limit import (
-    TreasuryRateLimitExceeded,
-    enforce_treasury_rate_limit,
+from ..treasury_transfer_locks import (
+    get_transfer_lock_for_request,
+    list_transfer_locks,
+)
+from ..treasury_user_transfer import (
+    TreasuryUserTransferConflict,
+    TreasuryUserTransferError,
+    execute_user_transfer,
+    preview_user_transfer,
+    user_transfer_confirmation_text,
 )
 from ..treasury_withdrawal import (
     bind_destination_to_preflight,
     bind_gate_address_eligibility_to_preflight,
     build_withdrawal_capabilities,
     build_withdrawal_preflight,
-)
-from ..treasury_withdrawal_destinations import (
-    TreasuryWithdrawalDestinationError,
-    approve_destination,
-    create_candidate_destination,
-    get_destination,
-    list_destination_events,
-    list_destinations,
-    revoke_destination,
 )
 from ..treasury_withdrawal_audit import (
     TreasuryWithdrawalIdempotencyConflict,
@@ -92,12 +90,18 @@ from ..treasury_withdrawal_audit import (
     record_withdrawal_simulation,
     transition_withdrawal_request,
 )
-from ..treasury_withdrawal_locks import (
-    TreasuryWithdrawalLocked,
-    acquire_withdrawal_lock,
-    get_withdrawal_lock_for_request,
-    list_withdrawal_locks,
-    release_withdrawal_lock,
+from ..treasury_withdrawal_destinations import (
+    TreasuryWithdrawalDestinationError,
+    approve_destination,
+    create_candidate_destination,
+    get_destination,
+    list_destination_events,
+    list_destinations,
+    revoke_destination,
+)
+from ..treasury_withdrawal_execution import (
+    TreasuryWithdrawalExecutionError,
+    withdrawal_execution_confirmation_text,
 )
 from ..treasury_withdrawal_jit import (
     TreasuryWithdrawalJitPlanError,
@@ -107,21 +111,12 @@ from ..treasury_withdrawal_jit import (
     withdrawal_jit_preparation_confirmation_text,
     withdrawal_jit_transfer_request_id,
 )
-from ..treasury_withdrawal_workflow import (
-    destination_snapshot_mismatches,
-    withdrawal_cancel_confirmation_text,
-    withdrawal_confirmation_text,
-    withdrawal_hold_on_main_confirmation_text,
-    withdrawal_reservation_confirmation_text,
-)
-from ..treasury_withdrawal_execution import (
-    TreasuryWithdrawalExecutionError,
-    withdrawal_execution_confirmation_text,
-)
-from ..treasury_withdrawal_submission import (
-    TreasuryWithdrawalSubmissionError,
-    reconcile_withdrawal as reconcile_withdrawal_service,
-    submit_withdrawal_once,
+from ..treasury_withdrawal_locks import (
+    TreasuryWithdrawalLocked,
+    acquire_withdrawal_lock,
+    get_withdrawal_lock_for_request,
+    list_withdrawal_locks,
+    release_withdrawal_lock,
 )
 from ..treasury_withdrawal_orphan_resolution import (
     TreasuryWithdrawalOrphanResolutionError,
@@ -133,16 +128,20 @@ from ..treasury_withdrawal_settlement import (
     settle_withdrawal_from_gate,
     withdrawal_settlement_confirmation_text,
 )
-from ..treasury_transfer_reconcile import (
-    interpret_transfer_order_status,
-    interpret_transfer_submission_error,
+from ..treasury_withdrawal_submission import (
+    TreasuryWithdrawalSubmissionError,
+    submit_withdrawal_once,
 )
-from ..treasury_transfer_execution import (
-    execute_reserved_live_transfer,
-    existing_live_transfer_result,
-    reconcile_live_transfer,
+from ..treasury_withdrawal_submission import (
+    reconcile_withdrawal as reconcile_withdrawal_service,
 )
-
+from ..treasury_withdrawal_workflow import (
+    destination_snapshot_mismatches,
+    withdrawal_cancel_confirmation_text,
+    withdrawal_confirmation_text,
+    withdrawal_hold_on_main_confirmation_text,
+    withdrawal_reservation_confirmation_text,
+)
 
 router = APIRouter(
     prefix="/api/treasury",
@@ -252,6 +251,109 @@ class TreasuryTransferExecutionRequest(
         max_length=255,
     )
 
+
+
+class TreasuryUserTransferPreviewRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    source_account_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$",
+    )
+
+    destination_account_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$",
+    )
+
+    currency: str = Field(
+        min_length=1,
+        max_length=20,
+        pattern=r"^[A-Za-z0-9_]+$",
+    )
+
+    amount: Decimal = Field(
+        gt=0,
+    )
+
+
+class TreasuryUserTransferExecutionRequest(
+    TreasuryUserTransferPreviewRequest
+):
+    request_id: str = Field(
+        min_length=8,
+        max_length=128,
+        pattern=(
+            r"^[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{7,127}$"
+        ),
+    )
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=255,
+    )
+
+
+def _registered_user_transfer_accounts(
+) -> dict[str, list[str]]:
+    try:
+        users = load_dashboard_users(settings)
+    except UserConfigError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    accounts: dict[str, list[str]] = {}
+
+    for registered_user in users:
+        if not registered_user.enabled:
+            continue
+
+        for account_id in registered_user.account_ids:
+            normalized = account_id.strip().lower()
+
+            if not normalized:
+                continue
+
+            usernames = accounts.setdefault(
+                normalized,
+                [],
+            )
+
+            if registered_user.username not in usernames:
+                usernames.append(
+                    registered_user.username
+                )
+
+    for usernames in accounts.values():
+        usernames.sort()
+
+    return accounts
+
+
+def _require_registered_user_transfer_account(
+    account_id: str,
+    participants: dict[str, list[str]],
+) -> str:
+    normalized = account_id.strip().lower()
+
+    if normalized not in participants:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "User transfer account is not assigned "
+                "to an enabled registered dashboard user: "
+                f"{normalized}"
+            ),
+        )
+
+    return normalized
 
 
 class TreasuryWithdrawalDestinationCandidateRequest(
@@ -425,6 +527,439 @@ class TreasuryWithdrawalAbandonRequest(
         min_length=20,
         max_length=1000,
     )
+
+
+@router.get("/user-transfers/participants")
+def treasury_user_transfer_participants(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    participants = (
+        _registered_user_transfer_accounts()
+    )
+
+    items = []
+
+    for account_id in sorted(participants):
+        items.append(
+            {
+                "account_id": account_id,
+                "usernames": participants[account_id],
+                "can_source": user.can_manage(
+                    account_id
+                ),
+                "can_receive": True,
+            }
+        )
+
+    return {
+        "phase": "USER_OWNERSHIP_TRANSFER",
+        "user_transfers_enabled": bool(
+            settings.treasury_user_transfers_enabled
+        ),
+        "gate_write_performed": False,
+        "items": items,
+    }
+
+
+@router.post("/user-transfers/preview")
+def preview_treasury_user_transfer(
+    request: TreasuryUserTransferPreviewRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    participants = (
+        _registered_user_transfer_accounts()
+    )
+
+    source = require_account_access(
+        user,
+        request.source_account_id,
+    )
+
+    source = (
+        _require_registered_user_transfer_account(
+            source,
+            participants,
+        )
+    )
+
+    destination = (
+        _require_registered_user_transfer_account(
+            request.destination_account_id,
+            participants,
+        )
+    )
+
+    selected_currency = _currency(
+        request.currency
+    )
+
+    try:
+        preview = preview_user_transfer(
+            source_account_id=source,
+            destination_account_id=destination,
+            custody_account_id=(
+                settings.treasury_main_account
+            ),
+            currency=selected_currency,
+            amount=request.amount,
+        )
+
+    except TreasuryUserTransferError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    required_confirmation = (
+        user_transfer_confirmation_text(
+            source_account_id=source,
+            destination_account_id=destination,
+            currency=selected_currency,
+            amount=request.amount,
+        )
+    )
+
+    enabled = bool(
+        settings.treasury_user_transfers_enabled
+    )
+
+    return {
+        "phase": "USER_OWNERSHIP_TRANSFER",
+        "status": (
+            "ready"
+            if preview["can_transfer"]
+            else "blocked"
+        ),
+        "user_transfers_enabled": enabled,
+        "can_execute": bool(
+            enabled
+            and preview["can_transfer"]
+        ),
+        "gate_write_performed": False,
+        "required_confirmation": (
+            required_confirmation
+        ),
+        "preview": preview,
+    }
+
+
+@router.post("/user-transfers/execute")
+def execute_treasury_user_transfer(
+    request: TreasuryUserTransferExecutionRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    participants = (
+        _registered_user_transfer_accounts()
+    )
+
+    source = require_account_access(
+        user,
+        request.source_account_id,
+    )
+
+    source = (
+        _require_registered_user_transfer_account(
+            source,
+            participants,
+        )
+    )
+
+    destination = (
+        _require_registered_user_transfer_account(
+            request.destination_account_id,
+            participants,
+        )
+    )
+
+    selected_currency = _currency(
+        request.currency
+    )
+
+    audit_payload = {
+        "operation": "user_ownership_transfer",
+        "source_account_id": source,
+        "destination_account_id": destination,
+        "custody_account_id": (
+            settings.treasury_main_account
+        ),
+        "currency": selected_currency,
+        "amount": format(
+            request.amount,
+            "f",
+        ),
+    }
+
+    try:
+        audit, audit_created = (
+            reserve_user_transfer_attempt(
+                request_id=request.request_id,
+                source_account_id=source,
+                destination_account_id=destination,
+                username=user.username,
+                currency=selected_currency,
+                amount=request.amount,
+                payload=audit_payload,
+            )
+        )
+
+    except TreasuryTransferIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    # A terminal request ID is permanently bound to its
+    # original outcome. Never retry the financial mutation.
+    if (
+        not audit_created
+        and audit["status"]
+        in {
+            "success",
+            "rejected",
+            "blocked",
+            "failed",
+        }
+    ):
+        prior_response = dict(
+            audit.get("response")
+            or {}
+        )
+
+        return {
+            **prior_response,
+            "phase": "USER_OWNERSHIP_TRANSFER",
+            "status": audit["status"],
+            "user_transfers_enabled": bool(
+                settings.treasury_user_transfers_enabled
+            ),
+            "idempotent_replay": True,
+            "state_changed": False,
+            "gate_write_performed": False,
+            "audit": audit,
+        }
+
+    required_confirmation = (
+        user_transfer_confirmation_text(
+            source_account_id=source,
+            destination_account_id=destination,
+            currency=selected_currency,
+            amount=request.amount,
+        )
+    )
+
+    if request.confirmation != required_confirmation:
+        response = {
+            "status": "rejected",
+            "reason": "confirmation_mismatch",
+            "request_id": request.request_id,
+            "gate_write_performed": False,
+        }
+
+        audit = mark_transfer_request(
+            request.request_id,
+            status="rejected",
+            response=response,
+            error=(
+                "Invalid user transfer "
+                "confirmation text."
+            ),
+            write_performed=False,
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid user transfer "
+                    "confirmation text."
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "request_id": request.request_id,
+                "gate_write_performed": False,
+                "audit": audit,
+            },
+        )
+
+    if not settings.treasury_user_transfers_enabled:
+        response = {
+            "status": "blocked",
+            "reason": "user_transfers_not_enabled",
+            "request_id": request.request_id,
+            "gate_write_performed": False,
+        }
+
+        audit = mark_transfer_request(
+            request.request_id,
+            status="blocked",
+            response=response,
+            error=(
+                "Dashboard user transfers "
+                "are not enabled."
+            ),
+            write_performed=False,
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "Dashboard user transfers "
+                    "are not enabled."
+                ),
+                "reason": (
+                    "user_transfers_not_enabled"
+                ),
+                "request_id": request.request_id,
+                "gate_write_performed": False,
+                "audit": audit,
+            },
+        )
+
+    try:
+        _enforce_treasury_rate_limit(
+            user=user,
+            source_account_id=source,
+            action="user_transfer",
+        )
+
+    except HTTPException:
+        mark_transfer_request(
+            request.request_id,
+            status="blocked",
+            response={
+                "status": "blocked",
+                "reason": "rate_limited",
+                "request_id": request.request_id,
+                "gate_write_performed": False,
+            },
+            error="User transfer rate limit exceeded.",
+            write_performed=False,
+            completed=True,
+        )
+
+        raise
+
+    try:
+        result = execute_user_transfer(
+            request_id=request.request_id,
+            username=user.username,
+            source_account_id=source,
+            destination_account_id=destination,
+            custody_account_id=(
+                settings.treasury_main_account
+            ),
+            currency=selected_currency,
+            amount=request.amount,
+        )
+
+    except TreasuryUserTransferConflict as exc:
+        audit = mark_transfer_request(
+            request.request_id,
+            status="failed",
+            response={
+                "status": "failed",
+                "request_id": request.request_id,
+                "gate_write_performed": False,
+            },
+            error=str(exc),
+            write_performed=False,
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "request_id": request.request_id,
+                "gate_write_performed": False,
+                "audit": audit,
+            },
+        ) from exc
+
+    except TreasuryUserTransferError as exc:
+        audit = mark_transfer_request(
+            request.request_id,
+            status="blocked",
+            response={
+                "status": "blocked",
+                "request_id": request.request_id,
+                "gate_write_performed": False,
+            },
+            error=str(exc),
+            write_performed=False,
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "request_id": request.request_id,
+                "gate_write_performed": False,
+                "audit": audit,
+            },
+        ) from exc
+
+    except Exception as exc:
+        # There is no external Gate ambiguity here, but if
+        # the ledger commit succeeded immediately before an
+        # unexpected local failure, replaying this exact
+        # request ID is the safe recovery path.
+        mark_transfer_request(
+            request.request_id,
+            status="uncertain",
+            error=str(exc),
+            write_performed=False,
+            completed=False,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": (
+                    "User transfer outcome requires "
+                    "idempotent recovery. Retry the exact "
+                    "same request ID; do not create a "
+                    "replacement request yet."
+                ),
+                "request_id": request.request_id,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    audit = mark_transfer_request(
+        request.request_id,
+        status="success",
+        response=result,
+        write_performed=False,
+        completed=True,
+    )
+
+    return {
+        "phase": "USER_OWNERSHIP_TRANSFER",
+        "user_transfers_enabled": True,
+        **result,
+        "audit": audit,
+    }
 
 
 @router.post("/transfers/simulate")
@@ -767,6 +1302,35 @@ async def reconcile_treasury_transfer(
         user,
         record["source_account_id"],
     )
+
+    request_payload = (
+        record.get("request")
+        or {}
+    )
+
+    if (
+        isinstance(request_payload, dict)
+        and str(
+            request_payload.get("operation")
+            or ""
+        ).lower()
+        == "user_ownership_transfer"
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Dashboard ownership transfers do "
+                    "not use Gate reconciliation. "
+                    "Recover a reserved or uncertain "
+                    "operation by replaying the exact "
+                    "user-transfer execute request ID."
+                ),
+                "request_id": request_id,
+                "gate_read_performed": False,
+                "gate_write_performed": False,
+            },
+        )
 
     if record["simulation"]:
         raise HTTPException(
@@ -1434,10 +1998,10 @@ async def treasury_withdrawal_preflight(
         min_length=4,
         max_length=128,
     ),
-    amount: Decimal = Query(
-        ...,
-        gt=0,
-    ),
+    amount: Annotated[
+        Decimal,
+        Query(gt=0),
+    ] = ...,
 ):
     owner = require_account_access(
         user,

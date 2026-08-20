@@ -91,6 +91,26 @@ def policy_for_action(
             ),
         )
 
+    if action == "user_transfer":
+        return TreasuryRateLimitPolicy(
+            user_limit=_bounded_limit(
+                settings
+                .treasury_user_transfer_user_limit
+            ),
+            user_window_seconds=_bounded_window(
+                settings
+                .treasury_user_transfer_user_window_seconds
+            ),
+            account_limit=_bounded_limit(
+                settings
+                .treasury_user_transfer_account_limit
+            ),
+            account_window_seconds=_bounded_window(
+                settings
+                .treasury_user_transfer_account_window_seconds
+            ),
+        )
+
     if action == "reconcile":
         return TreasuryRateLimitPolicy(
             user_limit=_bounded_limit(

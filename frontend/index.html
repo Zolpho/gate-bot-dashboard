@@ -277,6 +277,144 @@
             </section>
           </div>
 
+          <section
+            class="treasury-withdrawal-section treasury-user-transfer-section"
+          >
+            <div class="treasury-section-header">
+              <div>
+                <h3>Transfer between registered users</h3>
+                <p>
+                  Transfer economic ownership of funds already held
+                  by the Treasury main account. This operation changes
+                  the local ownership ledger only and never submits a
+                  transfer to Gate.
+                </p>
+              </div>
+
+              <span
+                id="treasuryUserTransferState"
+                class="treasury-count"
+              >Checking…</span>
+            </div>
+
+            <form
+              id="treasuryUserTransferForm"
+              class="treasury-user-transfer-form"
+            >
+              <label>
+                From
+
+                <select
+                  id="treasuryUserTransferSource"
+                  required
+                >
+                  <option value="">
+                    No source accounts loaded
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                To
+
+                <select
+                  id="treasuryUserTransferDestination"
+                  required
+                >
+                  <option value="">
+                    No recipients loaded
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                Asset
+
+                <select
+                  id="treasuryUserTransferCurrency"
+                  required
+                >
+                  <option value="">
+                    No transferable assets
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                Amount
+
+                <input
+                  id="treasuryUserTransferAmount"
+                  type="text"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  placeholder="0.00"
+                  required
+                >
+              </label>
+
+              <div class="treasury-user-transfer-actions">
+                <button
+                  type="submit"
+                  class="button secondary"
+                  id="treasuryUserTransferPreviewButton"
+                >
+                  Review transfer
+                </button>
+              </div>
+            </form>
+
+            <div
+              id="treasuryUserTransferError"
+              class="treasury-message error hidden"
+              role="alert"
+            ></div>
+
+            <div
+              id="treasuryUserTransferPreview"
+              class="treasury-user-transfer-preview"
+            >
+              <div class="treasury-empty">
+                Select a registered recipient and run a review.
+              </div>
+            </div>
+
+            <div
+              id="treasuryUserTransferConfirmationBlock"
+              class="treasury-user-transfer-confirmation hidden"
+            >
+              <p>
+                Type the exact confirmation below before transferring.
+              </p>
+
+              <code id="treasuryUserTransferRequiredConfirmation">—</code>
+
+              <input
+                id="treasuryUserTransferConfirmation"
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Exact confirmation"
+              >
+
+              <div class="treasury-user-transfer-actions">
+                <button
+                  type="button"
+                  class="button"
+                  id="executeTreasuryUserTransfer"
+                  disabled
+                >
+                  Transfer funds
+                </button>
+              </div>
+            </div>
+
+            <div class="treasury-withdrawal-safety-note">
+              Physical Gate custody remains unchanged. Source and
+              recipient ownership entries are committed atomically.
+            </div>
+          </section>
+
           <section class="treasury-withdrawal-section">
             <div class="treasury-section-header">
               <div>
