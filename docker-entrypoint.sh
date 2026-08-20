@@ -36,6 +36,48 @@ prepare_dashboard_users() {
   fi
 }
 
+prepare_frontend_config() {
+  target_path="/app/frontend/config.js"
+  api_base_url="${DASHBOARD_FRONTEND_API_BASE_URL:-}"
+
+  # Docker-hosted frontends default to same-origin API access.
+  # JSON encoding prevents an environment value from breaking
+  # the generated JavaScript string.
+  python - "$target_path" "$api_base_url" <<'PYCODE'
+import json
+import os
+import sys
+
+target_path = sys.argv[1]
+api_base_url = sys.argv[2].rstrip("/")
+
+content = (
+    "window.GATE_DASHBOARD_CONFIG = Object.freeze({\n"
+    f"  apiBaseUrl: {json.dumps(api_base_url)},\n"
+    "});\n"
+)
+
+temporary_path = f"{target_path}.tmp"
+
+with open(
+    temporary_path,
+    "w",
+    encoding="utf-8",
+) as handle:
+    handle.write(content)
+
+os.replace(
+    temporary_path,
+    target_path,
+)
+PYCODE
+
+  chmod 644 "$target_path"
+  chown dashboard:dashboard "$target_path"
+}
+
 prepare_dashboard_users
+prepare_frontend_config
+
 chown dashboard:dashboard /data
 exec gosu dashboard "$@"
