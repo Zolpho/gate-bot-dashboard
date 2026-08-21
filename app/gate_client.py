@@ -386,6 +386,51 @@ class GateClient:
             signed=False,
         )
 
+    async def list_spot_currency_pairs(
+        self,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/spot/currency_pairs",
+            signed=False,
+        )
+
+    async def get_spot_candlesticks(
+        self,
+        currency_pair: str,
+        *,
+        interval: str = "5m",
+        limit: int = 300,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/spot/candlesticks",
+            params={
+                "currency_pair": currency_pair.upper(),
+                "interval": interval,
+                "limit": max(1, min(limit, 1000)),
+            },
+            signed=False,
+        )
+
+    async def get_spot_order_book(
+        self,
+        currency_pair: str,
+        *,
+        limit: int = 20,
+        with_id: bool = True,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/spot/order_book",
+            params={
+                "currency_pair": currency_pair.upper(),
+                "limit": max(1, min(limit, 100)),
+                "with_id": with_id,
+            },
+            signed=False,
+        )
+
     async def list_spot_currencies(
         self,
         name: str | None = None,
