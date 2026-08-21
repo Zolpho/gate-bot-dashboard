@@ -542,3 +542,51 @@ button.trading-book-row.selected {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Stage 3H4 cancellation readiness */
+
+.trading-order-cancellation {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  margin-top: 3px;
+  border-top: 1px solid var(--border);
+}
+
+.trading-order-cancellation.hidden {
+  display: none;
+}
+
+.trading-order-cancel-meta {
+  display: grid;
+  gap: 5px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+.trading-order-cancel-meta span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.trading-order-cancel-meta code {
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.trading-order-cancellation
+.trading-order-confirmation {
+  border-color: var(--border);
+}
+
+.trading-order-cancellation
+#cancelTradingLimitOrder:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

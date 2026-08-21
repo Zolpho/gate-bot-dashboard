@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
   <link rel="stylesheet" href="./trading.css?v=20260821-volume-book-v1">
-  <link rel="stylesheet" href="./trading-limit.css?v=20260821-execute-wire-v1">
+  <link rel="stylesheet" href="./trading-limit.css?v=20260821-cancel-panel-v1">
 </head>
 <body>
   <div class="app-shell">
@@ -487,6 +487,68 @@
                   class="trading-order-execution-result hidden"
                   role="status"
                 ></div>
+
+
+                <div
+                  id="tradingLimitCancellation"
+                  class="trading-order-cancellation hidden"
+                  aria-live="polite"
+                >
+                  <div class="trading-order-execution-head">
+                    <div>
+                      <strong>Cancel submitted order</strong>
+
+                      <small
+                        id="tradingLimitCancellationMessage"
+                      >
+                        Checking cancellation state…
+                      </small>
+                    </div>
+
+                    <span
+                      id="tradingLimitCancellationStatus"
+                      class="trading-order-execution-status disabled"
+                    >
+                      CANCEL DISABLED
+                    </span>
+                  </div>
+
+                  <div class="trading-order-cancel-meta">
+                    <span>Gate order ID</span>
+
+                    <code
+                      id="tradingLimitCancellationGateOrderId"
+                    >—</code>
+                  </div>
+
+                  <div class="trading-order-confirmation">
+                    <span>Required confirmation</span>
+
+                    <code
+                      id="tradingLimitCancelRequiredConfirmation"
+                    >—</code>
+
+                    <div class="trading-order-execution-actions">
+                      <input
+                        id="tradingLimitCancelConfirmation"
+                        type="text"
+                        autocomplete="off"
+                        spellcheck="false"
+                        placeholder="Exact cancellation confirmation"
+                        disabled
+                      >
+
+                      <button
+                        type="button"
+                        class="button"
+                        id="cancelTradingLimitOrder"
+                        disabled
+                      >
+                        Cancel order
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </article>
@@ -2164,7 +2226,7 @@
     defer
   ></script>
   <script
-    src="./trading-limit.js?v=20260821-execute-wire-v1"
+    src="./trading-limit.js?v=20260821-cancel-panel-v1"
     defer
   ></script>
 <footer class="site-footer">

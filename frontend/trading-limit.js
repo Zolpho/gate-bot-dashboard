@@ -768,6 +768,294 @@ function tradingLimitExecutionMessage(
 }
 
 
+function tradingLimitGateOrderId() {
+  const attempt = (
+    tradingState.limitOrderExecutionAttempt
+  );
+
+  const candidates = [
+    attempt?.result?.gate_order_id,
+    attempt?.result?.audit?.gate_order_id,
+    attempt?.result?.request?.gate_order_id,
+    attempt?.result?.reconciliation?.gate_order_id,
+    attempt?.result?.reconciliation
+      ?.audit?.gate_order_id,
+  ];
+
+  for (const candidate of candidates) {
+    const value = String(
+      candidate || ''
+    ).trim();
+
+    /*
+     * Stage 3H4 only exposes cancellation
+     * readiness when the real Gate numeric
+     * order ID is known.
+     */
+    if (
+      value
+      && /^[0-9]+$/.test(value)
+    ) {
+      return value;
+    }
+  }
+
+  return '';
+}
+
+
+function renderTradingLimitCancellationReadiness() {
+  const element = $(
+    '#tradingLimitCancellation'
+  );
+
+  if (!element) {
+    return;
+  }
+
+  const attempt = (
+    tradingState.limitOrderExecutionAttempt
+  );
+
+  const capabilities = (
+    tradingState
+      .limitOrderExecutionCapabilities
+  );
+
+  const executionStatus = String(
+    attempt?.status || ''
+  ).toLowerCase();
+
+  const eligibleStatus = (
+    executionStatus === 'submitted'
+    || executionStatus === 'confirmed_open'
+  );
+
+  const gateOrderId = (
+    tradingLimitGateOrderId()
+  );
+
+  /*
+   * Do not expose cancellation controls for
+   * failed, uncertain, closed or ID-less orders.
+   */
+  if (
+    !attempt
+    || !eligibleStatus
+    || !gateOrderId
+  ) {
+    element.classList.add(
+      'hidden'
+    );
+
+    return;
+  }
+
+  element.classList.remove(
+    'hidden'
+  );
+
+  const status = $(
+    '#tradingLimitCancellationStatus'
+  );
+
+  const message = $(
+    '#tradingLimitCancellationMessage'
+  );
+
+  const gateOrder = $(
+    '#tradingLimitCancellationGateOrderId'
+  );
+
+  const requiredElement = $(
+    '#tradingLimitCancelRequiredConfirmation'
+  );
+
+  const confirmation = $(
+    '#tradingLimitCancelConfirmation'
+  );
+
+  const button = $(
+    '#cancelTradingLimitOrder'
+  );
+
+  const accountId = String(
+    tradingState.accountId || ''
+  ).trim().toLowerCase();
+
+  const configuredAccounts = (
+    capabilities
+      ?.configured_account_ids
+    || []
+  ).map(
+    value => String(
+      value || ''
+    ).trim().toLowerCase()
+  );
+
+  const implemented = (
+    capabilities
+      ?.cancellation_implemented
+    === true
+  );
+
+  const routeAvailable = (
+    capabilities
+      ?.cancellation_route_available
+    === true
+  );
+
+  const cancelArmEnabled = (
+    capabilities
+      ?.cancel_arm_enabled
+    === true
+  );
+
+  const required = String(
+    capabilities
+      ?.cancel_required_confirmation
+    || ''
+  );
+
+  const accountConfigured = (
+    configuredAccounts.includes(
+      accountId
+    )
+  );
+
+  const configError = String(
+    capabilities
+      ?.config_error
+    || ''
+  );
+
+  if (status) {
+    status.classList.remove(
+      'disabled',
+      'ready',
+      'warning',
+    );
+  }
+
+  let label = 'CANCEL DISABLED';
+
+  let description = (
+    'Live Spot order cancellation is disabled '
+    + 'by the backend.'
+  );
+
+  let statusClass = 'disabled';
+
+  if (
+    tradingState
+      .loadingLimitOrderExecutionCapabilities
+  ) {
+    label = 'CHECKING';
+
+    description = (
+      'Checking backend cancellation state…'
+    );
+
+  } else if (configError) {
+    label = 'CONFIG ERROR';
+    description = configError;
+    statusClass = 'warning';
+
+  } else if (
+    !implemented
+    || !routeAvailable
+  ) {
+    label = 'UNAVAILABLE';
+
+    description = (
+      'The guarded Spot cancellation backend '
+      + 'is unavailable.'
+    );
+
+    statusClass = 'warning';
+
+  } else if (!accountConfigured) {
+    label = 'NO TRADING KEY';
+
+    description = (
+      'This account has no enabled isolated '
+      + 'Spot Trading credential.'
+    );
+
+    statusClass = 'warning';
+
+  } else if (cancelArmEnabled) {
+    label = 'BACKEND ARMED';
+
+    /*
+     * Hard Stage 3H4 safety boundary:
+     * this browser build has NO cancellation
+     * request caller.
+     */
+    description = (
+      'The backend reports live cancellation '
+      + 'armed, but this frontend build '
+      + 'intentionally cannot cancel orders yet.'
+    );
+
+    statusClass = 'ready';
+  }
+
+  if (status) {
+    status.textContent = label;
+
+    status.classList.add(
+      statusClass
+    );
+  }
+
+  if (message) {
+    message.textContent = description;
+  }
+
+  if (gateOrder) {
+    gateOrder.textContent = gateOrderId;
+  }
+
+  if (requiredElement) {
+    requiredElement.textContent = (
+      required || '—'
+    );
+  }
+
+  if (confirmation) {
+    /*
+     * Stage 3H4 deliberately keeps the
+     * confirmation input disabled regardless
+     * of backend arm state.
+     */
+    confirmation.disabled = true;
+    confirmation.value = '';
+  }
+
+  if (button) {
+    /*
+     * Hard Stage 3H4 safety boundary:
+     * there is no browser cancellation caller.
+     */
+    button.disabled = true;
+
+    button.title = (
+      cancelArmEnabled
+        ? (
+            'Frontend cancellation is '
+            + 'intentionally not activated '
+            + 'in this build.'
+          )
+        : (
+            'Live cancellation is disabled '
+            + 'by the backend.'
+          )
+    );
+  }
+}
+
+
 function renderTradingLimitExecutionResult() {
   const element = $(
     '#tradingLimitExecutionResult'
@@ -937,6 +1225,7 @@ function renderTradingLimitExecution() {
     );
 
     renderTradingLimitExecutionResult();
+    renderTradingLimitCancellationReadiness();
 
     return;
   }
@@ -1205,6 +1494,7 @@ function renderTradingLimitExecution() {
   }
 
   renderTradingLimitExecutionResult();
+  renderTradingLimitCancellationReadiness();
 }
 
 
@@ -1676,6 +1966,8 @@ async function loadTradingExecutionCapabilities() {
     if (
       result.execution_implemented !== true
       || result.execution_route_available !== true
+      || result.cancellation_implemented !== true
+      || result.cancellation_route_available !== true
       || result.gate_write_performed !== false
       || result.write_performed !== false
     ) {
@@ -1694,8 +1986,12 @@ async function loadTradingExecutionCapabilities() {
         execution_implemented: false,
         execution_route_available: false,
         live_arm_enabled: false,
+        cancellation_implemented: false,
+        cancellation_route_available: false,
+        cancel_arm_enabled: false,
         configured_account_ids: [],
         required_confirmation: '',
+        cancel_required_confirmation: '',
         config_error: (
           error.message
           || 'Execution capability check failed.'
