@@ -21,6 +21,25 @@ from ..accounts import (
 from ..config import Settings, get_settings
 from ..gate_client import GateAPIError, GateClient
 from ..security import DashboardUser, require_user
+from ..trading_credentials import (
+    TradingConfigError,
+    get_trading_account,
+)
+from ..trading_execution import (
+    TradingExecutionDenied,
+    execute_limit_order,
+)
+from ..trading_order_audit import (
+    get_order_request,
+    list_order_reconciliations,
+)
+from ..trading_order_locks import (
+    get_trading_lock_for_request,
+)
+from ..trading_order_reconcile import (
+    TradingOrderReconcileError,
+    reconcile_spot_order_request,
+)
 
 
 router = APIRouter(
@@ -45,6 +64,47 @@ _ALLOWED_INTERVALS = {
     "7d",
     "30d",
 }
+
+
+class LimitOrderExecuteRequest(BaseModel):
+    request_id: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+    account_id: str = Field(
+        min_length=1,
+        max_length=64,
+    )
+
+    pair: str = Field(
+        min_length=3,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9]+_[A-Za-z0-9]+$",
+    )
+
+    side: Literal[
+        "buy",
+        "sell",
+    ]
+
+    price: Decimal = Field(
+        gt=0,
+    )
+
+    amount: Decimal = Field(
+        gt=0,
+    )
+
+    time_in_force: Literal[
+        "gtc",
+        "poc",
+    ] = "gtc"
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=256,
+    )
 
 
 class LimitOrderPreviewRequest(BaseModel):
@@ -103,6 +163,59 @@ def _explicit_trading_account(
         )
 
     return normalized
+
+
+def _trading_request_for_user(
+    user: DashboardUser,
+    request_id: str,
+) -> dict[str, Any]:
+    """
+    Return a persisted Trading request only when its
+    Gate account is explicitly assigned to this user.
+
+    Super-admin receives no implicit Trading wildcard.
+
+    Deliberately return 404 for inaccessible request IDs
+    so one dashboard user cannot enumerate another
+    account's Trading operations.
+    """
+    request = get_order_request(
+        request_id.strip()
+    )
+
+    if request is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Trading order request "
+                "not found"
+            ),
+        )
+
+    allowed = {
+        item.strip().lower()
+        for item in user.account_ids
+        if item.strip()
+    }
+
+    if (
+        str(
+            request.get(
+                "account_id"
+            )
+            or ""
+        ).strip().lower()
+        not in allowed
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Trading order request "
+                "not found"
+            ),
+        )
+
+    return request
 
 
 def _market(value: str) -> str:
@@ -1267,6 +1380,186 @@ async def preview_limit_order(
                 request.time_in_force
             ),
         },
+    }
+
+
+@router.post("/limit-orders/execute")
+async def execute_trading_limit_order(
+    request: LimitOrderExecuteRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):
+    account_id = _explicit_trading_account(
+        user,
+        request.account_id,
+    )
+
+    explicit_ids = {
+        item.strip().lower()
+        for item in user.account_ids
+        if item.strip()
+    }
+
+    try:
+        return await execute_limit_order(
+            settings=settings,
+            username=user.username,
+            allowed_account_ids=(
+                explicit_ids
+            ),
+            request_id=(
+                request.request_id
+            ),
+            account_id=account_id,
+            pair=request.pair,
+            side=request.side,
+            price=request.price,
+            amount=request.amount,
+            time_in_force=(
+                request.time_in_force
+            ),
+            confirmation=(
+                request.confirmation
+            ),
+        )
+
+    except TradingExecutionDenied as exc:
+        raise HTTPException(
+            status_code=(
+                exc.status_code
+            ),
+            detail=exc.detail(),
+        ) from exc
+
+
+@router.get(
+    "/limit-orders/requests/{request_id}"
+)
+async def get_trading_limit_order_request(
+    request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    request = (
+        _trading_request_for_user(
+            user,
+            request_id,
+        )
+    )
+
+    return {
+        # This GET performs no Gate write.
+        "gate_write_performed": False,
+        "write_performed": False,
+        "request": request,
+        "reconciliations": (
+            list_order_reconciliations(
+                request["request_id"]
+            )
+        ),
+        "lock": (
+            get_trading_lock_for_request(
+                request["request_id"]
+            )
+        ),
+    }
+
+
+@router.post(
+    "/limit-orders/requests/{request_id}/reconcile"
+)
+async def reconcile_trading_limit_order_request(
+    request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):
+    request = (
+        _trading_request_for_user(
+            user,
+            request_id,
+        )
+    )
+
+    account_id = str(
+        request["account_id"]
+    ).strip().lower()
+
+    try:
+        trading_account = (
+            get_trading_account(
+                account_id
+            )
+        )
+
+    except TradingConfigError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    if (
+        trading_account is None
+        or not trading_account.enabled
+        or not trading_account.configured
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Isolated Spot Trading "
+                "credentials are not "
+                "configured for Gate account "
+                f"{account_id}"
+            ),
+        )
+
+    try:
+        async with GateClient(
+            settings,
+            trading_account,
+        ) as client:
+            result = (
+                await reconcile_spot_order_request(
+                    client=client,
+                    request_id=(
+                        request[
+                            "request_id"
+                        ]
+                    ),
+                )
+            )
+
+    except TradingOrderReconcileError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    except GateAPIError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        # Reconciliation may update our local audit DB,
+        # but performs Gate reads only.
+        "gate_write_performed": False,
+        "write_performed": False,
+        "reconciliation": result,
     }
 
 
