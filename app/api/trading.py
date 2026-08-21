@@ -40,6 +40,13 @@ from ..trading_order_reconcile import (
     TradingOrderReconcileError,
     reconcile_spot_order_request,
 )
+from ..trading_order_cancel import (
+    TradingOrderCancelDenied,
+    cancel_limit_order,
+)
+from ..trading_order_cancel_audit import (
+    get_order_cancellation,
+)
 
 
 router = APIRouter(
@@ -100,6 +107,18 @@ class LimitOrderExecuteRequest(BaseModel):
         "gtc",
         "poc",
     ] = "gtc"
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=256,
+    )
+
+
+class LimitOrderCancelRequest(BaseModel):
+    cancel_request_id: str = Field(
+        min_length=1,
+        max_length=128,
+    )
 
     confirmation: str = Field(
         min_length=1,
@@ -1443,6 +1462,16 @@ async def trading_execution_capabilities(
             settings
             .trading_limit_order_confirmation_text
         ),
+        "cancellation_implemented": True,
+        "cancellation_route_available": True,
+        "cancel_arm_enabled": bool(
+            settings
+            .trading_order_cancels_enabled
+        ),
+        "cancel_required_confirmation": (
+            settings
+            .trading_order_cancel_confirmation_text
+        ),
         "authorized_account_ids": (
             authorized_account_ids
         ),
@@ -1538,12 +1567,74 @@ async def get_trading_limit_order_request(
                 request["request_id"]
             )
         ),
+        "cancellation": (
+            get_order_cancellation(
+                order_request_id=(
+                    request["request_id"]
+                )
+            )
+        ),
         "lock": (
             get_trading_lock_for_request(
                 request["request_id"]
             )
         ),
     }
+
+
+@router.post(
+    "/limit-orders/requests/{request_id}/cancel"
+)
+async def cancel_trading_limit_order(
+    request_id: str,
+    request: LimitOrderCancelRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):
+    source = (
+        _trading_request_for_user(
+            user,
+            request_id,
+        )
+    )
+
+    explicit_ids = {
+        item.strip().lower()
+        for item in user.account_ids
+        if item.strip()
+    }
+
+    try:
+        return await cancel_limit_order(
+            settings=settings,
+            username=user.username,
+            allowed_account_ids=(
+                explicit_ids
+            ),
+            cancel_request_id=(
+                request.cancel_request_id
+            ),
+            order_request_id=(
+                source["request_id"]
+            ),
+            confirmation=(
+                request.confirmation
+            ),
+        )
+
+    except TradingOrderCancelDenied as exc:
+        raise HTTPException(
+            status_code=(
+                exc.status_code
+            ),
+            detail=exc.detail(),
+        ) from exc
 
 
 @router.post(
