@@ -148,3 +148,31 @@ def test_order_book_depth_ratio():
         result["sell_percent"]
         == "33.33333333333333333333333333"
     )
+
+
+def test_order_book_depth_ratio_uses_top_20_levels():
+    asks = [
+        ["2", "1"]
+        for _ in range(20)
+    ]
+
+    bids = [
+        ["1", "1"]
+        for _ in range(20)
+    ]
+
+    # Huge 21st levels must not affect the displayed ratio.
+    asks.append(["3", "100000"])
+    bids.append(["0.5", "200000"])
+
+    result = _normalize_order_book(
+        {
+            "asks": asks,
+            "bids": bids,
+        }
+    )
+
+    assert result["ask_amount_total"] == "20"
+    assert result["bid_amount_total"] == "20"
+    assert result["buy_percent"] == "50.0"
+    assert result["sell_percent"] == "50.0"

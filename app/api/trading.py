@@ -381,12 +381,18 @@ def _normalize_order_book(
                 * Decimal("100")
             )
 
+    # Match Gate's displayed B/S depth convention:
+    # calculate from the first 20 price levels on each side
+    # of the currently selected order-book grouping.
+    ratio_asks = asks[:20]
+    ratio_bids = bids[:20]
+
     ask_total = sum(
         (
             _decimal(item["amount"])
             or Decimal("0")
         )
-        for item in asks
+        for item in ratio_asks
     )
 
     bid_total = sum(
@@ -394,7 +400,7 @@ def _normalize_order_book(
             _decimal(item["amount"])
             or Decimal("0")
         )
-        for item in bids
+        for item in ratio_bids
     )
 
     depth_total = (
