@@ -343,6 +343,8 @@ function tradingPopulateCatalog() {
   tradingRenderIntervalButtons();
   tradingPopulateBookIntervals();
   tradingRenderMarketSideTabs();
+
+  window.renderTradingLimitOrderTicket?.();
 }
 
 
@@ -741,7 +743,15 @@ function tradingBookRows(
       );
 
       return `
-        <div class="trading-book-row ${side}">
+        <button
+          type="button"
+          class="trading-book-row ${side}"
+          data-trading-book-price="${escapeHtml(
+            String(item.price)
+          )}"
+          data-trading-book-side="${escapeHtml(side)}"
+          title="Copy this price to the limit order"
+        >
           <i
             class="trading-book-depth"
             style="width:${depth.toFixed(2)}%"
@@ -773,7 +783,7 @@ function tradingBookRows(
                   )
             )}
           </span>
-        </div>
+        </button>
       `;
     })
     .join('');
@@ -1014,6 +1024,8 @@ function tradingRenderSnapshot() {
   $('#tradingBalanceSubtitle').textContent = (
     `Gate spot · ${tradingState.accountId}`
   );
+
+  window.renderTradingLimitOrderTicket?.();
 }
 
 

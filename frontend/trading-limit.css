@@ -1,0 +1,343 @@
+/*
+ * Limit-order ticket occupies the unused area below the chart.
+ * Order Book / Trades spans both rows on desktop.
+ */
+
+.trading-market-grid {
+  grid-template-areas:
+    "chart book"
+    "order book";
+}
+
+.trading-chart-panel {
+  grid-area: chart;
+}
+
+.trading-order-panel {
+  grid-area: order;
+  min-width: 0;
+}
+
+.trading-book-panel {
+  grid-area: book;
+}
+
+.trading-order-preview-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.trading-order-ticket {
+  display: grid;
+  gap: 15px;
+}
+
+.trading-order-side-tabs {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.trading-order-side {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.trading-order-side.buy.active {
+  color: var(--positive);
+  border-color: var(--positive);
+  background: rgba(33, 210, 153, 0.065);
+}
+
+.trading-order-side.sell.active {
+  color: var(--negative);
+  border-color: var(--negative);
+  background: rgba(255, 95, 113, 0.065);
+}
+
+.trading-order-fields {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trading-order-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.trading-order-field > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.trading-order-input-wrap,
+.trading-order-value,
+.trading-order-field select {
+  min-height: 43px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+.trading-order-input-wrap {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.trading-order-input-wrap input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 10px 4px 10px 11px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.trading-order-input-wrap b,
+.trading-order-value b {
+  flex: 0 0 auto;
+  padding-right: 11px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.trading-order-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-left: 11px;
+}
+
+.trading-order-value strong {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.trading-order-field select {
+  width: 100%;
+  color: var(--text);
+  padding: 9px 10px;
+}
+
+.trading-order-funds {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+#tradingLimitAvailable {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.trading-order-percentages {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.trading-order-percentages button {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 9px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.trading-order-percentages button:hover {
+  color: var(--text);
+  border-color: var(--accent-dark);
+}
+
+.trading-order-percentages button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.trading-order-hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.trading-order-preview {
+  display: grid;
+  gap: 13px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+
+.trading-order-preview.hidden {
+  display: none;
+}
+
+.trading-order-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trading-order-preview-status {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.trading-order-preview-status.ready {
+  color: var(--positive);
+  border-color: var(--positive);
+}
+
+.trading-order-preview-status.invalid {
+  color: var(--negative);
+  border-color: var(--negative);
+}
+
+.trading-order-preview-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.trading-order-preview-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 11px;
+  background: var(--surface-2);
+}
+
+.trading-order-preview-card span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.trading-order-preview-card strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.trading-order-preview-list {
+  margin: 0;
+  padding-left: 19px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.trading-order-preview-list.blockers {
+  color: var(--negative);
+}
+
+.trading-order-safety {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 0.73rem;
+}
+
+.trading-order-safety strong {
+  color: var(--text);
+}
+
+
+/* Click-to-price order book */
+
+button.trading-book-row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.trading-book-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+button.trading-book-row:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+button.trading-book-row.selected {
+  background: rgba(23, 211, 154, 0.08);
+  box-shadow:
+    inset 0 0 0 1px
+    rgba(23, 211, 154, 0.42);
+}
+
+
+@media (max-width: 1250px) {
+  .trading-order-fields,
+  .trading-order-preview-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .trading-market-grid {
+    grid-template-areas:
+      "chart"
+      "order"
+      "book";
+  }
+}
+
+@media (max-width: 620px) {
+  .trading-order-fields,
+  .trading-order-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trading-order-percentages {
+    width: 100%;
+  }
+
+  .trading-order-percentages button {
+    flex: 1 1 0;
+  }
+}

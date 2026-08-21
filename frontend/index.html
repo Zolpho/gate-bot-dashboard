@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
   <link rel="stylesheet" href="./trading.css?v=20260821-volume-book-v1">
+  <link rel="stylesheet" href="./trading-limit.css?v=20260821-limit-ticket-v1">
 </head>
 <body>
   <div class="app-shell">
@@ -273,6 +274,164 @@
               >TradingView Lightweight Charts</a>.
               Market data from Gate.io.
             </p>
+          </article>
+
+          <article class="panel trading-order-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Limit order</h2>
+                <p>
+                  Review against fresh Gate balances and
+                  order-book prices before execution.
+                </p>
+              </div>
+
+              <span class="trading-order-preview-badge">
+                PREVIEW ONLY
+              </span>
+            </div>
+
+            <div
+              id="tradingLimitOrderForm"
+              class="trading-order-ticket"
+            >
+              <div class="trading-order-side-tabs">
+                <button
+                  type="button"
+                  class="trading-order-side buy active"
+                  data-trading-order-side="buy"
+                >
+                  Buy
+                </button>
+
+                <button
+                  type="button"
+                  class="trading-order-side sell"
+                  data-trading-order-side="sell"
+                >
+                  Sell
+                </button>
+              </div>
+
+              <div class="trading-order-fields">
+                <label class="trading-order-field">
+                  <span>Price</span>
+
+                  <div class="trading-order-input-wrap">
+                    <input
+                      id="tradingLimitPrice"
+                      type="number"
+                      min="0"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      placeholder="0"
+                    >
+
+                    <b id="tradingLimitPriceAsset">
+                      Quote
+                    </b>
+                  </div>
+                </label>
+
+                <label class="trading-order-field">
+                  <span>Amount</span>
+
+                  <div class="trading-order-input-wrap">
+                    <input
+                      id="tradingLimitAmount"
+                      type="number"
+                      min="0"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      placeholder="0"
+                    >
+
+                    <b id="tradingLimitAmountAsset">
+                      Base
+                    </b>
+                  </div>
+                </label>
+
+                <div class="trading-order-field">
+                  <span>Total</span>
+
+                  <div class="trading-order-value">
+                    <strong id="tradingLimitTotal">—</strong>
+                    <b id="tradingLimitTotalAsset">Quote</b>
+                  </div>
+                </div>
+
+                <label class="trading-order-field">
+                  <span>Time in force</span>
+
+                  <select id="tradingLimitTif">
+                    <option value="gtc">
+                      GTC · Good till cancelled
+                    </option>
+
+                    <option value="poc">
+                      Post only
+                    </option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="trading-order-funds">
+                <span id="tradingLimitAvailable">
+                  Available —
+                </span>
+
+                <div class="trading-order-percentages">
+                  <button
+                    type="button"
+                    data-trading-order-percent="25"
+                  >25%</button>
+
+                  <button
+                    type="button"
+                    data-trading-order-percent="50"
+                  >50%</button>
+
+                  <button
+                    type="button"
+                    data-trading-order-percent="75"
+                  >75%</button>
+
+                  <button
+                    type="button"
+                    data-trading-order-percent="100"
+                  >MAX</button>
+                </div>
+              </div>
+
+              <div
+                id="tradingLimitHint"
+                class="trading-order-hint"
+              >
+                Click any bid or ask price to copy it here.
+              </div>
+
+              <div
+                id="tradingLimitOrderError"
+                class="trading-error hidden"
+                role="alert"
+              ></div>
+
+              <button
+                type="button"
+                class="button"
+                id="reviewTradingLimitOrder"
+                disabled
+              >
+                Review limit order
+              </button>
+
+              <div
+                id="tradingLimitOrderPreview"
+                class="trading-order-preview hidden"
+                aria-live="polite"
+              ></div>
+            </div>
           </article>
 
           <article class="panel trading-book-panel">
@@ -1944,7 +2103,11 @@
     defer
   ></script>
   <script
-    src="./trading.js?v=20260821-volume-book-v1"
+    src="./trading.js?v=20260821-limit-ticket-v1"
+    defer
+  ></script>
+  <script
+    src="./trading-limit.js?v=20260821-limit-ticket-v1"
     defer
   ></script>
 <footer class="site-footer">
