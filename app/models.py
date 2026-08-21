@@ -2293,3 +2293,137 @@ class TradingRateLimitEvent(Base):
         default=utcnow,
         nullable=False,
     )
+
+
+class TradingOrderCancellation(Base):
+    __tablename__ = "trading_order_cancellations"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "cancel_request_id",
+            name=(
+                "uq_trading_order_cancel_request_id"
+            ),
+        ),
+        UniqueConstraint(
+            "order_request_id",
+            name=(
+                "uq_trading_order_cancel_order_request"
+            ),
+        ),
+        Index(
+            "ix_trading_cancel_account_created",
+            "account_id",
+            "created_at",
+        ),
+        Index(
+            "ix_trading_cancel_gate_order_id",
+            "gate_order_id",
+        ),
+        Index(
+            "ix_trading_cancel_status_created",
+            "status",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    cancel_request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    order_request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    pair: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    gate_order_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="reserved",
+    )
+
+    request_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    request_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    response_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    gate_status_code: Mapped[Optional[int]] = (
+        mapped_column(
+            Integer,
+        )
+    )
+
+    gate_label: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    error: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    write_performed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+        nullable=False,
+    )
+
+    completed_at: Mapped[Optional[datetime]] = (
+        mapped_column(
+            DateTime(timezone=True),
+        )
+    )

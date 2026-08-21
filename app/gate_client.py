@@ -525,6 +525,98 @@ class GateClient:
             },
         )
 
+    async def cancel_spot_order(
+        self,
+        order_id: str,
+        *,
+        currency_pair: str,
+        expires_at_ms: int,
+        account: str = "spot",
+    ) -> GateResponse:
+        """
+        Single Gate Spot cancellation primitive.
+
+        Performs exactly one DELETE and contains
+        no retry logic.
+        """
+        normalized_order_id = (
+            order_id.strip()
+        )
+
+        if not normalized_order_id:
+            raise ValueError(
+                "order_id cannot be empty"
+            )
+
+        if any(
+            item in normalized_order_id
+            for item in (
+                "/",
+                "?",
+                "#",
+            )
+        ):
+            raise ValueError(
+                "order_id contains invalid "
+                "path characters"
+            )
+
+        # Our cancellation service deliberately
+        # requires Gate's real numeric order ID.
+        if not normalized_order_id.isdigit():
+            raise ValueError(
+                "Cancellation requires the real "
+                "Gate order ID"
+            )
+
+        normalized_pair = (
+            currency_pair
+            .strip()
+            .upper()
+        )
+
+        if (
+            not normalized_pair
+            or "_"
+            not in normalized_pair
+        ):
+            raise ValueError(
+                "currency_pair is required"
+            )
+
+        if account.strip().lower() != "spot":
+            raise ValueError(
+                "Cancellation account must be spot"
+            )
+
+        if int(expires_at_ms) <= 0:
+            raise ValueError(
+                "expires_at_ms must be positive"
+            )
+
+        return await self.request(
+            "DELETE",
+            (
+                "/spot/orders/"
+                + normalized_order_id
+            ),
+            params=[
+                (
+                    "currency_pair",
+                    normalized_pair,
+                ),
+                (
+                    "account",
+                    "spot",
+                ),
+            ],
+            extra_headers={
+                "X-Gate-Exptime": str(
+                    int(expires_at_ms)
+                ),
+            },
+        )
+
     async def create_sub_account_transfer(
         self,
         payload: dict[str, Any],

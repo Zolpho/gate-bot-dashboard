@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     # before the future POST. The POST is never retried.
     trading_order_exptime_ms: int = 5000
 
+    # Spot order cancellation has a separate arm.
+    # Disabling new order creation must not
+    # inherently disable emergency cancellation.
+    trading_order_cancels_enabled: bool = False
+    trading_order_cancel_confirmation_text: str = "CANCEL ORDER"
+    trading_order_cancel_exptime_ms: int = 5000
+
     # Treasury is deliberately isolated from Monitor and Bot Control.
     # Treasury uses its own read-only credential mount.
     gate_treasury_file: Path = Path("/run/secrets/gate_treasury.json")
