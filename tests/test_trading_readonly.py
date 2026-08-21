@@ -176,3 +176,159 @@ def test_order_book_depth_ratio_uses_top_20_levels():
     assert result["bid_amount_total"] == "20"
     assert result["buy_percent"] == "50.0"
     assert result["sell_percent"] == "50.0"
+
+
+def test_limit_order_buy_preflight_ready():
+    from decimal import Decimal
+
+    from app.api.trading import (
+        _limit_order_preflight,
+    )
+
+    result = _limit_order_preflight(
+        side="buy",
+        time_in_force="gtc",
+        price=Decimal("2"),
+        amount=Decimal("3"),
+        trade_status="tradable",
+        price_precision=2,
+        amount_precision=3,
+        min_base_amount=Decimal("0.1"),
+        min_quote_amount=Decimal("1"),
+        base_available=Decimal("10"),
+        quote_available=Decimal("10"),
+        best_bid=Decimal("1.9"),
+        best_ask=Decimal("2.1"),
+    )
+
+    assert result["blockers"] == []
+    assert result["total"] == Decimal("6")
+    assert result["required"] == Decimal("6")
+    assert result["available"] == Decimal("10")
+    assert result["remaining"] == Decimal("4")
+    assert result["marketable"] is False
+
+
+def test_limit_order_buy_insufficient_quote():
+    from decimal import Decimal
+
+    from app.api.trading import (
+        _limit_order_preflight,
+    )
+
+    result = _limit_order_preflight(
+        side="buy",
+        time_in_force="gtc",
+        price=Decimal("2"),
+        amount=Decimal("6"),
+        trade_status="tradable",
+        price_precision=2,
+        amount_precision=3,
+        min_base_amount=None,
+        min_quote_amount=None,
+        base_available=Decimal("100"),
+        quote_available=Decimal("10"),
+        best_bid=Decimal("1.9"),
+        best_ask=Decimal("2.1"),
+    )
+
+    assert any(
+        "Insufficient" in item
+        for item in result["blockers"]
+    )
+
+
+def test_limit_order_post_only_crossing_is_blocked():
+    from decimal import Decimal
+
+    from app.api.trading import (
+        _limit_order_preflight,
+    )
+
+    result = _limit_order_preflight(
+        side="buy",
+        time_in_force="poc",
+        price=Decimal("2.1"),
+        amount=Decimal("1"),
+        trade_status="tradable",
+        price_precision=2,
+        amount_precision=3,
+        min_base_amount=None,
+        min_quote_amount=None,
+        base_available=Decimal("100"),
+        quote_available=Decimal("100"),
+        best_bid=Decimal("1.9"),
+        best_ask=Decimal("2"),
+    )
+
+    assert result["marketable"] is True
+
+    assert any(
+        "Post-only" in item
+        for item in result["blockers"]
+    )
+
+
+def test_limit_order_precision_is_enforced():
+    from decimal import Decimal
+
+    from app.api.trading import (
+        _limit_order_preflight,
+    )
+
+    result = _limit_order_preflight(
+        side="sell",
+        time_in_force="gtc",
+        price=Decimal("1.234"),
+        amount=Decimal("1.111"),
+        trade_status="tradable",
+        price_precision=2,
+        amount_precision=2,
+        min_base_amount=None,
+        min_quote_amount=None,
+        base_available=Decimal("100"),
+        quote_available=Decimal("100"),
+        best_bid=Decimal("1"),
+        best_ask=Decimal("2"),
+    )
+
+    assert any(
+        "Price exceeds" in item
+        for item in result["blockers"]
+    )
+
+    assert any(
+        "Amount exceeds" in item
+        for item in result["blockers"]
+    )
+
+
+def test_limit_order_sell_uses_base_balance():
+    from decimal import Decimal
+
+    from app.api.trading import (
+        _limit_order_preflight,
+    )
+
+    result = _limit_order_preflight(
+        side="sell",
+        time_in_force="gtc",
+        price=Decimal("2"),
+        amount=Decimal("11"),
+        trade_status="tradable",
+        price_precision=2,
+        amount_precision=0,
+        min_base_amount=None,
+        min_quote_amount=None,
+        base_available=Decimal("10"),
+        quote_available=Decimal("999"),
+        best_bid=Decimal("1.9"),
+        best_ask=Decimal("2.1"),
+    )
+
+    assert result["required_currency"] == "base"
+
+    assert any(
+        "Insufficient" in item
+        for item in result["blockers"]
+    )

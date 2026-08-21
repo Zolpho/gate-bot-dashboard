@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import re
 from decimal import Decimal, InvalidOperation
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import (
     APIRouter,
@@ -11,6 +11,7 @@ from fastapi import (
     HTTPException,
     Query,
 )
+from pydantic import BaseModel, Field
 
 from ..accounts import (
     AccountConfigError,
@@ -44,6 +45,34 @@ _ALLOWED_INTERVALS = {
     "7d",
     "30d",
 }
+
+
+class LimitOrderPreviewRequest(BaseModel):
+    account_id: str = Field(
+        min_length=1,
+        max_length=64,
+    )
+
+    pair: str = Field(
+        min_length=3,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9]+_[A-Za-z0-9]+$",
+    )
+
+    side: Literal["buy", "sell"]
+
+    price: Decimal = Field(
+        gt=0,
+    )
+
+    amount: Decimal = Field(
+        gt=0,
+    )
+
+    time_in_force: Literal[
+        "gtc",
+        "poc",
+    ] = "gtc"
 
 
 def _explicit_trading_account(
@@ -456,6 +485,189 @@ def _normalize_order_book(
     }
 
 
+def _decimal_places(
+    value: Decimal,
+) -> int:
+    normalized = value.normalize()
+    exponent = normalized.as_tuple().exponent
+
+    if exponent >= 0:
+        return 0
+
+    return -exponent
+
+
+def _decimal_text(
+    value: Decimal,
+) -> str:
+    return format(
+        value.normalize(),
+        "f",
+    )
+
+
+def _int_or_none(
+    value: Any,
+) -> int | None:
+    try:
+        result = int(value)
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return None
+
+    if result < 0:
+        return None
+
+    return result
+
+
+def _limit_order_preflight(
+    *,
+    side: Literal["buy", "sell"],
+    time_in_force: Literal["gtc", "poc"],
+    price: Decimal,
+    amount: Decimal,
+    trade_status: str,
+    price_precision: int | None,
+    amount_precision: int | None,
+    min_base_amount: Decimal | None,
+    min_quote_amount: Decimal | None,
+    base_available: Decimal,
+    quote_available: Decimal,
+    best_bid: Decimal | None,
+    best_ask: Decimal | None,
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+
+    normalized_status = (
+        trade_status.strip().lower()
+    )
+
+    side_allowed = (
+        normalized_status == "tradable"
+        or (
+            normalized_status == "buyable"
+            and side == "buy"
+        )
+        or (
+            normalized_status == "sellable"
+            and side == "sell"
+        )
+    )
+
+    if not side_allowed:
+        blockers.append(
+            "Gate does not currently allow this side "
+            f"for the pair (trade_status="
+            f"{normalized_status or 'unknown'})."
+        )
+
+    if price_precision is None:
+        blockers.append(
+            "Gate pair price precision is unavailable."
+        )
+    elif (
+        _decimal_places(price)
+        > price_precision
+    ):
+        blockers.append(
+            "Price exceeds Gate pair precision "
+            f"({price_precision} decimal places)."
+        )
+
+    if amount_precision is None:
+        blockers.append(
+            "Gate pair amount precision is unavailable."
+        )
+    elif (
+        _decimal_places(amount)
+        > amount_precision
+    ):
+        blockers.append(
+            "Amount exceeds Gate pair precision "
+            f"({amount_precision} decimal places)."
+        )
+
+    total = price * amount
+
+    if (
+        min_base_amount is not None
+        and min_base_amount > 0
+        and amount < min_base_amount
+    ):
+        blockers.append(
+            "Amount is below Gate minimum base amount "
+            f"({_decimal_text(min_base_amount)})."
+        )
+
+    if (
+        min_quote_amount is not None
+        and min_quote_amount > 0
+        and total < min_quote_amount
+    ):
+        blockers.append(
+            "Order total is below Gate minimum quote amount "
+            f"({_decimal_text(min_quote_amount)})."
+        )
+
+    if side == "buy":
+        required_currency = "quote"
+        available = quote_available
+        required = total
+
+        marketable = (
+            best_ask is not None
+            and price >= best_ask
+        )
+
+    else:
+        required_currency = "base"
+        available = base_available
+        required = amount
+
+        marketable = (
+            best_bid is not None
+            and price <= best_bid
+        )
+
+    remaining = available - required
+
+    if required > available:
+        blockers.append(
+            "Insufficient available spot balance."
+        )
+
+    if marketable:
+        if time_in_force == "poc":
+            blockers.append(
+                "Post-only order would currently cross "
+                "the order book."
+            )
+        else:
+            warnings.append(
+                "This limit order is currently marketable "
+                "and may execute immediately."
+            )
+
+    warnings.append(
+        "Estimated total does not include trading fees."
+    )
+
+    return {
+        "blockers": blockers,
+        "warnings": warnings,
+        "total": total,
+        "required_currency": required_currency,
+        "available": available,
+        "required": required,
+        "remaining": remaining,
+        "marketable": marketable,
+    }
+
+
 def _monitor_account_or_http(
     account_id: str,
 ):
@@ -755,6 +967,304 @@ async def trading_snapshot(
             "quote": _balance(
                 balances,
                 quote,
+            ),
+        },
+    }
+
+
+@router.post("/limit-orders/preview")
+async def preview_limit_order(
+    request: LimitOrderPreviewRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):
+    account_id = _explicit_trading_account(
+        user,
+        request.account_id,
+    )
+
+    market = _market(
+        request.pair
+    )
+
+    monitor_account = _monitor_account_or_http(
+        account_id
+    )
+
+    try:
+        async with GateClient(
+            settings,
+            monitor_account,
+        ) as client:
+            (
+                pair_response,
+                balance_response,
+                book_response,
+            ) = await asyncio.gather(
+                client.get_spot_currency_pair(
+                    market
+                ),
+                client.list_spot_accounts(),
+                client.get_spot_order_book(
+                    market,
+                    interval="0",
+                    limit=20,
+                    with_id=True,
+                ),
+            )
+
+    except GateAPIError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    pair_data = (
+        pair_response.data
+        if isinstance(
+            pair_response.data,
+            dict,
+        )
+        else {}
+    )
+
+    if not pair_data:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Gate did not return spot pair metadata"
+            ),
+        )
+
+    base = str(
+        pair_data.get("base")
+        or market.split("_", 1)[0]
+    ).upper()
+
+    quote = str(
+        pair_data.get("quote")
+        or market.split("_", 1)[1]
+    ).upper()
+
+    balances = balance_response.data
+
+    base_balance = _balance(
+        balances,
+        base,
+    )
+
+    quote_balance = _balance(
+        balances,
+        quote,
+    )
+
+    base_available = (
+        _decimal(
+            base_balance["available"]
+        )
+        or Decimal("0")
+    )
+
+    quote_available = (
+        _decimal(
+            quote_balance["available"]
+        )
+        or Decimal("0")
+    )
+
+    book = _normalize_order_book(
+        book_response.data
+    )
+
+    best_bid = _decimal(
+        book.get("best_bid")
+    )
+
+    best_ask = _decimal(
+        book.get("best_ask")
+    )
+
+    min_base_amount = _decimal(
+        pair_data.get(
+            "min_base_amount"
+        )
+    )
+
+    min_quote_amount = _decimal(
+        pair_data.get(
+            "min_quote_amount"
+        )
+    )
+
+    checks = _limit_order_preflight(
+        side=request.side,
+        time_in_force=request.time_in_force,
+        price=request.price,
+        amount=request.amount,
+        trade_status=str(
+            pair_data.get(
+                "trade_status"
+            )
+            or ""
+        ),
+        price_precision=_int_or_none(
+            pair_data.get(
+                "precision"
+            )
+        ),
+        amount_precision=_int_or_none(
+            pair_data.get(
+                "amount_precision"
+            )
+        ),
+        min_base_amount=min_base_amount,
+        min_quote_amount=min_quote_amount,
+        base_available=base_available,
+        quote_available=quote_available,
+        best_bid=best_bid,
+        best_ask=best_ask,
+    )
+
+    blockers = checks["blockers"]
+    warnings = checks["warnings"]
+
+    required_asset = (
+        quote
+        if checks["required_currency"]
+        == "quote"
+        else base
+    )
+
+    return {
+        "status": (
+            "ready"
+            if not blockers
+            else "invalid"
+        ),
+
+        # Important safety invariant:
+        # this endpoint performs no Gate write and there is
+        # deliberately no execute endpoint yet.
+        "preview_only": True,
+        "execution_implemented": False,
+        "execution_enabled": False,
+        "can_execute": False,
+        "gate_write_required": True,
+        "gate_write_performed": False,
+        "write_performed": False,
+
+        "account_id": account_id,
+
+        "pair": {
+            "id": market,
+            "base": base,
+            "quote": quote,
+            "trade_status": str(
+                pair_data.get(
+                    "trade_status"
+                )
+                or ""
+            ).lower(),
+            "precision": _int_or_none(
+                pair_data.get(
+                    "precision"
+                )
+            ),
+            "amount_precision": _int_or_none(
+                pair_data.get(
+                    "amount_precision"
+                )
+            ),
+            "min_base_amount": (
+                _decimal_text(
+                    min_base_amount
+                )
+                if min_base_amount
+                is not None
+                else None
+            ),
+            "min_quote_amount": (
+                _decimal_text(
+                    min_quote_amount
+                )
+                if min_quote_amount
+                is not None
+                else None
+            ),
+        },
+
+        "order": {
+            "type": "limit",
+            "account": "spot",
+            "side": request.side,
+            "price": _decimal_text(
+                request.price
+            ),
+            "amount": _decimal_text(
+                request.amount
+            ),
+            "total": _decimal_text(
+                checks["total"]
+            ),
+            "time_in_force": (
+                request.time_in_force
+            ),
+        },
+
+        "market": {
+            "best_bid": (
+                _decimal_text(best_bid)
+                if best_bid is not None
+                else None
+            ),
+            "best_ask": (
+                _decimal_text(best_ask)
+                if best_ask is not None
+                else None
+            ),
+            "marketable": checks[
+                "marketable"
+            ],
+        },
+
+        "funds": {
+            "asset": required_asset,
+            "available": _decimal_text(
+                checks["available"]
+            ),
+            "required": _decimal_text(
+                checks["required"]
+            ),
+            "remaining": _decimal_text(
+                checks["remaining"]
+            ),
+        },
+
+        "blockers": blockers,
+        "warnings": warnings,
+
+        # This is the shape we eventually intend to send
+        # through a separate Spot read-write credential.
+        # It is DISPLAY ONLY at this stage.
+        "gate_payload_preview": {
+            "currency_pair": market,
+            "type": "limit",
+            "account": "spot",
+            "side": request.side,
+            "amount": _decimal_text(
+                request.amount
+            ),
+            "price": _decimal_text(
+                request.price
+            ),
+            "time_in_force": (
+                request.time_in_force
             ),
         },
     }
