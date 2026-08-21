@@ -4031,14 +4031,18 @@ function treasuryUserTransferDestinationRows(source) {
 
 
 function treasuryUserTransferBalanceRows(source) {
+  const participant = (
+    state.treasuryUserTransferParticipants || []
+  ).find(item => (
+    String(item.account_id || '') === source
+  ));
+
   return (
-    state.treasuryOwnershipBalances || []
+    participant?.available_balances || []
   ).filter(item => (
-    String(item.owner_account_id || '') === source
-    && Number(item.main_held_amount || 0) > 0
+    Number(item.available || 0) > 0
   ));
 }
-
 
 function generateTreasuryUserTransferRequestId() {
   const timestamp = Date.now().toString(36);
@@ -4130,7 +4134,7 @@ function renderTreasuryUserTransferParticipants() {
   }
 
   sourceSelect.value = source;
-  sourceSelect.disabled = !source;
+  sourceSelect.disabled = sourceIds.length <= 1;
 
   const destinations = (
     treasuryUserTransferDestinationRows(source)
@@ -4188,7 +4192,7 @@ function renderTreasuryUserTransferParticipants() {
           + `${escapeHtml(currency)} · `
           + `${escapeHtml(
             treasuryAmount(
-              item.main_held_amount,
+              item.available,
               currency
             )
           )} available`
@@ -4197,7 +4201,7 @@ function renderTreasuryUserTransferParticipants() {
       }).join('')
     : (
         '<option value="">'
-        + 'No main-held assets available'
+        + 'No available Gate spot assets'
         + '</option>'
       );
 
@@ -4219,8 +4223,8 @@ function renderTreasuryUserTransferParticipants() {
   if (stateElement) {
     stateElement.textContent = (
       state.treasuryUserTransfersEnabled
-        ? 'ENABLED'
-        : 'DISABLED'
+        ? 'LIVE ENABLED'
+        : 'Transfers disabled'
     );
   }
 
@@ -4238,6 +4242,22 @@ function renderTreasuryUserTransferPreview() {
     return;
   }
 
+  const confirmationInput = $(
+    '#treasuryUserTransferConfirmation'
+  );
+
+  const requiredElement = $(
+    '#treasuryUserTransferRequiredConfirmation'
+  );
+
+  const confirmationText = $(
+    '#treasuryUserTransferConfirmationText'
+  );
+
+  const executeButton = $(
+    '#executeTreasuryUserTransfer'
+  );
+
   const snapshot = state.treasuryUserTransferPreview;
 
   if (!snapshot) {
@@ -4249,8 +4269,18 @@ function renderTreasuryUserTransferPreview() {
 
     confirmationBlock.classList.add('hidden');
 
-    if ($('#treasuryUserTransferConfirmation')) {
-      $('#treasuryUserTransferConfirmation').value = '';
+    if (confirmationInput) {
+      confirmationInput.value = '';
+      confirmationInput.disabled = true;
+    }
+
+    if (requiredElement) {
+      requiredElement.textContent = '—';
+    }
+
+    if (executeButton) {
+      executeButton.disabled = true;
+      executeButton.textContent = 'Transfer funds';
     }
 
     return;
@@ -4265,44 +4295,55 @@ function renderTreasuryUserTransferPreview() {
 
   const blockerText = blockers.length
     ? blockers.map(item => (
-        `${item.type || 'operation'} `
-        + `${item.request_id || ''}`
+        item.message || item.type || 'Blocked'
       )).join(', ')
     : 'None';
 
+  const status = String(
+    response.status || ''
+  ).toLowerCase();
+
+  const required = String(
+    response.required_confirmation || ''
+  );
+
+  const executionImplemented = Boolean(
+    response.execution_implemented
+  );
+
+  // Fail closed if either the participants response or
+  // this preview says that live user transfers are off.
+  const liveEnabled = Boolean(
+    state.treasuryUserTransfersEnabled
+    && response.user_transfers_enabled
+    && executionImplemented
+  );
+
+  const ready = Boolean(
+    status === 'ready'
+    && blockers.length === 0
+  );
+
   container.innerHTML = `
-    <div class="treasury-user-transfer-preview-head">
-      <strong>
-        ${escapeHtml(
-          response.status === 'ready'
-            ? 'Transfer review ready'
-            : 'Transfer blocked'
-        )}
-      </strong>
-
-      <span class="treasury-status ${
-        escapeHtml(
-          response.status === 'ready'
-            ? 'success'
-            : 'blocked'
-        )
-      }">
-        ${escapeHtml(response.status || 'unknown')}
-      </span>
-    </div>
-
-    <div class="treasury-user-transfer-review-grid">
+    <div class="treasury-user-transfer-preview-grid">
       <div>
-        <span>From</span>
+        <span>Source account</span>
         <strong>${escapeHtml(
           preview.source_account_id || '—'
         )}</strong>
       </div>
 
       <div>
-        <span>To</span>
+        <span>Recipient account</span>
         <strong>${escapeHtml(
           preview.destination_account_id || '—'
+        )}</strong>
+      </div>
+
+      <div>
+        <span>Asset</span>
+        <strong>${escapeHtml(
+          preview.currency || '—'
         )}</strong>
       </div>
 
@@ -4317,55 +4358,37 @@ function renderTreasuryUserTransferPreview() {
       </div>
 
       <div>
-        <span>Physical custody</span>
-        <strong>${escapeHtml(
-          preview.custody_account_id || '—'
-        )}</strong>
-      </div>
-
-      <div>
-        <span>Source before</span>
+        <span>Available before</span>
         <strong>${escapeHtml(
           treasuryAmount(
-            preview.source_before,
+            preview.source_available_before,
             preview.currency
           )
         )}</strong>
       </div>
 
       <div>
-        <span>Source after</span>
+        <span>Available after</span>
         <strong>${escapeHtml(
           treasuryAmount(
-            preview.source_after,
+            preview.source_available_after,
             preview.currency
           )
         )}</strong>
       </div>
 
       <div>
-        <span>Recipient before</span>
+        <span>Gate transfer path</span>
         <strong>${escapeHtml(
-          treasuryAmount(
-            preview.destination_before,
-            preview.currency
-          )
-        )}</strong>
-      </div>
-
-      <div>
-        <span>Recipient after</span>
-        <strong>${escapeHtml(
-          treasuryAmount(
-            preview.destination_after,
-            preview.currency
-          )
+          preview.transfer_path || '—'
         )}</strong>
       </div>
 
       <div>
         <span>Gate write</span>
-        <strong>NONE</strong>
+        <strong>
+          ${ready ? 'REQUIRED ON EXECUTION' : 'NOT PERFORMED'}
+        </strong>
       </div>
 
       <div>
@@ -4374,16 +4397,18 @@ function renderTreasuryUserTransferPreview() {
       </div>
 
       <div>
-        <span>Request ID</span>
-        <strong>${escapeHtml(
-          snapshot.requestId || '—'
-        )}</strong>
+        <span>Execution implementation</span>
+        <strong>${
+          executionImplemented
+            ? 'IMPLEMENTED'
+            : 'NOT IMPLEMENTED'
+        }</strong>
       </div>
 
       <div>
-        <span>User transfers</span>
+        <span>Live transfer arm</span>
         <strong>${
-          response.user_transfers_enabled
+          liveEnabled
             ? 'ENABLED'
             : 'DISABLED'
         }</strong>
@@ -4391,17 +4416,69 @@ function renderTreasuryUserTransferPreview() {
     </div>
   `;
 
-  const required = String(
-    response.required_confirmation || ''
+  const showConfirmation = Boolean(
+    ready
+    && executionImplemented
+    && required
   );
 
-  $('#treasuryUserTransferRequiredConfirmation')
-    .textContent = required || '—';
+  if (!showConfirmation) {
+    confirmationBlock.classList.add('hidden');
 
-  confirmationBlock.classList.toggle(
-    'hidden',
-    !required
-  );
+    if (requiredElement) {
+      requiredElement.textContent = '—';
+    }
+
+    if (confirmationInput) {
+      confirmationInput.value = '';
+      confirmationInput.disabled = true;
+    }
+
+    if (executeButton) {
+      executeButton.disabled = true;
+      executeButton.textContent = 'Transfer funds';
+    }
+
+    return;
+  }
+
+  confirmationBlock.classList.remove('hidden');
+
+  if (requiredElement) {
+    requiredElement.textContent = required;
+  }
+
+  if (confirmationText) {
+    confirmationText.textContent = liveEnabled
+      ? (
+          'Type the exact confirmation below '
+          + 'before transferring.'
+        )
+      : (
+          'Transfers are currently disabled. '
+          + 'The exact confirmation is shown '
+          + 'for validation only.'
+        );
+  }
+
+  if (confirmationInput) {
+    confirmationInput.disabled = Boolean(
+      !liveEnabled
+      || state.treasuryUserTransferExecutionAttempted
+    );
+  }
+
+  if (executeButton) {
+    executeButton.textContent = (
+      state.treasuryUserTransferExecutionAttempted
+        ? 'Reconciliation required'
+        : (
+            liveEnabled
+              ? 'Transfer funds'
+              : 'Transfers disabled'
+          )
+    );
+  }
 
   updateTreasuryUserTransferExecuteButton();
 }
@@ -4433,9 +4510,22 @@ function updateTreasuryUserTransferExecuteButton() {
     response.required_confirmation || ''
   );
 
+  const status = String(
+    response.status || ''
+  ).toLowerCase();
+
+  const liveEnabled = Boolean(
+    state.treasuryUserTransfersEnabled
+    && response.user_transfers_enabled
+    && response.execution_implemented
+  );
+
   button.disabled = !(
     snapshot
+    && liveEnabled
+    && status === 'ready'
     && response.can_execute
+    && !state.treasuryUserTransferExecutionAttempted
     && required
     && confirmation === required
   );
@@ -4545,9 +4635,15 @@ async function runTreasuryUserTransferPreview(event) {
 async function executeTreasuryUserTransfer() {
   const snapshot = state.treasuryUserTransferPreview;
 
-  if (!snapshot) return;
+  if (
+    !snapshot
+    || state.treasuryUserTransferExecutionAttempted
+  ) {
+    return;
+  }
 
   const response = snapshot.response || {};
+
   const required = String(
     response.required_confirmation || ''
   );
@@ -4557,8 +4653,15 @@ async function executeTreasuryUserTransfer() {
     || ''
   );
 
+  const liveEnabled = Boolean(
+    state.treasuryUserTransfersEnabled
+    && response.user_transfers_enabled
+    && response.execution_implemented
+  );
+
   if (
-    !response.can_execute
+    !liveEnabled
+    || !response.can_execute
     || !required
     || confirmation !== required
   ) {
@@ -4568,21 +4671,22 @@ async function executeTreasuryUserTransfer() {
   const button = $('#executeTreasuryUserTransfer');
   const errorBox = $('#treasuryUserTransferError');
 
+  if (!button) return;
+
   button.disabled = true;
-  button.textContent = (
-    state.treasuryUserTransferExecutionAttempted
-      ? 'Retrying exact request…'
-      : 'Transferring…'
-  );
+  button.textContent = 'Transferring…';
 
   errorBox?.classList.add('hidden');
 
   state.treasuryUserTransferExecutionAttempted = true;
 
-  // Once an execute request has been attempted, keep the
-  // exact request/form immutable until we have a definitive
-  // result. This preserves safe idempotent recovery.
+  // From this point onward the exact request must remain
+  // immutable until the outcome is definitive.
   setTreasuryUserTransferFormLocked(true);
+
+  if ($('#treasuryUserTransferConfirmation')) {
+    $('#treasuryUserTransferConfirmation').disabled = true;
+  }
 
   try {
     const result = await adminApi(
@@ -4600,21 +4704,56 @@ async function executeTreasuryUserTransfer() {
       },
     );
 
-    if (
-      result.gate_write_performed
-      || result.audit?.write_performed
-    ) {
-      throw new Error(
-        'Safety invariant failed: dashboard user '
-        + 'transfer reported a Gate write.'
-      );
-    }
-
     const status = String(
       result.status || ''
     ).toLowerCase();
 
-    if (status !== 'success') {
+    if (status === 'success') {
+      // A successful real user transfer MUST correspond to
+      // a recorded Gate write. This is the inverse of the
+      // obsolete ownership-transfer invariant.
+      if (
+        !result.gate_write_performed
+        && !result.audit?.write_performed
+      ) {
+        throw new Error(
+          'Safety invariant failed: successful '
+          + 'user transfer has no recorded Gate write.'
+        );
+      }
+
+      showToast(
+        `Transferred ${
+          treasuryAmount(
+            result.amount,
+            result.currency
+          )
+        } from ${
+          result.source_account_id
+        } to ${
+          result.destination_account_id
+        }.`
+      );
+
+      $('#treasuryUserTransferAmount').value = '';
+
+      clearTreasuryUserTransferPreview();
+
+      await loadTreasuryOverview({
+        quiet: true,
+      });
+
+      return;
+    }
+
+    const terminal = [
+      'failed',
+      'rejected',
+      'blocked',
+      'preflight_failed',
+    ].includes(status);
+
+    if (terminal) {
       showToast(
         `User transfer finished with status ${status}.`,
         true,
@@ -4629,32 +4768,33 @@ async function executeTreasuryUserTransfer() {
       return;
     }
 
-    showToast(
-      `Transferred ${
-        treasuryAmount(
-          result.amount,
-          result.currency
-        )
-      } from ${
-        result.source_account_id
-      } to ${
-        result.destination_account_id
-      }.`
+    const retainedMessage = (
+      `Transfer status is ${status || 'uncertain'}. `
+      + `Request ${snapshot.requestId} is retained. `
+      + 'Do not retry this transfer or create a '
+      + 'replacement request. Reconciliation is required.'
     );
 
-    $('#treasuryUserTransferAmount').value = '';
+    if (errorBox) {
+      errorBox.textContent = retainedMessage;
+      errorBox.classList.remove('hidden');
+    }
 
-    clearTreasuryUserTransferPreview();
+    button.textContent = 'Reconciliation required';
+    button.disabled = true;
 
-    await loadTreasuryOverview({
-      quiet: true,
-    });
+    showToast(retainedMessage, true);
 
   } catch (error) {
     const message = treasuryErrorMessage(error);
 
+    const detail = (
+      error?.payload?.detail || {}
+    );
+
     const auditStatus = String(
-      error?.payload?.detail?.audit?.status
+      detail?.audit?.status
+      || detail?.status
       || ''
     ).toLowerCase();
 
@@ -4663,24 +4803,34 @@ async function executeTreasuryUserTransfer() {
       'failed',
       'rejected',
       'blocked',
+      'preflight_failed',
     ].includes(auditStatus);
 
+    const explicitNoGateWrite = (
+      detail?.gate_write_performed === false
+    );
+
     if (errorBox) {
-      errorBox.textContent = terminal
-        ? message
-        : (
-            `${message} Request ${
-              snapshot.requestId
-            } is retained. Retry the exact request; `
-            + 'do not create a replacement transfer.'
-          );
+      if (explicitNoGateWrite || terminal) {
+        errorBox.textContent = message;
+      } else {
+        errorBox.textContent = (
+          `${message} Request ${
+            snapshot.requestId
+          } is retained. Do not retry or create a `
+          + 'replacement transfer. Reconciliation '
+          + 'is required.'
+        );
+      }
 
       errorBox.classList.remove('hidden');
     }
 
     showToast(message, true);
 
-    if (terminal) {
+    if (explicitNoGateWrite || terminal) {
+      // Backend explicitly confirms no Gate write, or the
+      // request is terminal. A fresh preview is required.
       clearTreasuryUserTransferPreview();
 
       await loadTreasuryOverview({
@@ -4688,10 +4838,10 @@ async function executeTreasuryUserTransfer() {
       });
 
     } else {
-      // Ambiguous/local recovery case: preserve request ID
-      // and all form values for exact replay.
-      button.textContent = 'Retry exact request';
-      updateTreasuryUserTransferExecuteButton();
+      // Unknown/post-boundary outcome. Never invite another
+      // execute POST from the UI.
+      button.textContent = 'Reconciliation required';
+      button.disabled = true;
     }
 
     return;
@@ -4702,13 +4852,16 @@ async function executeTreasuryUserTransfer() {
     }
 
     if (state.treasuryUserTransferPreview) {
-      button.textContent = (
+      if (
         state.treasuryUserTransferExecutionAttempted
-          ? 'Retry exact request'
-          : 'Transfer funds'
-      );
+      ) {
+        button.textContent = 'Reconciliation required';
+        button.disabled = true;
 
-      updateTreasuryUserTransferExecuteButton();
+      } else {
+        button.textContent = 'Transfer funds';
+        updateTreasuryUserTransferExecuteButton();
+      }
     }
   }
 }

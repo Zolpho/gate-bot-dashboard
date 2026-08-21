@@ -317,6 +317,16 @@ class GateClient:
             json_body=payload,
         )
 
+    async def create_sub_account_to_sub_account_transfer(
+        self,
+        payload: dict[str, Any],
+    ) -> GateResponse:
+        return await self.request(
+            "POST",
+            "/wallet/sub_account_to_sub_account",
+            json_body=payload,
+        )
+
     async def get_transfer_order_status(
         self,
         *,

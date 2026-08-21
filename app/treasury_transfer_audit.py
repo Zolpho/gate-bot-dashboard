@@ -365,7 +365,8 @@ def reserve_live_transfer(
             return _snapshot(existing), False
 
 
-def reserve_user_transfer_attempt(
+
+def reserve_user_account_transfer(
     *,
     request_id: str,
     source_account_id: str,
@@ -374,13 +375,19 @@ def reserve_user_transfer_attempt(
     currency: str,
     amount: Decimal,
     payload: Any,
+    client_order_id: str = "",
 ) -> tuple[dict[str, Any], bool]:
     """
-    Persist one dashboard ownership-transfer intent.
+    Persist one real Gate user-to-user account transfer.
 
-    This record never represents a Gate write. The actual
-    financial mutation is the paired ownership-ledger
-    debit/credit created by treasury_user_transfer.
+    Unlike reserve_live_transfer(), this operation is not a
+    subaccount-to-Treasury ownership deposit. Its successful
+    completion must never create a local ownership-ledger
+    credit.
+
+    client_order_id must reflect what is actually sent to Gate:
+    blank for subaccount-to-subaccount, populated for
+    main<->subaccount.
     """
     fingerprint = request_fingerprint(payload)
 
@@ -398,9 +405,7 @@ def reserve_user_transfer_attempt(
             if existing is not None:
                 _verify_match(
                     existing,
-                    source_account_id=(
-                        source_account_id
-                    ),
+                    source_account_id=source_account_id,
                     username=username,
                     fingerprint=fingerprint,
                 )
@@ -409,21 +414,19 @@ def reserve_user_transfer_attempt(
 
             row = TreasuryTransferRequest(
                 request_id=request_id,
-                source_account_id=(
-                    source_account_id
-                ),
+                source_account_id=source_account_id,
                 destination_account_id=(
                     destination_account_id
                 ),
                 username=username,
-                direction="ownership",
+                direction="user_account_transfer",
                 currency=currency,
                 amount=amount,
                 status="reserved",
                 request_hash=fingerprint,
                 request_json=canonical_json(payload),
                 response_json="{}",
-                client_order_id="",
+                client_order_id=client_order_id,
                 simulation=False,
                 write_performed=False,
             )
@@ -449,9 +452,7 @@ def reserve_user_transfer_attempt(
 
             _verify_match(
                 existing,
-                source_account_id=(
-                    source_account_id
-                ),
+                source_account_id=source_account_id,
                 username=username,
                 fingerprint=fingerprint,
             )
@@ -509,11 +510,16 @@ def mark_transfer_request(
         if completed:
             row.completed_at = utcnow()
 
-        # Economic ownership must be committed atomically
-        # with a definitive successful live internal
-        # transfer. Simulations and all non-success states
-        # are ignored by the ledger predicate.
-        if status == "success":
+        # Only the existing subaccount -> Treasury-main
+        # deposit flow creates economic-ownership credit.
+        #
+        # Real dashboard user-account transfers move Gate
+        # balances directly and MUST NOT mint ownership
+        # ledger entries.
+        if (
+            status == "success"
+            and row.direction == "from"
+        ):
             ensure_internal_transfer_credit_for_row(
                 db,
                 row,

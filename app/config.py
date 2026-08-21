@@ -38,10 +38,13 @@ class Settings(BaseSettings):
     treasury_transfers_live_accounts: str = ""
     treasury_transfer_confirmation_text: str = "LIVE TRANSFER"
 
-    # Dashboard user-to-user transfers move economic ownership
-    # only. They never perform a Gate API write and have a
-    # separate arm from live Gate Treasury transfers.
+    # Dashboard user-to-user transfers move real available
+    # Gate spot balances between explicitly assigned accounts.
+    # Keep independently disabled until live execution is ready.
     treasury_user_transfers_enabled: bool = False
+    treasury_user_transfer_confirmation_text: str = (
+        "USER TRANSFER"
+    )
 
     # External withdrawals have their own independent
     # live arm. Enabling internal Treasury transfers must
@@ -72,9 +75,9 @@ class Settings(BaseSettings):
     treasury_execute_account_limit: int = 5
     treasury_execute_account_window_seconds: int = 600
 
-    # Economic ownership transfers between registered
-    # dashboard accounts. These never perform a Gate write,
-    # but remain financially sensitive mutations.
+    # Account-scoped Gate transfers between registered
+    # dashboard accounts. These are financially sensitive
+    # mutations and have their own rate limits.
     treasury_user_transfer_user_limit: int = 10
     treasury_user_transfer_user_window_seconds: int = 600
 

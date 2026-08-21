@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import time
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -48,9 +48,7 @@ from ..treasury_transfer_audit import (
     get_transfer_request,
     list_transfer_reconciliations,
     list_transfer_requests,
-    mark_transfer_request,
     record_simulation,
-    reserve_user_transfer_attempt,
 )
 from ..treasury_transfer_execution import (
     execute_reserved_live_transfer,
@@ -66,12 +64,12 @@ from ..treasury_transfer_locks import (
     get_transfer_lock_for_request,
     list_transfer_locks,
 )
-from ..treasury_user_transfer import (
-    TreasuryUserTransferConflict,
-    TreasuryUserTransferError,
-    execute_user_transfer,
-    preview_user_transfer,
-    user_transfer_confirmation_text,
+from ..treasury_user_transfer_execution import (
+    USER_TRANSFER_OPERATION,
+    build_user_gate_transfer,
+    execute_user_account_transfer,
+    existing_user_transfer_result,
+    reconcile_user_account_transfer,
 )
 from ..treasury_withdrawal import (
     bind_destination_to_preflight,
@@ -356,6 +354,277 @@ def _require_registered_user_transfer_account(
     return normalized
 
 
+
+def _user_transfer_source_account_ids(
+    user: DashboardUser,
+) -> tuple[str, ...]:
+    """
+    User-transfer source authorization is deliberately stricter
+    than DashboardUser.can_manage().
+
+    Super-admin status does NOT grant source access here. A source
+    must be explicitly assigned in the authenticated user's
+    account_ids.
+    """
+    result: list[str] = []
+
+    for value in user.account_ids:
+        account_id = str(value or "").strip().lower()
+
+        if (
+            account_id
+            and account_id not in result
+        ):
+            result.append(account_id)
+
+    return tuple(result)
+
+
+def _require_user_transfer_source_access(
+    user: DashboardUser,
+    account_id: str,
+) -> str:
+    normalized = str(account_id or "").strip().lower()
+
+    if (
+        normalized
+        not in _user_transfer_source_account_ids(user)
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You are not allowed to transfer funds "
+                "from this Gate account"
+            ),
+        )
+
+    return normalized
+
+
+def _user_transfer_gate_account_or_http(
+    account_id: str,
+):
+    account = get_gate_account(account_id)
+
+    if (
+        account is None
+        or not account.enabled
+        or not account.configured
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Gate account is not configured or enabled "
+                f"for user transfers: {account_id}"
+            ),
+        )
+
+    return account
+
+
+def _user_transfer_recipient_allowed(
+    *,
+    user: DashboardUser,
+    destination_account_id: str,
+    participants: dict[str, list[str]],
+) -> bool:
+    normalized = str(
+        destination_account_id or ""
+    ).strip().lower()
+
+    # A user's explicitly assigned accounts are source-side
+    # accounts for this feature and must never be offered back
+    # to that same user as a recipient.
+    if normalized in _user_transfer_source_account_ids(user):
+        return False
+
+    usernames = participants.get(
+        normalized,
+        [],
+    )
+
+    return any(
+        username != user.username
+        for username in usernames
+    )
+
+
+def _user_transfer_path(
+    *,
+    source_account_id: str,
+    destination_account_id: str,
+) -> dict:
+    source = _user_transfer_gate_account_or_http(
+        source_account_id
+    )
+    destination = _user_transfer_gate_account_or_http(
+        destination_account_id
+    )
+
+    source_type = str(
+        source.account_type or ""
+    ).strip().lower()
+
+    destination_type = str(
+        destination.account_type or ""
+    ).strip().lower()
+
+    if source_account_id == destination_account_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Source and destination must be different",
+        )
+
+    if (
+        source_type == "subaccount"
+        and destination_type == "subaccount"
+    ):
+        if not source.gate_uid or not destination.gate_uid:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Both subaccounts require Gate UID values "
+                    "for direct subaccount transfer"
+                ),
+            )
+
+        kind = "subaccount_to_subaccount"
+
+    elif (
+        source_type == "main"
+        and destination_type == "subaccount"
+    ):
+        if not destination.gate_uid:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Destination subaccount is missing Gate UID"
+                ),
+            )
+
+        kind = "main_to_subaccount"
+
+    elif (
+        source_type == "subaccount"
+        and destination_type == "main"
+    ):
+        if not source.gate_uid:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Source subaccount is missing Gate UID"
+                ),
+            )
+
+        kind = "subaccount_to_main"
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Unsupported Gate account transfer path: "
+                f"{source_type} -> {destination_type}"
+            ),
+        )
+
+    return {
+        "kind": kind,
+        "source_account_type": source_type,
+        "destination_account_type": destination_type,
+    }
+
+
+async def _gate_spot_available_balances(
+    account_id: str,
+) -> list[dict[str, str]]:
+    account = _user_transfer_gate_account_or_http(
+        account_id
+    )
+
+    try:
+        async with GateClient(
+            settings,
+            account,
+        ) as client:
+            response = await client.list_spot_accounts()
+
+    except GateAPIError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": (
+                    "Unable to read fresh Gate spot balances"
+                ),
+                "account_id": account_id,
+                "gate_status_code": exc.status_code,
+                "gate_label": exc.label,
+            },
+        ) from exc
+
+    rows = (
+        response.data
+        if isinstance(response.data, list)
+        else []
+    )
+
+    result: list[dict[str, str]] = []
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+
+        currency = str(
+            row.get("currency") or ""
+        ).strip().upper()
+
+        if not currency:
+            continue
+
+        try:
+            available = Decimal(
+                str(row.get("available") or "0")
+            )
+        except (
+            InvalidOperation,
+            ValueError,
+            TypeError,
+        ):
+            continue
+
+        if available <= 0:
+            continue
+
+        result.append(
+            {
+                "currency": currency,
+                "available": format(
+                    available,
+                    "f",
+                ),
+            }
+        )
+
+    result.sort(
+        key=lambda item: item["currency"]
+    )
+
+    return result
+
+
+def _available_balance_for_currency(
+    balances: list[dict[str, str]],
+    currency: str,
+) -> Decimal:
+    for row in balances:
+        if row["currency"] == currency:
+            try:
+                return Decimal(row["available"])
+            except InvalidOperation:
+                return Decimal("0")
+
+    return Decimal("0")
+
+
 class TreasuryWithdrawalDestinationCandidateRequest(
     BaseModel
 ):
@@ -530,7 +799,7 @@ class TreasuryWithdrawalAbandonRequest(
 
 
 @router.get("/user-transfers/participants")
-def treasury_user_transfer_participants(
+async def treasury_user_transfer_participants(
     user: Annotated[
         DashboardUser,
         Depends(require_user),
@@ -540,32 +809,85 @@ def treasury_user_transfer_participants(
         _registered_user_transfer_accounts()
     )
 
+    source_ids = set(
+        _user_transfer_source_account_ids(user)
+    )
+
     items = []
 
     for account_id in sorted(participants):
+        gate_account = get_gate_account(account_id)
+
+        configured = bool(
+            gate_account
+            and gate_account.enabled
+            and gate_account.configured
+        )
+
+        can_source = bool(
+            configured
+            and account_id in source_ids
+        )
+
+        can_receive = bool(
+            configured
+            and _user_transfer_recipient_allowed(
+                user=user,
+                destination_account_id=account_id,
+                participants=participants,
+            )
+        )
+
+        available_balances = []
+        balance_error = ""
+
+        if can_source:
+            try:
+                available_balances = (
+                    await _gate_spot_available_balances(
+                        account_id
+                    )
+                )
+            except HTTPException as exc:
+                detail = exc.detail
+
+                if isinstance(detail, dict):
+                    balance_error = str(
+                        detail.get("message")
+                        or detail
+                    )
+                else:
+                    balance_error = str(detail)
+
         items.append(
             {
                 "account_id": account_id,
                 "usernames": participants[account_id],
-                "can_source": user.can_manage(
-                    account_id
+                "account_type": (
+                    gate_account.account_type
+                    if gate_account
+                    else ""
                 ),
-                "can_receive": True,
+                "can_source": can_source,
+                "can_receive": can_receive,
+                "available_balances": available_balances,
+                "balance_error": balance_error,
             }
         )
 
     return {
-        "phase": "USER_OWNERSHIP_TRANSFER",
+        "phase": "USER_ACCOUNT_TRANSFER",
         "user_transfers_enabled": bool(
             settings.treasury_user_transfers_enabled
         ),
+        "execution_implemented": True,
         "gate_write_performed": False,
         "items": items,
     }
 
 
 @router.post("/user-transfers/preview")
-def preview_treasury_user_transfer(
+async def preview_treasury_user_transfer(
     request: TreasuryUserTransferPreviewRequest,
     user: Annotated[
         DashboardUser,
@@ -576,7 +898,7 @@ def preview_treasury_user_transfer(
         _registered_user_transfer_accounts()
     )
 
-    source = require_account_access(
+    source = _require_user_transfer_source_access(
         user,
         request.source_account_id,
     )
@@ -595,32 +917,102 @@ def preview_treasury_user_transfer(
         )
     )
 
+    if not _user_transfer_recipient_allowed(
+        user=user,
+        destination_account_id=destination,
+        participants=participants,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Destination must belong to another "
+                "enabled dashboard user"
+            ),
+        )
+
+    source_account = (
+        _user_transfer_gate_account_or_http(source)
+    )
+
+    destination_account = (
+        _user_transfer_gate_account_or_http(
+            destination
+        )
+    )
+
     selected_currency = _currency(
         request.currency
     )
 
     try:
-        preview = preview_user_transfer(
-            source_account_id=source,
-            destination_account_id=destination,
-            custody_account_id=(
-                settings.treasury_main_account
-            ),
+        gate_request = build_user_gate_transfer(
+            source_account=source_account,
+            destination_account=destination_account,
             currency=selected_currency,
             amount=request.amount,
+            request_id="preview-only",
         )
 
-    except TreasuryUserTransferError as exc:
+    except TreasuryTransferValidationError as exc:
         raise HTTPException(
             status_code=400,
-            detail={
-                "message": str(exc),
-                "gate_write_performed": False,
-            },
+            detail=str(exc),
         ) from exc
 
+    balances = await _gate_spot_available_balances(
+        source
+    )
+
+    available = (
+        _available_balance_for_currency(
+            balances,
+            selected_currency,
+        )
+    )
+
+    blockers = []
+
+    if available <= 0:
+        blockers.append(
+            {
+                "type": "no_available_balance",
+                "message": (
+                    "No available Gate spot balance "
+                    f"for {selected_currency}"
+                ),
+            }
+        )
+
+    elif request.amount > available:
+        blockers.append(
+            {
+                "type": (
+                    "insufficient_available_balance"
+                ),
+                "message": (
+                    f"Requested "
+                    f"{format(request.amount, 'f')} "
+                    f"{selected_currency}, but only "
+                    f"{format(available, 'f')} "
+                    "is available"
+                ),
+            }
+        )
+
+    can_transfer = not blockers
+
+    source_after = (
+        available - request.amount
+        if can_transfer
+        else available
+    )
+
     required_confirmation = (
-        user_transfer_confirmation_text(
+        live_transfer_confirmation_text(
+            base_text=(
+                settings
+                .treasury_user_transfer_confirmation_text
+            ),
             source_account_id=source,
             destination_account_id=destination,
             currency=selected_currency,
@@ -633,27 +1025,59 @@ def preview_treasury_user_transfer(
     )
 
     return {
-        "phase": "USER_OWNERSHIP_TRANSFER",
+        "phase": "USER_ACCOUNT_TRANSFER",
         "status": (
             "ready"
-            if preview["can_transfer"]
+            if can_transfer
             else "blocked"
         ),
         "user_transfers_enabled": enabled,
-        "can_execute": bool(
-            enabled
-            and preview["can_transfer"]
+        "execution_implemented": True,
+        "can_execute": (
+            can_transfer
+            and enabled
         ),
+        "gate_write_required": True,
         "gate_write_performed": False,
         "required_confirmation": (
             required_confirmation
         ),
-        "preview": preview,
+        "preview": {
+            "source_account_id": source,
+            "destination_account_id": (
+                destination
+            ),
+            "currency": selected_currency,
+            "amount": format(
+                request.amount,
+                "f",
+            ),
+            "source_available_before": format(
+                available,
+                "f",
+            ),
+            "source_available_after": format(
+                source_after,
+                "f",
+            ),
+            "transfer_path": (
+                gate_request["path"]
+            ),
+            "source_account_type": (
+                source_account.account_type
+            ),
+            "destination_account_type": (
+                destination_account.account_type
+            ),
+            "operation_blockers": blockers,
+            "gate_write_required": True,
+            "gate_write_performed": False,
+        },
     }
 
 
 @router.post("/user-transfers/execute")
-def execute_treasury_user_transfer(
+async def execute_treasury_user_transfer(
     request: TreasuryUserTransferExecutionRequest,
     user: Annotated[
         DashboardUser,
@@ -664,7 +1088,7 @@ def execute_treasury_user_transfer(
         _registered_user_transfer_accounts()
     )
 
-    source = require_account_access(
+    source = _require_user_transfer_source_access(
         user,
         request.source_account_id,
     )
@@ -683,33 +1107,74 @@ def execute_treasury_user_transfer(
         )
     )
 
+    if not _user_transfer_recipient_allowed(
+        user=user,
+        destination_account_id=destination,
+        participants=participants,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Destination must belong to another "
+                "enabled dashboard user"
+            ),
+        )
+
+    source_account = (
+        _user_transfer_gate_account_or_http(source)
+    )
+
+    destination_account = (
+        _user_transfer_gate_account_or_http(
+            destination
+        )
+    )
+
     selected_currency = _currency(
         request.currency
     )
 
+    try:
+        gate_request = build_user_gate_transfer(
+            source_account=source_account,
+            destination_account=destination_account,
+            currency=selected_currency,
+            amount=request.amount,
+            request_id=request.request_id,
+        )
+
+    except TreasuryTransferValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
     audit_payload = {
-        "operation": "user_ownership_transfer",
+        "operation": USER_TRANSFER_OPERATION,
+        "transfer_path": gate_request["path"],
         "source_account_id": source,
         "destination_account_id": destination,
-        "custody_account_id": (
-            settings.treasury_main_account
-        ),
         "currency": selected_currency,
         "amount": format(
             request.amount,
             "f",
         ),
+        "gate_endpoint": (
+            gate_request["endpoint"]
+        ),
+        "gate_payload": (
+            gate_request["payload"]
+        ),
     }
 
+    # Critical: idempotency is checked before any fresh
+    # balance read and before any possible Gate write.
     try:
-        audit, audit_created = (
-            reserve_user_transfer_attempt(
+        existing = (
+            find_matching_transfer_request(
                 request_id=request.request_id,
                 source_account_id=source,
-                destination_account_id=destination,
                 username=user.username,
-                currency=selected_currency,
-                amount=request.amount,
                 payload=audit_payload,
             )
         )
@@ -717,44 +1182,20 @@ def execute_treasury_user_transfer(
     except TreasuryTransferIdempotencyConflict as exc:
         raise HTTPException(
             status_code=409,
-            detail={
-                "message": str(exc),
-                "gate_write_performed": False,
-            },
+            detail=str(exc),
         ) from exc
 
-    # A terminal request ID is permanently bound to its
-    # original outcome. Never retry the financial mutation.
-    if (
-        not audit_created
-        and audit["status"]
-        in {
-            "success",
-            "rejected",
-            "blocked",
-            "failed",
-        }
-    ):
-        prior_response = dict(
-            audit.get("response")
-            or {}
+    if existing is not None:
+        return existing_user_transfer_result(
+            existing
         )
 
-        return {
-            **prior_response,
-            "phase": "USER_OWNERSHIP_TRANSFER",
-            "status": audit["status"],
-            "user_transfers_enabled": bool(
-                settings.treasury_user_transfers_enabled
-            ),
-            "idempotent_replay": True,
-            "state_changed": False,
-            "gate_write_performed": False,
-            "audit": audit,
-        }
-
     required_confirmation = (
-        user_transfer_confirmation_text(
+        live_transfer_confirmation_text(
+            base_text=(
+                settings
+                .treasury_user_transfer_confirmation_text
+            ),
             source_account_id=source,
             destination_account_id=destination,
             currency=selected_currency,
@@ -763,202 +1204,175 @@ def execute_treasury_user_transfer(
     )
 
     if request.confirmation != required_confirmation:
-        response = {
-            "status": "rejected",
-            "reason": "confirmation_mismatch",
-            "request_id": request.request_id,
-            "gate_write_performed": False,
-        }
-
-        audit = mark_transfer_request(
-            request.request_id,
-            status="rejected",
-            response=response,
-            error=(
-                "Invalid user transfer "
-                "confirmation text."
-            ),
-            write_performed=False,
-            completed=True,
-        )
-
         raise HTTPException(
             status_code=400,
             detail={
                 "message": (
-                    "Invalid user transfer "
+                    "Invalid dashboard user-transfer "
                     "confirmation text."
                 ),
                 "required_confirmation": (
                     required_confirmation
                 ),
-                "request_id": request.request_id,
                 "gate_write_performed": False,
-                "audit": audit,
             },
         )
 
+    # Independent user-transfer arm.
+    #
+    # This remains false in production until we
+    # deliberately enable it after deployment testing.
     if not settings.treasury_user_transfers_enabled:
-        response = {
-            "status": "blocked",
-            "reason": "user_transfers_not_enabled",
-            "request_id": request.request_id,
-            "gate_write_performed": False,
-        }
-
-        audit = mark_transfer_request(
-            request.request_id,
-            status="blocked",
-            response=response,
-            error=(
-                "Dashboard user transfers "
-                "are not enabled."
-            ),
-            write_performed=False,
-            completed=True,
-        )
-
         raise HTTPException(
             status_code=403,
             detail={
+                "reason": (
+                    "user_transfers_not_enabled"
+                ),
                 "message": (
                     "Dashboard user transfers "
                     "are not enabled."
                 ),
-                "reason": (
-                    "user_transfers_not_enabled"
-                ),
-                "request_id": request.request_id,
-                "gate_write_performed": False,
-                "audit": audit,
-            },
-        )
-
-    try:
-        _enforce_treasury_rate_limit(
-            user=user,
-            source_account_id=source,
-            action="user_transfer",
-        )
-
-    except HTTPException:
-        mark_transfer_request(
-            request.request_id,
-            status="blocked",
-            response={
-                "status": "blocked",
-                "reason": "rate_limited",
-                "request_id": request.request_id,
                 "gate_write_performed": False,
             },
-            error="User transfer rate limit exceeded.",
-            write_performed=False,
-            completed=True,
         )
 
-        raise
+    _enforce_treasury_rate_limit(
+        user=user,
+        source_account_id=source,
+        action="user_transfer",
+    )
 
-    try:
-        result = execute_user_transfer(
-            request_id=request.request_id,
-            username=user.username,
-            source_account_id=source,
-            destination_account_id=destination,
-            custody_account_id=(
-                settings.treasury_main_account
+    # All money-moving writes use the isolated
+    # Treasury/main credential. The browser never
+    # selects the credential used to execute.
+    treasury_account = (
+        _treasury_account_or_http()
+    )
+
+    return await execute_user_account_transfer(
+        settings=settings,
+        source_account=source_account,
+        destination_account=destination_account,
+        treasury_account=treasury_account,
+        request_id=request.request_id,
+        username=user.username,
+        currency=selected_currency,
+        amount=request.amount,
+        transfer_path=gate_request["path"],
+        audit_payload=audit_payload,
+        gate_payload=gate_request["payload"],
+    )
+
+
+@router.post(
+    "/user-transfers/{request_id}/reconcile"
+)
+async def reconcile_treasury_user_transfer(
+    request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    record = get_transfer_request(request_id)
+
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Dashboard user transfer "
+                "request not found"
             ),
-            currency=selected_currency,
-            amount=request.amount,
         )
 
-    except TreasuryUserTransferConflict as exc:
-        audit = mark_transfer_request(
-            request.request_id,
-            status="failed",
-            response={
-                "status": "failed",
-                "request_id": request.request_id,
-                "gate_write_performed": False,
-            },
-            error=str(exc),
-            write_performed=False,
-            completed=True,
-        )
+    # Super-admin status does not bypass the source
+    # account boundary for this financial operation.
+    _require_user_transfer_source_access(
+        user,
+        record["source_account_id"],
+    )
 
+    request_payload = (
+        record.get("request")
+        or {}
+    )
+
+    if (
+        record.get("direction")
+        != "user_account_transfer"
+        or not isinstance(
+            request_payload,
+            dict,
+        )
+        or str(
+            request_payload.get("operation")
+            or ""
+        ).strip().lower()
+        != USER_TRANSFER_OPERATION
+    ):
         raise HTTPException(
             status_code=409,
-            detail={
-                "message": str(exc),
-                "request_id": request.request_id,
-                "gate_write_performed": False,
-                "audit": audit,
-            },
-        ) from exc
-
-    except TreasuryUserTransferError as exc:
-        audit = mark_transfer_request(
-            request.request_id,
-            status="blocked",
-            response={
-                "status": "blocked",
-                "request_id": request.request_id,
-                "gate_write_performed": False,
-            },
-            error=str(exc),
-            write_performed=False,
-            completed=True,
-        )
-
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": str(exc),
-                "request_id": request.request_id,
-                "gate_write_performed": False,
-                "audit": audit,
-            },
-        ) from exc
-
-    except Exception as exc:
-        # There is no external Gate ambiguity here, but if
-        # the ledger commit succeeded immediately before an
-        # unexpected local failure, replaying this exact
-        # request ID is the safe recovery path.
-        mark_transfer_request(
-            request.request_id,
-            status="uncertain",
-            error=str(exc),
-            write_performed=False,
-            completed=False,
-        )
-
-        raise HTTPException(
-            status_code=500,
             detail={
                 "message": (
-                    "User transfer outcome requires "
-                    "idempotent recovery. Retry the exact "
-                    "same request ID; do not create a "
-                    "replacement request yet."
+                    "This request is not a dashboard "
+                    "user-account transfer."
                 ),
-                "request_id": request.request_id,
+                "request_id": request_id,
+                "gate_read_performed": False,
                 "gate_write_performed": False,
             },
-        ) from exc
+        )
 
-    audit = mark_transfer_request(
-        request.request_id,
-        status="success",
-        response=result,
-        write_performed=False,
-        completed=True,
+    if record["status"] in {
+        "success",
+        "failed",
+        "blocked",
+        "rejected",
+        "preflight_failed",
+    }:
+        return {
+            "phase": "USER_ACCOUNT_TRANSFER",
+            "status": record["status"],
+            "idempotent_replay": True,
+            "gate_read_performed": False,
+            "gate_write_performed": bool(
+                record.get("write_performed")
+            ),
+            "audit": record,
+            "reconciliations": (
+                list_transfer_reconciliations(
+                    request_id
+                )
+            ),
+        }
+
+    # Reconciliation is intentionally allowed while the
+    # live user-transfer arm is disabled. An uncertain
+    # previously-submitted transfer still needs recovery.
+    _enforce_treasury_rate_limit(
+        user=user,
+        source_account_id=(
+            record["source_account_id"]
+        ),
+        action="reconcile",
+    )
+
+    treasury_account = (
+        _treasury_account_or_http()
+    )
+
+    result = await reconcile_user_account_transfer(
+        settings=settings,
+        record=record,
+        treasury_account=treasury_account,
     )
 
     return {
-        "phase": "USER_OWNERSHIP_TRANSFER",
-        "user_transfers_enabled": True,
+        "phase": "USER_ACCOUNT_TRANSFER",
+        "idempotent_replay": False,
+        "gate_write_performed": False,
         **result,
-        "audit": audit,
     }
 
 
@@ -1314,17 +1728,18 @@ async def reconcile_treasury_transfer(
             request_payload.get("operation")
             or ""
         ).lower()
-        == "user_ownership_transfer"
+        in {
+            "user_ownership_transfer",
+            USER_TRANSFER_OPERATION,
+        }
     ):
         raise HTTPException(
             status_code=409,
             detail={
                 "message": (
-                    "Dashboard ownership transfers do "
-                    "not use Gate reconciliation. "
-                    "Recover a reserved or uncertain "
-                    "operation by replaying the exact "
-                    "user-transfer execute request ID."
+                    "Dashboard user transfers use "
+                    "their dedicated user-transfer "
+                    "reconciliation endpoint."
                 ),
                 "request_id": request_id,
                 "gate_read_performed": False,

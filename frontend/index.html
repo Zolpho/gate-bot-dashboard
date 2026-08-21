@@ -284,10 +284,10 @@
               <div>
                 <h3>Transfer between registered users</h3>
                 <p>
-                  Transfer economic ownership of funds already held
-                  by the Treasury main account. This operation changes
-                  the local ownership ledger only and never submits a
-                  transfer to Gate.
+                  Transfer available Gate spot funds from one of your
+                  explicitly assigned accounts to another registered
+                  dashboard user. Source authorization is enforced
+                  server-side and is strictly account-scoped.
                 </p>
               </div>
 
@@ -383,8 +383,8 @@
               id="treasuryUserTransferConfirmationBlock"
               class="treasury-user-transfer-confirmation hidden"
             >
-              <p>
-                Type the exact confirmation below before transferring.
+              <p id="treasuryUserTransferConfirmationText">
+                Exact confirmation is required for a live transfer.
               </p>
 
               <code id="treasuryUserTransferRequiredConfirmation">—</code>
@@ -410,8 +410,9 @@
             </div>
 
             <div class="treasury-withdrawal-safety-note">
-              Physical Gate custody remains unchanged. Source and
-              recipient ownership entries are committed atomically.
+              Execution uses a real Gate internal transfer through the
+              isolated Treasury credential. Source authorization is
+              enforced server-side.
             </div>
           </section>
 

@@ -1,118 +1,66 @@
-from __future__ import annotations
-
-import json
 from decimal import Decimal
-from uuid import uuid4
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
 
-import app.api.treasury as treasury_api
+from app.api import treasury as treasury_api
 from app.config import Settings
-from app.db import init_db, session_scope, utcnow
-from app.models import TreasuryOwnershipLedgerEntry
 from app.security import DashboardUser
-from app.treasury_rate_limit import (
-    policy_for_action,
-)
 
 
-@pytest.fixture(
-    scope="module",
-    autouse=True,
-)
-def _initialize_database():
-    init_db()
-
-
-def _dashboard_user(
+def _user(
     username: str,
-    *account_ids: str,
+    account_ids: tuple[str, ...],
+    *,
+    role: str = "account_operator",
     enabled: bool = True,
 ) -> DashboardUser:
     return DashboardUser(
         username=username,
-        role="account_operator",
-        account_ids=tuple(account_ids),
+        role=role,
+        account_ids=account_ids,
         enabled=enabled,
-        password_hash="test",
     )
 
 
-def _registered_users(
-    source: str,
-    destination: str,
-):
-    return (
-        _dashboard_user("alice", source),
-        _dashboard_user("bob", destination),
-    )
-
-
-def _seed(
+def _account(
+    account_id: str,
     *,
-    owner: str,
-    amount: Decimal,
-    suffix: str,
-) -> None:
-    with session_scope() as db:
-        db.add(
-            TreasuryOwnershipLedgerEntry(
-                event_id=f"api-transfer-seed:{suffix}",
-                owner_account_id=owner,
-                custody_account_id="zolnode",
-                currency="USDT",
-                delta_amount=amount,
-                entry_type="test_seed",
-                source_request_id=(
-                    f"api-transfer-seed:{suffix}"
-                ),
-                reason="API user-transfer test seed.",
-                metadata_json=json.dumps(
-                    {"test": True}
-                ),
-                created_at=utcnow(),
-            )
-        )
-
-
-def test_user_transfer_rate_limit_policy():
-    settings = Settings(_env_file=None)
-
-    policy = policy_for_action(
-        settings,
-        "user_transfer",
+    account_type: str = "subaccount",
+    gate_uid: str = "1001",
+    enabled: bool = True,
+    configured: bool = True,
+):
+    return SimpleNamespace(
+        id=account_id,
+        name=account_id,
+        account_type=account_type,
+        gate_uid=gate_uid,
+        enabled=enabled,
+        configured=configured,
     )
 
-    assert policy is not None
-    assert policy.user_limit == 10
-    assert policy.user_window_seconds == 600
-    assert policy.account_limit == 20
-    assert policy.account_window_seconds == 600
 
-
-def test_participants_are_registered_enabled_accounts(
+def _install_registry(
     monkeypatch,
+    *,
+    users,
+    accounts,
+    enabled: bool = False,
 ):
-    source = "alice-account"
-    destination = "bob-account"
-
-    users = (
-        *_registered_users(
-            source,
-            destination,
-        ),
-        _dashboard_user(
-            "disabled",
-            "disabled-account",
-            enabled=False,
-        ),
+    monkeypatch.setattr(
+        treasury_api,
+        "load_dashboard_users",
+        lambda _settings=None: tuple(users),
     )
 
     monkeypatch.setattr(
         treasury_api,
-        "load_dashboard_users",
-        lambda _settings=None: users,
+        "get_gate_account",
+        lambda account_id: accounts.get(
+            str(account_id).strip().lower()
+        ),
     )
 
     monkeypatch.setattr(
@@ -120,494 +68,861 @@ def test_participants_are_registered_enabled_accounts(
         "settings",
         Settings(
             _env_file=None,
-            treasury_user_transfers_enabled=False,
-        ),
-    )
-
-    payload = (
-        treasury_api
-        .treasury_user_transfer_participants(
-            users[0]
-        )
-    )
-
-    ids = {
-        item["account_id"]
-        for item in payload["items"]
-    }
-
-    assert source in ids
-    assert destination in ids
-    assert "disabled-account" not in ids
-
-    source_row = next(
-        item
-        for item in payload["items"]
-        if item["account_id"] == source
-    )
-
-    destination_row = next(
-        item
-        for item in payload["items"]
-        if item["account_id"] == destination
-    )
-
-    assert source_row["can_source"] is True
-    assert destination_row["can_source"] is False
-    assert payload["user_transfers_enabled"] is False
-    assert payload["gate_write_performed"] is False
-
-
-def test_preview_returns_exact_confirmation(
-    monkeypatch,
-):
-    suffix = uuid4().hex
-    source = f"alice-{suffix}"
-    destination = f"bob-{suffix}"
-    users = _registered_users(
-        source,
-        destination,
-    )
-
-    _seed(
-        owner=source,
-        amount=Decimal("5"),
-        suffix=suffix,
-    )
-
-    monkeypatch.setattr(
-        treasury_api,
-        "load_dashboard_users",
-        lambda _settings=None: users,
-    )
-
-    monkeypatch.setattr(
-        treasury_api,
-        "settings",
-        Settings(
-            _env_file=None,
-            treasury_user_transfers_enabled=False,
-        ),
-    )
-
-    request = (
-        treasury_api
-        .TreasuryUserTransferPreviewRequest(
-            source_account_id=source,
-            destination_account_id=destination,
-            currency="USDT",
-            amount=Decimal("2"),
-        )
-    )
-
-    result = (
-        treasury_api
-        .preview_treasury_user_transfer(
-            request,
-            users[0],
-        )
-    )
-
-    assert result["status"] == "ready"
-    assert result["can_execute"] is False
-    assert (
-        result["required_confirmation"]
-        == f"TRANSFER {source} 2 USDT TO {destination}"
-    )
-    assert result["preview"]["source_after"] == "3"
-    assert (
-        result["preview"]["destination_after"]
-        == "2"
-    )
-    assert result["gate_write_performed"] is False
-
-
-def test_execute_fails_closed_when_feature_disabled(
-    monkeypatch,
-):
-    suffix = uuid4().hex
-    source = f"alice-{suffix}"
-    destination = f"bob-{suffix}"
-    users = _registered_users(
-        source,
-        destination,
-    )
-
-    _seed(
-        owner=source,
-        amount=Decimal("5"),
-        suffix=suffix,
-    )
-
-    monkeypatch.setattr(
-        treasury_api,
-        "load_dashboard_users",
-        lambda _settings=None: users,
-    )
-
-    monkeypatch.setattr(
-        treasury_api,
-        "settings",
-        Settings(
-            _env_file=None,
-            treasury_user_transfers_enabled=False,
+            treasury_user_transfers_enabled=enabled,
             treasury_rate_limit_enabled=False,
         ),
     )
 
-    confirmation = (
-        f"TRANSFER {source} 2 USDT TO {destination}"
+
+@pytest.mark.asyncio
+async def test_participants_are_account_scoped_and_do_not_leak_recipient_balances(
+    monkeypatch,
+):
+    alice = _user(
+        "alice",
+        ("alice-account",),
+    )
+    bob = _user(
+        "bob",
+        ("bob-account",),
+    )
+    disabled = _user(
+        "disabled",
+        ("disabled-account",),
+        enabled=False,
+    )
+
+    accounts = {
+        "alice-account": _account(
+            "alice-account",
+            gate_uid="101",
+        ),
+        "bob-account": _account(
+            "bob-account",
+            gate_uid="202",
+        ),
+        "disabled-account": _account(
+            "disabled-account",
+            gate_uid="303",
+        ),
+    }
+
+    _install_registry(
+        monkeypatch,
+        users=(alice, bob, disabled),
+        accounts=accounts,
+    )
+
+    calls: list[str] = []
+
+    async def fake_balances(account_id: str):
+        calls.append(account_id)
+
+        if account_id == "alice-account":
+            return [
+                {
+                    "currency": "BTC",
+                    "available": "0.25",
+                },
+                {
+                    "currency": "USDT",
+                    "available": "5",
+                },
+            ]
+
+        return [
+            {
+                "currency": "SECRET",
+                "available": "999",
+            }
+        ]
+
+    monkeypatch.setattr(
+        treasury_api,
+        "_gate_spot_available_balances",
+        fake_balances,
+    )
+
+    payload = await (
+        treasury_api
+        .treasury_user_transfer_participants(alice)
+    )
+
+    by_id = {
+        item["account_id"]: item
+        for item in payload["items"]
+    }
+
+    assert set(by_id) == {
+        "alice-account",
+        "bob-account",
+    }
+
+    assert by_id["alice-account"]["can_source"] is True
+    assert by_id["alice-account"]["can_receive"] is False
+
+    assert by_id["bob-account"]["can_source"] is False
+    assert by_id["bob-account"]["can_receive"] is True
+
+    assert by_id["alice-account"]["available_balances"] == [
+        {
+            "currency": "BTC",
+            "available": "0.25",
+        },
+        {
+            "currency": "USDT",
+            "available": "5",
+        },
+    ]
+
+    # Recipient balances must never be disclosed.
+    assert by_id["bob-account"]["available_balances"] == []
+
+    # Only the authenticated user's source account was queried.
+    assert calls == ["alice-account"]
+
+    assert payload["execution_implemented"] is True
+    assert payload["gate_write_performed"] is False
+
+
+@pytest.mark.asyncio
+async def test_super_admin_cannot_source_unassigned_account(
+    monkeypatch,
+):
+    admin = _user(
+        "admin",
+        ("alice-account",),
+        role="super_admin",
+    )
+    bob = _user(
+        "bob",
+        ("bob-account",),
+    )
+
+    _install_registry(
+        monkeypatch,
+        users=(admin, bob),
+        accounts={
+            "alice-account": _account(
+                "alice-account",
+                gate_uid="101",
+            ),
+            "bob-account": _account(
+                "bob-account",
+                gate_uid="202",
+            ),
+        },
     )
 
     request = (
-        treasury_api
-        .TreasuryUserTransferExecutionRequest(
-            request_id=f"user-transfer-{suffix}",
-            source_account_id=source,
-            destination_account_id=destination,
+        treasury_api.TreasuryUserTransferPreviewRequest(
+            source_account_id="bob-account",
+            destination_account_id="alice-account",
             currency="USDT",
-            amount=Decimal("2"),
-            confirmation=confirmation,
+            amount=Decimal("1"),
         )
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        treasury_api.execute_treasury_user_transfer(
+        await treasury_api.preview_treasury_user_transfer(
             request,
-            users[0],
+            admin,
         )
 
     assert exc_info.value.status_code == 403
-    assert (
-        exc_info.value.detail["reason"]
-        == "user_transfers_not_enabled"
+    assert "not allowed to transfer funds" in str(
+        exc_info.value.detail
     )
 
 
-def test_execute_and_replay_without_gate_write(
+@pytest.mark.asyncio
+async def test_preview_uses_fresh_gate_available_balance(
     monkeypatch,
 ):
-    suffix = uuid4().hex
-    source = f"alice-{suffix}"
-    destination = f"bob-{suffix}"
-    users = _registered_users(
-        source,
-        destination,
+    alice = _user(
+        "alice",
+        ("alice-account",),
+    )
+    bob = _user(
+        "bob",
+        ("bob-account",),
     )
 
-    _seed(
-        owner=source,
-        amount=Decimal("5"),
-        suffix=suffix,
+    _install_registry(
+        monkeypatch,
+        users=(alice, bob),
+        accounts={
+            "alice-account": _account(
+                "alice-account",
+                gate_uid="101",
+            ),
+            "bob-account": _account(
+                "bob-account",
+                gate_uid="202",
+            ),
+        },
     )
+
+    calls: list[str] = []
+
+    async def fake_balances(account_id: str):
+        calls.append(account_id)
+
+        return [
+            {
+                "currency": "USDT",
+                "available": "5",
+            }
+        ]
 
     monkeypatch.setattr(
         treasury_api,
-        "load_dashboard_users",
-        lambda _settings=None: users,
-    )
-
-    monkeypatch.setattr(
-        treasury_api,
-        "settings",
-        Settings(
-            _env_file=None,
-            treasury_user_transfers_enabled=True,
-            treasury_rate_limit_enabled=False,
-        ),
-    )
-
-    request_id = f"user-transfer-{suffix}"
-
-    confirmation = (
-        f"TRANSFER {source} 2 USDT TO {destination}"
+        "_gate_spot_available_balances",
+        fake_balances,
     )
 
     request = (
-        treasury_api
-        .TreasuryUserTransferExecutionRequest(
-            request_id=request_id,
-            source_account_id=source,
-            destination_account_id=destination,
-            currency="USDT",
+        treasury_api.TreasuryUserTransferPreviewRequest(
+            source_account_id="alice-account",
+            destination_account_id="bob-account",
+            currency="usdt",
             amount=Decimal("2"),
-            confirmation=confirmation,
         )
     )
 
-    first = (
-        treasury_api
-        .execute_treasury_user_transfer(
+    result = await (
+        treasury_api.preview_treasury_user_transfer(
             request,
-            users[0],
+            alice,
         )
     )
 
-    replay = (
-        treasury_api
-        .execute_treasury_user_transfer(
-            request,
-            users[0],
-        )
+    assert calls == ["alice-account"]
+    assert result["status"] == "ready"
+    assert result["can_execute"] is False
+    assert result["execution_implemented"] is True
+    assert result["gate_write_required"] is True
+    assert result["gate_write_performed"] is False
+    assert result["required_confirmation"] == (
+        "USER TRANSFER alice-account 2 USDT "
+        "TO bob-account"
     )
 
-    assert first["status"] == "success"
-    assert first["state_changed"] is True
-    assert first["gate_write_performed"] is False
+    preview = result["preview"]
 
-    assert replay["status"] == "success"
-    assert replay["state_changed"] is False
-    assert replay["idempotent_replay"] is True
-    assert replay["gate_write_performed"] is False
+    assert preview["source_account_id"] == "alice-account"
+    assert preview["destination_account_id"] == "bob-account"
+    assert preview["currency"] == "USDT"
+    assert preview["amount"] == "2"
+    assert preview["source_available_before"] == "5"
+    assert preview["source_available_after"] == "3"
+    assert preview["transfer_path"] == (
+        "subaccount_to_subaccount"
+    )
+    assert preview["operation_blockers"] == []
 
 
-def test_disabled_user_transfer_attempt_is_audited(
+@pytest.mark.asyncio
+async def test_preview_blocks_amount_over_available_balance(
     monkeypatch,
 ):
-    from app.treasury_transfer_audit import (
-        get_transfer_request,
+    alice = _user(
+        "alice",
+        ("alice-account",),
+    )
+    bob = _user(
+        "bob",
+        ("bob-account",),
     )
 
-    suffix = uuid4().hex
-    source = f"alice-{suffix}"
-    destination = f"bob-{suffix}"
-    users = _registered_users(
-        source,
-        destination,
+    _install_registry(
+        monkeypatch,
+        users=(alice, bob),
+        accounts={
+            "alice-account": _account(
+                "alice-account",
+                gate_uid="101",
+            ),
+            "bob-account": _account(
+                "bob-account",
+                gate_uid="202",
+            ),
+        },
     )
 
-    _seed(
-        owner=source,
-        amount=Decimal("5"),
-        suffix=suffix,
-    )
+    async def fake_balances(_account_id: str):
+        return [
+            {
+                "currency": "USDT",
+                "available": "5",
+            }
+        ]
 
     monkeypatch.setattr(
         treasury_api,
-        "load_dashboard_users",
-        lambda _settings=None: users,
+        "_gate_spot_available_balances",
+        fake_balances,
     )
 
-    monkeypatch.setattr(
-        treasury_api,
-        "settings",
-        Settings(
-            _env_file=None,
-            treasury_user_transfers_enabled=False,
-            treasury_rate_limit_enabled=False,
+    request = (
+        treasury_api.TreasuryUserTransferPreviewRequest(
+            source_account_id="alice-account",
+            destination_account_id="bob-account",
+            currency="USDT",
+            amount=Decimal("6"),
+        )
+    )
+
+    result = await (
+        treasury_api.preview_treasury_user_transfer(
+            request,
+            alice,
+        )
+    )
+
+    assert result["status"] == "blocked"
+    assert result["can_execute"] is False
+
+    preview = result["preview"]
+
+    assert preview["source_available_before"] == "5"
+    assert preview["source_available_after"] == "5"
+
+    assert preview["operation_blockers"] == [
+        {
+            "type": "insufficient_available_balance",
+            "message": (
+                "Requested 6 USDT, but only 5 is available"
+            ),
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_preview_rejects_sender_owned_destination(
+    monkeypatch,
+):
+    alice = _user(
+        "alice",
+        (
+            "alice-primary",
+            "alice-secondary",
         ),
     )
+    bob = _user(
+        "bob",
+        ("bob-account",),
+    )
 
-    request_id = f"user-transfer-{suffix}"
+    _install_registry(
+        monkeypatch,
+        users=(alice, bob),
+        accounts={
+            "alice-primary": _account(
+                "alice-primary",
+                gate_uid="101",
+            ),
+            "alice-secondary": _account(
+                "alice-secondary",
+                gate_uid="102",
+            ),
+            "bob-account": _account(
+                "bob-account",
+                gate_uid="202",
+            ),
+        },
+    )
+
+    request = (
+        treasury_api.TreasuryUserTransferPreviewRequest(
+            source_account_id="alice-primary",
+            destination_account_id="alice-secondary",
+            currency="USDT",
+            amount=Decimal("1"),
+        )
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await treasury_api.preview_treasury_user_transfer(
+            request,
+            alice,
+        )
+
+    assert exc_info.value.status_code == 400
+    assert "another enabled dashboard user" in str(
+        exc_info.value.detail
+    )
+
+
+@pytest.mark.asyncio
+async def test_execute_disabled_never_dispatches(
+    monkeypatch,
+):
+    alice = _user(
+        "alice",
+        ("alice-account",),
+    )
+    bob = _user(
+        "bob",
+        ("bob-account",),
+    )
+
+    _install_registry(
+        monkeypatch,
+        users=(alice, bob),
+        accounts={
+            "alice-account": _account(
+                "alice-account",
+                gate_uid="101",
+            ),
+            "bob-account": _account(
+                "bob-account",
+                gate_uid="202",
+            ),
+        },
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "find_matching_transfer_request",
+        lambda **_kwargs: None,
+    )
+
+    dispatched = False
+
+    async def forbidden_executor(**_kwargs):
+        nonlocal dispatched
+        dispatched = True
+        raise AssertionError(
+            "Disabled route reached executor"
+        )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "execute_user_account_transfer",
+        forbidden_executor,
+    )
 
     request = (
         treasury_api
         .TreasuryUserTransferExecutionRequest(
-            request_id=request_id,
-            source_account_id=source,
-            destination_account_id=destination,
+            request_id="user-transfer-test-0001",
+            source_account_id="alice-account",
+            destination_account_id="bob-account",
             currency="USDT",
             amount=Decimal("1"),
             confirmation=(
-                f"TRANSFER {source} 1 USDT "
-                f"TO {destination}"
+                "USER TRANSFER alice-account "
+                "1 USDT TO bob-account"
             ),
         )
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        treasury_api.execute_treasury_user_transfer(
+        await treasury_api.execute_treasury_user_transfer(
             request,
-            users[0],
+            alice,
         )
 
     assert exc_info.value.status_code == 403
 
-    audit = get_transfer_request(request_id)
+    detail = exc_info.value.detail
 
-    assert audit is not None
-    assert audit["status"] == "blocked"
-    assert audit["direction"] == "ownership"
-    assert audit["write_performed"] is False
-    assert (
-        audit["request"]["operation"]
-        == "user_ownership_transfer"
+    assert detail["reason"] == (
+        "user_transfers_not_enabled"
     )
+    assert detail["gate_write_performed"] is False
+    assert dispatched is False
 
 
-def test_bad_confirmation_is_persistently_rejected(
+@pytest.mark.asyncio
+async def test_execute_rejects_forged_source(
     monkeypatch,
 ):
-    from app.treasury_transfer_audit import (
-        get_transfer_request,
+    alice = _user(
+        "alice",
+        ("alice-account",),
+    )
+    bob = _user(
+        "bob",
+        ("bob-account",),
     )
 
-    suffix = uuid4().hex
-    source = f"alice-{suffix}"
-    destination = f"bob-{suffix}"
-    users = _registered_users(
-        source,
-        destination,
+    _install_registry(
+        monkeypatch,
+        users=(alice, bob),
+        accounts={
+            "alice-account": _account(
+                "alice-account",
+                gate_uid="101",
+            ),
+            "bob-account": _account(
+                "bob-account",
+                gate_uid="202",
+            ),
+        },
+        enabled=True,
     )
-
-    _seed(
-        owner=source,
-        amount=Decimal("5"),
-        suffix=suffix,
-    )
-
-    monkeypatch.setattr(
-        treasury_api,
-        "load_dashboard_users",
-        lambda _settings=None: users,
-    )
-
-    monkeypatch.setattr(
-        treasury_api,
-        "settings",
-        Settings(
-            _env_file=None,
-            treasury_user_transfers_enabled=True,
-            treasury_rate_limit_enabled=False,
-        ),
-    )
-
-    request_id = f"user-transfer-{suffix}"
 
     request = (
-        treasury_api
-        .TreasuryUserTransferExecutionRequest(
-            request_id=request_id,
-            source_account_id=source,
-            destination_account_id=destination,
+        treasury_api.TreasuryUserTransferExecutionRequest(
+            request_id="user-transfer-test-0002",
+            source_account_id="bob-account",
+            destination_account_id="alice-account",
             currency="USDT",
             amount=Decimal("1"),
-            confirmation="WRONG",
+            confirmation="FORGED",
         )
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        treasury_api.execute_treasury_user_transfer(
+        await treasury_api.execute_treasury_user_transfer(
             request,
-            users[0],
+            alice,
         )
 
-    assert exc_info.value.status_code == 400
-
-    audit = get_transfer_request(request_id)
-
-    assert audit is not None
-    assert audit["status"] == "rejected"
-    assert audit["write_performed"] is False
+    assert exc_info.value.status_code == 403
 
 
-def test_successful_user_transfer_has_persistent_audit(
+@pytest.mark.asyncio
+async def test_gate_balance_reader_filters_and_sorts(
     monkeypatch,
 ):
-    from app.treasury_transfer_audit import (
-        get_transfer_request,
-        list_transfer_requests,
-    )
-
-    suffix = uuid4().hex
-    source = f"alice-{suffix}"
-    destination = f"bob-{suffix}"
-    users = _registered_users(
-        source,
-        destination,
-    )
-
-    _seed(
-        owner=source,
-        amount=Decimal("5"),
-        suffix=suffix,
+    account = _account(
+        "alice-account",
+        gate_uid="101",
     )
 
     monkeypatch.setattr(
         treasury_api,
-        "load_dashboard_users",
-        lambda _settings=None: users,
+        "get_gate_account",
+        lambda _account_id: account,
+    )
+
+    class FakeGateClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(
+            self,
+            _exc_type,
+            _exc,
+            _tb,
+        ):
+            return False
+
+        async def list_spot_accounts(self):
+            return SimpleNamespace(
+                data=[
+                    {
+                        "currency": "USDT",
+                        "available": "5.5000",
+                    },
+                    {
+                        "currency": "BTC",
+                        "available": "0",
+                    },
+                    {
+                        "currency": "ETH",
+                        "available": "-1",
+                    },
+                    {
+                        "currency": "SOL",
+                        "available": "invalid",
+                    },
+                    {
+                        "currency": "ADA",
+                        "available": "2",
+                    },
+                    None,
+                ]
+            )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "GateClient",
+        FakeGateClient,
+    )
+
+    result = await (
+        treasury_api._gate_spot_available_balances(
+            "alice-account"
+        )
+    )
+
+    assert result == [
+        {
+            "currency": "ADA",
+            "available": "2",
+        },
+        {
+            "currency": "USDT",
+            "available": "5.5000",
+        },
+    ]
+
+
+def test_transfer_path_classifies_supported_pairs(
+    monkeypatch,
+):
+    accounts = {
+        "main": _account(
+            "main",
+            account_type="main",
+            gate_uid="900",
+        ),
+        "sub-a": _account(
+            "sub-a",
+            gate_uid="101",
+        ),
+        "sub-b": _account(
+            "sub-b",
+            gate_uid="202",
+        ),
+    }
+
+    monkeypatch.setattr(
+        treasury_api,
+        "get_gate_account",
+        lambda account_id: accounts.get(account_id),
+    )
+
+    assert treasury_api._user_transfer_path(
+        source_account_id="sub-a",
+        destination_account_id="sub-b",
+    )["kind"] == "subaccount_to_subaccount"
+
+    assert treasury_api._user_transfer_path(
+        source_account_id="main",
+        destination_account_id="sub-a",
+    )["kind"] == "main_to_subaccount"
+
+    assert treasury_api._user_transfer_path(
+        source_account_id="sub-a",
+        destination_account_id="main",
+    )["kind"] == "subaccount_to_main"
+
+
+def test_transfer_path_requires_subaccount_gate_uid(
+    monkeypatch,
+):
+    accounts = {
+        "sub-a": _account(
+            "sub-a",
+            gate_uid="",
+        ),
+        "sub-b": _account(
+            "sub-b",
+            gate_uid="202",
+        ),
+    }
+
+    monkeypatch.setattr(
+        treasury_api,
+        "get_gate_account",
+        lambda account_id: accounts.get(account_id),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        treasury_api._user_transfer_path(
+            source_account_id="sub-a",
+            destination_account_id="sub-b",
+        )
+
+    assert exc_info.value.status_code == 503
+    assert "Gate UID" in str(exc_info.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_execute_enabled_dispatches_treasury_write_path(
+    monkeypatch,
+):
+    alice = _user(
+        "alice",
+        ("alice-account",),
+    )
+    bob = _user(
+        "bob",
+        ("bob-account",),
+    )
+
+    source = _account(
+        "alice-account",
+        gate_uid="101",
+    )
+    destination = _account(
+        "bob-account",
+        gate_uid="202",
+    )
+    treasury = _account(
+        "main",
+        account_type="main",
+        gate_uid="900",
+    )
+
+    _install_registry(
+        monkeypatch,
+        users=(alice, bob),
+        accounts={
+            "alice-account": source,
+            "bob-account": destination,
+        },
+        enabled=True,
     )
 
     monkeypatch.setattr(
         treasury_api,
-        "settings",
-        Settings(
-            _env_file=None,
-            treasury_user_transfers_enabled=True,
-            treasury_rate_limit_enabled=False,
+        "find_matching_transfer_request",
+        lambda **_kwargs: None,
+    )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "_treasury_account_or_http",
+        lambda: treasury,
+    )
+
+    rate_calls = []
+
+    monkeypatch.setattr(
+        treasury_api,
+        "_enforce_treasury_rate_limit",
+        lambda **kwargs: rate_calls.append(
+            kwargs
         ),
     )
 
-    request_id = f"user-transfer-{suffix}"
+    captured = {}
 
-    confirmation = (
-        f"TRANSFER {source} 2 USDT TO {destination}"
+    async def fake_executor(**kwargs):
+        captured.update(kwargs)
+
+        return {
+            "phase": "USER_ACCOUNT_TRANSFER",
+            "status": "success",
+            "gate_write_performed": True,
+        }
+
+    monkeypatch.setattr(
+        treasury_api,
+        "execute_user_account_transfer",
+        fake_executor,
     )
 
     request = (
         treasury_api
         .TreasuryUserTransferExecutionRequest(
-            request_id=request_id,
-            source_account_id=source,
-            destination_account_id=destination,
+            request_id="user-transfer-test-1001",
+            source_account_id="alice-account",
+            destination_account_id="bob-account",
             currency="USDT",
-            amount=Decimal("2"),
-            confirmation=confirmation,
+            amount=Decimal("1"),
+            confirmation=(
+                "USER TRANSFER alice-account "
+                "1 USDT TO bob-account"
+            ),
         )
     )
 
-    result = (
-        treasury_api
-        .execute_treasury_user_transfer(
+    result = await (
+        treasury_api.execute_treasury_user_transfer(
             request,
-            users[0],
+            alice,
         )
     )
 
     assert result["status"] == "success"
-    assert result["gate_write_performed"] is False
 
-    audit = get_transfer_request(request_id)
+    assert captured["source_account"] is source
+    assert (
+        captured["destination_account"]
+        is destination
+    )
+    assert captured["treasury_account"] is treasury
 
-    assert audit is not None
-    assert audit["status"] == "success"
-    assert audit["direction"] == "ownership"
-    assert audit["write_performed"] is False
-    assert audit["client_order_id"] is None
-
-    incoming = list_transfer_requests(
-        account_ids={destination},
-        limit=200,
+    assert captured["transfer_path"] == (
+        "subaccount_to_subaccount"
     )
 
-    assert any(
-        row["request_id"] == request_id
-        for row in incoming
+    assert (
+        "client_order_id"
+        not in captured["gate_payload"]
     )
 
+    assert captured["audit_payload"]["operation"] == (
+        "user_account_transfer"
+    )
 
-def test_terminal_user_transfer_request_never_reexecutes(
+    assert rate_calls == [
+        {
+            "user": alice,
+            "source_account_id": (
+                "alice-account"
+            ),
+            "action": "user_transfer",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_reconcile_uses_strict_source_scope(
     monkeypatch,
 ):
-    suffix = uuid4().hex
-    source = f"alice-{suffix}"
-    destination = f"bob-{suffix}"
-    users = _registered_users(
-        source,
-        destination,
-    )
-
-    _seed(
-        owner=source,
-        amount=Decimal("5"),
-        suffix=suffix,
+    alice = _user(
+        "alice",
+        ("alice-account",),
     )
 
     monkeypatch.setattr(
         treasury_api,
-        "load_dashboard_users",
-        lambda _settings=None: users,
+        "get_transfer_request",
+        lambda _request_id: {
+            "request_id": "user-reconcile-1",
+            "source_account_id": "bob-account",
+            "destination_account_id": (
+                "alice-account"
+            ),
+            "username": "bob",
+            "direction": (
+                "user_account_transfer"
+            ),
+            "currency": "USDT",
+            "status": "uncertain",
+            "request": {
+                "operation": (
+                    "user_account_transfer"
+                ),
+                "transfer_path": (
+                    "subaccount_to_subaccount"
+                ),
+            },
+            "write_performed": True,
+        },
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await (
+            treasury_api
+            .reconcile_treasury_user_transfer(
+                "user-reconcile-1",
+                alice,
+            )
+        )
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reconcile_allowed_while_live_arm_disabled(
+    monkeypatch,
+):
+    alice = _user(
+        "alice",
+        ("alice-account",),
     )
 
     monkeypatch.setattr(
@@ -615,57 +930,84 @@ def test_terminal_user_transfer_request_never_reexecutes(
         "settings",
         Settings(
             _env_file=None,
-            treasury_user_transfers_enabled=True,
+            treasury_user_transfers_enabled=False,
             treasury_rate_limit_enabled=False,
         ),
     )
 
-    request_id = f"user-transfer-{suffix}"
-
-    request = (
-        treasury_api
-        .TreasuryUserTransferExecutionRequest(
-            request_id=request_id,
-            source_account_id=source,
-            destination_account_id=destination,
-            currency="USDT",
-            amount=Decimal("2"),
-            confirmation=(
-                f"TRANSFER {source} 2 USDT "
-                f"TO {destination}"
+    record = {
+        "request_id": "user-reconcile-2",
+        "source_account_id": "alice-account",
+        "destination_account_id": "bob-account",
+        "username": "alice",
+        "direction": "user_account_transfer",
+        "currency": "USDT",
+        "status": "uncertain",
+        "request": {
+            "operation": "user_account_transfer",
+            "transfer_path": (
+                "subaccount_to_subaccount"
             ),
-        )
-    )
-
-    first = (
-        treasury_api
-        .execute_treasury_user_transfer(
-            request,
-            users[0],
-        )
-    )
-
-    assert first["status"] == "success"
+        },
+        "write_performed": True,
+    }
 
     monkeypatch.setattr(
         treasury_api,
-        "execute_user_transfer",
-        lambda **_kwargs: (_ for _ in ()).throw(
-            AssertionError(
-                "terminal replay attempted mutation"
-            )
-        ),
+        "get_transfer_request",
+        lambda _request_id: record,
     )
 
-    replay = (
+    treasury = _account(
+        "main",
+        account_type="main",
+        gate_uid="900",
+    )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "_treasury_account_or_http",
+        lambda: treasury,
+    )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "_enforce_treasury_rate_limit",
+        lambda **_kwargs: None,
+    )
+
+    called = False
+
+    async def fake_reconcile(**kwargs):
+        nonlocal called
+        called = True
+
+        assert kwargs["record"] is record
+        assert kwargs["treasury_account"] is treasury
+
+        return {
+            "status": "uncertain",
+            "gate_read_performed": False,
+            "lock_released": False,
+            "manual_review_required": True,
+            "audit": record,
+            "reconciliation": {},
+        }
+
+    monkeypatch.setattr(
+        treasury_api,
+        "reconcile_user_account_transfer",
+        fake_reconcile,
+    )
+
+    result = await (
         treasury_api
-        .execute_treasury_user_transfer(
-            request,
-            users[0],
+        .reconcile_treasury_user_transfer(
+            "user-reconcile-2",
+            alice,
         )
     )
 
-    assert replay["status"] == "success"
-    assert replay["idempotent_replay"] is True
-    assert replay["state_changed"] is False
-    assert replay["gate_write_performed"] is False
+    assert called is True
+    assert result["status"] == "uncertain"
+    assert result["gate_write_performed"] is False
