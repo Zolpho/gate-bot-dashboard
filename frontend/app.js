@@ -11522,3 +11522,119 @@ renderAdminState();
 switchTab(window.location.hash.slice(1) || 'overview', { updateHash: false });
 loadCore();
 setInterval(loadCore, 60000);
+
+
+function bindTreasuryUserTransferEvents() {
+  const form = $('#treasuryUserTransferForm');
+
+  if (
+    form
+    && form.dataset.userTransferEventsBound !== 'true'
+  ) {
+    form.dataset.userTransferEventsBound = 'true';
+
+    form.addEventListener(
+      'submit',
+      runTreasuryUserTransferPreview,
+    );
+  }
+
+  const source = $('#treasuryUserTransferSource');
+
+  if (
+    source
+    && source.dataset.userTransferEventsBound !== 'true'
+  ) {
+    source.dataset.userTransferEventsBound = 'true';
+
+    source.addEventListener('change', () => {
+      invalidateTreasuryUserTransferPreview();
+      renderTreasuryUserTransferParticipants();
+    });
+  }
+
+  const destination = $(
+    '#treasuryUserTransferDestination'
+  );
+
+  if (
+    destination
+    && destination.dataset.userTransferEventsBound !== 'true'
+  ) {
+    destination.dataset.userTransferEventsBound = 'true';
+
+    destination.addEventListener(
+      'change',
+      invalidateTreasuryUserTransferPreview,
+    );
+  }
+
+  const currency = $('#treasuryUserTransferCurrency');
+
+  if (
+    currency
+    && currency.dataset.userTransferEventsBound !== 'true'
+  ) {
+    currency.dataset.userTransferEventsBound = 'true';
+
+    currency.addEventListener(
+      'change',
+      invalidateTreasuryUserTransferPreview,
+    );
+  }
+
+  const amount = $('#treasuryUserTransferAmount');
+
+  if (
+    amount
+    && amount.dataset.userTransferEventsBound !== 'true'
+  ) {
+    amount.dataset.userTransferEventsBound = 'true';
+
+    amount.addEventListener(
+      'input',
+      invalidateTreasuryUserTransferPreview,
+    );
+  }
+
+  const confirmation = $(
+    '#treasuryUserTransferConfirmation'
+  );
+
+  if (
+    confirmation
+    && confirmation.dataset.userTransferEventsBound !== 'true'
+  ) {
+    confirmation.dataset.userTransferEventsBound = 'true';
+
+    confirmation.addEventListener(
+      'input',
+      updateTreasuryUserTransferExecuteButton,
+    );
+  }
+
+  const execute = $('#executeTreasuryUserTransfer');
+
+  if (
+    execute
+    && execute.dataset.userTransferEventsBound !== 'true'
+  ) {
+    execute.dataset.userTransferEventsBound = 'true';
+
+    execute.addEventListener(
+      'click',
+      executeTreasuryUserTransfer,
+    );
+  }
+}
+
+
+if (document.readyState === 'loading') {
+  document.addEventListener(
+    'DOMContentLoaded',
+    bindTreasuryUserTransferEvents,
+    { once: true },
+  );
+} else {
+  bindTreasuryUserTransferEvents();
+}
