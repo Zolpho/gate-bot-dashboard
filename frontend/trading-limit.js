@@ -7,6 +7,10 @@ tradingState.loadingLimitOrderPreview = false;
 tradingState.limitOrderExecutionCapabilities = null;
 tradingState.loadingLimitOrderExecutionCapabilities = false;
 tradingState.limitOrderExecutionAttempt = null;
+tradingState.limitOrderCancellationAttempt = null;
+tradingState.loadingLimitOrderCancellation = false;
+tradingState.loadingLimitOrderCancelStatus = false;
+tradingState.loadingLimitOrderCancelReconcile = false;
 tradingState.loadingLimitOrderExecution = false;
 tradingState.loadingLimitOrderStatus = false;
 tradingState.loadingLimitOrderReconcile = false;
@@ -157,6 +161,10 @@ function clearTradingLimitOrderPreview() {
   tradingState.limitOrderPreview = null;
   tradingState.limitOrderExecutionCapabilities = null;
   tradingState.limitOrderExecutionAttempt = null;
+  tradingState.limitOrderCancellationAttempt = null;
+  tradingState.loadingLimitOrderCancellation = false;
+  tradingState.loadingLimitOrderCancelStatus = false;
+  tradingState.loadingLimitOrderCancelReconcile = false;
   tradingState.loadingLimitOrderStatus = false;
   tradingState.loadingLimitOrderReconcile = false;
 
@@ -199,6 +207,14 @@ function clearTradingLimitOrderPreview() {
     executionResult.classList.add(
       'hidden'
     );
+  }
+
+  const cancelConfirmation = $(
+    '#tradingLimitCancelConfirmation'
+  );
+
+  if (cancelConfirmation) {
+    cancelConfirmation.value = '';
   }
 
   renderTradingLimitExecution();
@@ -441,13 +457,23 @@ function renderTradingLimitOrderTicket() {
 
 
 function tradingLimitExecutionRecoveryRequired() {
-  const attempt = (
+  const executionAttempt = (
     tradingState.limitOrderExecutionAttempt
   );
 
+  const cancellationAttempt = (
+    tradingState.limitOrderCancellationAttempt
+  );
+
   return Boolean(
-    attempt
-    && !attempt.definitive
+    (
+      executionAttempt
+      && !executionAttempt.definitive
+    )
+    || (
+      cancellationAttempt
+      && !cancellationAttempt.definitive
+    )
   );
 }
 
@@ -804,6 +830,333 @@ function tradingLimitGateOrderId() {
 }
 
 
+function tradingLimitCancelRequestId() {
+  const timestamp = (
+    Date.now()
+      .toString(36)
+  );
+
+  let random = '';
+
+  if (
+    globalThis.crypto
+    && typeof globalThis.crypto.randomUUID
+    === 'function'
+  ) {
+    random = (
+      globalThis.crypto
+        .randomUUID()
+        .replace(
+          /[^A-Za-z0-9]/g,
+          ''
+        )
+        .slice(0, 18)
+    );
+
+  } else {
+    random = (
+      Math.random()
+        .toString(36)
+        .slice(2, 20)
+    );
+  }
+
+  return (
+    `cancel-ui-${timestamp}-${random}`
+      .replace(
+        /[^A-Za-z0-9._-]/g,
+        '-'
+      )
+      .slice(0, 128)
+  );
+}
+
+
+function tradingLimitCancellationSuccessful(
+  status
+) {
+  return new Set([
+    'cancelled',
+    'confirmed_cancelled',
+    'already_cancelled',
+  ]).has(
+    String(
+      status || ''
+    ).toLowerCase()
+  );
+}
+
+
+function tradingLimitCancellationDefinitive(
+  status,
+  result = {},
+) {
+  if (
+    typeof result?.definitive
+    === 'boolean'
+  ) {
+    return result.definitive;
+  }
+
+  const normalized = String(
+    status || ''
+  ).toLowerCase();
+
+  return new Set([
+    'cancelled',
+    'confirmed_cancelled',
+    'already_cancelled',
+    'confirmed_finished',
+    'already_finished',
+    'rejected',
+    'local_rejected',
+    'aborted',
+    'precheck_error',
+    'precheck_conflict',
+  ]).has(
+    normalized
+  );
+}
+
+
+function tradingLimitCancellationMessage(
+  status,
+  result = {},
+) {
+  const normalized = String(
+    status || ''
+  ).toLowerCase();
+
+  if (
+    normalized === 'cancelled'
+    || normalized === 'confirmed_cancelled'
+  ) {
+    return (
+      'Gate confirms that the Spot order '
+      + 'is cancelled.'
+    );
+  }
+
+  if (
+    normalized === 'already_cancelled'
+  ) {
+    return (
+      'The Gate Spot order was already '
+      + 'cancelled.'
+    );
+  }
+
+  if (
+    normalized === 'confirmed_finished'
+    || normalized === 'already_finished'
+  ) {
+    return (
+      'The Gate order finished before '
+      + 'cancellation could be confirmed.'
+    );
+  }
+
+  if (
+    normalized === 'precheck_conflict'
+  ) {
+    return (
+      'Gate order identity does not match '
+      + 'the audited Trading request. '
+      + 'No cancellation write was sent.'
+    );
+  }
+
+  if (
+    normalized === 'precheck_error'
+  ) {
+    return (
+      'Cancellation precheck failed before '
+      + 'a Gate cancellation write.'
+    );
+  }
+
+  if (
+    normalized === 'rejected'
+    || normalized === 'local_rejected'
+    || normalized === 'aborted'
+  ) {
+    return (
+      'Cancellation ended without a '
+      + 'confirmed cancelled Gate order.'
+    );
+  }
+
+  if (
+    normalized === 'uncertain'
+    || normalized === 'attention'
+    || normalized === 'client_uncertain'
+    || normalized === 'idempotent_replay'
+  ) {
+    return (
+      'Cancellation outcome is not definitive. '
+      + 'Do not send another cancellation. '
+      + 'Check status or reconcile.'
+    );
+  }
+
+  return (
+    normalized
+      ? (
+          `Cancellation status: `
+          + `${normalized}.`
+        )
+      : (
+          'Cancellation result '
+          + 'is unavailable.'
+        )
+  );
+}
+
+
+function renderTradingLimitCancellationResult() {
+  const element = $(
+    '#tradingLimitCancellationResult'
+  );
+
+  if (!element) {
+    return;
+  }
+
+  const attempt = (
+    tradingState
+      .limitOrderCancellationAttempt
+  );
+
+  element.classList.remove(
+    'success',
+    'error',
+    'uncertain',
+  );
+
+  if (!attempt) {
+    element.innerHTML = '';
+
+    element.classList.add(
+      'hidden'
+    );
+
+    return;
+  }
+
+  const status = String(
+    attempt.status || 'pending'
+  ).toLowerCase();
+
+  const successful = (
+    tradingLimitCancellationSuccessful(
+      status
+    )
+  );
+
+  const uncertain = (
+    !attempt.definitive
+  );
+
+  element.classList.add(
+    uncertain
+      ? 'uncertain'
+      : successful
+        ? 'success'
+        : 'error'
+  );
+
+  const gateWrite = (
+    attempt.gateWritePerformed === true
+      ? 'ATTEMPTED'
+      : attempt.gateWritePerformed === false
+        ? 'NOT PERFORMED'
+        : 'UNKNOWN'
+  );
+
+  const actions = uncertain
+    ? `
+      <div class="trading-order-execution-result-actions">
+        <button
+          type="button"
+          class="button"
+          data-trading-cancel-action="status"
+          ${
+            tradingState
+              .loadingLimitOrderCancelStatus
+              ? 'disabled'
+              : ''
+          }
+        >
+          ${
+            tradingState
+              .loadingLimitOrderCancelStatus
+              ? 'Checking…'
+              : 'Check cancel status'
+          }
+        </button>
+
+        <button
+          type="button"
+          class="button"
+          data-trading-cancel-action="reconcile"
+          ${
+            tradingState
+              .loadingLimitOrderCancelReconcile
+              ? 'disabled'
+              : ''
+          }
+        >
+          ${
+            tradingState
+              .loadingLimitOrderCancelReconcile
+              ? 'Reconciling…'
+              : 'Reconcile cancellation'
+          }
+        </button>
+      </div>
+    `
+    : '';
+
+  element.innerHTML = `
+    <div class="trading-order-execution-result-head">
+      <strong>
+        ${escapeHtml(
+          status.toUpperCase()
+        )}
+      </strong>
+
+      <span>
+        Gate cancel write:
+        ${escapeHtml(gateWrite)}
+      </span>
+    </div>
+
+    <p>
+      ${escapeHtml(
+        attempt.message
+        || tradingLimitCancellationMessage(
+          status,
+          attempt.result || {},
+        )
+      )}
+    </p>
+
+    <small>
+      Cancel request ID:
+      <code>${escapeHtml(
+        attempt.cancelRequestId || '—'
+      )}</code>
+    </small>
+
+    ${actions}
+  `;
+
+  element.classList.remove(
+    'hidden'
+  );
+}
+
+
 function renderTradingLimitCancellationReadiness() {
   const element = $(
     '#tradingLimitCancellation'
@@ -813,8 +1166,14 @@ function renderTradingLimitCancellationReadiness() {
     return;
   }
 
-  const attempt = (
-    tradingState.limitOrderExecutionAttempt
+  const executionAttempt = (
+    tradingState
+      .limitOrderExecutionAttempt
+  );
+
+  const cancellationAttempt = (
+    tradingState
+      .limitOrderCancellationAttempt
   );
 
   const capabilities = (
@@ -823,7 +1182,7 @@ function renderTradingLimitCancellationReadiness() {
   );
 
   const executionStatus = String(
-    attempt?.status || ''
+    executionAttempt?.status || ''
   ).toLowerCase();
 
   const eligibleStatus = (
@@ -835,18 +1194,16 @@ function renderTradingLimitCancellationReadiness() {
     tradingLimitGateOrderId()
   );
 
-  /*
-   * Do not expose cancellation controls for
-   * failed, uncertain, closed or ID-less orders.
-   */
   if (
-    !attempt
+    !executionAttempt
     || !eligibleStatus
     || !gateOrderId
   ) {
     element.classList.add(
       'hidden'
     );
+
+    renderTradingLimitCancellationResult();
 
     return;
   }
@@ -929,6 +1286,15 @@ function renderTradingLimitCancellationReadiness() {
     || ''
   );
 
+  const busy = Boolean(
+    tradingState
+      .loadingLimitOrderCancellation
+    || tradingState
+      .loadingLimitOrderCancelStatus
+    || tradingState
+      .loadingLimitOrderCancelReconcile
+  );
+
   if (status) {
     status.classList.remove(
       'disabled',
@@ -940,8 +1306,8 @@ function renderTradingLimitCancellationReadiness() {
   let label = 'CANCEL DISABLED';
 
   let description = (
-    'Live Spot order cancellation is disabled '
-    + 'by the backend.'
+    'Live Spot order cancellation '
+    + 'is disabled by the backend.'
   );
 
   let statusClass = 'disabled';
@@ -953,12 +1319,15 @@ function renderTradingLimitCancellationReadiness() {
     label = 'CHECKING';
 
     description = (
-      'Checking backend cancellation state…'
+      'Checking backend '
+      + 'cancellation state…'
     );
 
   } else if (configError) {
     label = 'CONFIG ERROR';
+
     description = configError;
+
     statusClass = 'warning';
 
   } else if (
@@ -968,8 +1337,8 @@ function renderTradingLimitCancellationReadiness() {
     label = 'UNAVAILABLE';
 
     description = (
-      'The guarded Spot cancellation backend '
-      + 'is unavailable.'
+      'The guarded Spot cancellation '
+      + 'backend is unavailable.'
     );
 
     statusClass = 'warning';
@@ -978,24 +1347,62 @@ function renderTradingLimitCancellationReadiness() {
     label = 'NO TRADING KEY';
 
     description = (
-      'This account has no enabled isolated '
-      + 'Spot Trading credential.'
+      'This account has no enabled '
+      + 'isolated Spot Trading credential.'
     );
 
     statusClass = 'warning';
 
-  } else if (cancelArmEnabled) {
-    label = 'BACKEND ARMED';
+  } else if (cancellationAttempt) {
+    if (!cancellationAttempt.definitive) {
+      label = 'RECOVERY REQUIRED';
 
-    /*
-     * Hard Stage 3H4 safety boundary:
-     * this browser build has NO cancellation
-     * request caller.
-     */
+      statusClass = 'warning';
+
+    } else if (
+      tradingLimitCancellationSuccessful(
+        cancellationAttempt.status
+      )
+    ) {
+      label = 'CANCELLED';
+
+      statusClass = 'ready';
+
+    } else if (
+      new Set([
+        'already_finished',
+        'confirmed_finished',
+      ]).has(
+        String(
+          cancellationAttempt.status || ''
+        ).toLowerCase()
+      )
+    ) {
+      label = 'ORDER FINISHED';
+
+      statusClass = 'warning';
+
+    } else {
+      label = 'CANCELLATION FINISHED';
+
+      statusClass = 'warning';
+    }
+
     description = (
-      'The backend reports live cancellation '
-      + 'armed, but this frontend build '
-      + 'intentionally cannot cancel orders yet.'
+      cancellationAttempt.message
+      || tradingLimitCancellationMessage(
+        cancellationAttempt.status,
+        cancellationAttempt.result || {},
+      )
+    );
+
+  } else if (cancelArmEnabled) {
+    label = 'CANCEL ENABLED';
+
+    description = (
+      'Exact confirmation is required. '
+      + 'Cancel order sends one guarded '
+      + 'Gate Spot cancellation request.'
     );
 
     statusClass = 'ready';
@@ -1023,35 +1430,555 @@ function renderTradingLimitCancellationReadiness() {
     );
   }
 
+  const inputEnabled = Boolean(
+    implemented
+    && routeAvailable
+    && accountConfigured
+    && cancelArmEnabled
+    && required
+    && !cancellationAttempt
+    && !busy
+  );
+
   if (confirmation) {
-    /*
-     * Stage 3H4 deliberately keeps the
-     * confirmation input disabled regardless
-     * of backend arm state.
-     */
-    confirmation.disabled = true;
-    confirmation.value = '';
+    confirmation.disabled = (
+      !inputEnabled
+    );
+
+    if (
+      !cancelArmEnabled
+      || cancellationAttempt
+    ) {
+      confirmation.value = '';
+    }
   }
 
   if (button) {
-    /*
-     * Hard Stage 3H4 safety boundary:
-     * there is no browser cancellation caller.
-     */
-    button.disabled = true;
+    const exactConfirmation = (
+      String(
+        confirmation?.value || ''
+      )
+      === required
+    );
+
+    button.disabled = Boolean(
+      !inputEnabled
+      || !exactConfirmation
+    );
+
+    button.textContent = (
+      tradingState
+        .loadingLimitOrderCancellation
+        ? 'Cancelling…'
+        : 'Cancel order'
+    );
 
     button.title = (
-      cancelArmEnabled
+      !cancelArmEnabled
         ? (
-            'Frontend cancellation is '
-            + 'intentionally not activated '
-            + 'in this build.'
+            'Live cancellation is '
+            + 'disabled by the backend.'
           )
-        : (
-            'Live cancellation is disabled '
-            + 'by the backend.'
-          )
+        : cancellationAttempt
+          ? (
+              'A cancellation request '
+              + 'already exists.'
+            )
+          : !exactConfirmation
+            ? (
+                'Enter the exact cancellation '
+                + 'confirmation first.'
+              )
+            : (
+                'Send exactly one cancellation '
+                + 'request for this Gate order.'
+              )
     );
+  }
+
+  renderTradingLimitCancellationResult();
+}
+
+
+async function cancelTradingLimitOrder() {
+  if (
+    tradingState.loadingLimitOrderCancellation
+    || tradingState.limitOrderCancellationAttempt
+  ) {
+    return;
+  }
+
+  const executionAttempt = (
+    tradingState.limitOrderExecutionAttempt
+  );
+
+  const capabilities = (
+    tradingState
+      .limitOrderExecutionCapabilities
+  );
+
+  const gateOrderId = (
+    tradingLimitGateOrderId()
+  );
+
+  const required = String(
+    capabilities
+      ?.cancel_required_confirmation
+    || ''
+  );
+
+  const confirmation = String(
+    $('#tradingLimitCancelConfirmation')
+      ?.value
+    || ''
+  );
+
+  if (
+    !executionAttempt
+    || !executionAttempt.requestId
+    || !gateOrderId
+    || capabilities
+      ?.cancellation_implemented
+      !== true
+    || capabilities
+      ?.cancellation_route_available
+      !== true
+    || capabilities
+      ?.cancel_arm_enabled
+      !== true
+  ) {
+    showToast(
+      'Live Spot cancellation '
+      + 'is not available.',
+      true,
+    );
+
+    renderTradingLimitExecution();
+
+    return;
+  }
+
+  if (
+    !required
+    || confirmation !== required
+  ) {
+    showToast(
+      'Enter the exact cancellation '
+      + 'confirmation.',
+      true,
+    );
+
+    renderTradingLimitExecution();
+
+    return;
+  }
+
+  /*
+   * Create the persistent cancellation identity
+   * only at the actual cancellation boundary.
+   */
+  const cancelRequestId = (
+    tradingLimitCancelRequestId()
+  );
+
+  const orderRequestId = (
+    executionAttempt.requestId
+  );
+
+  tradingState.limitOrderCancellationAttempt = {
+    cancelRequestId,
+    orderRequestId,
+    gateOrderId,
+    status: 'cancelling',
+    definitive: false,
+    gateWritePerformed: null,
+    result: null,
+    message: (
+      'Submitting exactly one guarded '
+      + 'Spot cancellation request…'
+    ),
+  };
+
+  tradingState.loadingLimitOrderCancellation = true;
+
+  renderTradingLimitOrderTicket();
+  renderTradingLimitExecution();
+
+  try {
+    const result = await adminApi(
+      (
+        '/api/trading/limit-orders/requests/'
+        + encodeURIComponent(
+          orderRequestId
+        )
+        + '/cancel'
+      ),
+      {
+        method: 'POST',
+
+        body: JSON.stringify({
+          cancel_request_id: (
+            cancelRequestId
+          ),
+          confirmation,
+        }),
+      },
+    );
+
+    const cancelStatus = String(
+      result?.status || 'unknown'
+    ).toLowerCase();
+
+    const definitive = (
+      tradingLimitCancellationDefinitive(
+        cancelStatus,
+        result,
+      )
+    );
+
+    tradingState.limitOrderCancellationAttempt = {
+      cancelRequestId,
+      orderRequestId,
+      gateOrderId,
+      status: cancelStatus,
+      definitive,
+      gateWritePerformed: (
+        typeof result
+          ?.gate_write_performed
+        === 'boolean'
+          ? result.gate_write_performed
+          : null
+      ),
+      result,
+      message: (
+        tradingLimitCancellationMessage(
+          cancelStatus,
+          result,
+        )
+      ),
+    };
+
+    if (definitive) {
+      showToast(
+        tradingLimitCancellationMessage(
+          cancelStatus,
+          result,
+        ),
+        !tradingLimitCancellationSuccessful(
+          cancelStatus
+        ),
+      );
+
+    } else {
+      showToast(
+        'Cancellation requires recovery. '
+        + 'Do not send another cancellation.',
+        true,
+      );
+    }
+
+  } catch (error) {
+    const detail = (
+      tradingLimitApiErrorDetail(
+        error
+      )
+    );
+
+    const explicitNoWrite = (
+      detail.gate_write_performed
+        === false
+      && detail.write_performed
+        === false
+    );
+
+    const cancelStatus = String(
+      detail.code
+      || (
+        error?.status
+          ? `http_${error.status}`
+          : 'client_uncertain'
+      )
+    ).toLowerCase();
+
+    const message = (
+      tradingLimitApiErrorMessage(
+        error,
+        explicitNoWrite
+          ? (
+              'Cancellation was rejected '
+              + 'before a Gate write.'
+            )
+          : (
+              'The browser cannot determine '
+              + 'whether cancellation reached '
+              + 'the server. Do not retry.'
+            ),
+      )
+    );
+
+    tradingState.limitOrderCancellationAttempt = {
+      cancelRequestId,
+      orderRequestId,
+      gateOrderId,
+      status: cancelStatus,
+      definitive: explicitNoWrite,
+      gateWritePerformed: (
+        explicitNoWrite
+          ? false
+          : null
+      ),
+      result: (
+        error?.payload || null
+      ),
+      message,
+    };
+
+    showToast(
+      message,
+      true,
+    );
+
+  } finally {
+    tradingState.loadingLimitOrderCancellation = false;
+
+    renderTradingLimitOrderTicket();
+    renderTradingLimitExecution();
+  }
+}
+
+
+async function checkTradingLimitCancellationStatus() {
+  const attempt = (
+    tradingState
+      .limitOrderCancellationAttempt
+  );
+
+  if (
+    !attempt
+    || attempt.definitive
+    || tradingState
+      .loadingLimitOrderCancelStatus
+  ) {
+    return;
+  }
+
+  tradingState.loadingLimitOrderCancelStatus = true;
+
+  renderTradingLimitExecution();
+
+  try {
+    const result = await adminApi(
+      (
+        '/api/trading/limit-orders/requests/'
+        + encodeURIComponent(
+          attempt.orderRequestId
+        )
+      )
+    );
+
+    const cancellation = (
+      result?.cancellation
+    );
+
+    /*
+     * Missing audit is NOT permission to retry.
+     * The original browser request could still
+     * be in flight or its outcome unknown.
+     */
+    if (!cancellation) {
+      tradingState.limitOrderCancellationAttempt = {
+        ...attempt,
+        definitive: false,
+        result,
+        message: (
+          'No cancellation audit is visible yet. '
+          + 'Do not retry. Check status again.'
+        ),
+      };
+
+      return;
+    }
+
+    const cancelStatus = String(
+      cancellation.status || 'unknown'
+    ).toLowerCase();
+
+    const definitive = (
+      tradingLimitCancellationDefinitive(
+        cancelStatus,
+        cancellation,
+      )
+    );
+
+    tradingState.limitOrderCancellationAttempt = {
+      ...attempt,
+      status: cancelStatus,
+      definitive,
+      gateWritePerformed: (
+        typeof cancellation.write_performed
+        === 'boolean'
+          ? cancellation.write_performed
+          : attempt.gateWritePerformed
+      ),
+      result,
+      message: (
+        definitive
+          ? (
+              tradingLimitCancellationMessage(
+                cancelStatus,
+                cancellation,
+              )
+            )
+          : (
+              `Cancellation remains `
+              + `${cancelStatus}. `
+              + 'Do not send another cancellation.'
+            )
+      ),
+    };
+
+  } catch (error) {
+    tradingState.limitOrderCancellationAttempt = {
+      ...attempt,
+      definitive: false,
+      message: (
+        tradingLimitApiErrorMessage(
+          error,
+          'Cancellation status could not '
+          + 'be confirmed. Do not retry.',
+        )
+      ),
+    };
+
+  } finally {
+    tradingState.loadingLimitOrderCancelStatus = false;
+
+    renderTradingLimitOrderTicket();
+    renderTradingLimitExecution();
+  }
+}
+
+
+async function reconcileTradingLimitCancellation() {
+  const attempt = (
+    tradingState
+      .limitOrderCancellationAttempt
+  );
+
+  if (
+    !attempt
+    || attempt.definitive
+    || tradingState
+      .loadingLimitOrderCancelReconcile
+  ) {
+    return;
+  }
+
+  tradingState.loadingLimitOrderCancelReconcile = true;
+
+  renderTradingLimitExecution();
+
+  try {
+    const result = await adminApi(
+      (
+        '/api/trading/limit-orders/requests/'
+        + encodeURIComponent(
+          attempt.orderRequestId
+        )
+        + '/cancel/reconcile'
+      ),
+      {
+        method: 'POST',
+      },
+    );
+
+    const reconciliation = (
+      result?.reconciliation || {}
+    );
+
+    const cancelStatus = String(
+      reconciliation.status
+      || 'uncertain'
+    ).toLowerCase();
+
+    const definitive = (
+      tradingLimitCancellationDefinitive(
+        cancelStatus,
+        reconciliation,
+      )
+    );
+
+    const cancellation = (
+      reconciliation
+        ?.cancellation
+      || {}
+    );
+
+    tradingState.limitOrderCancellationAttempt = {
+      ...attempt,
+      status: cancelStatus,
+      definitive,
+      gateWritePerformed: (
+        typeof cancellation.write_performed
+        === 'boolean'
+          ? cancellation.write_performed
+          : attempt.gateWritePerformed
+      ),
+      result,
+      message: (
+        tradingLimitCancellationMessage(
+          cancelStatus,
+          reconciliation,
+        )
+      ),
+    };
+
+    if (definitive) {
+      showToast(
+        tradingLimitCancellationMessage(
+          cancelStatus,
+          reconciliation,
+        ),
+        !tradingLimitCancellationSuccessful(
+          cancelStatus
+        ),
+      );
+
+    } else {
+      showToast(
+        'Cancellation reconciliation '
+        + 'is still inconclusive. '
+        + 'Do not retry.',
+        true,
+      );
+    }
+
+  } catch (error) {
+    tradingState.limitOrderCancellationAttempt = {
+      ...attempt,
+      definitive: false,
+      message: (
+        tradingLimitApiErrorMessage(
+          error,
+          'Cancellation reconciliation failed '
+          + 'or remains inconclusive. '
+          + 'Do not retry.',
+        )
+      ),
+    };
+
+    showToast(
+      tradingState
+        .limitOrderCancellationAttempt
+        .message,
+      true,
+    );
+
+  } finally {
+    tradingState.loadingLimitOrderCancelReconcile = false;
+
+    renderTradingLimitOrderTicket();
+    renderTradingLimitExecution();
   }
 }
 
@@ -2559,6 +3486,49 @@ function bindTradingLimitOrderEvents() {
 
       } else if (action === 'reconcile') {
         void reconcileTradingLimitOrder();
+      }
+    },
+  );
+
+  $('#tradingLimitCancelConfirmation')?.addEventListener(
+    'input',
+    () => {
+      renderTradingLimitExecution();
+    },
+  );
+
+  $('#cancelTradingLimitOrder')?.addEventListener(
+    'click',
+    () => {
+      void cancelTradingLimitOrder();
+    },
+  );
+
+  $('#tradingLimitCancellationResult')?.addEventListener(
+    'click',
+    event => {
+      const button = (
+        event.target instanceof Element
+          ? event.target.closest(
+              '[data-trading-cancel-action]'
+            )
+          : null
+      );
+
+      if (!button) {
+        return;
+      }
+
+      const action = String(
+        button.dataset.tradingCancelAction
+        || ''
+      );
+
+      if (action === 'status') {
+        void checkTradingLimitCancellationStatus();
+
+      } else if (action === 'reconcile') {
+        void reconcileTradingLimitCancellation();
       }
     },
   );

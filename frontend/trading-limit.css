@@ -590,3 +590,26 @@ button.trading-book-row.selected {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+
+/* Stage 3H6 cancellation execution */
+
+.trading-order-cancellation
+.trading-order-execution-result {
+  margin-top: 2px;
+}
+
+.trading-order-cancellation
+.trading-order-execution-result.success {
+  border-color: var(--positive);
+}
+
+.trading-order-cancellation
+.trading-order-execution-result.error {
+  border-color: var(--negative);
+}
+
+.trading-order-cancellation
+.trading-order-execution-result.uncertain {
+  border-color: var(--accent-dark);
+}
