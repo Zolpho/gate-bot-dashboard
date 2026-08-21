@@ -1,6 +1,13 @@
 .trading-tab {
-  display: grid;
   gap: 18px;
+}
+
+/*
+ * The dashboard's generic .tab-panel rule owns visibility.
+ * Trading becomes a grid only while its tab is active.
+ */
+.tab-panel.trading-tab.active {
+  display: grid;
 }
 
 .trading-toolbar {
