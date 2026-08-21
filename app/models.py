@@ -1884,3 +1884,368 @@ class BotControlRateLimitEvent(Base):
         nullable=False,
     )
 
+
+# ============================================================
+# Spot Trading audit / reconciliation foundation
+# ============================================================
+
+TRADING_AMOUNT = ExactDecimal(48, 24)
+
+
+class TradingOrderRequest(Base):
+    __tablename__ = "trading_order_requests"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "request_id",
+            name="uq_trading_order_request_id",
+        ),
+        Index(
+            "ix_trading_order_account_created",
+            "account_id",
+            "created_at",
+        ),
+        Index(
+            "ix_trading_order_user_created",
+            "username",
+            "created_at",
+        ),
+        Index(
+            "ix_trading_order_status_created",
+            "status",
+            "created_at",
+        ),
+        Index(
+            "ix_trading_order_pair_created",
+            "pair",
+            "created_at",
+        ),
+        Index(
+            "ix_trading_order_gate_order_id",
+            "gate_order_id",
+        ),
+        Index(
+            "ix_trading_order_gate_text",
+            "gate_text",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    pair: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    side: Mapped[str] = mapped_column(
+        String(8),
+        nullable=False,
+    )
+
+    order_type: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="limit",
+    )
+
+    time_in_force: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="gtc",
+    )
+
+    price: Mapped[Decimal] = mapped_column(
+        TRADING_AMOUNT,
+        nullable=False,
+    )
+
+    amount: Mapped[Decimal] = mapped_column(
+        TRADING_AMOUNT,
+        nullable=False,
+    )
+
+    total: Mapped[Decimal] = mapped_column(
+        TRADING_AMOUNT,
+        nullable=False,
+    )
+
+    funding_asset: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="reserved",
+    )
+
+    request_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    request_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    response_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    gate_text: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    gate_order_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    gate_status_code: Mapped[Optional[int]] = (
+        mapped_column(
+            Integer,
+        )
+    )
+
+    gate_label: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    error: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    write_performed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+        nullable=False,
+    )
+
+    completed_at: Mapped[Optional[datetime]] = (
+        mapped_column(
+            DateTime(timezone=True),
+        )
+    )
+
+
+class TradingOrderReconciliation(Base):
+    __tablename__ = (
+        "trading_order_reconciliations"
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_trading_reconcile_request_created",
+            "request_id",
+            "created_at",
+        ),
+        Index(
+            "ix_trading_reconcile_account_created",
+            "account_id",
+            "created_at",
+        ),
+        Index(
+            "ix_trading_reconcile_gate_order",
+            "gate_order_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    pair: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    outcome: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    confidence: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="inconclusive",
+    )
+
+    gate_order_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    gate_status: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    summary: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    details_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
+class TradingOrderOperationLock(Base):
+    __tablename__ = (
+        "trading_order_operation_locks"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "lock_key",
+            name=(
+                "uq_trading_order_operation_lock_key"
+            ),
+        ),
+        Index(
+            "ix_trading_lock_account_asset",
+            "account_id",
+            "funding_asset",
+        ),
+        Index(
+            "ix_trading_lock_owner_request",
+            "owner_request_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    # Intended form:
+    # trading:<account_id>:<funding_asset>
+    #
+    # BUY  -> quote currency
+    # SELL -> base currency
+    lock_key: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    funding_asset: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    pair: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    side: Mapped[str] = mapped_column(
+        String(8),
+        nullable=False,
+    )
+
+    owner_request_id: Mapped[str] = (
+        mapped_column(
+            String(128),
+            nullable=False,
+        )
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    state: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="held",
+    )
+
+    acquired_at: Mapped[datetime] = (
+        mapped_column(
+            DateTime(timezone=True),
+            default=utcnow,
+            nullable=False,
+        )
+    )
+
+    cooldown_until: Mapped[
+        Optional[datetime]
+    ] = mapped_column(
+        DateTime(timezone=True),
+    )

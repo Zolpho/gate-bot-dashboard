@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     gate_accounts_file: Path = Path("/run/secrets/gate_accounts.json")
     gate_bot_control_file: Path = Path("/run/secrets/gate_bot_control.json")
 
+    # Spot Trading is deliberately isolated from Monitor,
+    # Bot Control and Treasury credentials.
+    gate_trading_file: Path = Path("/run/secrets/gate_trading.json")
+
+    # Merely provisioning a Spot read-write credential must
+    # never enable live order placement.
+    trading_limit_orders_enabled: bool = False
+    trading_limit_order_confirmation_text: str = "LIMIT ORDER"
+
     # Treasury is deliberately isolated from Monitor and Bot Control.
     # Treasury uses its own read-only credential mount.
     gate_treasury_file: Path = Path("/run/secrets/gate_treasury.json")
