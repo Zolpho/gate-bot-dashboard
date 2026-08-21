@@ -4232,6 +4232,20 @@ function renderTreasuryUserTransferParticipants() {
 }
 
 
+
+function treasuryUserTransferPathLabel(value) {
+  const path = String(value || '').trim().toLowerCase();
+
+  const labels = {
+    subaccount_to_subaccount: 'Subaccount → Subaccount',
+    subaccount_to_main: 'Subaccount → Main',
+    main_to_subaccount: 'Main → Subaccount',
+  };
+
+  return labels[path] || path || '—';
+}
+
+
 function renderTreasuryUserTransferPreview() {
   const container = $('#treasuryUserTransferPreview');
   const confirmationBlock = $(
@@ -4293,12 +4307,6 @@ function renderTreasuryUserTransferPreview() {
     preview.operation_blockers || []
   );
 
-  const blockerText = blockers.length
-    ? blockers.map(item => (
-        item.message || item.type || 'Blocked'
-      )).join(', ')
-    : 'None';
-
   const status = String(
     response.status || ''
   ).toLowerCase();
@@ -4311,8 +4319,6 @@ function renderTreasuryUserTransferPreview() {
     response.execution_implemented
   );
 
-  // Fail closed if either the participants response or
-  // this preview says that live user transfers are off.
   const liveEnabled = Boolean(
     state.treasuryUserTransfersEnabled
     && response.user_transfers_enabled
@@ -4324,94 +4330,134 @@ function renderTreasuryUserTransferPreview() {
     && blockers.length === 0
   );
 
+  const blockerText = blockers.length
+    ? blockers.map(item => (
+        item.message || item.type || 'Blocked'
+      )).join(', ')
+    : 'NONE';
+
+  const pathLabel = treasuryUserTransferPathLabel(
+    preview.transfer_path
+  );
+
+  const gateWriteClass = ready
+    ? 'warning'
+    : 'neutral';
+
+  const blockerClass = blockers.length
+    ? 'danger'
+    : 'success';
+
+  const implementationClass = executionImplemented
+    ? 'success'
+    : 'danger';
+
+  const armClass = liveEnabled
+    ? 'danger'
+    : 'safe';
+
   container.innerHTML = `
     <div class="treasury-user-transfer-preview-grid">
-      <div>
+      <div class="treasury-user-transfer-card">
         <span>Source account</span>
         <strong>${escapeHtml(
           preview.source_account_id || '—'
         )}</strong>
       </div>
 
-      <div>
+      <div class="treasury-user-transfer-card">
         <span>Recipient account</span>
         <strong>${escapeHtml(
           preview.destination_account_id || '—'
         )}</strong>
       </div>
 
-      <div>
+      <div class="treasury-user-transfer-card">
         <span>Asset</span>
         <strong>${escapeHtml(
           preview.currency || '—'
         )}</strong>
       </div>
 
-      <div>
+      <div class="treasury-user-transfer-card">
         <span>Amount</span>
-        <strong>${escapeHtml(
-          treasuryAmount(
-            preview.amount,
-            preview.currency
-          )
-        )}</strong>
-      </div>
-
-      <div>
-        <span>Available before</span>
-        <strong>${escapeHtml(
-          treasuryAmount(
-            preview.source_available_before,
-            preview.currency
-          )
-        )}</strong>
-      </div>
-
-      <div>
-        <span>Available after</span>
-        <strong>${escapeHtml(
-          treasuryAmount(
-            preview.source_available_after,
-            preview.currency
-          )
-        )}</strong>
-      </div>
-
-      <div>
-        <span>Gate transfer path</span>
-        <strong>${escapeHtml(
-          preview.transfer_path || '—'
-        )}</strong>
-      </div>
-
-      <div>
-        <span>Gate write</span>
-        <strong>
-          ${ready ? 'REQUIRED ON EXECUTION' : 'NOT PERFORMED'}
+        <strong class="treasury-user-transfer-number">
+          ${escapeHtml(
+            treasuryAmount(
+              preview.amount,
+              preview.currency
+            )
+          )}
         </strong>
       </div>
 
-      <div>
+      <div class="treasury-user-transfer-card">
+        <span>Available before</span>
+        <strong class="treasury-user-transfer-number">
+          ${escapeHtml(
+            treasuryAmount(
+              preview.source_available_before,
+              preview.currency
+            )
+          )}
+        </strong>
+      </div>
+
+      <div class="treasury-user-transfer-card">
+        <span>Available after</span>
+        <strong class="treasury-user-transfer-number">
+          ${escapeHtml(
+            treasuryAmount(
+              preview.source_available_after,
+              preview.currency
+            )
+          )}
+        </strong>
+      </div>
+
+      <div class="treasury-user-transfer-card">
+        <span>Gate transfer path</span>
+        <strong>${escapeHtml(pathLabel)}</strong>
+      </div>
+
+      <div class="treasury-user-transfer-card">
+        <span>Gate write</span>
+        <strong>
+          <span class="treasury-user-transfer-chip ${gateWriteClass}">
+            ${ready
+              ? 'REQUIRED ON EXECUTION'
+              : 'NOT PERFORMED'}
+          </span>
+        </strong>
+      </div>
+
+      <div class="treasury-user-transfer-card">
         <span>Operation blockers</span>
-        <strong>${escapeHtml(blockerText)}</strong>
+        <strong>
+          <span class="treasury-user-transfer-chip ${blockerClass}">
+            ${escapeHtml(blockerText)}
+          </span>
+        </strong>
       </div>
 
-      <div>
-        <span>Execution implementation</span>
-        <strong>${
-          executionImplemented
-            ? 'IMPLEMENTED'
-            : 'NOT IMPLEMENTED'
-        }</strong>
+      <div class="treasury-user-transfer-card">
+        <span>Execution</span>
+        <strong>
+          <span class="treasury-user-transfer-chip ${implementationClass}">
+            ${executionImplemented
+              ? 'IMPLEMENTED'
+              : 'NOT IMPLEMENTED'}
+          </span>
+        </strong>
       </div>
 
-      <div>
+      <div class="treasury-user-transfer-card treasury-user-transfer-arm-card">
         <span>Live transfer arm</span>
-        <strong>${
-          liveEnabled
-            ? 'ENABLED'
-            : 'DISABLED'
-        }</strong>
+        <strong>
+          <span class="treasury-user-transfer-chip ${armClass}">
+            ${liveEnabled ? 'ENABLED' : 'DISABLED'}
+          </span>
+        </strong>
       </div>
     </div>
   `;
