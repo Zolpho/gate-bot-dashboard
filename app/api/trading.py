@@ -1383,6 +1383,79 @@ async def preview_limit_order(
     }
 
 
+@router.get("/execution-capabilities")
+async def trading_execution_capabilities(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):
+    """
+    Read-only frontend capability discovery.
+
+    This endpoint performs no Gate call and no local
+    Trading execution-state mutation.
+
+    Trading authorization remains explicit account_id
+    assignment only. Super-admin receives no wildcard.
+    """
+    authorized_account_ids = sorted(
+        {
+            item.strip().lower()
+            for item in user.account_ids
+            if item.strip()
+        }
+    )
+
+    configured_account_ids: list[str] = []
+    config_error = ""
+
+    for account_id in authorized_account_ids:
+        try:
+            account = get_trading_account(
+                account_id
+            )
+
+        except TradingConfigError as exc:
+            config_error = str(exc)
+            break
+
+        if (
+            account is not None
+            and account.enabled
+            and account.configured
+        ):
+            configured_account_ids.append(
+                account_id
+            )
+
+    return {
+        "execution_implemented": True,
+        "execution_route_available": True,
+        "live_arm_enabled": bool(
+            settings.trading_limit_orders_enabled
+        ),
+        "required_confirmation": (
+            settings
+            .trading_limit_order_confirmation_text
+        ),
+        "authorized_account_ids": (
+            authorized_account_ids
+        ),
+        "configured_account_ids": (
+            configured_account_ids
+        ),
+        "config_error": config_error,
+        "gate_read_performed": False,
+        "gate_write_performed": False,
+        "write_performed": False,
+    }
+
+
 @router.post("/limit-orders/execute")
 async def execute_trading_limit_order(
     request: LimitOrderExecuteRequest,

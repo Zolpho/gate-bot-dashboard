@@ -4,8 +4,8 @@ tradingState.limitOrderSide = 'buy';
 tradingState.limitOrderPercent = null;
 tradingState.limitOrderPreview = null;
 tradingState.loadingLimitOrderPreview = false;
-
-
+tradingState.limitOrderExecutionCapabilities = null;
+tradingState.loadingLimitOrderExecutionCapabilities = false;
 function tradingLimitAmountDigits() {
   const precision = Number(
     tradingPairDefinition()?.amount_precision
@@ -136,6 +136,7 @@ function tradingLimitValues() {
 
 function clearTradingLimitOrderPreview() {
   tradingState.limitOrderPreview = null;
+  tradingState.limitOrderExecutionCapabilities = null;
 
   const preview = $(
     '#tradingLimitOrderPreview'
@@ -154,6 +155,7 @@ function clearTradingLimitOrderPreview() {
     error.textContent = '';
     error.classList.add('hidden');
   }
+  renderTradingLimitExecution();
 }
 
 
@@ -337,6 +339,294 @@ function renderTradingLimitOrderTicket() {
 }
 
 
+function renderTradingLimitExecution() {
+  const element = $(
+    '#tradingLimitExecution'
+  );
+
+  if (!element) {
+    return;
+  }
+
+  const preview = (
+    tradingState.limitOrderPreview
+  );
+
+  const capabilities = (
+    tradingState
+      .limitOrderExecutionCapabilities
+  );
+
+  const ready = (
+    String(
+      preview?.status || ''
+    ).toLowerCase()
+    === 'ready'
+  );
+
+  if (!ready) {
+    element.classList.add(
+      'hidden'
+    );
+
+    return;
+  }
+
+  element.classList.remove(
+    'hidden'
+  );
+
+  const status = $(
+    '#tradingLimitExecutionStatus'
+  );
+
+  const message = $(
+    '#tradingLimitExecutionMessage'
+  );
+
+  const requiredElement = $(
+    '#tradingLimitRequiredConfirmation'
+  );
+
+  const confirmation = $(
+    '#tradingLimitConfirmation'
+  );
+
+  const button = $(
+    '#placeTradingLimitOrder'
+  );
+
+  const accountId = String(
+    tradingState.accountId || ''
+  ).toLowerCase();
+
+  const configuredAccounts = (
+    capabilities
+      ?.configured_account_ids
+    || []
+  ).map(
+    value => String(
+      value || ''
+    ).toLowerCase()
+  );
+
+  const implemented = (
+    capabilities
+      ?.execution_implemented
+    === true
+  );
+
+  const routeAvailable = (
+    capabilities
+      ?.execution_route_available
+    === true
+  );
+
+  const accountConfigured = (
+    configuredAccounts.includes(
+      accountId
+    )
+  );
+
+  const liveArmEnabled = (
+    capabilities
+      ?.live_arm_enabled
+    === true
+  );
+
+  const required = String(
+    capabilities
+      ?.required_confirmation
+    || ''
+  );
+
+  const configError = String(
+    capabilities
+      ?.config_error
+    || ''
+  );
+
+  if (status) {
+    status.classList.remove(
+      'disabled',
+      'ready',
+      'warning',
+    );
+  }
+
+  let label = 'LIVE DISABLED';
+
+  let description = (
+    'Live Spot order placement is disabled '
+    + 'by the backend.'
+  );
+
+  let statusClass = 'disabled';
+
+  if (
+    tradingState
+      .loadingLimitOrderExecutionCapabilities
+  ) {
+    label = 'CHECKING';
+
+    description = (
+      'Checking backend execution state…'
+    );
+
+  } else if (configError) {
+    label = 'CONFIG ERROR';
+    description = configError;
+    statusClass = 'warning';
+
+  } else if (
+    !implemented
+    || !routeAvailable
+  ) {
+    label = 'UNAVAILABLE';
+
+    description = (
+      'The guarded Spot execution backend '
+      + 'is unavailable.'
+    );
+
+    statusClass = 'warning';
+
+  } else if (!accountConfigured) {
+    label = 'NO TRADING KEY';
+
+    description = (
+      'This account has no enabled isolated '
+      + 'Spot Trading credential.'
+    );
+
+    statusClass = 'warning';
+
+  } else if (liveArmEnabled) {
+    label = 'BACKEND ARMED';
+
+    /*
+     * Stage 3G1 deliberately keeps the browser
+     * write control disabled even if the backend
+     * reports itself armed.
+     */
+    description = (
+      'The backend reports live Trading armed, '
+      + 'but this frontend build intentionally '
+      + 'does not submit orders yet.'
+    );
+
+    statusClass = 'ready';
+  }
+
+  if (status) {
+    status.textContent = label;
+
+    status.classList.add(
+      statusClass
+    );
+  }
+
+  if (message) {
+    message.textContent = (
+      description
+    );
+  }
+
+  if (requiredElement) {
+    requiredElement.textContent = (
+      required || '—'
+    );
+  }
+
+  if (confirmation) {
+    confirmation.disabled = !(
+      implemented
+      && routeAvailable
+      && accountConfigured
+      && liveArmEnabled
+      && required
+    );
+
+    if (!liveArmEnabled) {
+      confirmation.value = '';
+    }
+  }
+
+  if (button) {
+    /*
+     * Hard Stage 3G1 safety boundary:
+     * this browser build has no execute caller.
+     */
+    button.disabled = true;
+
+    button.title = liveArmEnabled
+      ? (
+          'Frontend execution is intentionally '
+          + 'not activated in this build.'
+        )
+      : (
+          'Live Trading is disabled by the backend.'
+        );
+  }
+}
+
+
+async function loadTradingExecutionCapabilities() {
+  if (
+    tradingState
+      .loadingLimitOrderExecutionCapabilities
+  ) {
+    return;
+  }
+
+  tradingState
+    .loadingLimitOrderExecutionCapabilities = true;
+
+  renderTradingLimitExecution();
+
+  try {
+    const result = await adminApi(
+      '/api/trading/execution-capabilities'
+    );
+
+    if (
+      result.execution_implemented !== true
+      || result.execution_route_available !== true
+      || result.gate_write_performed !== false
+      || result.write_performed !== false
+    ) {
+      throw new Error(
+        'Safety invariant failed: invalid '
+        + 'Trading execution capability response.'
+      );
+    }
+
+    tradingState
+      .limitOrderExecutionCapabilities = result;
+
+  } catch (error) {
+    tradingState
+      .limitOrderExecutionCapabilities = {
+        execution_implemented: false,
+        execution_route_available: false,
+        live_arm_enabled: false,
+        configured_account_ids: [],
+        required_confirmation: '',
+        config_error: (
+          error.message
+          || 'Execution capability check failed.'
+        ),
+      };
+
+  } finally {
+    tradingState
+      .loadingLimitOrderExecutionCapabilities = false;
+
+    renderTradingLimitExecution();
+  }
+}
+
+
 function renderTradingLimitOrderPreview(
   preview,
 ) {
@@ -451,13 +741,13 @@ function renderTradingLimitOrderPreview(
 
     <div class="trading-order-safety">
       <span>
-        Execution:
-        <strong>NOT IMPLEMENTED</strong>
+        Preview:
+        <strong>READ ONLY</strong>
       </span>
 
       <span>
-        Can execute:
-        <strong>NO</strong>
+        Execution:
+        <strong>SEPARATE STEP</strong>
       </span>
 
       <span>
@@ -545,7 +835,9 @@ async function reviewTradingLimitOrder() {
       result
     );
 
-  } catch (error) {
+
+    await loadTradingExecutionCapabilities();
+} catch (error) {
     const box = $(
       '#tradingLimitOrderError'
     );

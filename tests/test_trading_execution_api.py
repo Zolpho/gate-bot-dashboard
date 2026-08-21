@@ -501,3 +501,152 @@ async def test_reconcile_cross_account_is_hidden(
         caught.value.status_code
         == 404
     )
+
+
+@pytest.mark.asyncio
+async def test_execution_capabilities_are_read_only_and_disarmed(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        trading_api,
+        "get_trading_account",
+        lambda account_id:
+            TRADING_ACCOUNT
+            if account_id == "arnold"
+            else None,
+    )
+
+    result = await (
+        trading_api
+        .trading_execution_capabilities(
+            user=ARNOLD_USER,
+            settings=Settings(
+                _env_file=None,
+                trading_limit_orders_enabled=False,
+                trading_limit_order_confirmation_text=(
+                    "LIMIT ORDER"
+                ),
+            ),
+        )
+    )
+
+    assert (
+        result["execution_implemented"]
+        is True
+    )
+
+    assert (
+        result["execution_route_available"]
+        is True
+    )
+
+    assert (
+        result["live_arm_enabled"]
+        is False
+    )
+
+    assert (
+        result["required_confirmation"]
+        == "LIMIT ORDER"
+    )
+
+    assert (
+        result["authorized_account_ids"]
+        == ["arnold"]
+    )
+
+    assert (
+        result["configured_account_ids"]
+        == ["arnold"]
+    )
+
+    assert (
+        result["gate_read_performed"]
+        is False
+    )
+
+    assert (
+        result["gate_write_performed"]
+        is False
+    )
+
+    assert (
+        result["write_performed"]
+        is False
+    )
+
+
+@pytest.mark.asyncio
+async def test_execution_capabilities_super_admin_has_no_wildcard(
+    monkeypatch,
+):
+    calls = []
+
+    def fake_get_trading_account(
+        account_id,
+    ):
+        calls.append(account_id)
+        return TRADING_ACCOUNT
+
+    monkeypatch.setattr(
+        trading_api,
+        "get_trading_account",
+        fake_get_trading_account,
+    )
+
+    result = await (
+        trading_api
+        .trading_execution_capabilities(
+            user=ADMIN_WITHOUT_ARNOLD,
+            settings=Settings(
+                _env_file=None,
+                trading_limit_orders_enabled=False,
+            ),
+        )
+    )
+
+    assert (
+        result["authorized_account_ids"]
+        == ["zolnode"]
+    )
+
+    # The admin still has only the IDs explicitly
+    # present in DashboardUser.account_ids.
+    assert calls == ["zolnode"]
+
+
+@pytest.mark.asyncio
+async def test_execution_capabilities_can_report_armed_state(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        trading_api,
+        "get_trading_account",
+        lambda account_id:
+            TRADING_ACCOUNT,
+    )
+
+    result = await (
+        trading_api
+        .trading_execution_capabilities(
+            user=ARNOLD_USER,
+            settings=Settings(
+                _env_file=None,
+                trading_limit_orders_enabled=True,
+                trading_limit_order_confirmation_text=(
+                    "LIMIT ORDER"
+                ),
+            ),
+        )
+    )
+
+    assert (
+        result["live_arm_enabled"]
+        is True
+    )
+
+    # Capability discovery itself remains read-only.
+    assert (
+        result["gate_write_performed"]
+        is False
+    )

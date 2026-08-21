@@ -347,3 +347,136 @@ button.trading-book-row.selected {
   border-color: var(--accent);
   background: rgba(23, 211, 154, 0.08);
 }
+
+
+/* Reviewed-order execution boundary */
+
+.trading-order-execution {
+  display: grid;
+  gap: 13px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+
+.trading-order-execution.hidden {
+  display: none;
+}
+
+.trading-order-execution-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.trading-order-execution-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.trading-order-execution-head small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.trading-order-execution-status {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.035em;
+}
+
+.trading-order-execution-status.disabled {
+  color: var(--muted);
+}
+
+.trading-order-execution-status.ready {
+  color: var(--positive);
+  border-color: var(--positive);
+}
+
+.trading-order-execution-status.warning {
+  color: var(--negative);
+  border-color: var(--negative);
+}
+
+.trading-order-confirmation {
+  display: grid;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+.trading-order-confirmation > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.trading-order-confirmation code {
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.trading-order-execution-actions {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  gap: 9px;
+}
+
+.trading-order-execution-actions input {
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--text);
+  padding: 9px 10px;
+  font: inherit;
+}
+
+.trading-order-execution-actions input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.trading-order-execution-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trading-order-execution-result {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 11px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.trading-order-execution-result.hidden {
+  display: none;
+}
+
+@media (max-width: 620px) {
+  .trading-order-execution-head {
+    display: grid;
+  }
+
+  .trading-order-execution-status {
+    width: fit-content;
+  }
+
+  .trading-order-execution-actions {
+    grid-template-columns: 1fr;
+  }
+}

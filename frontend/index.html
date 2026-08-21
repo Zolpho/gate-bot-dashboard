@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
   <link rel="stylesheet" href="./trading.css?v=20260821-volume-book-v1">
-  <link rel="stylesheet" href="./trading-limit.css?v=20260821-limit-percent-v1">
+  <link rel="stylesheet" href="./trading-limit.css?v=20260821-execution-panel-v1">
 </head>
 <body>
   <div class="app-shell">
@@ -431,6 +431,63 @@
                 class="trading-order-preview hidden"
                 aria-live="polite"
               ></div>
+
+              <div
+                id="tradingLimitExecution"
+                class="trading-order-execution hidden"
+                aria-live="polite"
+              >
+                <div class="trading-order-execution-head">
+                  <div>
+                    <strong>Place reviewed order</strong>
+
+                    <small id="tradingLimitExecutionMessage">
+                      Checking live execution state…
+                    </small>
+                  </div>
+
+                  <span
+                    id="tradingLimitExecutionStatus"
+                    class="trading-order-execution-status disabled"
+                  >
+                    LIVE DISABLED
+                  </span>
+                </div>
+
+                <div class="trading-order-confirmation">
+                  <span>Required confirmation</span>
+
+                  <code
+                    id="tradingLimitRequiredConfirmation"
+                  >—</code>
+
+                  <div class="trading-order-execution-actions">
+                    <input
+                      id="tradingLimitConfirmation"
+                      type="text"
+                      autocomplete="off"
+                      spellcheck="false"
+                      placeholder="Exact confirmation"
+                      disabled
+                    >
+
+                    <button
+                      type="button"
+                      class="button"
+                      id="placeTradingLimitOrder"
+                      disabled
+                    >
+                      Place limit order
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  id="tradingLimitExecutionResult"
+                  class="trading-order-execution-result hidden"
+                  role="status"
+                ></div>
+              </div>
             </div>
           </article>
 
@@ -2107,7 +2164,7 @@
     defer
   ></script>
   <script
-    src="./trading-limit.js?v=20260821-limit-percent-v1"
+    src="./trading-limit.js?v=20260821-execution-panel-v1"
     defer
   ></script>
 <footer class="site-footer">
