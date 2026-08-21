@@ -1,3 +1,4 @@
+import pytest
 from fastapi import HTTPException
 
 from app.api.trading import (
@@ -332,3 +333,111 @@ def test_limit_order_sell_uses_base_balance():
         "Insufficient" in item
         for item in result["blockers"]
     )
+
+
+def test_get_spot_order_is_signed_get(monkeypatch):
+    import asyncio
+
+    from app.gate_client import (
+        GateClient,
+        GateResponse,
+    )
+
+    calls = []
+
+    async def fake_request(
+        self,
+        method,
+        endpoint,
+        *,
+        params=None,
+        json_body=None,
+        signed=True,
+        extra_headers=None,
+    ):
+        calls.append(
+            {
+                "method": method,
+                "endpoint": endpoint,
+                "params": params,
+                "signed": signed,
+            }
+        )
+
+        return GateResponse(
+            data={},
+            status_code=200,
+            headers={},
+            raw={},
+        )
+
+    monkeypatch.setattr(
+        GateClient,
+        "request",
+        fake_request,
+    )
+
+    client = GateClient()
+
+    try:
+        asyncio.run(
+            client.get_spot_order(
+                "t-eq-test",
+                currency_pair=(
+                    "EQTY_USDT"
+                ),
+            )
+        )
+    finally:
+        asyncio.run(
+            client.close()
+        )
+
+    assert calls == [
+        {
+            "method": "GET",
+            "endpoint": (
+                "/spot/orders/t-eq-test"
+            ),
+            "params": [
+                (
+                    "currency_pair",
+                    "EQTY_USDT",
+                ),
+                (
+                    "account",
+                    "spot",
+                ),
+            ],
+            "signed": True,
+        }
+    ]
+
+
+def test_open_spot_orders_reject_time_filter():
+    import asyncio
+
+    from app.gate_client import (
+        GateClient,
+    )
+
+    client = GateClient()
+
+    try:
+        with pytest.raises(
+            ValueError,
+            match="do not support",
+        ):
+            asyncio.run(
+                client.list_spot_orders(
+                    currency_pair=(
+                        "EQTY_USDT"
+                    ),
+                    status="open",
+                    from_timestamp=1,
+                )
+            )
+    finally:
+        asyncio.run(
+            client.close()
+        )

@@ -307,6 +307,143 @@ class GateClient:
     async def list_spot_accounts(self) -> GateResponse:
         return await self.request("GET", "/spot/accounts")
 
+    async def get_spot_order(
+        self,
+        order_id: str,
+        *,
+        currency_pair: str | None = None,
+        account: str = "spot",
+    ) -> GateResponse:
+        normalized_order_id = order_id.strip()
+
+        if not normalized_order_id:
+            raise ValueError(
+                "order_id cannot be empty"
+            )
+
+        if any(
+            item in normalized_order_id
+            for item in ("/", "?", "#")
+        ):
+            raise ValueError(
+                "order_id contains invalid path characters"
+            )
+
+        return await self.request(
+            "GET",
+            f"/spot/orders/{normalized_order_id}",
+            params=[
+                (
+                    "currency_pair",
+                    currency_pair.upper()
+                    if currency_pair
+                    else None,
+                ),
+                ("account", account),
+            ],
+        )
+
+    async def list_spot_orders(
+        self,
+        *,
+        currency_pair: str | None,
+        status: str,
+        page: int = 1,
+        limit: int = 100,
+        account: str = "spot",
+        from_timestamp: int | None = None,
+        to_timestamp: int | None = None,
+        side: str | None = None,
+    ) -> GateResponse:
+        normalized_status = (
+            status.strip().lower()
+        )
+
+        if normalized_status not in {
+            "open",
+            "finished",
+        }:
+            raise ValueError(
+                "status must be open or finished"
+            )
+
+        if (
+            normalized_status == "open"
+            and not currency_pair
+        ):
+            raise ValueError(
+                "currency_pair is required "
+                "for open Spot orders"
+            )
+
+        if (
+            normalized_status == "open"
+            and any(
+                value is not None
+                for value in (
+                    from_timestamp,
+                    to_timestamp,
+                    side,
+                )
+            )
+        ):
+            raise ValueError(
+                "open Spot order queries do not "
+                "support time range or side filters"
+            )
+
+        normalized_side = (
+            side.strip().lower()
+            if side
+            else None
+        )
+
+        if (
+            normalized_side is not None
+            and normalized_side not in {
+                "buy",
+                "sell",
+            }
+        ):
+            raise ValueError(
+                "side must be buy or sell"
+            )
+
+        return await self.request(
+            "GET",
+            "/spot/orders",
+            params=[
+                (
+                    "currency_pair",
+                    currency_pair.upper()
+                    if currency_pair
+                    else None,
+                ),
+                (
+                    "status",
+                    normalized_status,
+                ),
+                ("page", max(1, page)),
+                (
+                    "limit",
+                    max(
+                        1,
+                        min(limit, 100),
+                    ),
+                ),
+                ("account", account),
+                (
+                    "from",
+                    from_timestamp,
+                ),
+                (
+                    "to",
+                    to_timestamp,
+                ),
+                ("side", normalized_side),
+            ],
+        )
+
     async def create_sub_account_transfer(
         self,
         payload: dict[str, Any],
