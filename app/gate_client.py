@@ -417,6 +417,7 @@ class GateClient:
         self,
         currency_pair: str,
         *,
+        interval: str = "0",
         limit: int = 20,
         with_id: bool = True,
     ) -> GateResponse:
@@ -425,8 +426,25 @@ class GateClient:
             "/spot/order_book",
             params={
                 "currency_pair": currency_pair.upper(),
+                "interval": interval,
                 "limit": max(1, min(limit, 100)),
                 "with_id": with_id,
+            },
+            signed=False,
+        )
+
+    async def list_spot_trades(
+        self,
+        currency_pair: str,
+        *,
+        limit: int = 50,
+    ) -> GateResponse:
+        return await self.request(
+            "GET",
+            "/spot/trades",
+            params={
+                "currency_pair": currency_pair.upper(),
+                "limit": max(1, min(limit, 1000)),
             },
             signed=False,
         )

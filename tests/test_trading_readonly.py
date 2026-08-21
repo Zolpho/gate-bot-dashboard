@@ -112,3 +112,39 @@ def test_normalize_order_book_and_spread():
     assert result["best_ask"] == "1.02"
     assert result["best_bid"] == "1.00"
     assert result["spread"] == "0.02"
+
+
+def test_book_interval_validation():
+    from app.api.trading import _book_interval
+
+    assert _book_interval("0") == "0"
+    assert _book_interval("0.000001") == "0.000001"
+    assert _book_interval("0.001000") == "0.001"
+
+
+def test_order_book_depth_ratio():
+    result = _normalize_order_book(
+        {
+            "asks": [
+                ["1.01", "25"],
+                ["1.02", "25"],
+            ],
+            "bids": [
+                ["1.00", "50"],
+                ["0.99", "50"],
+            ],
+        }
+    )
+
+    assert result["bid_amount_total"] == "100"
+    assert result["ask_amount_total"] == "50"
+
+    assert (
+        result["buy_percent"]
+        == "66.66666666666666666666666667"
+    )
+
+    assert (
+        result["sell_percent"]
+        == "33.33333333333333333333333333"
+    )

@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./wallet-tab.css">
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
-  <link rel="stylesheet" href="./trading.css?v=20260821-trading-v2">
+  <link rel="stylesheet" href="./trading.css?v=20260821-market-depth-v1">
 </head>
 <body>
   <div class="app-shell">
@@ -268,16 +268,43 @@
           </article>
 
           <article class="panel trading-book-panel">
-            <div class="panel-header">
-              <div>
-                <h2>Order book</h2>
-                <p id="tradingBookSubtitle">
-                  Gate spot · top levels
-                </p>
-              </div>
+            <div class="trading-book-tabs">
+              <button
+                type="button"
+                class="trading-book-tab active"
+                data-trading-market-tab="book"
+              >
+                Order Book
+              </button>
+
+              <button
+                type="button"
+                class="trading-book-tab"
+                data-trading-market-tab="trades"
+              >
+                Trades
+              </button>
             </div>
 
-            <div class="trading-book">
+            <div
+              id="tradingBookView"
+              class="trading-market-side-view"
+            >
+              <div class="trading-book-toolbar">
+                <span id="tradingBookSubtitle">
+                  Gate spot · top levels
+                </span>
+
+                <label class="trading-depth-selector">
+                  <span>Group</span>
+                  <select
+                    id="tradingBookInterval"
+                    aria-label="Order book price grouping"
+                  ></select>
+                </label>
+              </div>
+
+              <div class="trading-book">
               <div class="trading-book-head">
                 <span>Price</span>
                 <span>Amount</span>
@@ -291,6 +318,55 @@
               </div>
 
               <div id="tradingBids"></div>
+
+              <div class="trading-depth-ratio">
+                <div class="trading-depth-ratio-labels">
+                  <strong id="tradingBuyPercent">
+                    B —%
+                  </strong>
+
+                  <strong id="tradingSellPercent">
+                    —% S
+                  </strong>
+                </div>
+
+                <div class="trading-depth-ratio-track">
+                  <i
+                    id="tradingBuyBar"
+                    class="buy"
+                  ></i>
+                  <i
+                    id="tradingSellBar"
+                    class="sell"
+                  ></i>
+                </div>
+
+                <small>
+                  Depth B/S · returned Gate levels
+                </small>
+              </div>
+            </div>
+            </div>
+
+            <div
+              id="tradingTradesView"
+              class="trading-market-side-view hidden"
+            >
+              <div class="trading-trades-head">
+                <span>Price</span>
+                <span>Amount</span>
+                <span>Total</span>
+                <span>Time</span>
+              </div>
+
+              <div
+                id="tradingTrades"
+                class="trading-trades"
+              >
+                <div class="empty-state">
+                  Select Trades to load recent executions.
+                </div>
+              </div>
             </div>
           </article>
         </div>
@@ -1857,7 +1933,7 @@
     defer
   ></script>
   <script
-    src="./trading.js?v=20260821-trading-v1"
+    src="./trading.js?v=20260821-market-depth-v1"
     defer
   ></script>
 <footer class="site-footer">

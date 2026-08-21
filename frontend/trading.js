@@ -6,6 +6,10 @@ const tradingState = {
   pair: '',
   interval: '5m',
   snapshot: null,
+  trades: [],
+  bookInterval: "0",
+  marketSideTab: "book",
+  loadingTrades: false,
   chart: null,
   series: null,
   resizeObserver: null,
@@ -37,6 +41,113 @@ function tradingNumeric(value) {
   return Number.isFinite(number)
     ? number
     : null;
+}
+
+
+function tradingBookIntervals() {
+  const precision = Number(
+    tradingPairDefinition()?.precision
+  );
+
+  if (
+    !Number.isInteger(precision)
+    || precision < 0
+    || precision > 12
+  ) {
+    return [
+      {
+        value: '0',
+        label: 'Exact',
+      },
+    ];
+  }
+
+  const rows = [
+    {
+      value: '0',
+      label: 'Exact',
+    },
+  ];
+
+  for (
+    let offset = 0;
+    offset < 4;
+    offset += 1
+  ) {
+    const digits = Math.max(
+      0,
+      precision - offset,
+    );
+
+    const value = (
+      10 ** (-digits)
+    ).toFixed(digits);
+
+    if (
+      !rows.some(item => item.value === value)
+    ) {
+      rows.push({
+        value,
+        label: value,
+      });
+    }
+  }
+
+  return rows;
+}
+
+
+function tradingPopulateBookIntervals() {
+  const select = $('#tradingBookInterval');
+
+  if (!select) return;
+
+  const options = tradingBookIntervals();
+
+  const allowed = new Set(
+    options.map(item => item.value)
+  );
+
+  if (
+    !allowed.has(
+      tradingState.bookInterval
+    )
+  ) {
+    tradingState.bookInterval = '0';
+  }
+
+  select.innerHTML = options
+    .map(item => (
+      `<option value="${escapeHtml(item.value)}">`
+      + `${escapeHtml(item.label)}`
+      + '</option>'
+    ))
+    .join('');
+
+  select.value = tradingState.bookInterval;
+}
+
+
+function tradingRenderMarketSideTabs() {
+  $$(
+    '[data-trading-market-tab]'
+  ).forEach(button => {
+    button.classList.toggle(
+      'active',
+      button.dataset.tradingMarketTab
+      === tradingState.marketSideTab,
+    );
+  });
+
+  $('#tradingBookView')?.classList.toggle(
+    'hidden',
+    tradingState.marketSideTab !== 'book',
+  );
+
+  $('#tradingTradesView')?.classList.toggle(
+    'hidden',
+    tradingState.marketSideTab !== 'trades',
+  );
 }
 
 
@@ -229,6 +340,8 @@ function tradingPopulateCatalog() {
   pairInput.value = pair;
 
   tradingRenderIntervalButtons();
+  tradingPopulateBookIntervals();
+  tradingRenderMarketSideTabs();
 }
 
 
@@ -674,6 +787,46 @@ function tradingRenderSnapshot() {
         )
   );
 
+  const buyPercent = tradingNumeric(
+    book.buy_percent
+  );
+
+  const sellPercent = tradingNumeric(
+    book.sell_percent
+  );
+
+  const buy = Math.max(
+    0,
+    Math.min(
+      100,
+      buyPercent ?? 0,
+    ),
+  );
+
+  const sell = Math.max(
+    0,
+    Math.min(
+      100,
+      sellPercent ?? 0,
+    ),
+  );
+
+  $('#tradingBuyPercent').textContent = (
+    `B ${buy.toFixed(2)}%`
+  );
+
+  $('#tradingSellPercent').textContent = (
+    `${sell.toFixed(2)}% S`
+  );
+
+  $('#tradingBuyBar').style.width = (
+    `${buy}%`
+  );
+
+  $('#tradingSellBar').style.width = (
+    `${sell}%`
+  );
+
   const balances = data.balances || {};
 
   const baseBalance = (
@@ -726,6 +879,145 @@ function tradingRenderSnapshot() {
 }
 
 
+function tradingFormatTradeTime(value) {
+  const milliseconds = Number(value);
+
+  if (!Number.isFinite(milliseconds)) {
+    return '—';
+  }
+
+  const date = new Date(milliseconds);
+
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+
+  return date.toLocaleTimeString(
+    [],
+    {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    },
+  );
+}
+
+
+function tradingRenderTrades() {
+  const element = $('#tradingTrades');
+
+  if (!element) return;
+
+  const rows = tradingState.trades || [];
+
+  if (!rows.length) {
+    element.innerHTML = (
+      '<div class="empty-state">'
+      + 'No recent trades returned.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  element.innerHTML = rows
+    .slice(0, 30)
+    .map(trade => {
+      const side = (
+        trade.side === 'sell'
+          ? 'sell'
+          : 'buy'
+      );
+
+      return `
+        <div class="trading-trade-row ${side}">
+          <span class="price">
+            ${escapeHtml(
+              tradingFormatPrice(
+                trade.price
+              )
+            )}
+          </span>
+
+          <span>
+            ${escapeHtml(
+              tradingFormatAmount(
+                trade.amount
+              )
+            )}
+          </span>
+
+          <span>
+            ${escapeHtml(
+              tradingFormatAmount(
+                trade.total
+              )
+            )}
+          </span>
+
+          <span>
+            ${escapeHtml(
+              tradingFormatTradeTime(
+                trade.time_ms
+              )
+            )}
+          </span>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+
+async function tradingLoadTrades({
+  quiet = false,
+} = {}) {
+  if (
+    tradingState.loadingTrades
+    || state.activeTab !== 'trading'
+    || tradingState.marketSideTab !== 'trades'
+    || !state.adminAuthorization
+    || !tradingState.accountId
+    || !tradingState.pair
+  ) {
+    return;
+  }
+
+  tradingState.loadingTrades = true;
+
+  try {
+    const result = await adminApi(
+      withParams(
+        '/api/trading/trades',
+        {
+          account_id: tradingState.accountId,
+          pair: tradingState.pair,
+          limit: 40,
+        },
+      ),
+    );
+
+    tradingState.trades = (
+      result.trades || []
+    );
+
+    tradingRenderTrades();
+
+  } catch (error) {
+    if (!quiet) {
+      showToast(
+        error.message
+        || 'Unable to load recent trades.',
+        true,
+      );
+    }
+
+  } finally {
+    tradingState.loadingTrades = false;
+  }
+}
+
+
 async function tradingLoadCatalog() {
   if (
     tradingState.loadingCatalog
@@ -775,7 +1067,10 @@ async function tradingLoadSnapshot({
             tradingState.accountId
           ),
           pair: tradingState.pair,
-          depth: 12,
+          depth: 50,
+          book_interval: (
+            tradingState.bookInterval
+          ),
         },
       ),
     );
@@ -929,6 +1224,15 @@ function tradingStartTimers() {
           void tradingLoadSnapshot({
             quiet: true,
           });
+
+          if (
+            tradingState.marketSideTab
+            === 'trades'
+          ) {
+            void tradingLoadTrades({
+              quiet: true,
+            });
+          }
         }
       },
       3000,
@@ -1051,7 +1355,16 @@ function bindTradingEvents() {
     try {
       tradingValidatePair();
 
+      tradingState.bookInterval = '0';
+      tradingPopulateBookIntervals();
+
       void tradingRefreshAll();
+
+      if (
+        tradingState.marketSideTab === 'trades'
+      ) {
+        void tradingLoadTrades();
+      }
 
     } catch (error) {
       tradingSetError(
@@ -1096,6 +1409,46 @@ function bindTradingEvents() {
       tradingRenderIntervalButtons();
 
       void tradingLoadCandles();
+    },
+  );
+
+  $('#tradingBookInterval')?.addEventListener(
+    'change',
+    event => {
+      tradingState.bookInterval = String(
+        event.target.value || '0'
+      );
+
+      void tradingLoadSnapshot();
+    },
+  );
+
+  $('.trading-book-tabs')?.addEventListener(
+    'click',
+    event => {
+      const button = (
+        event.target instanceof Element
+          ? event.target.closest(
+              '[data-trading-market-tab]'
+            )
+          : null
+      );
+
+      if (!button) return;
+
+      tradingState.marketSideTab = (
+        button.dataset.tradingMarketTab
+        || 'book'
+      );
+
+      tradingRenderMarketSideTabs();
+
+      if (
+        tradingState.marketSideTab
+        === 'trades'
+      ) {
+        void tradingLoadTrades();
+      }
     },
   );
 

@@ -88,6 +88,40 @@ def _market(value: str) -> str:
     return normalized
 
 
+def _book_interval(
+    value: str,
+) -> str:
+    normalized = value.strip()
+
+    try:
+        interval = Decimal(normalized)
+    except (
+        InvalidOperation,
+        ValueError,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid order-book price interval",
+        )
+
+    if (
+        not interval.is_finite()
+        or interval < 0
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid order-book price interval",
+        )
+
+    if interval == 0:
+        return "0"
+
+    return format(
+        interval.normalize(),
+        "f",
+    )
+
+
 def _decimal(
     value: Any,
 ) -> Decimal | None:
@@ -347,12 +381,52 @@ def _normalize_order_book(
                 * Decimal("100")
             )
 
+    ask_total = sum(
+        (
+            _decimal(item["amount"])
+            or Decimal("0")
+        )
+        for item in asks
+    )
+
+    bid_total = sum(
+        (
+            _decimal(item["amount"])
+            or Decimal("0")
+        )
+        for item in bids
+    )
+
+    depth_total = (
+        ask_total + bid_total
+    )
+
+    if depth_total > 0:
+        buy_percent = (
+            bid_total
+            / depth_total
+            * Decimal("100")
+        )
+
+        sell_percent = (
+            ask_total
+            / depth_total
+            * Decimal("100")
+        )
+    else:
+        buy_percent = Decimal("0")
+        sell_percent = Decimal("0")
+
     return {
         "id": data.get("id"),
         "current": data.get("current"),
         "update": data.get("update"),
         "asks": asks,
         "bids": bids,
+        "bid_amount_total": str(bid_total),
+        "ask_amount_total": str(ask_total),
+        "buy_percent": str(buy_percent),
+        "sell_percent": str(sell_percent),
         "best_ask": (
             str(best_ask)
             if best_ask is not None
@@ -567,9 +641,14 @@ async def trading_snapshot(
         max_length=64,
     ),
     depth: int = Query(
-        default=12,
+        default=50,
         ge=5,
-        le=50,
+        le=100,
+    ),
+    book_interval: str = Query(
+        default="0",
+        min_length=1,
+        max_length=32,
     ),
 ):
     account_id = _explicit_trading_account(
@@ -578,6 +657,10 @@ async def trading_snapshot(
     )
 
     market = _market(pair)
+
+    normalized_book_interval = _book_interval(
+        book_interval
+    )
 
     base, quote = market.split(
         "_",
@@ -603,6 +686,7 @@ async def trading_snapshot(
                 ),
                 client.get_spot_order_book(
                     market,
+                    interval=normalized_book_interval,
                     limit=depth,
                     with_id=True,
                 ),
@@ -653,6 +737,7 @@ async def trading_snapshot(
             if isinstance(ticker, dict)
             else {}
         ),
+        "book_interval": normalized_book_interval,
         "order_book": _normalize_order_book(
             order_book_response.data
         ),
@@ -666,6 +751,126 @@ async def trading_snapshot(
                 quote,
             ),
         },
+    }
+
+
+@router.get("/trades")
+async def trading_trades(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+    account_id: str = Query(
+        min_length=1,
+        max_length=64,
+    ),
+    pair: str = Query(
+        default="EQTY_USDT",
+        min_length=3,
+        max_length=64,
+    ),
+    limit: int = Query(
+        default=40,
+        ge=1,
+        le=100,
+    ),
+):
+    account_id = _explicit_trading_account(
+        user,
+        account_id,
+    )
+
+    market = _market(pair)
+
+    try:
+        async with GateClient(
+            settings,
+            None,
+        ) as client:
+            response = (
+                await client.list_spot_trades(
+                    market,
+                    limit=limit,
+                )
+            )
+
+    except GateAPIError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    rows = (
+        response.data
+        if isinstance(response.data, list)
+        else []
+    )
+
+    trades: list[dict[str, Any]] = []
+
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+
+        price = _decimal(
+            item.get("price")
+        )
+
+        amount = _decimal(
+            item.get("amount")
+        )
+
+        if (
+            price is None
+            or amount is None
+        ):
+            continue
+
+        timestamp_ms = _decimal(
+            item.get("create_time_ms")
+        )
+
+        if timestamp_ms is None:
+            timestamp = _decimal(
+                item.get("create_time")
+            )
+
+            timestamp_ms = (
+                timestamp * Decimal("1000")
+                if timestamp is not None
+                else Decimal("0")
+            )
+
+        trades.append(
+            {
+                "id": str(
+                    item.get("id") or ""
+                ),
+                "time_ms": str(
+                    timestamp_ms
+                ),
+                "side": str(
+                    item.get("side")
+                    or ""
+                ).lower(),
+                "price": str(price),
+                "amount": str(amount),
+                "total": str(
+                    price * amount
+                ),
+            }
+        )
+
+    return {
+        "write_performed": False,
+        "market_data_only": True,
+        "account_id": account_id,
+        "pair": market,
+        "trades": trades,
     }
 
 
