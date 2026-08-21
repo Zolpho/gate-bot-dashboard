@@ -49,6 +49,7 @@ _AMBIGUOUS_HTTP_STATUS_CODES = {
     408,
     409,
     425,
+    429,
 }
 
 
