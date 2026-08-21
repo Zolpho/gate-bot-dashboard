@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="./wallet-tab.css">
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
+  <link rel="stylesheet" href="./trading.css?v=20260821-trading-v1">
 </head>
 <body>
   <div class="app-shell">
@@ -32,6 +33,13 @@
             class="bot-control-nav-badge hidden"
           >0</span>
         </button>
+        <button
+          class="nav-item hidden"
+          id="tradingNavItem"
+          data-tab="trading"
+          aria-hidden="true"
+          aria-controls="tab-trading"
+        ><span>↕</span>Trading</button>
         <button class="nav-item" data-tab="alerts"><span>◇</span>Alerts</button>
         <button class="nav-item hidden" id="walletNavItem" data-tab="wallet" aria-hidden="true" aria-controls="tab-wallet"><span>◈</span>Wallet</button>
         <button class="nav-item" data-tab="system"><span>⚙</span>System</button>
@@ -113,6 +121,223 @@
             <div class="panel-header"><div><h2>Recent alerts</h2><p>Conditions needing attention</p></div><button class="text-button" data-jump="alerts">View all</button></div>
             <div id="overviewAlerts" class="event-list"></div>
           </article>
+        </div>
+      </section>
+
+      <section
+        class="tab-panel trading-tab"
+        id="tab-trading"
+        aria-labelledby="tradingNavItem"
+      >
+        <article class="panel">
+          <div class="trading-market-header">
+            <div class="trading-market-title">
+              <h2 id="tradingMarketTitle">Market</h2>
+              <span
+                id="tradingLastPrice"
+                class="trading-last-price"
+              >—</span>
+              <span
+                id="tradingChange"
+                class="trading-change"
+              >—</span>
+            </div>
+
+            <span class="trading-live-indicator">
+              Read-only Gate market data
+            </span>
+          </div>
+
+          <div
+            id="tradingError"
+            class="trading-error hidden"
+            role="alert"
+          ></div>
+
+          <div class="trading-toolbar">
+            <label class="trading-field">
+              <span>Account</span>
+              <select
+                id="tradingAccount"
+                aria-label="Trading Gate account"
+              ></select>
+            </label>
+
+            <label class="trading-field">
+              <span>Spot pair</span>
+              <input
+                id="tradingPair"
+                type="text"
+                list="tradingPairOptions"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="EQTY_USDT"
+              >
+              <datalist id="tradingPairOptions"></datalist>
+            </label>
+
+            <div>
+              <div class="trading-label">Interval</div>
+              <div
+                class="trading-intervals"
+                id="tradingIntervals"
+              >
+                <button type="button" class="trading-interval" data-trading-interval="1m">1m</button>
+                <button type="button" class="trading-interval active" data-trading-interval="5m">5m</button>
+                <button type="button" class="trading-interval" data-trading-interval="15m">15m</button>
+                <button type="button" class="trading-interval" data-trading-interval="30m">30m</button>
+                <button type="button" class="trading-interval" data-trading-interval="1h">1h</button>
+                <button type="button" class="trading-interval" data-trading-interval="4h">4h</button>
+                <button type="button" class="trading-interval" data-trading-interval="1d">1d</button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="button secondary"
+              id="refreshTradingMarket"
+            >
+              Refresh
+            </button>
+          </div>
+        </article>
+
+        <div class="trading-metrics">
+          <div class="trading-metric">
+            <span>Best bid</span>
+            <strong id="tradingBestBid">—</strong>
+          </div>
+
+          <div class="trading-metric">
+            <span>Best ask</span>
+            <strong id="tradingBestAsk">—</strong>
+          </div>
+
+          <div class="trading-metric">
+            <span>24h high</span>
+            <strong id="tradingHigh24h">—</strong>
+          </div>
+
+          <div class="trading-metric">
+            <span>24h low</span>
+            <strong id="tradingLow24h">—</strong>
+          </div>
+
+          <div class="trading-metric">
+            <span>24h base volume</span>
+            <strong id="tradingBaseVolume">—</strong>
+          </div>
+
+          <div class="trading-metric">
+            <span>24h quote volume</span>
+            <strong id="tradingQuoteVolume">—</strong>
+          </div>
+        </div>
+
+        <div class="trading-market-grid">
+          <article class="panel trading-chart-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Price chart</h2>
+                <p id="tradingChartSubtitle">
+                  Gate spot candlesticks
+                </p>
+              </div>
+            </div>
+
+            <div class="trading-chart-wrap">
+              <div id="tradingChart"></div>
+
+              <div
+                id="tradingChartMessage"
+                class="trading-chart-message"
+              >
+                Select a market to load candlesticks.
+              </div>
+            </div>
+
+            <p class="trading-attribution">
+              Charting by
+              <a
+                href="https://www.tradingview.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >TradingView Lightweight Charts</a>.
+              Market data from Gate.io.
+            </p>
+          </article>
+
+          <article class="panel trading-book-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Order book</h2>
+                <p id="tradingBookSubtitle">
+                  Gate spot · top levels
+                </p>
+              </div>
+            </div>
+
+            <div class="trading-book">
+              <div class="trading-book-head">
+                <span>Price</span>
+                <span>Amount</span>
+              </div>
+
+              <div id="tradingAsks"></div>
+
+              <div class="trading-spread">
+                <span>Spread</span>
+                <strong id="tradingSpread">—</strong>
+              </div>
+
+              <div id="tradingBids"></div>
+            </div>
+          </article>
+        </div>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Available spot balance</h2>
+              <p id="tradingBalanceSubtitle">
+                Account-scoped Gate balance
+              </p>
+            </div>
+          </div>
+
+          <div class="trading-balances">
+            <div class="trading-balance-card">
+              <span id="tradingBaseBalanceLabel">
+                Base asset
+              </span>
+              <strong id="tradingBaseAvailable">—</strong>
+              <div
+                id="tradingBaseLocked"
+                class="trading-balance-detail"
+              >—</div>
+            </div>
+
+            <div class="trading-balance-card">
+              <span id="tradingQuoteBalanceLabel">
+                Quote asset
+              </span>
+              <strong id="tradingQuoteAvailable">—</strong>
+              <div
+                id="tradingQuoteLocked"
+                class="trading-balance-detail"
+              >—</div>
+            </div>
+          </div>
+        </article>
+
+        <div class="trading-readonly-notice">
+          <strong>READ ONLY</strong>
+          <span>
+            Limit-order execution has not been enabled yet.
+            This screen can read Gate market data and the
+            selected account's spot balances, but it has no
+            order creation, amendment or cancellation path.
+          </span>
         </div>
       </section>
 
@@ -1623,7 +1848,18 @@
   </dialog>
 
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260821-transfer-outcome-v1" defer></script>
+  <script
+    src="./vendor/lightweight-charts.standalone.production.js"
+    defer
+  ></script>
+  <script
+    src="./app.js?v=20260821-trading-v1"
+    defer
+  ></script>
+  <script
+    src="./trading.js?v=20260821-trading-v1"
+    defer
+  ></script>
 <footer class="site-footer">
   <div>
     &copy; <span id="footer-year"></span> EQTY DAO

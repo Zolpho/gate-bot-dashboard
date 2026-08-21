@@ -192,7 +192,11 @@ function renderAdminState() {
   const identity = $('#adminIdentity');
   const changePasswordButton = $('#changePasswordButton');
   const walletNavItem = $('#walletNavItem');
-  const signedIn = Boolean(state.adminUser && state.adminAuthorization);
+  const tradingNavItem = $('#tradingNavItem');
+  const signedIn = Boolean(
+    state.adminUser
+    && state.adminAuthorization
+  );
 
   if (state.adminUser) {
     button.textContent = 'Lock account';
@@ -206,16 +210,48 @@ function renderAdminState() {
     changePasswordButton.classList.add('hidden');
   }
 
-  walletNavItem?.classList.toggle('hidden', !signedIn);
-  walletNavItem?.setAttribute('aria-hidden', String(!signedIn));
-  if (walletNavItem) walletNavItem.tabIndex = signedIn ? 0 : -1;
+  walletNavItem?.classList.toggle(
+    'hidden',
+    !signedIn,
+  );
+
+  walletNavItem?.setAttribute(
+    'aria-hidden',
+    String(!signedIn),
+  );
+
+  if (walletNavItem) {
+    walletNavItem.tabIndex = signedIn ? 0 : -1;
+  }
+
+  tradingNavItem?.classList.toggle(
+    'hidden',
+    !signedIn,
+  );
+
+  tradingNavItem?.setAttribute(
+    'aria-hidden',
+    String(!signedIn),
+  );
+
+  if (tradingNavItem) {
+    tradingNavItem.tabIndex = signedIn ? 0 : -1;
+  }
 
   if (signedIn) {
     $('#privateBalancePanel')?.classList.remove('hidden');
   } else {
     clearPrivateBalance();
     clearDepositHistory();
-    if (state.activeTab === 'wallet') switchTab('overview');
+
+    if (
+      state.activeTab === 'wallet'
+      || state.activeTab === 'trading'
+    ) {
+      switchTab('overview');
+    }
+
+    window.resetTradingTab?.();
   }
 
   populateFilterOptions(state.botFilters);
@@ -9108,6 +9144,7 @@ function switchTab(tab, { updateHash = true } = {}) {
     'bot-control': ['Bot Control', 'Prepare, review and safely submit native Gate trading bots'],
     alerts: ['Alerts', 'Local rules evaluated after each bot snapshot'],
     wallet: ['Wallet', 'Private balances, deposits and account-scoped wallet activity'],
+    trading: ['Trading', 'Live Gate spot chart, order book and account-scoped market view'],
     system: ['System', 'Connection status, collector runs and safe API inspection'],
   };
 
@@ -9119,7 +9156,13 @@ function switchTab(tab, { updateHash = true } = {}) {
   if (!titles[target] || !document.querySelector(`#tab-${target}`)) {
     target = 'overview';
   }
-  if (target === 'wallet' && (!state.adminUser || !state.adminAuthorization)) {
+  if (
+    ['wallet', 'trading'].includes(target)
+    && (
+      !state.adminUser
+      || !state.adminAuthorization
+    )
+  ) {
     target = 'overview';
   }
 
@@ -9145,12 +9188,24 @@ function switchTab(tab, { updateHash = true } = {}) {
     history.replaceState(null, '', `#${target}`);
   }
 
-  if (target === 'wallet' && state.adminUser && state.adminAuthorization) {
+  if (
+    target === 'wallet'
+    && state.adminUser
+    && state.adminAuthorization
+  ) {
     void Promise.all([
       loadPrivateBalance({ quiet: true }),
       loadDepositHistory({ quiet: true }),
       loadTreasuryOverview({ quiet: true }),
     ]);
+  }
+
+  if (
+    target === 'trading'
+    && state.adminUser
+    && state.adminAuthorization
+  ) {
+    window.activateTradingTab?.();
   }
 }
 function setMetric(selector, value, formatter = fmtMoney, classValue = value) {
