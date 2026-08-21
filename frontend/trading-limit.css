@@ -480,3 +480,65 @@ button.trading-book-row.selected {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Stage 3G2 execution outcomes */
+
+.trading-order-execution-result {
+  display: grid;
+  gap: 9px;
+}
+
+.trading-order-execution-result.success {
+  border-color: var(--positive);
+}
+
+.trading-order-execution-result.error {
+  border-color: var(--negative);
+}
+
+.trading-order-execution-result.uncertain {
+  border-color: var(--accent-dark);
+}
+
+.trading-order-execution-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.trading-order-execution-result-head span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.trading-order-execution-result p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.trading-order-execution-result small {
+  color: var(--muted);
+}
+
+.trading-order-execution-result code {
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.trading-order-execution-result-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 3px;
+}
+
+@media (max-width: 620px) {
+  .trading-order-execution-result-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
