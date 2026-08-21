@@ -900,6 +900,103 @@ tbody tr:last-child td {
 }
 
 
+/* Persistent user-transfer outcome */
+
+.treasury-user-transfer-outcome {
+  display: grid;
+  grid-template-columns:
+    auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(120, 160, 145, 0.24);
+  border-radius: 12px;
+}
+
+.treasury-user-transfer-outcome.success {
+  border-color: rgba(68, 190, 139, 0.48);
+  background: rgba(68, 190, 139, 0.055);
+}
+
+.treasury-user-transfer-outcome.uncertain {
+  border-color: rgba(212, 170, 78, 0.52);
+  background: rgba(212, 170, 78, 0.055);
+}
+
+.treasury-user-transfer-outcome-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.treasury-user-transfer-outcome.success
+  .treasury-user-transfer-outcome-icon {
+  color: #49c596;
+}
+
+.treasury-user-transfer-outcome.uncertain
+  .treasury-user-transfer-outcome-icon {
+  color: #d4aa4e;
+}
+
+.treasury-user-transfer-outcome-body {
+  min-width: 0;
+}
+
+.treasury-user-transfer-outcome-body > strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 1rem;
+}
+
+.treasury-user-transfer-outcome-body p {
+  margin: 0;
+  color: var(--muted, #8fa39b);
+  line-height: 1.5;
+}
+
+.treasury-user-transfer-outcome-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 10px;
+  color: var(--muted, #8fa39b);
+  font-size: 0.76rem;
+}
+
+.treasury-user-transfer-outcome-meta strong {
+  color: var(--text, #f1f5f3);
+  overflow-wrap: anywhere;
+}
+
+.treasury-user-transfer-outcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 680px) {
+  .treasury-user-transfer-outcome {
+    grid-template-columns: 1fr;
+  }
+
+  .treasury-user-transfer-outcome-actions {
+    justify-content: stretch;
+  }
+
+  .treasury-user-transfer-outcome-actions .button {
+    width: 100%;
+  }
+}
+
+
 /* Review result */
 
 .treasury-user-transfer-preview {
