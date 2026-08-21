@@ -1424,3 +1424,389 @@ async def cancel_limit_order(
             cancellation=updated,
             gate_order=data,
         )
+
+
+async def reconcile_limit_order_cancellation(
+    *,
+    settings: Settings,
+    username: str,
+    allowed_account_ids: set[str],
+    order_request_id: str,
+) -> dict[str, Any]:
+    """
+    Reconcile an existing cancellation attempt.
+
+    This function performs Gate reads only.
+    It never sends DELETE and never retries a
+    cancellation write.
+    """
+    normalized_username = (
+        username.strip()
+    )
+
+    normalized_order_id = (
+        order_request_id.strip()
+    )
+
+    if not normalized_username:
+        raise TradingOrderCancelDenied(
+            code="invalid_user",
+            message=(
+                "Dashboard username "
+                "is required"
+            ),
+            status_code=400,
+        )
+
+    if not normalized_order_id:
+        raise TradingOrderCancelDenied(
+            code="invalid_order_request_id",
+            message=(
+                "order_request_id "
+                "is required"
+            ),
+            status_code=400,
+        )
+
+    source = get_order_request(
+        normalized_order_id
+    )
+
+    if source is None:
+        raise TradingOrderCancelDenied(
+            code="order_not_found",
+            message=(
+                "Trading order request "
+                "not found"
+            ),
+            status_code=404,
+        )
+
+    account_id = str(
+        source.get("account_id")
+        or ""
+    ).strip().lower()
+
+    allowed = {
+        item.strip().lower()
+        for item in allowed_account_ids
+        if item.strip()
+    }
+
+    if account_id not in allowed:
+        raise TradingOrderCancelDenied(
+            code="order_not_found",
+            message=(
+                "Trading order request "
+                "not found"
+            ),
+            status_code=404,
+        )
+
+    from .trading_order_cancel_audit import (
+        get_order_cancellation,
+    )
+
+    cancellation = (
+        get_order_cancellation(
+            order_request_id=(
+                normalized_order_id
+            )
+        )
+    )
+
+    if cancellation is None:
+        raise TradingOrderCancelDenied(
+            code="cancellation_not_found",
+            message=(
+                "No cancellation attempt "
+                "exists for this order"
+            ),
+            status_code=404,
+        )
+
+    gate_order_id = str(
+        source.get(
+            "gate_order_id"
+        )
+        or ""
+    ).strip()
+
+    if (
+        not gate_order_id
+        or not gate_order_id.isdigit()
+    ):
+        raise TradingOrderCancelDenied(
+            code="gate_order_id_missing",
+            message=(
+                "A real Gate order ID "
+                "is required for reconciliation"
+            ),
+            status_code=409,
+        )
+
+    try:
+        trading_account = (
+            get_trading_account(
+                account_id
+            )
+        )
+
+    except TradingConfigError as exc:
+        raise TradingOrderCancelDenied(
+            code="trading_config_error",
+            message=str(exc),
+            status_code=503,
+        ) from exc
+
+    if (
+        trading_account is None
+        or not trading_account.enabled
+        or not trading_account.configured
+    ):
+        raise TradingOrderCancelDenied(
+            code=(
+                "trading_credentials_missing"
+            ),
+            message=(
+                "Isolated Spot Trading "
+                "credentials are not configured "
+                f"for Gate account {account_id}"
+            ),
+            status_code=503,
+        )
+
+    async with GateClient(
+        settings,
+        trading_account,
+    ) as client:
+        (
+            current,
+            error,
+        ) = await _read_cancel_state(
+            client=client,
+            source=source,
+        )
+
+    if error is not None:
+        return _base_result(
+            status="uncertain",
+            order_request_id=(
+                normalized_order_id
+            ),
+            gate_write_performed=False,
+            definitive=False,
+            cancellation=(
+                cancellation
+            ),
+            manual_review_required=True,
+            reconciliation={
+                "result":
+                    "lookup_error",
+                "gate_status_code":
+                    error.status_code,
+                "gate_label":
+                    error.label,
+                "message":
+                    str(error),
+            },
+        )
+
+    mismatches = (
+        _source_matches_gate(
+            source=source,
+            data=current,
+        )
+    )
+
+    if mismatches:
+        return _base_result(
+            status="attention",
+            order_request_id=(
+                normalized_order_id
+            ),
+            gate_write_performed=False,
+            definitive=False,
+            cancellation=(
+                cancellation
+            ),
+            manual_review_required=True,
+            reconciliation={
+                "result":
+                    "correlation_conflict",
+                "mismatches":
+                    mismatches,
+            },
+        )
+
+    cancel_request_id = str(
+        cancellation[
+            "cancel_request_id"
+        ]
+    )
+
+    if _is_cancelled(
+        current
+    ):
+        updated = (
+            mark_order_cancellation(
+                cancel_request_id,
+                status=(
+                    "confirmed_cancelled"
+                ),
+                response={
+                    "phase":
+                        "manual_cancel_reconciliation",
+                    "gate_response":
+                        current,
+                },
+
+                # Preserve whether the original
+                # cancellation attempt crossed
+                # the DELETE boundary.
+                write_performed=(
+                    bool(
+                        cancellation.get(
+                            "write_performed"
+                        )
+                    )
+                ),
+                completed=True,
+            )
+        )
+
+        return _base_result(
+            status="confirmed_cancelled",
+            order_request_id=(
+                normalized_order_id
+            ),
+            gate_write_performed=False,
+            definitive=True,
+            cancellation=updated,
+            gate_order=current,
+            reconciliation={
+                "result":
+                    "confirmed_cancelled",
+            },
+        )
+
+    if _is_finished(
+        current
+    ):
+        updated = (
+            mark_order_cancellation(
+                cancel_request_id,
+                status=(
+                    "confirmed_finished"
+                ),
+                response={
+                    "phase":
+                        "manual_cancel_reconciliation",
+                    "gate_response":
+                        current,
+                },
+                error=(
+                    "Order finished without a "
+                    "confirmed cancelled state"
+                ),
+                write_performed=(
+                    bool(
+                        cancellation.get(
+                            "write_performed"
+                        )
+                    )
+                ),
+                completed=True,
+            )
+        )
+
+        return _base_result(
+            status="confirmed_finished",
+            order_request_id=(
+                normalized_order_id
+            ),
+            gate_write_performed=False,
+            definitive=True,
+            cancellation=updated,
+            gate_order=current,
+            reconciliation={
+                "result":
+                    "confirmed_finished",
+            },
+        )
+
+    (
+        current_status,
+        current_finish_as,
+    ) = _gate_order_state(
+        current
+    )
+
+    if (
+        current_status == "open"
+        and current_finish_as
+        in {
+            "",
+            "open",
+        }
+    ):
+        updated = (
+            mark_order_cancellation(
+                cancel_request_id,
+                status="uncertain",
+                response={
+                    "phase":
+                        "manual_cancel_reconciliation",
+                    "gate_response":
+                        current,
+                    "result":
+                        "still_open",
+                },
+                error=(
+                    "Order remains open after "
+                    "the cancellation attempt"
+                ),
+                write_performed=(
+                    bool(
+                        cancellation.get(
+                            "write_performed"
+                        )
+                    )
+                ),
+                completed=False,
+            )
+        )
+
+        return _base_result(
+            status="uncertain",
+            order_request_id=(
+                normalized_order_id
+            ),
+            gate_write_performed=False,
+            definitive=False,
+            cancellation=updated,
+            manual_review_required=True,
+            gate_order=current,
+            reconciliation={
+                "result":
+                    "still_open",
+            },
+        )
+
+    return _base_result(
+        status="attention",
+        order_request_id=(
+            normalized_order_id
+        ),
+        gate_write_performed=False,
+        definitive=False,
+        cancellation=(
+            cancellation
+        ),
+        manual_review_required=True,
+        gate_order=current,
+        reconciliation={
+            "result":
+                "unknown_gate_state",
+        },
+    )

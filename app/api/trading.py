@@ -43,6 +43,7 @@ from ..trading_order_reconcile import (
 from ..trading_order_cancel import (
     TradingOrderCancelDenied,
     cancel_limit_order,
+    reconcile_limit_order_cancellation,
 )
 from ..trading_order_cancel_audit import (
     get_order_cancellation,
@@ -1635,6 +1636,65 @@ async def cancel_trading_limit_order(
             ),
             detail=exc.detail(),
         ) from exc
+
+
+@router.post(
+    "/limit-orders/requests/{request_id}/cancel/reconcile"
+)
+async def reconcile_trading_limit_order_cancellation(
+    request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):
+    source = (
+        _trading_request_for_user(
+            user,
+            request_id,
+        )
+    )
+
+    explicit_ids = {
+        item.strip().lower()
+        for item in user.account_ids
+        if item.strip()
+    }
+
+    try:
+        result = await (
+            reconcile_limit_order_cancellation(
+                settings=settings,
+                username=user.username,
+                allowed_account_ids=(
+                    explicit_ids
+                ),
+                order_request_id=(
+                    source["request_id"]
+                ),
+            )
+        )
+
+    except TradingOrderCancelDenied as exc:
+        raise HTTPException(
+            status_code=(
+                exc.status_code
+            ),
+            detail=exc.detail(),
+        ) from exc
+
+    return {
+        # This route may update our local
+        # cancellation audit, but Gate is
+        # queried read-only.
+        "gate_write_performed": False,
+        "write_performed": False,
+        "reconciliation": result,
+    }
 
 
 @router.post(
