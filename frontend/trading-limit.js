@@ -2703,7 +2703,9 @@ async function checkTradingLimitOrderStatus() {
     );
 
     const executionStatus = String(
-      request.status || 'unknown'
+      result?.order_state?.effective_status
+      || request.status
+      || 'unknown'
     ).toLowerCase();
 
     const definitive = (

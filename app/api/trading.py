@@ -33,13 +33,6 @@ from ..trading_order_audit import (
     get_order_request,
     list_order_reconciliations,
 )
-from ..trading_order_locks import (
-    get_trading_lock_for_request,
-)
-from ..trading_order_reconcile import (
-    TradingOrderReconcileError,
-    reconcile_spot_order_request,
-)
 from ..trading_order_cancel import (
     TradingOrderCancelDenied,
     cancel_limit_order,
@@ -48,7 +41,16 @@ from ..trading_order_cancel import (
 from ..trading_order_cancel_audit import (
     get_order_cancellation,
 )
-
+from ..trading_order_locks import (
+    get_trading_lock_for_request,
+)
+from ..trading_order_reconcile import (
+    TradingOrderReconcileError,
+    reconcile_spot_order_request,
+)
+from ..trading_order_state import (
+    derive_trading_order_state,
+)
 
 router = APIRouter(
     prefix="/api/trading",
@@ -1558,23 +1560,33 @@ async def get_trading_limit_order_request(
         )
     )
 
+    cancellation = (
+        get_order_cancellation(
+            order_request_id=(
+                request["request_id"]
+            )
+        )
+    )
+
+    order_state = (
+        derive_trading_order_state(
+            request=request,
+            cancellation=cancellation,
+        )
+    )
+
     return {
         # This GET performs no Gate write.
         "gate_write_performed": False,
         "write_performed": False,
         "request": request,
+        "order_state": order_state,
         "reconciliations": (
             list_order_reconciliations(
                 request["request_id"]
             )
         ),
-        "cancellation": (
-            get_order_cancellation(
-                order_request_id=(
-                    request["request_id"]
-                )
-            )
-        ),
+        "cancellation": cancellation,
         "lock": (
             get_trading_lock_for_request(
                 request["request_id"]
