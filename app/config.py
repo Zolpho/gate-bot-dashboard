@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     trading_limit_orders_enabled: bool = False
     trading_limit_order_confirmation_text: str = "LIMIT ORDER"
 
+    # Persistent Spot order submission rate limits.
+    trading_rate_limit_enabled: bool = True
+    trading_limit_order_user_limit: int = 5
+    trading_limit_order_user_window_seconds: int = 600
+    trading_limit_order_account_limit: int = 10
+    trading_limit_order_account_window_seconds: int = 600
+
+    # Absolute Gate request expiry is calculated immediately
+    # before the future POST. The POST is never retried.
+    trading_order_exptime_ms: int = 5000
+
     # Treasury is deliberately isolated from Monitor and Bot Control.
     # Treasury uses its own read-only credential mount.
     gate_treasury_file: Path = Path("/run/secrets/gate_treasury.json")

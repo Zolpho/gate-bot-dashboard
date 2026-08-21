@@ -444,6 +444,87 @@ class GateClient:
             ],
         )
 
+    async def create_spot_order(
+        self,
+        payload: dict[str, Any],
+        *,
+        expires_at_ms: int,
+    ) -> GateResponse:
+        """
+        Single Gate Spot order write primitive.
+
+        This method performs exactly one POST and contains
+        no retry logic. Callers must enforce authorization,
+        live arm, preflight, idempotency and locking first.
+        """
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "Spot order payload must be an object"
+            )
+
+        if str(
+            payload.get("type") or ""
+        ).lower() != "limit":
+            raise ValueError(
+                "Only limit Spot orders are supported"
+            )
+
+        if str(
+            payload.get("account") or ""
+        ).lower() != "spot":
+            raise ValueError(
+                "Trading account must be spot"
+            )
+
+        if str(
+            payload.get("side") or ""
+        ).lower() not in {
+            "buy",
+            "sell",
+        }:
+            raise ValueError(
+                "Invalid Spot order side"
+            )
+
+        if str(
+            payload.get("time_in_force")
+            or ""
+        ).lower() not in {
+            "gtc",
+            "poc",
+        }:
+            raise ValueError(
+                "Only gtc and poc are supported"
+            )
+
+        text_value = str(
+            payload.get("text") or ""
+        )
+
+        if not text_value.startswith(
+            "t-"
+        ):
+            raise ValueError(
+                "Spot order text correlation "
+                "must start with t-"
+            )
+
+        if int(expires_at_ms) <= 0:
+            raise ValueError(
+                "expires_at_ms must be positive"
+            )
+
+        return await self.request(
+            "POST",
+            "/spot/orders",
+            json_body=payload,
+            extra_headers={
+                "X-Gate-Exptime": str(
+                    int(expires_at_ms)
+                ),
+            },
+        )
+
     async def create_sub_account_transfer(
         self,
         payload: dict[str, Any],

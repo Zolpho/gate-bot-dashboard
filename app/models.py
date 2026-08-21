@@ -2249,3 +2249,47 @@ class TradingOrderOperationLock(Base):
     ] = mapped_column(
         DateTime(timezone=True),
     )
+
+
+class TradingRateLimitEvent(Base):
+    __tablename__ = "trading_rate_limit_events"
+    __table_args__ = (
+        Index(
+            "ix_trading_rate_user_action_created",
+            "username",
+            "action",
+            "created_at",
+        ),
+        Index(
+            "ix_trading_rate_account_action_created",
+            "account_id",
+            "action",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
