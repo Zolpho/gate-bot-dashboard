@@ -1,6 +1,7 @@
 'use strict';
 
 tradingState.limitOrderSide = 'buy';
+tradingState.limitOrderPercent = null;
 tradingState.limitOrderPreview = null;
 tradingState.loadingLimitOrderPreview = false;
 
@@ -159,6 +160,8 @@ function clearTradingLimitOrderPreview() {
 function resetTradingLimitOrderTicket() {
   clearTradingLimitOrderPreview();
 
+  tradingState.limitOrderPercent = null;
+
   const price = $('#tradingLimitPrice');
   const amount = $('#tradingLimitAmount');
 
@@ -300,9 +303,19 @@ function renderTradingLimitOrderTicket() {
   $$(
     '[data-trading-order-percent]'
   ).forEach(button => {
+    const percentage = Number(
+      button.dataset.tradingOrderPercent
+    );
+
     button.disabled = (
       buyNeedsPrice
       || available <= 0
+    );
+
+    button.classList.toggle(
+      'active',
+      percentage
+      === tradingState.limitOrderPercent,
     );
   });
 
@@ -583,6 +596,8 @@ function applyTradingLimitPercentage(
     $('#tradingLimitPrice')?.value
   );
 
+  tradingState.limitOrderPercent = percent;
+
   let amount;
 
   if (tradingState.limitOrderSide === 'buy') {
@@ -624,6 +639,24 @@ function applyTradingLimitPercentage(
 
   clearTradingLimitOrderPreview();
   renderTradingLimitOrderTicket();
+}
+
+
+function reapplyTradingLimitPercentage() {
+  const percentage = (
+    tradingState.limitOrderPercent
+  );
+
+  if (
+    percentage === null
+    || percentage === undefined
+  ) {
+    return;
+  }
+
+  applyTradingLimitPercentage(
+    percentage
+  );
 }
 
 
@@ -671,7 +704,15 @@ function useTradingBookPrice(row) {
   }
 
   clearTradingLimitOrderPreview();
-  renderTradingLimitOrderTicket();
+
+  if (
+    tradingState.limitOrderSide === 'buy'
+    && tradingState.limitOrderPercent !== null
+  ) {
+    reapplyTradingLimitPercentage();
+  } else {
+    renderTradingLimitOrderTicket();
+  }
 
   input?.focus();
 }
@@ -720,6 +761,7 @@ function bindTradingLimitOrderEvents() {
       }
 
       tradingState.limitOrderSide = side;
+      tradingState.limitOrderPercent = null;
 
       clearTradingLimitOrderPreview();
       renderTradingLimitOrderTicket();
@@ -730,13 +772,23 @@ function bindTradingLimitOrderEvents() {
     'input',
     () => {
       clearTradingLimitOrderPreview();
-      renderTradingLimitOrderTicket();
+
+      if (
+        tradingState.limitOrderSide === 'buy'
+        && tradingState.limitOrderPercent !== null
+      ) {
+        reapplyTradingLimitPercentage();
+      } else {
+        renderTradingLimitOrderTicket();
+      }
     },
   );
 
   $('#tradingLimitAmount')?.addEventListener(
     'input',
     () => {
+      tradingState.limitOrderPercent = null;
+
       clearTradingLimitOrderPreview();
       renderTradingLimitOrderTicket();
     },

@@ -341,3 +341,9 @@ button.trading-book-row.selected {
     flex: 1 1 0;
   }
 }
+
+.trading-order-percentages button.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(23, 211, 154, 0.08);
+}
