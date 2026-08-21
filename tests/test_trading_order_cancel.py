@@ -675,3 +675,54 @@ async def test_ambiguous_delete_still_open_is_frozen():
         stored["status"]
         == "uncertain"
     )
+
+
+def test_price_protect_cancelled_is_finished_not_normal_cancel():
+    data = make_gate_order(
+        status="closed",
+        finish_as="price_protect_cancelled",
+    )
+
+    assert (
+        cancel._is_cancelled(data)
+        is False
+    )
+
+    assert (
+        cancel._is_finished(data)
+        is True
+    )
+
+
+def test_liquidate_cancelled_is_finished_not_normal_cancel():
+    data = make_gate_order(
+        status="closed",
+        finish_as="liquidate_cancelled",
+    )
+
+    assert (
+        cancel._is_cancelled(data)
+        is False
+    )
+
+    assert (
+        cancel._is_finished(data)
+        is True
+    )
+
+
+def test_normal_cancelled_remains_confirmed_cancel():
+    data = make_gate_order(
+        status="cancelled",
+        finish_as="cancelled",
+    )
+
+    assert (
+        cancel._is_cancelled(data)
+        is True
+    )
+
+    assert (
+        cancel._is_finished(data)
+        is True
+    )

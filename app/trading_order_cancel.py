@@ -177,12 +177,7 @@ def _is_cancelled(
 
     return (
         status == "cancelled"
-        or finish_as
-        in {
-            "cancelled",
-            "liquidate_cancelled",
-            "price_protect_cancelled",
-        }
+        or finish_as == "cancelled"
     )
 
 
