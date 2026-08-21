@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./wallet-tab.css">
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
-  <link rel="stylesheet" href="./trading.css?v=20260821-market-depth-v1">
+  <link rel="stylesheet" href="./trading.css?v=20260821-volume-book-v1">
 </head>
 <body>
   <div class="app-shell">
@@ -249,6 +249,14 @@
               <div id="tradingChart"></div>
 
               <div
+                id="tradingVolumeLegend"
+                class="trading-volume-legend"
+              >
+                Volume
+                <strong id="tradingVolumeValue">—</strong>
+              </div>
+
+              <div
                 id="tradingChartMessage"
                 class="trading-chart-message"
               >
@@ -308,6 +316,9 @@
               <div class="trading-book-head">
                 <span>Price</span>
                 <span>Amount</span>
+                <span id="tradingBookTotalHeader">
+                  Total
+                </span>
               </div>
 
               <div id="tradingAsks"></div>
@@ -1933,7 +1944,7 @@
     defer
   ></script>
   <script
-    src="./trading.js?v=20260821-market-depth-v1"
+    src="./trading.js?v=20260821-volume-book-v1"
     defer
   ></script>
 <footer class="site-footer">

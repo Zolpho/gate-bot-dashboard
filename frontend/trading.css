@@ -175,7 +175,7 @@
 .trading-chart-wrap {
   position: relative;
   width: 100%;
-  height: 480px;
+  height: 560px;
   margin-top: 12px;
   border: 1px solid var(--border);
   border-radius: 11px;
@@ -186,6 +186,25 @@
 #tradingChart {
   width: 100%;
   height: 100%;
+}
+
+.trading-volume-legend {
+  position: absolute;
+  left: 14px;
+  bottom: 21%;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.72rem;
+  pointer-events: none;
+}
+
+.trading-volume-legend strong {
+  color: var(--text);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .trading-chart-message {
@@ -218,8 +237,9 @@
   display: grid;
   grid-template-columns:
     minmax(0, 1fr)
-    minmax(0, 1fr);
-  gap: 10px;
+    minmax(0, 0.9fr)
+    minmax(0, 0.9fr);
+  gap: 8px;
   align-items: center;
 }
 
@@ -229,8 +249,8 @@
   font-size: 0.72rem;
 }
 
-.trading-book-head span:last-child,
-.trading-book-row span:last-child {
+.trading-book-head span:not(:first-child),
+.trading-book-row span:not(:first-child) {
   text-align: right;
 }
 
@@ -359,7 +379,7 @@
   }
 
   .trading-chart-wrap {
-    height: 410px;
+    height: 500px;
   }
 }
 
@@ -371,7 +391,7 @@
   }
 
   .trading-chart-wrap {
-    height: 340px;
+    height: 400px;
   }
 
   .trading-intervals {

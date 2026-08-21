@@ -12,6 +12,7 @@ const tradingState = {
   loadingTrades: false,
   chart: null,
   series: null,
+  volumeSeries: null,
   resizeObserver: null,
   refreshTimer: null,
   candleTimer: null,
@@ -483,8 +484,34 @@ function tradingEnsureChart() {
     },
   );
 
+  const volumeSeries = chart.addSeries(
+    window.LightweightCharts.HistogramSeries,
+    {
+      priceFormat: {
+        type: 'volume',
+      },
+
+      priceScaleId: '',
+    },
+  );
+
+  volumeSeries.priceScale().applyOptions({
+    scaleMargins: {
+      top: 0.78,
+      bottom: 0,
+    },
+  });
+
+  series.priceScale().applyOptions({
+    scaleMargins: {
+      top: 0.05,
+      bottom: 0.25,
+    },
+  });
+
   tradingState.chart = chart;
   tradingState.series = series;
+  tradingState.volumeSeries = volumeSeries;
 
   tradingState.resizeObserver = (
     new ResizeObserver(() => {
@@ -532,11 +559,13 @@ function tradingRenderCandles(candles) {
     return;
   }
 
-  const rows = (
+  const sourceRows = (
     Array.isArray(candles)
       ? candles
       : []
-  )
+  );
+
+  const rows = sourceRows
     .map(item => ({
       time: Number(item.time),
       open: Number(item.open),
@@ -552,11 +581,89 @@ function tradingRenderCandles(candles) {
       && Number.isFinite(item.close)
     ));
 
+  const css = getComputedStyle(
+    document.documentElement
+  );
+
+  const positive = css
+    .getPropertyValue('--positive')
+    .trim();
+
+  const negative = css
+    .getPropertyValue('--negative')
+    .trim();
+
+  const volumeRows = sourceRows
+    .map(item => {
+      const time = Number(item.time);
+      const open = Number(item.open);
+      const close = Number(item.close);
+      const volume = Number(
+        item.base_volume ?? 0
+      );
+
+      if (
+        !Number.isFinite(time)
+        || !Number.isFinite(open)
+        || !Number.isFinite(close)
+        || !Number.isFinite(volume)
+      ) {
+        return null;
+      }
+
+      return {
+        time,
+        value: Math.max(0, volume),
+        color: (
+          close >= open
+            ? positive
+            : negative
+        ),
+      };
+    })
+    .filter(Boolean);
+
   tradingUpdateChartPrecision();
 
   tradingState.series.setData(rows);
 
+  tradingState.volumeSeries?.setData(
+    volumeRows
+  );
+
+  const latestVolume = (
+    volumeRows.length
+      ? volumeRows[
+          volumeRows.length - 1
+        ].value
+      : null
+  );
+
+  const volumeValue = $(
+    '#tradingVolumeValue'
+  );
+
+  if (volumeValue) {
+    volumeValue.textContent = (
+      latestVolume === null
+        ? '—'
+        : tradingFormatVolume(
+            latestVolume
+          )
+    );
+  }
+
   if (!rows.length) {
+    tradingState.volumeSeries?.setData([]);
+
+    const volumeValue = $(
+      '#tradingVolumeValue'
+    );
+
+    if (volumeValue) {
+      volumeValue.textContent = '—';
+    }
+
     if (message) {
       message.textContent = (
         'No candlestick data returned '
@@ -622,6 +729,17 @@ function tradingBookRows(
           : 2
       );
 
+      const price = Number(
+        item.price
+      );
+
+      const total = (
+        Number.isFinite(price)
+        && Number.isFinite(amount)
+          ? price * amount
+          : null
+      );
+
       return `
         <div class="trading-book-row ${side}">
           <i
@@ -643,6 +761,16 @@ function tradingBookRows(
               tradingFormatAmount(
                 item.amount
               )
+            )}
+          </span>
+
+          <span>
+            ${escapeHtml(
+              total === null
+                ? '—'
+                : tradingFormatAmount(
+                    total
+                  )
             )}
           </span>
         </div>
@@ -748,13 +876,13 @@ function tradingRenderSnapshot() {
   const asks = (
     book.asks || []
   )
-    .slice(0, 8)
+    .slice(0, 10)
     .reverse();
 
   const bids = (
     book.bids || []
   )
-    .slice(0, 8);
+    .slice(0, 10);
 
   $('#tradingAsks').innerHTML = (
     tradingBookRows(
@@ -870,8 +998,18 @@ function tradingRenderSnapshot() {
   );
 
   $('#tradingBookSubtitle').textContent = (
-    `${tradingState.pair} · top 8 levels`
+    `${tradingState.pair} · top 10 levels`
   );
+
+  const totalHeader = $(
+    '#tradingBookTotalHeader'
+  );
+
+  if (totalHeader) {
+    totalHeader.textContent = (
+      `Total (${quote})`
+    );
+  }
 
   $('#tradingBalanceSubtitle').textContent = (
     `Gate spot · ${tradingState.accountId}`
@@ -1320,6 +1458,18 @@ function resetTradingTab() {
 
   if (tradingState.series) {
     tradingState.series.setData([]);
+  }
+
+  if (tradingState.volumeSeries) {
+    tradingState.volumeSeries.setData([]);
+  }
+
+  const volumeValue = $(
+    '#tradingVolumeValue'
+  );
+
+  if (volumeValue) {
+    volumeValue.textContent = '—';
   }
 
   $('#tradingAccount').innerHTML = '';
