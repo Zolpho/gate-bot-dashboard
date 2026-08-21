@@ -763,6 +763,12 @@ function bindTradingLimitOrderEvents() {
       tradingState.limitOrderSide = side;
       tradingState.limitOrderPercent = null;
 
+      const amount = $('#tradingLimitAmount');
+
+      if (amount) {
+        amount.value = '';
+      }
+
       clearTradingLimitOrderPreview();
       renderTradingLimitOrderTicket();
     },
