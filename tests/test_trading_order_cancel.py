@@ -35,6 +35,7 @@ from app.trading_order_identity import (
 from app.trading_order_cancel import (
     TradingOrderCancelDenied,
     cancel_limit_order,
+    reconcile_limit_order_cancellation,
 )
 from app.trading_order_cancel_audit import (
     get_order_cancellation,
@@ -117,6 +118,7 @@ class FakeGateClient:
     mode = "success"
     delete_calls = []
     get_calls = 0
+    list_calls = []
 
     def __init__(
         self,
@@ -147,6 +149,44 @@ class FakeGateClient:
         account="spot",
     ):
         type(self).get_calls += 1
+
+        if (
+            self.mode
+            in {
+                "ambiguous_404_absent",
+                "ambiguous_404_open",
+                "ambiguous_404_mismatch",
+                "ambiguous_404_scan_incomplete",
+            }
+            and type(self).get_calls >= 2
+        ):
+            raise GateAPIError(
+                "order not found",
+                status_code=404,
+                label="ORDER_NOT_FOUND",
+                response={
+                    "label":
+                        "ORDER_NOT_FOUND",
+                    "message":
+                        "Order not found",
+                },
+            )
+
+        if (
+            self.mode
+            == "manual_404_absent"
+        ):
+            raise GateAPIError(
+                "order not found",
+                status_code=404,
+                label="ORDER_NOT_FOUND",
+                response={
+                    "label":
+                        "ORDER_NOT_FOUND",
+                    "message":
+                        "Order not found",
+                },
+            )
 
         if self.mode == "closed":
             data = make_gate_order(
@@ -188,6 +228,75 @@ class FakeGateClient:
             raw=data,
         )
 
+    async def list_spot_orders(
+        self,
+        *,
+        currency_pair,
+        status,
+        page=1,
+        limit=100,
+        account="spot",
+        from_timestamp=None,
+        to_timestamp=None,
+        side=None,
+    ):
+        type(self).list_calls.append(
+            {
+                "currency_pair":
+                    currency_pair,
+                "status":
+                    status,
+                "page":
+                    page,
+                "limit":
+                    limit,
+                "account":
+                    account,
+            }
+        )
+
+        if self.mode == "ambiguous_404_open":
+            rows = [
+                make_gate_order()
+            ]
+
+        elif (
+            self.mode
+            == "ambiguous_404_mismatch"
+        ):
+            rows = [
+                make_gate_order(
+                    amount="999",
+                )
+            ]
+
+        elif (
+            self.mode
+            == "ambiguous_404_scan_incomplete"
+        ):
+            rows = []
+
+            for index in range(limit):
+                item = make_gate_order()
+
+                item["id"] = (
+                    f"{page:02d}"
+                    f"{index:04d}"
+                )
+
+                rows.append(item)
+
+        else:
+            rows = []
+
+        return GateResponse(
+            data=rows,
+            status_code=200,
+            headers={},
+            raw=rows,
+        )
+
+
     async def cancel_spot_order(
         self,
         order_id,
@@ -212,6 +321,10 @@ class FakeGateClient:
         if self.mode in {
             "ambiguous_cancelled",
             "ambiguous_open",
+            "ambiguous_404_absent",
+            "ambiguous_404_open",
+            "ambiguous_404_mismatch",
+            "ambiguous_404_scan_incomplete",
         }:
             raise GateAPIError(
                 "network ambiguity",
@@ -321,6 +434,7 @@ def clean_state(
     )
     FakeGateClient.delete_calls = []
     FakeGateClient.get_calls = 0
+    FakeGateClient.list_calls = []
 
     monkeypatch.setattr(
         cancel,
@@ -371,6 +485,27 @@ async def do_cancel(
         confirmation=(
             confirmation
         ),
+    )
+
+
+async def do_reconcile(
+    *,
+    settings=None,
+    allowed_account_ids=None,
+):
+    return await reconcile_limit_order_cancellation(
+        settings=(
+            settings
+            or make_settings()
+        ),
+        username="alice",
+        allowed_account_ids=(
+            allowed_account_ids
+            if allowed_account_ids
+            is not None
+            else {"arnold"}
+        ),
+        order_request_id="request-a",
     )
 
 
@@ -1318,3 +1453,256 @@ async def test_inconsistent_successful_amendment_audit_fails_closed(
     assert not (
         FakeGateClient.delete_calls
     )
+
+
+
+@pytest.mark.asyncio
+async def test_completed_cancel_reconcile_uses_durable_audit_without_gate(
+    monkeypatch,
+):
+    first = await do_cancel()
+
+    assert first["status"] == "cancelled"
+
+    assert len(
+        FakeGateClient.delete_calls
+    ) == 1
+
+    FakeGateClient.get_calls = 0
+    FakeGateClient.list_calls = []
+
+    def fail_credentials(
+        account_id,
+    ):
+        raise AssertionError(
+            "Completed audit reconciliation "
+            "must not load Gate credentials"
+        )
+
+    monkeypatch.setattr(
+        cancel,
+        "get_trading_account",
+        fail_credentials,
+    )
+
+    result = await do_reconcile()
+
+    assert result["status"] == "cancelled"
+    assert result["definitive"] is True
+
+    assert (
+        result["gate_write_performed"]
+        is False
+    )
+
+    assert (
+        result["write_performed"]
+        is False
+    )
+
+    assert (
+        result["reconciliation"]["result"]
+        == "durable_completed"
+    )
+
+    assert (
+        result[
+            "historical_cancel_write_performed"
+        ]
+        is True
+    )
+
+    assert FakeGateClient.get_calls == 0
+    assert FakeGateClient.list_calls == []
+
+    # Critical invariant:
+    # reconciliation never retries DELETE.
+    assert len(
+        FakeGateClient.delete_calls
+    ) == 1
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_delete_404_absent_from_open_stays_uncertain():
+    FakeGateClient.mode = (
+        "ambiguous_404_absent"
+    )
+
+    result = await do_cancel()
+
+    assert result["status"] == "uncertain"
+    assert result["definitive"] is False
+
+    assert (
+        result[
+            "manual_review_required"
+        ]
+        is True
+    )
+
+    assert (
+        result["reconciliation"]["result"]
+        == "not_found_not_open"
+    )
+
+    # Exactly the original ambiguous DELETE only.
+    assert len(
+        FakeGateClient.delete_calls
+    ) == 1
+
+    assert len(
+        FakeGateClient.list_calls
+    ) == 1
+
+    stored = get_order_cancellation(
+        order_request_id="request-a"
+    )
+
+    assert stored is not None
+    assert stored["status"] == "uncertain"
+    assert stored["write_performed"] is True
+    assert stored["completed_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_delete_404_open_fallback_remains_still_open():
+    FakeGateClient.mode = (
+        "ambiguous_404_open"
+    )
+
+    result = await do_cancel()
+
+    assert result["status"] == "uncertain"
+
+    assert (
+        result["reconciliation"]["result"]
+        == "still_open"
+    )
+
+    assert len(
+        FakeGateClient.delete_calls
+    ) == 1
+
+    assert len(
+        FakeGateClient.list_calls
+    ) == 1
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_delete_404_open_identity_conflict_is_attention():
+    FakeGateClient.mode = (
+        "ambiguous_404_mismatch"
+    )
+
+    result = await do_cancel()
+
+    assert result["status"] == "attention"
+    assert result["definitive"] is False
+
+    assert (
+        result["reconciliation"]["result"]
+        == "correlation_conflict"
+    )
+
+    assert "amount" in (
+        result[
+            "reconciliation"
+        ]["mismatches"]
+    )
+
+    assert len(
+        FakeGateClient.delete_calls
+    ) == 1
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_delete_404_bounded_open_scan_never_claims_absence():
+    FakeGateClient.mode = (
+        "ambiguous_404_scan_incomplete"
+    )
+
+    result = await do_cancel()
+
+    assert result["status"] == "uncertain"
+
+    assert (
+        result["reconciliation"]["result"]
+        == "open_scan_incomplete"
+    )
+
+    assert len(
+        FakeGateClient.delete_calls
+    ) == 1
+
+    assert (
+        len(
+            FakeGateClient.list_calls
+        )
+        == cancel._CANCEL_OPEN_SCAN_MAX_PAGES
+    )
+
+
+@pytest.mark.asyncio
+async def test_manual_reconcile_404_absent_from_open_stays_uncertain_without_delete():
+    FakeGateClient.mode = (
+        "ambiguous_open"
+    )
+
+    first = await do_cancel()
+
+    assert first["status"] == "uncertain"
+
+    assert len(
+        FakeGateClient.delete_calls
+    ) == 1
+
+    FakeGateClient.mode = (
+        "manual_404_absent"
+    )
+
+    FakeGateClient.get_calls = 0
+    FakeGateClient.list_calls = []
+
+    result = await do_reconcile()
+
+    assert result["status"] == "uncertain"
+
+    assert (
+        result["gate_write_performed"]
+        is False
+    )
+
+    assert (
+        result["write_performed"]
+        is False
+    )
+
+    assert (
+        result["reconciliation"]["result"]
+        == "not_found_not_open"
+    )
+
+    assert (
+        result[
+            "historical_cancel_write_performed"
+        ]
+        is True
+    )
+
+    # No reconciliation DELETE.
+    assert len(
+        FakeGateClient.delete_calls
+    ) == 1
+
+    assert len(
+        FakeGateClient.list_calls
+    ) == 1
+
+    stored = get_order_cancellation(
+        order_request_id="request-a"
+    )
+
+    assert stored is not None
+    assert stored["status"] == "uncertain"
+    assert stored["write_performed"] is True
+    assert stored["completed_at"] is None

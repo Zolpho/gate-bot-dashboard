@@ -514,6 +514,184 @@ def _source_matches_gate(
     return mismatches
 
 
+
+_CANCEL_RECOVERY_RESULT_KEY = (
+    "__cancel_recovery_result__"
+)
+
+_CANCEL_OPEN_SCAN_LIMIT = 100
+_CANCEL_OPEN_SCAN_MAX_PAGES = 10
+
+_CANCEL_LOOKUP_NOT_FOUND_LABELS = {
+    "ORDER_NOT_FOUND",
+    "CLIENT_ID_NOT_FOUND",
+}
+
+_DURABLE_COMPLETED_CANCELLATION_STATUSES = {
+    "aborted",
+    "already_cancelled",
+    "already_finished",
+    "cancelled",
+    "confirmed_cancelled",
+    "confirmed_finished",
+    "local_rejected",
+    "rejected",
+}
+
+
+def _gate_error_summary(
+    error: GateAPIError,
+) -> dict[str, Any]:
+    return {
+        "status_code":
+            error.status_code,
+        "label":
+            error.label,
+        "response":
+            error.response,
+        "message":
+            str(error),
+    }
+
+
+def _is_cancel_lookup_not_found(
+    error: GateAPIError,
+) -> bool:
+    label = str(
+        error.label
+        or ""
+    ).strip().upper()
+
+    return (
+        error.status_code == 404
+        and label
+        in _CANCEL_LOOKUP_NOT_FOUND_LABELS
+    )
+
+
+def _cancel_recovery_sentinel(
+    result: str,
+    **details: Any,
+) -> dict[str, Any]:
+    value = {
+        _CANCEL_RECOVERY_RESULT_KEY:
+            result,
+    }
+
+    value.update(
+        details
+    )
+
+    return value
+
+
+def _cancel_recovery_result(
+    data: Any,
+) -> str:
+    if not isinstance(
+        data,
+        dict,
+    ):
+        return ""
+
+    return str(
+        data.get(
+            _CANCEL_RECOVERY_RESULT_KEY
+        )
+        or ""
+    ).strip()
+
+
+def _durable_completed_cancellation_result(
+    cancellation: dict[str, Any],
+) -> dict[str, Any] | None:
+    """
+    A completed cancellation audit is durable
+    authority for the outcome of that cancellation
+    attempt.
+
+    Do not replace a completed result with later Gate
+    lookup uncertainty simply because Gate no longer
+    exposes the finished order.
+    """
+
+    completed_at = str(
+        cancellation.get(
+            "completed_at"
+        )
+        or ""
+    ).strip()
+
+    if not completed_at:
+        return None
+
+    status = str(
+        cancellation.get("status")
+        or ""
+    ).strip().lower()
+
+    order_request_id = str(
+        cancellation.get(
+            "order_request_id"
+        )
+        or ""
+    ).strip()
+
+    historical_write = bool(
+        cancellation.get(
+            "write_performed"
+        )
+    )
+
+    if (
+        status
+        not in
+        _DURABLE_COMPLETED_CANCELLATION_STATUSES
+    ):
+        return _base_result(
+            status="attention",
+            order_request_id=(
+                order_request_id
+            ),
+            gate_write_performed=False,
+            definitive=False,
+            cancellation=(
+                cancellation
+            ),
+            manual_review_required=True,
+            reconciliation={
+                "result":
+                    "completed_audit_status_unknown",
+                "stored_status":
+                    status,
+            },
+            historical_cancel_write_performed=(
+                historical_write
+            ),
+        )
+
+    return _base_result(
+        status=status,
+        order_request_id=(
+            order_request_id
+        ),
+        gate_write_performed=False,
+        definitive=True,
+        cancellation=(
+            cancellation
+        ),
+        reconciliation={
+            "result":
+                "durable_completed",
+            "stored_status":
+                status,
+        },
+        historical_cancel_write_performed=(
+            historical_write
+        ),
+    )
+
+
 async def _read_cancel_state(
     *,
     client: GateClient,
@@ -522,6 +700,22 @@ async def _read_cancel_state(
     dict[str, Any] | None,
     GateAPIError | None,
 ]:
+    """
+    Read the current Gate state for cancellation
+    recovery.
+
+    Primary lookup:
+        GET /spot/orders/{id}
+
+    Gate runtime can return ORDER_NOT_FOUND immediately
+    after a successful cancellation. In that specific
+    case only, scan this pair's open orders.
+
+    Absence from open orders never proves cancellation:
+    the order may have filled. The caller must keep the
+    cancellation outcome uncertain.
+    """
+
     try:
         response = (
             await client.get_spot_order(
@@ -538,9 +732,145 @@ async def _read_cancel_state(
         )
 
     except GateAPIError as exc:
+        if not _is_cancel_lookup_not_found(
+            exc
+        ):
+            return (
+                None,
+                exc,
+            )
+
+        primary_error = (
+            _gate_error_summary(
+                exc
+            )
+        )
+
+        gate_order_id = str(
+            source.get(
+                "gate_order_id"
+            )
+            or ""
+        )
+
+        pair = str(
+            source.get("pair")
+            or ""
+        ).strip().upper()
+
+        for page in range(
+            1,
+            _CANCEL_OPEN_SCAN_MAX_PAGES
+            + 1,
+        ):
+            try:
+                open_response = (
+                    await client.list_spot_orders(
+                        currency_pair=pair,
+                        status="open",
+                        page=page,
+                        limit=(
+                            _CANCEL_OPEN_SCAN_LIMIT
+                        ),
+                        account="spot",
+                    )
+                )
+
+            except GateAPIError as scan_exc:
+                return (
+                    None,
+                    scan_exc,
+                )
+
+            rows = open_response.data
+
+            if not isinstance(
+                rows,
+                list,
+            ):
+                return (
+                    _cancel_recovery_sentinel(
+                        "open_scan_invalid",
+                        primary_error=(
+                            primary_error
+                        ),
+                        page=page,
+                        response_shape=(
+                            type(rows).__name__
+                        ),
+                    ),
+                    None,
+                )
+
+            matches = [
+                row
+                for row in rows
+                if isinstance(
+                    row,
+                    dict,
+                )
+                and str(
+                    row.get("id")
+                    or ""
+                )
+                == gate_order_id
+            ]
+
+            if len(matches) > 1:
+                return (
+                    _cancel_recovery_sentinel(
+                        "open_order_duplicate",
+                        primary_error=(
+                            primary_error
+                        ),
+                        page=page,
+                        match_count=(
+                            len(matches)
+                        ),
+                    ),
+                    None,
+                )
+
+            if len(matches) == 1:
+                return (
+                    matches[0],
+                    None,
+                )
+
+            # A short page proves this bounded
+            # pagination has reached the end.
+            if (
+                len(rows)
+                < _CANCEL_OPEN_SCAN_LIMIT
+            ):
+                return (
+                    _cancel_recovery_sentinel(
+                        "not_found_not_open",
+                        primary_error=(
+                            primary_error
+                        ),
+                        pages_scanned=page,
+                    ),
+                    None,
+                )
+
+        # Every page was full. Do not claim absence:
+        # there may be additional open orders beyond
+        # our deliberately bounded scan.
         return (
+            _cancel_recovery_sentinel(
+                "open_scan_incomplete",
+                primary_error=(
+                    primary_error
+                ),
+                pages_scanned=(
+                    _CANCEL_OPEN_SCAN_MAX_PAGES
+                ),
+                page_limit=(
+                    _CANCEL_OPEN_SCAN_LIMIT
+                ),
+            ),
             None,
-            exc,
         )
 
     data = (
@@ -612,6 +942,111 @@ async def _reconcile_after_cancel_write(
             reconciliation={
                 "result":
                     "lookup_error",
+            },
+        )
+
+    recovery_result = (
+        _cancel_recovery_result(
+            data
+        )
+    )
+
+    if recovery_result:
+        if (
+            recovery_result
+            == "open_order_duplicate"
+        ):
+            updated = (
+                mark_order_cancellation(
+                    cancel_request_id,
+                    status="attention",
+                    response={
+                        "phase":
+                            "cancel_reconciliation",
+                        "result":
+                            recovery_result,
+                        "recovery":
+                            data,
+                    },
+                    error=(
+                        "Gate open-order recovery "
+                        "returned duplicate matches"
+                    ),
+                    write_performed=True,
+                    completed=False,
+                )
+            )
+
+            return _base_result(
+                status="attention",
+                order_request_id=(
+                    source["request_id"]
+                ),
+                gate_write_performed=True,
+                definitive=False,
+                cancellation=updated,
+                manual_review_required=True,
+                reconciliation={
+                    "result":
+                        recovery_result,
+                },
+            )
+
+        messages = {
+            "not_found_not_open": (
+                "Gate no longer exposes the order "
+                "by ID and it was not found in a "
+                "complete open-order scan. "
+                "Cancellation versus fill cannot "
+                "be distinguished."
+            ),
+            "open_scan_incomplete": (
+                "Gate no longer exposes the order "
+                "by ID and the bounded open-order "
+                "scan could not prove absence."
+            ),
+            "open_scan_invalid": (
+                "Gate open-order recovery returned "
+                "an unexpected response shape."
+            ),
+        }
+
+        updated = (
+            mark_order_cancellation(
+                cancel_request_id,
+                status="uncertain",
+                response={
+                    "phase":
+                        "cancel_reconciliation",
+                    "result":
+                        recovery_result,
+                    "recovery":
+                        data,
+                },
+                error=messages.get(
+                    recovery_result,
+                    (
+                        "Gate cancellation recovery "
+                        "remains uncertain"
+                    ),
+                ),
+                write_performed=True,
+                completed=False,
+            )
+        )
+
+        return _base_result(
+            status="uncertain",
+            order_request_id=(
+                source["request_id"]
+            ),
+            gate_write_performed=True,
+            definitive=False,
+            cancellation=updated,
+            manual_review_required=True,
+            reconciliation={
+                "result":
+                    recovery_result,
             },
         )
 
@@ -1800,6 +2235,15 @@ async def reconcile_limit_order_cancellation(
             status_code=404,
         )
 
+    durable_result = (
+        _durable_completed_cancellation_result(
+            cancellation
+        )
+    )
+
+    if durable_result is not None:
+        return durable_result
+
     gate_order_id = str(
         source.get(
             "gate_order_id"
@@ -1885,6 +2329,133 @@ async def reconcile_limit_order_cancellation(
                 "message":
                     str(error),
             },
+        )
+
+    recovery_result = (
+        _cancel_recovery_result(
+            current
+        )
+    )
+
+    if recovery_result:
+        cancel_request_id = str(
+            cancellation[
+                "cancel_request_id"
+            ]
+        )
+
+        historical_write = bool(
+            cancellation.get(
+                "write_performed"
+            )
+        )
+
+        if (
+            recovery_result
+            == "open_order_duplicate"
+        ):
+            updated = (
+                mark_order_cancellation(
+                    cancel_request_id,
+                    status="attention",
+                    response={
+                        "phase":
+                            "manual_cancel_reconciliation",
+                        "result":
+                            recovery_result,
+                        "recovery":
+                            current,
+                    },
+                    error=(
+                        "Gate open-order recovery "
+                        "returned duplicate matches"
+                    ),
+                    write_performed=(
+                        historical_write
+                    ),
+                    completed=False,
+                )
+            )
+
+            return _base_result(
+                status="attention",
+                order_request_id=(
+                    normalized_order_id
+                ),
+                gate_write_performed=False,
+                definitive=False,
+                cancellation=updated,
+                manual_review_required=True,
+                reconciliation={
+                    "result":
+                        recovery_result,
+                },
+                historical_cancel_write_performed=(
+                    historical_write
+                ),
+            )
+
+        messages = {
+            "not_found_not_open": (
+                "Gate no longer exposes the order "
+                "by ID and it was not found in a "
+                "complete open-order scan. "
+                "Cancellation versus fill cannot "
+                "be distinguished."
+            ),
+            "open_scan_incomplete": (
+                "Gate no longer exposes the order "
+                "by ID and the bounded open-order "
+                "scan could not prove absence."
+            ),
+            "open_scan_invalid": (
+                "Gate open-order recovery returned "
+                "an unexpected response shape."
+            ),
+        }
+
+        updated = (
+            mark_order_cancellation(
+                cancel_request_id,
+                status="uncertain",
+                response={
+                    "phase":
+                        "manual_cancel_reconciliation",
+                    "result":
+                        recovery_result,
+                    "recovery":
+                        current,
+                },
+                error=messages.get(
+                    recovery_result,
+                    (
+                        "Gate cancellation recovery "
+                        "remains uncertain"
+                    ),
+                ),
+                write_performed=(
+                    historical_write
+                ),
+                completed=False,
+            )
+        )
+
+        return _base_result(
+            status="uncertain",
+            order_request_id=(
+                normalized_order_id
+            ),
+            gate_write_performed=False,
+            definitive=False,
+            cancellation=updated,
+            manual_review_required=True,
+            reconciliation={
+                "result":
+                    recovery_result,
+            },
+            historical_cancel_write_performed=(
+                historical_write
+            ),
         )
 
     mismatches = (
