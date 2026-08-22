@@ -19,6 +19,10 @@ from .trading_credentials import (
 from .trading_order_audit import (
     get_order_request,
 )
+from .trading_order_amend_audit import (
+    get_active_order_amendment,
+    list_order_amendments,
+)
 from .trading_order_cancel_audit import (
     TradingOrderCancelConflict,
     get_order_cancellation,
@@ -210,6 +214,140 @@ def _is_finished(
     )
 
 
+
+_SUCCESSFUL_AMENDMENT_PRICE_STATUSES = {
+    "amended",
+    "confirmed_amended",
+}
+
+
+def _cancellation_expected_price(
+    source: dict[str, Any],
+) -> tuple[
+    Decimal | None,
+    str | None,
+]:
+    """
+    Resolve the last durable price that cancellation
+    is allowed to expect from Gate.
+
+    The creation audit remains immutable. A later
+    definitive completed amendment changes only the
+    expected current price; Gate order ID, pair, side,
+    amount, type and text remain anchored to the
+    original order request.
+
+    Amendment history is newest-first. Failed,
+    rejected, aborted or confirmed-not-applied
+    amendments do not change the expected price.
+
+    An unresolved active amendment fails closed:
+    cancellation must not guess which price Gate has.
+    """
+
+    expected = _decimal(
+        source.get("price")
+    )
+
+    request_id = str(
+        source.get("request_id")
+        or ""
+    ).strip()
+
+    if not request_id:
+        return (
+            expected,
+            None,
+        )
+
+    active = (
+        get_active_order_amendment(
+            request_id
+        )
+    )
+
+    if active is not None:
+        return (
+            None,
+            "active_amendment",
+        )
+
+    amendments = (
+        list_order_amendments(
+            request_id,
+            limit=200,
+        )
+    )
+
+    for amendment in amendments:
+        if not isinstance(
+            amendment,
+            dict,
+        ):
+            continue
+
+        status = str(
+            amendment.get("status")
+            or ""
+        ).strip().lower()
+
+        if (
+            status
+            not in
+            _SUCCESSFUL_AMENDMENT_PRICE_STATUSES
+        ):
+            continue
+
+        completed_at = str(
+            amendment.get(
+                "completed_at"
+            )
+            or ""
+        ).strip()
+
+        if not completed_at:
+            continue
+
+        # A successful amendment status without
+        # the historical PATCH boundary is an
+        # inconsistent audit. Fail closed.
+        if (
+            amendment.get(
+                "write_performed"
+            )
+            is not True
+        ):
+            return (
+                None,
+                "amendment_write_boundary",
+            )
+
+        requested_price = _decimal(
+            amendment.get(
+                "requested_price"
+            )
+        )
+
+        if (
+            requested_price is None
+            or requested_price <= 0
+        ):
+            return (
+                None,
+                "amendment_price",
+            )
+
+        return (
+            requested_price,
+            None,
+        )
+
+    return (
+        expected,
+        None,
+    )
+
+
 def _source_matches_gate(
     *,
     source: dict[str, Any],
@@ -331,11 +469,19 @@ def _source_matches_gate(
         data.get("price")
     )
 
-    expected_price = _decimal(
-        source.get("price")
+    (
+        expected_price,
+        amendment_issue,
+    ) = _cancellation_expected_price(
+        source
     )
 
-    if (
+    if amendment_issue is not None:
+        mismatches.append(
+            amendment_issue
+        )
+
+    elif (
         actual_price is not None
         and expected_price is not None
         and actual_price

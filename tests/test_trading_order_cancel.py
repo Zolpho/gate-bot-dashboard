@@ -881,3 +881,440 @@ async def test_idempotent_cancel_replay_does_not_consume_second_token():
 
     finally:
         _clear_cancel_rate_limit_events()
+
+
+
+def _lifecycle_gate_client(
+    *,
+    price: str,
+    amount: str = "1000",
+):
+    """
+    Gate client whose fresh GET and successful DELETE
+    both expose the same lifecycle-current order price.
+    """
+
+    class LifecycleGateClient(
+        FakeGateClient
+    ):
+        delete_calls = []
+        get_calls = 0
+
+        async def get_spot_order(
+            self,
+            order_id,
+            *,
+            currency_pair=None,
+            account="spot",
+        ):
+            type(self).get_calls += 1
+
+            data = make_gate_order(
+                amount=amount,
+            )
+
+            data["price"] = price
+
+            return GateResponse(
+                data=data,
+                status_code=200,
+                headers={},
+                raw=data,
+            )
+
+        async def cancel_spot_order(
+            self,
+            order_id,
+            *,
+            currency_pair,
+            expires_at_ms,
+            account="spot",
+        ):
+            type(self).delete_calls.append(
+                {
+                    "order_id":
+                        order_id,
+                    "currency_pair":
+                        currency_pair,
+                    "expires_at_ms":
+                        expires_at_ms,
+                    "account":
+                        account,
+                }
+            )
+
+            data = make_gate_order(
+                status="cancelled",
+                finish_as="cancelled",
+                amount=amount,
+            )
+
+            data["price"] = price
+
+            return GateResponse(
+                data=data,
+                status_code=200,
+                headers={},
+                raw=data,
+            )
+
+    return LifecycleGateClient
+
+
+def _completed_amendment(
+    *,
+    status: str,
+    current_price: str,
+    requested_price: str,
+):
+    return {
+        "amend_request_id":
+            (
+                "amend-test-"
+                + status
+                + "-"
+                + requested_price
+            ),
+        "order_request_id":
+            "request-a",
+        "gate_order_id":
+            "123456789",
+        "current_price":
+            current_price,
+        "requested_price":
+            requested_price,
+        "status":
+            status,
+        "write_performed":
+            True,
+        "completed_at":
+            "2026-08-22T12:00:00",
+        "created_at":
+            "2026-08-22T11:59:59",
+    }
+
+
+@pytest.mark.parametrize(
+    "amend_status",
+    [
+        "amended",
+        "confirmed_amended",
+    ],
+)
+@pytest.mark.asyncio
+async def test_completed_amendment_price_is_cancel_identity(
+    monkeypatch,
+    amend_status,
+):
+    client = _lifecycle_gate_client(
+        price="0.0018",
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "GateClient",
+        client,
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "get_active_order_amendment",
+        lambda request_id: None,
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "list_order_amendments",
+        lambda request_id, limit=100: [
+            _completed_amendment(
+                status=amend_status,
+                current_price="0.0017",
+                requested_price="0.0018",
+            )
+        ],
+    )
+
+    result = await do_cancel()
+
+    assert result["status"] == "cancelled"
+
+    assert (
+        result["gate_write_performed"]
+        is True
+    )
+
+    assert len(
+        client.delete_calls
+    ) == 1
+
+
+@pytest.mark.asyncio
+async def test_confirmed_not_applied_does_not_change_cancel_price(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        cancel,
+        "get_active_order_amendment",
+        lambda request_id: None,
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "list_order_amendments",
+        lambda request_id, limit=100: [
+            _completed_amendment(
+                status="confirmed_not_applied",
+                current_price="0.0017",
+                requested_price="0.0018",
+            )
+        ],
+    )
+
+    result = await do_cancel()
+
+    assert result["status"] == "cancelled"
+
+    assert len(
+        FakeGateClient.delete_calls
+    ) == 1
+
+
+@pytest.mark.asyncio
+async def test_newest_successful_completed_amendment_wins(
+    monkeypatch,
+):
+    client = _lifecycle_gate_client(
+        price="0.0019",
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "GateClient",
+        client,
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "get_active_order_amendment",
+        lambda request_id: None,
+    )
+
+    # list_order_amendments is newest-first.
+    monkeypatch.setattr(
+        cancel,
+        "list_order_amendments",
+        lambda request_id, limit=100: [
+            _completed_amendment(
+                status="amended",
+                current_price="0.0018",
+                requested_price="0.0019",
+            ),
+            _completed_amendment(
+                status="amended",
+                current_price="0.0017",
+                requested_price="0.0018",
+            ),
+        ],
+    )
+
+    result = await do_cancel()
+
+    assert result["status"] == "cancelled"
+
+    assert len(
+        client.delete_calls
+    ) == 1
+
+
+@pytest.mark.asyncio
+async def test_failed_newer_amendment_keeps_last_successful_price(
+    monkeypatch,
+):
+    client = _lifecycle_gate_client(
+        price="0.0018",
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "GateClient",
+        client,
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "get_active_order_amendment",
+        lambda request_id: None,
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "list_order_amendments",
+        lambda request_id, limit=100: [
+            _completed_amendment(
+                status="rejected",
+                current_price="0.0018",
+                requested_price="0.0020",
+            ),
+            _completed_amendment(
+                status="amended",
+                current_price="0.0017",
+                requested_price="0.0018",
+            ),
+        ],
+    )
+
+    result = await do_cancel()
+
+    assert result["status"] == "cancelled"
+
+    assert len(
+        client.delete_calls
+    ) == 1
+
+
+@pytest.mark.asyncio
+async def test_amended_order_still_blocks_immutable_amount_mismatch(
+    monkeypatch,
+):
+    client = _lifecycle_gate_client(
+        price="0.0018",
+        amount="999",
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "GateClient",
+        client,
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "get_active_order_amendment",
+        lambda request_id: None,
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "list_order_amendments",
+        lambda request_id, limit=100: [
+            _completed_amendment(
+                status="amended",
+                current_price="0.0017",
+                requested_price="0.0018",
+            )
+        ],
+    )
+
+    result = await do_cancel()
+
+    assert (
+        result["status"]
+        == "precheck_conflict"
+    )
+
+    assert (
+        result["gate_write_performed"]
+        is False
+    )
+
+    assert "amount" in (
+        result["mismatches"]
+    )
+
+    assert not (
+        client.delete_calls
+    )
+
+
+@pytest.mark.asyncio
+async def test_active_unresolved_amendment_blocks_cancel_delete(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        cancel,
+        "get_active_order_amendment",
+        lambda request_id: {
+            "amend_request_id":
+                "amend-unresolved",
+            "order_request_id":
+                request_id,
+            "status":
+                "uncertain",
+            "write_performed":
+                True,
+            "completed_at":
+                None,
+        },
+    )
+
+    monkeypatch.setattr(
+        cancel,
+        "list_order_amendments",
+        lambda request_id, limit=100: [],
+    )
+
+    result = await do_cancel()
+
+    assert (
+        result["status"]
+        == "precheck_conflict"
+    )
+
+    assert (
+        result["gate_write_performed"]
+        is False
+    )
+
+    assert (
+        "active_amendment"
+        in result["mismatches"]
+    )
+
+    assert not (
+        FakeGateClient.delete_calls
+    )
+
+
+@pytest.mark.asyncio
+async def test_inconsistent_successful_amendment_audit_fails_closed(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        cancel,
+        "get_active_order_amendment",
+        lambda request_id: None,
+    )
+
+    amendment = _completed_amendment(
+        status="amended",
+        current_price="0.0017",
+        requested_price="0.0018",
+    )
+
+    amendment[
+        "write_performed"
+    ] = False
+
+    monkeypatch.setattr(
+        cancel,
+        "list_order_amendments",
+        lambda request_id, limit=100: [
+            amendment
+        ],
+    )
+
+    result = await do_cancel()
+
+    assert (
+        result["status"]
+        == "precheck_conflict"
+    )
+
+    assert (
+        "amendment_write_boundary"
+        in result["mismatches"]
+    )
+
+    assert not (
+        FakeGateClient.delete_calls
+    )
