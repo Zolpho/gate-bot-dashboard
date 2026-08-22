@@ -467,6 +467,78 @@ def list_order_requests(
 
 
 
+
+def list_order_requests_for_market(
+    *,
+    account_id: str,
+    pair: str,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """
+    Return durable local Trading order history for
+    one explicitly selected Gate account and market.
+
+    This reads the dashboard audit database only.
+    It does not depend on Gate history retention.
+    """
+
+    normalized_account = (
+        account_id.strip().lower()
+    )
+
+    normalized_pair = (
+        pair.strip().upper()
+    )
+
+    if not normalized_account:
+        raise ValueError(
+            "account_id cannot be empty"
+        )
+
+    if not normalized_pair:
+        raise ValueError(
+            "pair cannot be empty"
+        )
+
+    normalized_limit = max(
+        1,
+        min(
+            int(limit),
+            200,
+        ),
+    )
+
+    with session_scope() as db:
+        rows = db.scalars(
+            select(
+                TradingOrderRequest
+            )
+            .where(
+                TradingOrderRequest
+                .account_id
+                == normalized_account
+            )
+            .where(
+                TradingOrderRequest
+                .pair
+                == normalized_pair
+            )
+            .order_by(
+                TradingOrderRequest
+                .created_at.desc(),
+                TradingOrderRequest
+                .id.desc(),
+            )
+            .limit(
+                normalized_limit
+            )
+        ).all()
+
+        return [
+            _snapshot(row)
+            for row in rows
+        ]
+
 def find_order_requests_by_gate_identity(
     *,
     account_id: str,

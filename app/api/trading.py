@@ -36,6 +36,7 @@ from ..trading_order_audit import (
     find_order_requests_by_gate_identity,
     get_order_request,
     list_order_reconciliations,
+    list_order_requests_for_market,
 )
 from ..trading_order_cancel import (
     TradingOrderCancelDenied,
@@ -54,6 +55,9 @@ from ..trading_order_reconcile import (
 )
 from ..trading_order_state import (
     derive_trading_order_state,
+)
+from ..trading_recent_orders import (
+    build_recent_spot_orders,
 )
 
 router = APIRouter(
@@ -1803,6 +1807,91 @@ async def reconcile_trading_limit_order_request(
     }
 
 
+
+
+@router.get("/orders/recent")
+async def trading_recent_orders(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    account_id: str = Query(
+        min_length=1,
+        max_length=64,
+    ),
+    pair: str = Query(
+        default="EQTY_USDT",
+        min_length=3,
+        max_length=64,
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+    ),
+):
+    """
+    Return durable recent Spot order history from
+    the dashboard audit database.
+
+    This route intentionally performs no Gate request.
+    """
+
+    account_id = (
+        _explicit_trading_account(
+            user,
+            account_id,
+        )
+    )
+
+    market = _market(pair)
+
+    requests = (
+        list_order_requests_for_market(
+            account_id=account_id,
+            pair=market,
+            limit=limit,
+        )
+    )
+
+    cancellations_by_request_id = {
+        str(
+            request.get(
+                "request_id"
+            )
+            or ""
+        ): get_order_cancellation(
+            order_request_id=str(
+                request[
+                    "request_id"
+                ]
+            )
+        )
+        for request in requests
+        if request.get(
+            "request_id"
+        )
+    }
+
+    orders = build_recent_spot_orders(
+        requests=requests,
+        cancellations_by_request_id=(
+            cancellations_by_request_id
+        ),
+    )
+
+    return {
+        "history_source": (
+            "dashboard_audit"
+        ),
+        "gate_read_performed": False,
+        "gate_write_performed": False,
+        "write_performed": False,
+        "account_id": account_id,
+        "pair": market,
+        "count": len(orders),
+        "orders": orders,
+    }
 
 @router.get("/orders/open")
 async def trading_open_orders(
