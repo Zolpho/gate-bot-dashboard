@@ -639,6 +639,7 @@ button.trading-book-row.selected {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 58px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
 }
@@ -741,7 +742,40 @@ button.trading-book-row.selected {
   border-color: var(--negative);
 }
 
-@media (max-width: 1100px) {
+/* Stage 3I7 persistent Orders UI polish */
+
+.trading-orders-table-open {
+  min-width: 540px;
+}
+
+.trading-orders-table-recent {
+  min-width: 760px;
+}
+
+.trading-orders-table-open th,
+.trading-orders-table-open td {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.trading-orders-action-heading,
+.trading-orders-action-cell {
+  text-align: center !important;
+}
+
+.trading-orders-action-note {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+}
+
+/*
+ * The dashboard sidebar reduces the actual Trading
+ * content width considerably. Stack the order views
+ * before their tables become cramped or clip Action.
+ */
+@media (max-width: 1500px) {
   .trading-orders-layout {
     grid-template-columns: 1fr;
   }

@@ -1978,7 +1978,7 @@ function tradingRenderOpenOrders() {
   } else if (!orders.length) {
     message.textContent = (
       tradingState.openOrdersLoaded
-        ? 'No open orders on Gate for this market.'
+        ? 'No open Gate orders for the selected account and market.'
         : 'Open orders have not been loaded yet.'
     );
 
@@ -2286,7 +2286,7 @@ function tradingRenderRecentOrders() {
   } else if (!orders.length) {
     message.textContent = (
       tradingState.recentOrdersLoaded
-        ? 'No dashboard order history for this market.'
+        ? 'No dashboard-managed order history for the selected account and market.'
         : 'Recent orders have not been loaded yet.'
     );
 

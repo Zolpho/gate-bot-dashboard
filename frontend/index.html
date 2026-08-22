@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
   <link rel="stylesheet" href="./trading.css?v=20260821-volume-book-v1">
-  <link rel="stylesheet" href="./trading-limit.css?v=20260822-recovery-v1">
+  <link rel="stylesheet" href="./trading-limit.css?v=20260822-ui-polish-v1">
 </head>
 <body>
   <div class="app-shell">
@@ -699,7 +699,7 @@
               </div>
 
               <div class="trading-orders-table-wrap">
-                <table class="trading-orders-table">
+                <table class="trading-orders-table trading-orders-table-open">
                   <thead>
                     <tr>
                       <th>Side</th>
@@ -708,7 +708,7 @@
                       <th>Filled</th>
                       <th>Status</th>
                       <th>Source</th>
-                      <th>Action</th>
+                      <th class="trading-orders-action-heading">Action</th>
                     </tr>
                   </thead>
 
@@ -738,7 +738,7 @@
               </div>
 
               <div class="trading-orders-table-wrap">
-                <table class="trading-orders-table">
+                <table class="trading-orders-table trading-orders-table-recent">
                   <thead>
                     <tr>
                       <th>Time</th>
@@ -748,7 +748,7 @@
                       <th>Filled</th>
                       <th>Result</th>
                       <th>Gate ID</th>
-                      <th>Action</th>
+                      <th class="trading-orders-action-heading">Action</th>
                     </tr>
                   </thead>
 
@@ -795,12 +795,13 @@
         </article>
 
         <div class="trading-readonly-notice">
-          <strong>READ ONLY</strong>
+          <strong>GUARDED TRADING</strong>
           <span>
-            Limit-order execution has not been enabled yet.
-            This screen can read Gate market data and the
-            selected account's spot balances, but it has no
-            order creation, amendment or cancellation path.
+            Market data, balances and order history are read-only
+            views. New limit orders require the separate execution
+            arm and exact confirmation. Eligible managed open orders
+            may expose the separately controlled cancellation action
+            when its arm is enabled. Order amendment is not implemented yet.
           </span>
         </div>
       </section>
@@ -2321,7 +2322,7 @@
     defer
   ></script>
   <script
-    src="./trading.js?v=20260822-recovery-v1"
+    src="./trading.js?v=20260822-ui-polish-v1"
     defer
   ></script>
   <script
