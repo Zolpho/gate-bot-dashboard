@@ -2427,3 +2427,166 @@ class TradingOrderCancellation(Base):
             DateTime(timezone=True),
         )
     )
+
+class TradingOrderAmendment(Base):
+    """
+    Persistent audit for one price-only Spot amendment.
+
+    Multiple completed amendments are allowed for the same
+    source order. active_order_key is populated only while
+    an amendment is unresolved, which gives us a database
+    uniqueness guard against concurrent PATCH attempts.
+    """
+
+    __tablename__ = "trading_order_amendments"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "amend_request_id",
+            name=(
+                "uq_trading_order_amend_request_id"
+            ),
+        ),
+        UniqueConstraint(
+            "active_order_key",
+            name=(
+                "uq_trading_order_amend_active_order"
+            ),
+        ),
+        Index(
+            "ix_trading_amend_order_created",
+            "order_request_id",
+            "created_at",
+        ),
+        Index(
+            "ix_trading_amend_account_created",
+            "account_id",
+            "created_at",
+        ),
+        Index(
+            "ix_trading_amend_gate_order_id",
+            "gate_order_id",
+        ),
+        Index(
+            "ix_trading_amend_status_created",
+            "status",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    amend_request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    order_request_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    active_order_key: Mapped[Optional[str]] = (
+        mapped_column(
+            String(128),
+        )
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    pair: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    gate_order_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    current_price: Mapped[Decimal] = mapped_column(
+        TRADING_AMOUNT,
+        nullable=False,
+    )
+
+    requested_price: Mapped[Decimal] = mapped_column(
+        TRADING_AMOUNT,
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="reserved",
+    )
+
+    request_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    request_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    response_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    gate_status_code: Mapped[Optional[int]] = (
+        mapped_column(
+            Integer,
+        )
+    )
+
+    gate_label: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    error: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    write_performed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+        nullable=False,
+    )
+
+    completed_at: Mapped[Optional[datetime]] = (
+        mapped_column(
+            DateTime(timezone=True),
+        )
+    )

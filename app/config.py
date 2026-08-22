@@ -62,6 +62,15 @@ class Settings(BaseSettings):
     trading_order_cancel_account_limit: int = 40
     trading_order_cancel_account_window_seconds: int = 600
 
+    # Spot order amendment has its own independent arm.
+    # Enabling order creation or cancellation must never
+    # implicitly enable modification of an existing order.
+    #
+    # Stage 3J initially supports price-only amendments.
+    trading_order_amends_enabled: bool = False
+    trading_order_amend_confirmation_text: str = "AMEND ORDER"
+    trading_order_amend_exptime_ms: int = 5000
+
     # Treasury is deliberately isolated from Monitor and Bot Control.
     # Treasury uses its own read-only credential mount.
     gate_treasury_file: Path = Path("/run/secrets/gate_treasury.json")

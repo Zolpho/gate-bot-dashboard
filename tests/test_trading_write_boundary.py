@@ -390,3 +390,370 @@ def test_cancel_rate_limit_rejection_is_explicit_no_write():
         caught.value.retry_after_seconds
         >= 1
     )
+
+
+def test_amend_spot_order_is_single_signed_patch(
+    monkeypatch,
+):
+    calls = []
+
+    async def fake_request(
+        self,
+        method,
+        endpoint,
+        *,
+        params=None,
+        json_body=None,
+        signed=True,
+        extra_headers=None,
+    ):
+        calls.append({
+            "method": method,
+            "endpoint": endpoint,
+            "params": params,
+            "json_body": json_body,
+            "signed": signed,
+            "extra_headers": extra_headers,
+        })
+
+        return GateResponse(
+            data={
+                "id": "123456789",
+                "currency_pair": "EQTY_USDT",
+                "account": "spot",
+                "status": "open",
+                "price": "0.0016",
+            },
+            status_code=200,
+            headers={},
+            raw={},
+        )
+
+    monkeypatch.setattr(
+        GateClient,
+        "request",
+        fake_request,
+    )
+
+    client = object.__new__(
+        GateClient
+    )
+
+    result = asyncio.run(
+        client.amend_spot_order(
+            "123456789",
+            currency_pair="eqty_usdt",
+            price="0.0016000",
+            expires_at_ms=1234567890000,
+            account="spot",
+        )
+    )
+
+    assert result.status_code == 200
+
+    assert len(calls) == 1
+
+    assert calls[0] == {
+        "method": "PATCH",
+        "endpoint":
+            "/spot/orders/123456789",
+        "params": None,
+        "json_body": {
+            "currency_pair":
+                "EQTY_USDT",
+            "account":
+                "spot",
+            "price":
+                "0.0016",
+        },
+        "signed": True,
+        "extra_headers": {
+            "X-Gate-Exptime":
+                "1234567890000",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "order_id",
+    [
+        "",
+        " ",
+        "t-eq-example",
+        "123/456",
+        "123?456",
+        "123#456",
+    ],
+)
+def test_amend_spot_order_requires_real_numeric_gate_id(
+    monkeypatch,
+    order_id,
+):
+    calls = []
+
+    async def fake_request(
+        self,
+        method,
+        endpoint,
+        **kwargs,
+    ):
+        calls.append(
+            (
+                method,
+                endpoint,
+            )
+        )
+
+        raise AssertionError(
+            "PATCH must not be attempted"
+        )
+
+    monkeypatch.setattr(
+        GateClient,
+        "request",
+        fake_request,
+    )
+
+    client = object.__new__(
+        GateClient
+    )
+
+    with pytest.raises(
+        ValueError,
+    ):
+        asyncio.run(
+            client.amend_spot_order(
+                order_id,
+                currency_pair="EQTY_USDT",
+                price="0.0016",
+                expires_at_ms=123,
+            )
+        )
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "currency_pair",
+    [
+        "",
+        " ",
+        "EQTYUSDT",
+    ],
+)
+def test_amend_spot_order_requires_spot_pair(
+    monkeypatch,
+    currency_pair,
+):
+    calls = []
+
+    async def fake_request(
+        self,
+        method,
+        endpoint,
+        **kwargs,
+    ):
+        calls.append(
+            (
+                method,
+                endpoint,
+            )
+        )
+
+        raise AssertionError(
+            "PATCH must not be attempted"
+        )
+
+    monkeypatch.setattr(
+        GateClient,
+        "request",
+        fake_request,
+    )
+
+    client = object.__new__(
+        GateClient
+    )
+
+    with pytest.raises(
+        ValueError,
+    ):
+        asyncio.run(
+            client.amend_spot_order(
+                "123456789",
+                currency_pair=(
+                    currency_pair
+                ),
+                price="0.0016",
+                expires_at_ms=123,
+            )
+        )
+
+    assert calls == []
+
+
+def test_amend_spot_order_rejects_non_spot_account(
+    monkeypatch,
+):
+    calls = []
+
+    async def fake_request(
+        self,
+        method,
+        endpoint,
+        **kwargs,
+    ):
+        calls.append(
+            (
+                method,
+                endpoint,
+            )
+        )
+
+        raise AssertionError(
+            "PATCH must not be attempted"
+        )
+
+    monkeypatch.setattr(
+        GateClient,
+        "request",
+        fake_request,
+    )
+
+    client = object.__new__(
+        GateClient
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="account must be spot",
+    ):
+        asyncio.run(
+            client.amend_spot_order(
+                "123456789",
+                currency_pair="EQTY_USDT",
+                price="0.0016",
+                expires_at_ms=123,
+                account="margin",
+            )
+        )
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "price",
+    [
+        "",
+        "0",
+        "-0.001",
+        "nan",
+        "inf",
+        "-inf",
+        "not-a-price",
+    ],
+)
+def test_amend_spot_order_rejects_invalid_price(
+    monkeypatch,
+    price,
+):
+    calls = []
+
+    async def fake_request(
+        self,
+        method,
+        endpoint,
+        **kwargs,
+    ):
+        calls.append(
+            (
+                method,
+                endpoint,
+            )
+        )
+
+        raise AssertionError(
+            "PATCH must not be attempted"
+        )
+
+    monkeypatch.setattr(
+        GateClient,
+        "request",
+        fake_request,
+    )
+
+    client = object.__new__(
+        GateClient
+    )
+
+    with pytest.raises(
+        ValueError,
+    ):
+        asyncio.run(
+            client.amend_spot_order(
+                "123456789",
+                currency_pair="EQTY_USDT",
+                price=price,
+                expires_at_ms=123,
+            )
+        )
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "expires_at_ms",
+    [
+        0,
+        -1,
+        -5000,
+    ],
+)
+def test_amend_spot_order_requires_positive_expiry(
+    monkeypatch,
+    expires_at_ms,
+):
+    calls = []
+
+    async def fake_request(
+        self,
+        method,
+        endpoint,
+        **kwargs,
+    ):
+        calls.append(
+            (
+                method,
+                endpoint,
+            )
+        )
+
+        raise AssertionError(
+            "PATCH must not be attempted"
+        )
+
+    monkeypatch.setattr(
+        GateClient,
+        "request",
+        fake_request,
+    )
+
+    client = object.__new__(
+        GateClient
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="expires_at_ms",
+    ):
+        asyncio.run(
+            client.amend_spot_order(
+                "123456789",
+                currency_pair="EQTY_USDT",
+                price="0.0016",
+                expires_at_ms=(
+                    expires_at_ms
+                ),
+            )
+        )
+
+    assert calls == []

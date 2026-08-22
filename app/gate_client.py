@@ -525,6 +525,137 @@ class GateClient:
             },
         )
 
+    async def amend_spot_order(
+        self,
+        order_id: str,
+        *,
+        currency_pair: str,
+        price: str,
+        expires_at_ms: int,
+        account: str = "spot",
+    ) -> GateResponse:
+        """
+        Single Gate Spot price-amend write primitive.
+
+        Performs exactly one PATCH and contains
+        no retry logic.
+
+        Stage 3J intentionally supports price-only
+        amendments. Amount modification is not accepted
+        by this dashboard primitive.
+        """
+        from decimal import (
+            Decimal,
+            InvalidOperation,
+        )
+
+        normalized_order_id = (
+            order_id.strip()
+        )
+
+        if not normalized_order_id:
+            raise ValueError(
+                "order_id cannot be empty"
+            )
+
+        if any(
+            item in normalized_order_id
+            for item in (
+                "/",
+                "?",
+                "#",
+            )
+        ):
+            raise ValueError(
+                "order_id contains invalid "
+                "path characters"
+            )
+
+        # Although Gate supports a custom text ID
+        # for pending orders, the dashboard requires
+        # the immutable real numeric Gate order ID.
+        if not normalized_order_id.isdigit():
+            raise ValueError(
+                "Amendment requires the real "
+                "Gate order ID"
+            )
+
+        normalized_pair = (
+            currency_pair
+            .strip()
+            .upper()
+        )
+
+        if (
+            not normalized_pair
+            or "_"
+            not in normalized_pair
+        ):
+            raise ValueError(
+                "currency_pair is required"
+            )
+
+        if account.strip().lower() != "spot":
+            raise ValueError(
+                "Amendment account must be spot"
+            )
+
+        try:
+            normalized_decimal = Decimal(
+                str(price).strip()
+            )
+
+        except (
+            InvalidOperation,
+            TypeError,
+            ValueError,
+        ) as exc:
+            raise ValueError(
+                "Amendment price is invalid"
+            ) from exc
+
+        if (
+            not normalized_decimal.is_finite()
+            or normalized_decimal <= 0
+        ):
+            raise ValueError(
+                "Amendment price must be positive"
+            )
+
+        normalized_price = format(
+            normalized_decimal.normalize(),
+            "f",
+        )
+
+        if int(expires_at_ms) <= 0:
+            raise ValueError(
+                "expires_at_ms must be positive"
+            )
+
+        payload = {
+            "currency_pair":
+                normalized_pair,
+            "account":
+                "spot",
+            "price":
+                normalized_price,
+        }
+
+        return await self.request(
+            "PATCH",
+            (
+                "/spot/orders/"
+                + normalized_order_id
+            ),
+            json_body=payload,
+            extra_headers={
+                "X-Gate-Exptime": str(
+                    int(expires_at_ms)
+                ),
+            },
+        )
+
+
     async def cancel_spot_order(
         self,
         order_id: str,

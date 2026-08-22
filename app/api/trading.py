@@ -38,6 +38,15 @@ from ..trading_order_audit import (
     list_order_reconciliations,
     list_order_requests_for_market,
 )
+from ..trading_order_amend import (
+    TradingOrderAmendDenied,
+    amend_limit_order_price,
+    reconcile_limit_order_amendment,
+)
+from ..trading_order_amend_audit import (
+    get_active_order_amendment,
+    list_order_amendments,
+)
 from ..trading_order_cancel import (
     TradingOrderCancelDenied,
     cancel_limit_order,
@@ -121,6 +130,22 @@ class LimitOrderExecuteRequest(BaseModel):
         "gtc",
         "poc",
     ] = "gtc"
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=256,
+    )
+
+
+class LimitOrderAmendRequest(BaseModel):
+    amend_request_id: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+    requested_price: Decimal = Field(
+        gt=0,
+    )
 
     confirmation: str = Field(
         min_length=1,
@@ -1486,6 +1511,19 @@ async def trading_execution_capabilities(
             settings
             .trading_order_cancel_confirmation_text
         ),
+        "amendment_implemented": True,
+        "amendment_route_available": True,
+        "amend_arm_enabled": bool(
+            settings
+            .trading_order_amends_enabled
+        ),
+        "amend_required_confirmation": (
+            settings
+            .trading_order_amend_confirmation_text
+        ),
+        "amend_reconciliation_implemented": True,
+        "amend_reconciliation_route_available": True,
+        "amend_reconciliation_gate_get_only": True,
         "authorized_account_ids": (
             authorized_account_ids
         ),
@@ -1598,6 +1636,16 @@ async def get_trading_limit_order_request(
             )
         ),
         "cancellation": cancellation,
+        "active_amendment": (
+            get_active_order_amendment(
+                request["request_id"]
+            )
+        ),
+        "amendments": (
+            list_order_amendments(
+                request["request_id"]
+            )
+        ),
         "lock": (
             get_trading_lock_for_request(
                 request["request_id"]
@@ -1725,6 +1773,136 @@ async def reconcile_trading_limit_order_cancellation(
         # This route may update our local
         # cancellation audit, but Gate is
         # queried read-only.
+        "gate_write_performed": False,
+        "write_performed": False,
+        "reconciliation": result,
+    }
+
+
+
+@router.post(
+    "/limit-orders/requests/{request_id}/amend"
+)
+async def amend_trading_limit_order(
+    request_id: str,
+    request: LimitOrderAmendRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):
+    source = (
+        _trading_request_for_user(
+            user,
+            request_id,
+        )
+    )
+
+    explicit_ids = {
+        item.strip().lower()
+        for item in user.account_ids
+        if item.strip()
+    }
+
+    try:
+        return await amend_limit_order_price(
+            settings=settings,
+            username=user.username,
+            allowed_account_ids=(
+                explicit_ids
+            ),
+            amend_request_id=(
+                request.amend_request_id
+            ),
+            order_request_id=(
+                source["request_id"]
+            ),
+            requested_price=(
+                request.requested_price
+            ),
+            confirmation=(
+                request.confirmation
+            ),
+        )
+
+    except TradingOrderAmendDenied as exc:
+        raise HTTPException(
+            status_code=(
+                exc.status_code
+            ),
+            detail=exc.detail(),
+        ) from exc
+
+
+@router.post(
+    (
+        "/limit-orders/requests/"
+        "{request_id}/amendments/"
+        "{amend_request_id}/reconcile"
+    )
+)
+async def reconcile_trading_limit_order_amendment(
+    request_id: str,
+    amend_request_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):
+    source = (
+        _trading_request_for_user(
+            user,
+            request_id,
+        )
+    )
+
+    explicit_ids = {
+        item.strip().lower()
+        for item in user.account_ids
+        if item.strip()
+    }
+
+    try:
+        result = await (
+            reconcile_limit_order_amendment(
+                settings=settings,
+                username=user.username,
+                allowed_account_ids=(
+                    explicit_ids
+                ),
+                order_request_id=(
+                    source["request_id"]
+                ),
+                amend_request_id=(
+                    amend_request_id
+                ),
+            )
+        )
+
+    except TradingOrderAmendDenied as exc:
+        raise HTTPException(
+            status_code=(
+                exc.status_code
+            ),
+            detail=exc.detail(),
+        ) from exc
+
+    return {
+        # Local audit state may change, but this
+        # manual recovery operation cannot PATCH Gate.
+        "gate_read_performed": bool(
+            result.get(
+                "gate_read_performed"
+            )
+        ),
         "gate_write_performed": False,
         "write_performed": False,
         "reconciliation": result,
