@@ -746,3 +746,19 @@ button.trading-book-row.selected {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Stage 3I3a compact persistent Gate order IDs */
+
+.trading-orders-gate-id-cell {
+  max-width: 150px;
+}
+
+.trading-orders-gate-id {
+  display: inline-block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}

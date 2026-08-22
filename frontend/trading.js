@@ -1218,6 +1218,30 @@ function tradingOrderStatusLabel(
 }
 
 
+
+function tradingOrderIdLabel(
+  value,
+) {
+  const text = String(
+    value || ''
+  ).trim();
+
+  if (!text) {
+    return '—';
+  }
+
+  if (text.length <= 14) {
+    return text;
+  }
+
+  return (
+    text.slice(0, 7)
+    + '…'
+    + text.slice(-6)
+  );
+}
+
+
 function tradingOrderTime(
   value,
 ) {
@@ -1628,10 +1652,17 @@ function tradingRenderRecentOrders() {
             </span>
           </td>
 
-          <td>
-            <code>${escapeHtml(
-              row?.gate_order_id
-              || '—'
+          <td class="trading-orders-gate-id-cell">
+            <code
+              class="trading-orders-gate-id"
+              title="${escapeHtml(
+                row?.gate_order_id
+                || ''
+              )}"
+            >${escapeHtml(
+              tradingOrderIdLabel(
+                row?.gate_order_id
+              )
             )}</code>
           </td>
         </tr>
