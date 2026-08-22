@@ -27,6 +27,8 @@ const tradingState = {
   recentOrdersError: '',
   loadingOpenOrders: false,
   loadingRecentOrders: false,
+  persistentCancelPending: new Set(),
+  persistentCancelFrozen: new Set(),
 };
 
 
@@ -1307,6 +1309,548 @@ function tradingResetPersistentOrders() {
 }
 
 
+
+function tradingPersistentCancelEligibility(
+  row,
+) {
+  const gate = (
+    row?.gate_order || {}
+  );
+
+  const request = (
+    row?.request || {}
+  );
+
+  const capabilities = (
+    tradingState
+      .limitOrderExecutionCapabilities
+    || {}
+  );
+
+  const requestId = String(
+    request.request_id || ''
+  ).trim();
+
+  const gateOrderId = String(
+    row?.gate_order_id
+    || gate.id
+    || ''
+  ).trim();
+
+  const localGateOrderId = String(
+    request.gate_order_id || ''
+  ).trim();
+
+  const gateStatus = String(
+    row?.gate_status
+    || gate.status
+    || ''
+  ).trim().toLowerCase();
+
+  const finishAs = String(
+    gate.finish_as || ''
+  ).trim().toLowerCase();
+
+  const accountId = String(
+    request.account_id || ''
+  ).trim().toLowerCase();
+
+  const pair = String(
+    request.pair || ''
+  ).trim().toUpperCase();
+
+  const configuredAccounts = new Set(
+    (
+      capabilities
+        .configured_account_ids
+      || []
+    ).map(
+      value => String(
+        value || ''
+      ).trim().toLowerCase()
+    )
+  );
+
+  const authorizedAccounts = new Set(
+    (
+      capabilities
+        .authorized_account_ids
+      || []
+    ).map(
+      value => String(
+        value || ''
+      ).trim().toLowerCase()
+    )
+  );
+
+  if (!row?.managed) {
+    return {
+      allowed: false,
+      label: '—',
+      reason: 'unmanaged',
+    };
+  }
+
+  if (
+    row?.identity_conflict
+    || row?.state_conflict
+  ) {
+    return {
+      allowed: false,
+      label: 'Review',
+      reason: 'conflict',
+    };
+  }
+
+  if (row?.cancellation) {
+    const status = String(
+      row.cancellation.status || ''
+    ).trim();
+
+    return {
+      allowed: false,
+      label: (
+        status
+          ? tradingOrderStatusLabel(
+              status
+            )
+          : 'Cancellation recorded'
+      ),
+      reason: 'existing_cancellation',
+    };
+  }
+
+  if (
+    !requestId
+    || !gateOrderId
+    || !/^[0-9]+$/.test(gateOrderId)
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'identity_missing',
+    };
+  }
+
+  /*
+   * Fail closed if the durable audited Gate ID
+   * is not exactly the live Gate ID.
+   *
+   * This also means a text-only recovered order
+   * remains visible but cannot be cancelled from
+   * the persistent table until the durable audit
+   * itself contains the real Gate order ID.
+   */
+  if (
+    !localGateOrderId
+    || localGateOrderId !== gateOrderId
+  ) {
+    return {
+      allowed: false,
+      label: 'Review',
+      reason: 'gate_id_mismatch',
+    };
+  }
+
+  if (
+    gateStatus !== 'open'
+    || ![
+      '',
+      'open',
+    ].includes(finishAs)
+  ) {
+    return {
+      allowed: false,
+      label: 'Not open',
+      reason: 'not_open',
+    };
+  }
+
+  if (
+    request.write_performed !== true
+    || String(
+      request.order_type || ''
+    ).toLowerCase() !== 'limit'
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'audit_not_cancellable',
+    };
+  }
+
+  if (
+    accountId !== (
+      tradingState.accountId || ''
+    ).toLowerCase()
+    || pair !== (
+      tradingState.pair || ''
+    ).toUpperCase()
+  ) {
+    return {
+      allowed: false,
+      label: 'Review',
+      reason: 'scope_mismatch',
+    };
+  }
+
+  if (
+    tradingState
+      .persistentCancelPending
+      .has(requestId)
+  ) {
+    return {
+      allowed: false,
+      label: 'Cancelling…',
+      reason: 'pending',
+    };
+  }
+
+  if (
+    tradingState
+      .persistentCancelFrozen
+      .has(requestId)
+  ) {
+    return {
+      allowed: false,
+      label: 'Check status',
+      reason: 'frozen',
+    };
+  }
+
+  if (
+    capabilities
+      .cancellation_implemented
+      !== true
+    || capabilities
+      .cancellation_route_available
+      !== true
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'capability_unavailable',
+    };
+  }
+
+  if (
+    capabilities.cancel_arm_enabled
+    !== true
+  ) {
+    return {
+      allowed: false,
+      label: 'Cancel disabled',
+      reason: 'cancel_disarmed',
+    };
+  }
+
+  if (
+    !authorizedAccounts.has(accountId)
+    || !configuredAccounts.has(accountId)
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'account_unavailable',
+    };
+  }
+
+  const confirmation = String(
+    capabilities
+      .cancel_required_confirmation
+    || ''
+  );
+
+  if (!confirmation) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'confirmation_missing',
+    };
+  }
+
+  return {
+    allowed: true,
+    label: 'Cancel',
+    reason: 'ready',
+    requestId,
+    gateOrderId,
+    confirmation,
+  };
+}
+
+
+async function tradingCancelPersistentOpenOrder(
+  requestId,
+) {
+  const normalizedRequestId = String(
+    requestId || ''
+  ).trim();
+
+  if (!normalizedRequestId) {
+    return;
+  }
+
+  /*
+   * Resolve the source row from the current,
+   * authenticated Open Orders response.
+   * Never trust account/pair/Gate ID from DOM data.
+   */
+  const matches = (
+    tradingState.openOrders || []
+  ).filter(row => (
+    String(
+      row?.request?.request_id
+      || ''
+    ).trim()
+    === normalizedRequestId
+  ));
+
+  if (matches.length !== 1) {
+    showToast(
+      'Unable to identify exactly one managed '
+      + 'open order for cancellation.',
+      true,
+    );
+
+    return;
+  }
+
+  const row = matches[0];
+
+  const eligibility = (
+    tradingPersistentCancelEligibility(
+      row
+    )
+  );
+
+  if (!eligibility.allowed) {
+    showToast(
+      'This open order is not currently '
+      + 'eligible for cancellation.',
+      true,
+    );
+
+    tradingRenderOpenOrders();
+
+    return;
+  }
+
+  const expectedConfirmation = (
+    eligibility.confirmation
+  );
+
+  const typedConfirmation = window.prompt(
+    (
+      'Type exactly:\n\n'
+      + `${expectedConfirmation}`
+      + '\n\n'
+      + 'to cancel this live Gate Spot order.'
+      + '\n\n'
+      + `Gate order: ${eligibility.gateOrderId}`
+    ),
+    '',
+  );
+
+  if (typedConfirmation === null) {
+    return;
+  }
+
+  if (
+    typedConfirmation
+    !== expectedConfirmation
+  ) {
+    showToast(
+      'Exact cancellation confirmation '
+      + 'text did not match.',
+      true,
+    );
+
+    return;
+  }
+
+  const idFactory = (
+    window.tradingLimitCancelRequestId
+  );
+
+  if (
+    typeof idFactory
+    !== 'function'
+  ) {
+    showToast(
+      'Cancellation request identity '
+      + 'generator is unavailable.',
+      true,
+    );
+
+    return;
+  }
+
+  const cancelRequestId = String(
+    idFactory() || ''
+  ).trim();
+
+  if (!cancelRequestId) {
+    showToast(
+      'Unable to create cancellation '
+      + 'request identity.',
+      true,
+    );
+
+    return;
+  }
+
+  /*
+   * Freeze the row before the POST boundary.
+   * There is never an automatic POST retry.
+   */
+  tradingState
+    .persistentCancelPending
+    .add(normalizedRequestId);
+
+  tradingState
+    .persistentCancelFrozen
+    .add(normalizedRequestId);
+
+  tradingRenderOpenOrders();
+
+  try {
+    const result = await adminApi(
+      (
+        '/api/trading/limit-orders/requests/'
+        + encodeURIComponent(
+            normalizedRequestId
+          )
+        + '/cancel'
+      ),
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          cancel_request_id:
+            cancelRequestId,
+          confirmation:
+            typedConfirmation,
+        }),
+      },
+    );
+
+    if (
+      typeof result?.status !== 'string'
+      || typeof result?.definitive
+        !== 'boolean'
+      || typeof result?.gate_write_performed
+        !== 'boolean'
+      || typeof result?.write_performed
+        !== 'boolean'
+      || result.gate_write_performed
+        !== result.write_performed
+      || String(
+        result?.order_request_id
+        || ''
+      ) !== normalizedRequestId
+    ) {
+      throw new Error(
+        'Safety invariant failed: invalid '
+        + 'cancellation response.'
+      );
+    }
+
+    const cancellation = (
+      result?.cancellation || null
+    );
+
+    if (
+      cancellation
+      && String(
+        cancellation.order_request_id
+        || ''
+      ) !== normalizedRequestId
+    ) {
+      throw new Error(
+        'Safety invariant failed: cancellation '
+        + 'audit identity mismatch.'
+      );
+    }
+
+    /*
+     * Once this browser session crosses the
+     * cancellation POST boundary, keep the source
+     * request frozen even after a definitive result.
+     *
+     * The next read-only Open Orders refresh should
+     * remove a successfully cancelled/finished order.
+     * If Gate still reports it open, fail closed and
+     * show Check status rather than offering another
+     * cancellation write.
+     */
+    const messageFactory = (
+      window
+        .tradingLimitCancellationMessage
+    );
+
+    const message = (
+      typeof messageFactory === 'function'
+        ? messageFactory(
+            result.status,
+            result,
+          )
+        : (
+            `Cancellation status: `
+            + `${result.status}.`
+          )
+    );
+
+    showToast(
+      message,
+      !result.definitive,
+    );
+
+  } catch (error) {
+    /*
+     * Browser/network/API uncertainty freezes
+     * the source order. Never retry the POST
+     * automatically. Backend/open-order refresh
+     * determines the durable next state.
+     */
+    tradingState
+      .persistentCancelFrozen
+      .add(normalizedRequestId);
+
+    showToast(
+      (
+        error.message
+        || 'Cancellation outcome is uncertain.'
+      )
+      + ' Do not send another cancellation '
+      + 'until status is checked.',
+      true,
+    );
+
+  } finally {
+    tradingState
+      .persistentCancelPending
+      .delete(normalizedRequestId);
+
+    tradingRenderOpenOrders();
+
+    /*
+     * Read-only recovery after the single POST:
+     * - Gate Open Orders GET
+     * - dashboard Recent Orders GET
+     * - market/balance snapshot GET
+     */
+    await Promise.allSettled([
+      tradingRefreshPersistentOrders({
+        quiet: true,
+      }),
+      tradingLoadSnapshot({
+        quiet: true,
+      }),
+    ]);
+  }
+}
+
+
 function tradingRenderOpenOrders() {
   const body = $('#tradingOpenOrders');
   const message = $('#tradingOpenOrdersMessage');
@@ -1417,6 +1961,34 @@ function tradingRenderOpenOrders() {
             : 'Unmanaged'
       );
 
+      const cancelEligibility = (
+        tradingPersistentCancelEligibility(
+          row
+        )
+      );
+
+      const action = (
+        cancelEligibility.allowed
+          ? `
+            <button
+              type="button"
+              class="trading-orders-cancel-button"
+              data-trading-persistent-cancel-request="${escapeHtml(
+                cancelEligibility.requestId
+              )}"
+            >
+              Cancel
+            </button>
+          `
+          : `
+            <span class="trading-orders-action-note">
+              ${escapeHtml(
+                cancelEligibility.label
+              )}
+            </span>
+          `
+      );
+
       return `
         <tr>
           <td>
@@ -1470,6 +2042,10 @@ function tradingRenderOpenOrders() {
           </td>
 
           <td>${escapeHtml(source)}</td>
+
+          <td class="trading-orders-action-cell">
+            ${action}
+          </td>
         </tr>
       `;
     })
@@ -2205,6 +2781,37 @@ function resetTradingTab() {
 
 
 function bindTradingEvents() {
+  $('#tradingOpenOrders')?.addEventListener(
+    'click',
+    event => {
+      const button = (
+        event.target instanceof Element
+          ? event.target.closest(
+              '[data-trading-persistent-cancel-request]'
+            )
+          : null
+      );
+
+      if (!button) {
+        return;
+      }
+
+      const requestId = String(
+        button.dataset
+          .tradingPersistentCancelRequest
+        || ''
+      ).trim();
+
+      if (!requestId) {
+        return;
+      }
+
+      void tradingCancelPersistentOpenOrder(
+        requestId
+      );
+    },
+  );
+
   $('#tradingAccount')?.addEventListener(
     'change',
     event => {

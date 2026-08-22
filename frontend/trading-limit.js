@@ -3552,6 +3552,15 @@ function bindTradingLimitOrderEvents() {
 }
 
 
+window.tradingLimitCancelRequestId = (
+  tradingLimitCancelRequestId
+);
+
+window.tradingLimitCancellationMessage = (
+  tradingLimitCancellationMessage
+);
+
+
 window.renderTradingLimitOrderTicket = (
   renderTradingLimitOrderTicket
 );

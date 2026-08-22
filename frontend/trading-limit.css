@@ -762,3 +762,42 @@ button.trading-book-row.selected {
   vertical-align: middle;
   white-space: nowrap;
 }
+
+
+/* Stage 3I4 guarded cancellation from persistent Open Orders */
+
+.trading-orders-action-cell {
+  min-width: 104px;
+}
+
+.trading-orders-cancel-button {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--negative);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--negative);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.trading-orders-cancel-button:hover {
+  background: color-mix(
+    in srgb,
+    var(--negative) 10%,
+    transparent
+  );
+}
+
+.trading-orders-cancel-button:focus-visible {
+  outline: 2px solid var(--negative);
+  outline-offset: 2px;
+}
+
+.trading-orders-action-note {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
