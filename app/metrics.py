@@ -82,6 +82,21 @@ def bot_to_dict(bot: Bot, *, include_raw: bool = False) -> dict[str, Any]:
     last_seen = as_utc(bot.last_seen_at)
     stale_seconds = int((now - last_seen).total_seconds()) if last_seen else None
     account_name = bot.account.name if bot.account is not None else bot.account_id
+
+    archive = getattr(
+        bot,
+        "archive",
+        None,
+    )
+
+    archived = bool(
+        archive is not None
+        and str(
+            bot.status or ""
+        ).strip().lower()
+        == "stopped"
+    )
+
     result: dict[str, Any] = {
         "id": bot.id,
         "account_id": bot.account_id,
@@ -92,6 +107,14 @@ def bot_to_dict(bot: Bot, *, include_raw: bool = False) -> dict[str, Any]:
         "market": bot.market,
         "status": bot.status,
         "source_status": bot.source_status,
+        "archived": archived,
+        "archived_at": (
+            as_utc(
+                archive.archived_at
+            ).isoformat()
+            if archived
+            else None
+        ),
         "invest_amount": decimal_to_float(bot.invest_amount),
         "pnl": decimal_to_float(bot.pnl),
         "pnl_rate": decimal_to_float(bot.pnl_rate),

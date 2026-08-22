@@ -16,7 +16,7 @@ from .db import session_scope
 from .demo import advance_demo_data
 from .deposit_history import DepositHistoryService
 from .gate_client import GateAPIError, GateClient
-from .models import Bot, BotSnapshot, GateAccount, SyncRun
+from .models import BotArchive, Bot, BotSnapshot, GateAccount, SyncRun
 
 logger = logging.getLogger(__name__)
 
@@ -410,6 +410,22 @@ class BotCollector:
         bot.last_seen_at = now
         bot.updated_at = now
         bot.missing_syncs = 0
+
+        if (
+            str(
+                data.status or ""
+            ).strip().lower()
+            != "stopped"
+        ):
+            session.execute(
+                delete(
+                    BotArchive
+                ).where(
+                    BotArchive.bot_id
+                    == bot.id
+                )
+            )
+
         bot.stopped_at = None if data.status == "running" else bot.stopped_at
         bot.raw_list_json = dumps_json(data.raw_list)
         bot.raw_detail_json = dumps_json(data.raw_detail)

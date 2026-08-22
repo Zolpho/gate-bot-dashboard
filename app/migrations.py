@@ -633,6 +633,7 @@ def migrate_database(engine: Engine) -> None:
 
     from .models import (
         Bot,
+        BotArchive,
         BotControlAttentionReview,
         GateAccount,
         SyncRun,
@@ -900,6 +901,19 @@ def migrate_database(engine: Engine) -> None:
                 _rebuild_table(raw, engine, Bot.__table__, fill_expressions={"account_id": "'legacy'"})
             else:
                 raw.execute("UPDATE bots SET account_id='legacy' WHERE account_id IS NULL OR account_id='' ")
+
+        if (
+            _table_exists(raw, "bots")
+            and not _table_exists(
+                raw,
+                "bot_archives",
+            )
+        ):
+            _create_table(
+                raw,
+                engine,
+                BotArchive.__table__,
+            )
 
         if _table_exists(raw, "sync_runs"):
             sync_columns = set(_table_columns(raw, "sync_runs"))

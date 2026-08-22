@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b1110">
   <title>Gate Bot Dashboard</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=20260822-bot-archive-v1">
   <link rel="stylesheet" href="./private-balance.css">
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css">
@@ -1435,6 +1435,63 @@
           </div>
           <div id="botsEmpty" class="empty-state hidden">No bots match the current filters.</div>
         </article>
+
+        <details
+          class="panel archived-bots-panel"
+          id="archivedBotsSection"
+        >
+          <summary
+            class="archived-bots-summary"
+          >
+            <div>
+              <strong>Archived bots</strong>
+              <small>
+                Stopped strategies hidden locally
+                from the main bot list. Archiving
+                does not change anything on Gate.
+              </small>
+            </div>
+
+            <span
+              class="status-badge"
+              id="archivedBotsCount"
+            >0 archived</span>
+          </summary>
+
+          <div
+            class="archived-bots-content"
+          >
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Strategy</th>
+                    <th>Account</th>
+                    <th>Status</th>
+                    <th>Invested</th>
+                    <th>Final value</th>
+                    <th>Total PnL</th>
+                    <th>ROI</th>
+                    <th>Archived</th>
+                    <th></th>
+                  </tr>
+                </thead>
+
+                <tbody
+                  id="archivedBotsTableBody"
+                ></tbody>
+              </table>
+            </div>
+
+            <div
+              id="archivedBotsEmpty"
+              class="empty-state"
+            >
+              No archived bots match
+              the current filters.
+            </div>
+          </div>
+        </details>
       </section>
 
       
@@ -2322,7 +2379,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260822-bot-live-account-v1"
+    src="./app.js?v=20260822-bot-archive-v1"
     defer
   ></script>
   <script

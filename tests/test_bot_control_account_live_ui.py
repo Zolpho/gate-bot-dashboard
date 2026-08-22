@@ -238,10 +238,12 @@ def test_app_js_cache_buster_updated():
         "frontend/index.html"
     ).read_text(encoding="utf-8")
 
-    assert (
-        './app.js?v=20260822-bot-live-account-v1'
-        in html
-    )
+    # Later frontend releases may legitimately replace
+    # the B3-specific version value. Preserve the actual
+    # B3 safety contract: app.js must remain explicitly
+    # versioned so browsers do not reuse stale code.
+    assert './app.js?v=' in html
+    assert 'src="./app.js"' not in html
 
 
 def test_stop_ui_uses_account_specific_live_policy():

@@ -103,6 +103,70 @@ class Bot(Base):
         back_populates="bot", cascade="all, delete-orphan"
     )
     alert_events: Mapped[list["AlertEvent"]] = relationship(back_populates="bot")
+    archive: Mapped[Optional["BotArchive"]] = relationship(
+        back_populates="bot",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class BotArchive(Base):
+    """
+    Local dashboard presentation state only.
+
+    Archiving never changes the Gate strategy and never
+    represents a Gate-side operation.
+    """
+
+    __tablename__ = "bot_archives"
+    __table_args__ = (
+        UniqueConstraint(
+            "bot_id",
+            name="uq_bot_archives_bot_id",
+        ),
+        Index(
+            "ix_bot_archives_account_archived",
+            "account_id",
+            "archived_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    bot_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "bots.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "gate_accounts.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    archived_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    archived_by: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    bot: Mapped[Bot] = relationship(
+        back_populates="archive",
+    )
 
 
 class BotSnapshot(Base):

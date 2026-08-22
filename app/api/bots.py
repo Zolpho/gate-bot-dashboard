@@ -17,7 +17,7 @@ from ..config import get_settings
 from ..db import get_db, session_scope
 from ..gate_client import GateAPIError, GateClient
 from ..metrics import bot_to_dict, calculate_drawdown, snapshot_to_dict
-from ..models import Bot, BotSnapshot, GateAccount
+from ..models import Bot, BotArchive, BotSnapshot, GateAccount
 from ..security import DashboardUser, require_account_access, require_user
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
@@ -39,7 +39,10 @@ def list_bots(
     direction: Literal["asc", "desc"] = "desc",
     db: Session = Depends(get_db),
 ):  # type: ignore[no-untyped-def]
-    stmt = select(Bot).options(selectinload(Bot.account))
+    stmt = select(Bot).options(
+        selectinload(Bot.account),
+        selectinload(Bot.archive),
+    )
     if account_id:
         stmt = stmt.where(Bot.account_id == account_id.strip().lower())
     if status:
@@ -92,7 +95,10 @@ def list_bots(
 @router.get("/{bot_id}")
 def get_bot(bot_id: int, db: Session = Depends(get_db)):  # type: ignore[no-untyped-def]
     bot = db.scalar(
-        select(Bot).options(selectinload(Bot.account)).where(Bot.id == bot_id)
+        select(Bot).options(
+            selectinload(Bot.account),
+            selectinload(Bot.archive),
+        ).where(Bot.id == bot_id)
     )
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
@@ -120,7 +126,10 @@ def get_bot_raw(
     db: Session = Depends(get_db),
 ):  # type: ignore[no-untyped-def]
     bot = db.scalar(
-        select(Bot).options(selectinload(Bot.account)).where(Bot.id == bot_id)
+        select(Bot).options(
+            selectinload(Bot.account),
+            selectinload(Bot.archive),
+        ).where(Bot.id == bot_id)
     )
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
@@ -128,6 +137,140 @@ def get_bot_raw(
     return {
         "bot": bot_to_dict(bot, include_raw=True),
         "authorization": user.safe_dict(),
+    }
+
+
+def _archive_bot_or_404(
+    db: Session,
+    bot_id: int,
+) -> Bot:
+    bot = db.scalar(
+        select(Bot)
+        .options(
+            selectinload(Bot.account),
+            selectinload(Bot.archive),
+        )
+        .where(
+            Bot.id == bot_id
+        )
+    )
+
+    if not bot:
+        raise HTTPException(
+            status_code=404,
+            detail="Bot not found",
+        )
+
+    return bot
+
+
+@router.post("/{bot_id}/archive")
+def archive_bot(
+    bot_id: int,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    db: Session = Depends(get_db),
+):  # type: ignore[no-untyped-def]
+    """
+    Archive a stopped bot in local dashboard state only.
+
+    This route never calls Gate and never modifies the
+    canonical bot status.
+    """
+
+    bot = _archive_bot_or_404(
+        db,
+        bot_id,
+    )
+
+    require_account_access(
+        user,
+        bot.account_id,
+    )
+
+    if (
+        str(
+            bot.status or ""
+        ).strip().lower()
+        != "stopped"
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Only stopped bots can be archived."
+            ),
+        )
+
+    if bot.archive is None:
+        bot.archive = BotArchive(
+            bot_id=bot.id,
+            account_id=bot.account_id,
+            archived_at=datetime.now(
+                timezone.utc
+            ),
+            archived_by=user.username,
+        )
+
+        db.add(
+            bot.archive
+        )
+
+        db.flush()
+
+    return {
+        "status": "archived",
+        "bot_id": bot.id,
+        "account_id": bot.account_id,
+        "gate_write_performed": False,
+        "bot": bot_to_dict(
+            bot,
+            include_raw=False,
+        ),
+    }
+
+
+@router.post("/{bot_id}/restore")
+def restore_bot(
+    bot_id: int,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    db: Session = Depends(get_db),
+):  # type: ignore[no-untyped-def]
+    """
+    Restore a locally archived bot.
+
+    Restore is account-authorized but intentionally does
+    not depend on Gate status.
+    """
+
+    bot = _archive_bot_or_404(
+        db,
+        bot_id,
+    )
+
+    require_account_access(
+        user,
+        bot.account_id,
+    )
+
+    archive = bot.archive
+
+    if archive is not None:
+        db.delete(
+            archive
+        )
+
+        db.flush()
+
+    return {
+        "status": "restored",
+        "bot_id": bot.id,
+        "account_id": bot.account_id,
+        "gate_write_performed": False,
     }
 
 

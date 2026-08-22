@@ -23,6 +23,7 @@ const state = {
   overview: null,
   bots: [],
   filteredBots: [],
+  filteredArchivedBots: [],
   botFilters: {},
   history: [],
   alertEvents: [],
@@ -256,7 +257,14 @@ function renderAdminState() {
 
   populateFilterOptions(state.botFilters);
   renderAlerts();
-  if (state.currentBotData?.bot) updateBotAdminControls(state.currentBotData.bot);
+  renderBots();
+  renderArchivedBots();
+
+  if (state.currentBotData?.bot) {
+    updateBotAdminControls(
+      state.currentBotData.bot
+    );
+  }
   renderBotControlAccess();
 }
 function lockAdmin(showMessage = true) {
@@ -10266,7 +10274,14 @@ function populateFilterOptions(filters = {}) {
 
   const botSelect = $('#ruleForm select[name="bot_id"]');
   if (!botSelect) return;
-  const manageableBots = state.bots.filter(bot => canManageAccount(bot.account_id));
+  const manageableBots = state.bots.filter(
+    bot => (
+      !botIsArchived(bot)
+      && canManageAccount(
+        bot.account_id
+      )
+    )
+  );
   const globalOption = state.adminUser?.role === 'super_admin'
     ? '<option value="">All bots (super admin)</option>'
     : '<option value="" disabled>Select one of your bots</option>';
@@ -10274,15 +10289,115 @@ function populateFilterOptions(filters = {}) {
   if (state.adminUser?.role !== 'super_admin' && manageableBots.length) botSelect.value = String(manageableBots[0].id);
 }
 
+function botIsArchived(bot) {
+  return Boolean(
+    bot?.archived === true
+    && String(
+      bot?.status || ''
+    )
+      .trim()
+      .toLowerCase()
+      === 'stopped'
+  );
+}
+
+
 function applyBotFilters() {
-  const term = $('#botSearch').value.trim().toLowerCase();
+  const term = $('#botSearch').value
+    .trim()
+    .toLowerCase();
+
   const status = $('#statusFilter').value;
   const type = $('#typeFilter').value;
   const market = $('#marketFilter').value;
   const sort = $('#sortFilter').value;
-  const valueFor = (bot) => ({ pnl: bot.total_profit ?? bot.pnl ?? -Infinity, roi: bot.profit_rate ?? bot.pnl_rate ?? -Infinity, updated: new Date(bot.updated_at).valueOf(), name: bot.strategy_name, market: bot.market }[sort]);
-  state.filteredBots = state.bots.filter(bot => (!term || `${bot.account_name} ${bot.account_id} ${bot.strategy_name} ${bot.market} ${bot.strategy_id}`.toLowerCase().includes(term)) && (!status || bot.status === status) && (!type || bot.strategy_type === type) && (!market || bot.market === market)).sort((a,b) => typeof valueFor(a) === 'string' ? String(valueFor(a)).localeCompare(String(valueFor(b))) : Number(valueFor(b)) - Number(valueFor(a)));
+
+  const valueFor = bot => ({
+    pnl:
+      bot.total_profit
+      ?? bot.pnl
+      ?? -Infinity,
+
+    roi:
+      bot.profit_rate
+      ?? bot.pnl_rate
+      ?? -Infinity,
+
+    updated:
+      new Date(
+        bot.updated_at
+      ).valueOf(),
+
+    name:
+      bot.strategy_name,
+
+    market:
+      bot.market,
+  }[sort]);
+
+  const matches = state.bots
+    .filter(
+      bot => {
+        const searchable = (
+          `${bot.account_name} `
+          + `${bot.account_id} `
+          + `${bot.strategy_name} `
+          + `${bot.market} `
+          + `${bot.strategy_id}`
+        ).toLowerCase();
+
+        return (
+          (
+            !term
+            || searchable.includes(term)
+          )
+          && (
+            !status
+            || bot.status === status
+          )
+          && (
+            !type
+            || bot.strategy_type === type
+          )
+          && (
+            !market
+            || bot.market === market
+          )
+        );
+      }
+    )
+    .sort(
+      (a, b) => (
+        typeof valueFor(a) === 'string'
+          ? String(
+            valueFor(a)
+          ).localeCompare(
+            String(
+              valueFor(b)
+            )
+          )
+          : (
+            Number(
+              valueFor(b)
+            )
+            - Number(
+              valueFor(a)
+            )
+          )
+      )
+    );
+
+  state.filteredBots = matches.filter(
+    bot => !botIsArchived(bot)
+  );
+
+  state.filteredArchivedBots =
+    matches.filter(
+      bot => botIsArchived(bot)
+    );
+
   renderBots();
+  renderArchivedBots();
 }
 
 function botDisplayStatus(bot) {
@@ -10415,54 +10530,392 @@ function botDisplayStatusOriginal(bot) {
 function renderBots() {
   const tbody = $('#botsTableBody');
 
-  tbody.innerHTML = state.filteredBots.map(bot => {
-    const totalPnl = bot.total_profit ?? bot.pnl;
-    const rate = bot.profit_rate ?? bot.pnl_rate;
-    const displayStatus = botDisplayStatus(bot);
+  tbody.innerHTML = state.filteredBots
+    .map(
+      bot => {
+        const totalPnl =
+          bot.total_profit
+          ?? bot.pnl;
 
-    return `<tr>
-      <td class="strategy-cell">
-        <strong>${escapeHtml(bot.strategy_name)}</strong>
-        <small>
-          ${escapeHtml(bot.market)}
-          · ${strategyLabel(bot.strategy_type)}
-        </small>
-      </td>
-      <td>
-        <span class="account-badge">
-          ${escapeHtml(bot.account_name)}
-        </span>
-      </td>
-      <td>
-        <span
-          class="status-badge ${escapeHtml(displayStatus.key)}"
-          title="${escapeHtml(displayStatus.title)}"
-        >
-          ${escapeHtml(displayStatus.label)}
-        </span>
-      </td>
-      <td>${fmtMoney(bot.invest_amount)}</td>
-      <td>${fmtMoney(bot.current_value)}</td>
-      <td class="${valueClass(totalPnl)}">
-        ${fmtMoney(totalPnl)}
-      </td>
-      <td class="${valueClass(rate)}">
-        ${fmtRatioPct(rate)}
-      </td>
-      <td>${fmtDuration(bot.runtime_seconds)}</td>
-      <td>
-        <button
-          class="row-button"
-          data-bot-id="${bot.id}"
-        >Details →</button>
-      </td>
-    </tr>`;
-  }).join('');
+        const rate =
+          bot.profit_rate
+          ?? bot.pnl_rate;
+
+        const displayStatus =
+          botDisplayStatus(bot);
+
+        const stopped = (
+          String(
+            bot.status || ''
+          )
+            .trim()
+            .toLowerCase()
+          === 'stopped'
+        );
+
+        const canArchive = Boolean(
+          stopped
+          && canManageAccount(
+            bot.account_id
+          )
+        );
+
+        const archiveAction =
+          canArchive
+            ? `
+              <button
+                type="button"
+                class="text-button bot-archive-action"
+                data-archive-bot-id="${bot.id}"
+              >Archive</button>
+            `
+            : '';
+
+        return `<tr>
+          <td class="strategy-cell">
+            <strong>
+              ${escapeHtml(
+                bot.strategy_name
+              )}
+            </strong>
+            <small>
+              ${escapeHtml(bot.market)}
+              · ${strategyLabel(
+                bot.strategy_type
+              )}
+            </small>
+          </td>
+
+          <td>
+            <span class="account-badge">
+              ${escapeHtml(
+                bot.account_name
+              )}
+            </span>
+          </td>
+
+          <td>
+            <span
+              class="status-badge ${escapeHtml(displayStatus.key)}"
+              title="${escapeHtml(displayStatus.title)}"
+            >
+              ${escapeHtml(
+                displayStatus.label
+              )}
+            </span>
+          </td>
+
+          <td>
+            ${fmtMoney(
+              bot.invest_amount
+            )}
+          </td>
+
+          <td>
+            ${fmtMoney(
+              bot.current_value
+            )}
+          </td>
+
+          <td class="${valueClass(totalPnl)}">
+            ${fmtMoney(totalPnl)}
+          </td>
+
+          <td class="${valueClass(rate)}">
+            ${fmtRatioPct(rate)}
+          </td>
+
+          <td>
+            ${fmtDuration(
+              bot.runtime_seconds
+            )}
+          </td>
+
+          <td>
+            <div class="bot-row-actions">
+              <button
+                type="button"
+                class="row-button"
+                data-bot-id="${bot.id}"
+              >Details →</button>
+
+              ${archiveAction}
+            </div>
+          </td>
+        </tr>`;
+      }
+    )
+    .join('');
 
   $('#botsEmpty').classList.toggle(
     'hidden',
     state.filteredBots.length > 0,
   );
+}
+
+
+function renderArchivedBots() {
+  const tbody =
+    $('#archivedBotsTableBody');
+
+  if (!tbody) {
+    return;
+  }
+
+  const totalArchived =
+    state.bots.filter(
+      bot => botIsArchived(bot)
+    ).length;
+
+  const count =
+    $('#archivedBotsCount');
+
+  if (count) {
+    count.textContent = (
+      `${totalArchived} archived`
+    );
+  }
+
+  tbody.innerHTML =
+    state.filteredArchivedBots
+      .map(
+        bot => {
+          const totalPnl =
+            bot.total_profit
+            ?? bot.pnl;
+
+          const rate =
+            bot.profit_rate
+            ?? bot.pnl_rate;
+
+          const displayStatus =
+            botDisplayStatus(bot);
+
+          const restoreAction =
+            canManageAccount(
+              bot.account_id
+            )
+              ? `
+                <button
+                  type="button"
+                  class="text-button bot-restore-action"
+                  data-restore-bot-id="${bot.id}"
+                >Restore</button>
+              `
+              : '';
+
+          return `<tr>
+            <td class="strategy-cell">
+              <strong>
+                ${escapeHtml(
+                  bot.strategy_name
+                )}
+              </strong>
+
+              <small>
+                ${escapeHtml(bot.market)}
+                · ${strategyLabel(
+                  bot.strategy_type
+                )}
+              </small>
+            </td>
+
+            <td>
+              <span class="account-badge">
+                ${escapeHtml(
+                  bot.account_name
+                )}
+              </span>
+            </td>
+
+            <td>
+              <span
+                class="status-badge ${escapeHtml(displayStatus.key)}"
+                title="${escapeHtml(displayStatus.title)}"
+              >
+                ${escapeHtml(
+                  displayStatus.label
+                )}
+              </span>
+            </td>
+
+            <td>
+              ${fmtMoney(
+                bot.invest_amount
+              )}
+            </td>
+
+            <td>
+              ${fmtMoney(
+                bot.current_value
+              )}
+            </td>
+
+            <td class="${valueClass(totalPnl)}">
+              ${fmtMoney(totalPnl)}
+            </td>
+
+            <td class="${valueClass(rate)}">
+              ${fmtRatioPct(rate)}
+            </td>
+
+            <td>
+              ${fmtDate(
+                bot.archived_at
+              )}
+            </td>
+
+            <td>
+              <div class="bot-row-actions">
+                <button
+                  type="button"
+                  class="row-button"
+                  data-bot-id="${bot.id}"
+                >Details →</button>
+
+                ${restoreAction}
+              </div>
+            </td>
+          </tr>`;
+        }
+      )
+      .join('');
+
+  $('#archivedBotsEmpty')
+    ?.classList.toggle(
+      'hidden',
+      state.filteredArchivedBots.length
+        > 0,
+    );
+}
+
+
+async function archiveBot(botId) {
+  const bot = state.bots.find(
+    item => (
+      Number(item.id)
+      === Number(botId)
+    )
+  );
+
+  if (
+    !bot
+    || !canManageAccount(
+      bot.account_id
+    )
+  ) {
+    return;
+  }
+
+  if (
+    String(
+      bot.status || ''
+    )
+      .trim()
+      .toLowerCase()
+    !== 'stopped'
+  ) {
+    showToast(
+      'Only stopped bots can be archived.',
+      true,
+    );
+
+    return;
+  }
+
+  const confirmed = confirm(
+    'Archive this stopped bot? '
+    + 'This only hides it from the main '
+    + 'dashboard bot list. Nothing will '
+    + 'be sent to Gate.'
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const result = await adminApi(
+      `/api/bots/${bot.id}/archive`,
+      {
+        method: 'POST',
+      },
+    );
+
+    if (
+      result.gate_write_performed
+      !== false
+    ) {
+      throw new Error(
+        'Archive safety contract failed.'
+      );
+    }
+
+    await loadCore();
+
+    showToast(
+      'Bot archived locally. '
+      + 'No Gate request was sent.'
+    );
+
+  } catch (error) {
+    showToast(
+      error.message
+      || 'Unable to archive bot.',
+      true,
+    );
+  }
+}
+
+
+async function restoreBot(botId) {
+  const bot = state.bots.find(
+    item => (
+      Number(item.id)
+      === Number(botId)
+    )
+  );
+
+  if (
+    !bot
+    || !canManageAccount(
+      bot.account_id
+    )
+  ) {
+    return;
+  }
+
+  try {
+    const result = await adminApi(
+      `/api/bots/${bot.id}/restore`,
+      {
+        method: 'POST',
+      },
+    );
+
+    if (
+      result.gate_write_performed
+      !== false
+    ) {
+      throw new Error(
+        'Restore safety contract failed.'
+      );
+    }
+
+    await loadCore();
+
+    showToast(
+      'Bot restored to the main list. '
+      + 'No Gate request was sent.'
+    );
+
+  } catch (error) {
+    showToast(
+      error.message
+      || 'Unable to restore bot.',
+      true,
+    );
+  }
 }
 
 function renderOverviewAlerts() {
@@ -12135,6 +12588,38 @@ function bindEvents() {
   ['#botSearch','#statusFilter','#typeFilter','#marketFilter','#sortFilter'].forEach(selector => $(selector).addEventListener(selector === '#botSearch' ? 'input' : 'change', applyBotFilters));
   $('#exportCsv').addEventListener('click', exportCsv);
   document.addEventListener('click', event => {
+    const archiveButton =
+      event.target.closest(
+        '[data-archive-bot-id]'
+      );
+
+    if (archiveButton) {
+      archiveBot(
+        Number(
+          archiveButton.dataset
+            .archiveBotId
+        )
+      );
+
+      return;
+    }
+
+    const restoreButton =
+      event.target.closest(
+        '[data-restore-bot-id]'
+      );
+
+    if (restoreButton) {
+      restoreBot(
+        Number(
+          restoreButton.dataset
+            .restoreBotId
+        )
+      );
+
+      return;
+    }
+
     const botButton = event.target.closest('[data-bot-id]'); if (botButton) openBot(Number(botButton.dataset.botId));
     const ack = event.target.closest('.ack-event'); if (ack) acknowledgeEvent(Number(ack.dataset.eventId));
     const del = event.target.closest('.delete-rule'); if (del) deleteRule(Number(del.dataset.ruleId));
