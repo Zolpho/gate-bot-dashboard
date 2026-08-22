@@ -1701,6 +1701,57 @@ async function tradingCancelPersistentOpenOrder(
   }
 
   /*
+   * Stage 3I5: persist cancellation recovery
+   * identity before crossing the POST boundary.
+   *
+   * This helper lives in trading-limit.js and
+   * is resolved only when the user clicks.
+   */
+  const checkpointWriter = (
+    window
+      .tradingLimitRecoveryCheckpointWrite
+  );
+
+  if (
+    typeof checkpointWriter
+    !== 'function'
+  ) {
+    showToast(
+      'Trading recovery protection is '
+      + 'unavailable. No cancellation '
+      + 'was sent.',
+      true,
+    );
+
+    return;
+  }
+
+  try {
+    checkpointWriter({
+      kind: 'cancellation',
+      requestId:
+        normalizedRequestId,
+      cancelRequestId,
+      gateOrderId:
+        eligibility.gateOrderId,
+    });
+
+  } catch (error) {
+    showToast(
+      (
+        error?.message
+        || 'Unable to preserve cancellation '
+        + 'recovery identity.'
+      )
+      + ' No cancellation was sent.',
+      true,
+    );
+
+    return;
+  }
+
+
+  /*
    * Freeze the row before the POST boundary.
    * There is never an automatic POST retry.
    */
@@ -1804,6 +1855,24 @@ async function tradingCancelPersistentOpenOrder(
       message,
       !result.definitive,
     );
+
+    if (result.definitive) {
+      const clear = (
+        window
+          .tradingLimitRecoveryClearKnownDefinitive
+      );
+
+      if (
+        typeof clear === 'function'
+      ) {
+        clear({
+          kind: 'cancellation',
+          requestId:
+            normalizedRequestId,
+          cancelRequestId,
+        });
+      }
+    }
 
   } catch (error) {
     /*
@@ -2053,6 +2122,112 @@ function tradingRenderOpenOrders() {
 }
 
 
+
+function tradingRecentRecoveryEligibility(
+  row,
+) {
+  const factory = (
+    window
+      .tradingLimitDurableRecoveryEligibility
+  );
+
+  if (
+    typeof factory !== 'function'
+  ) {
+    return {
+      recoverable: false,
+      label: '—',
+      reason: 'recovery_unavailable',
+    };
+  }
+
+  try {
+    return factory(
+      row
+    );
+
+  } catch {
+    return {
+      recoverable: false,
+      label: 'Review',
+      reason: 'recovery_error',
+    };
+  }
+}
+
+
+function tradingRecoverRecentOrder(
+  requestId,
+) {
+  const normalizedRequestId = String(
+    requestId || ''
+  ).trim();
+
+  if (!normalizedRequestId) {
+    return;
+  }
+
+  const matches = (
+    tradingState.recentOrders || []
+  ).filter(
+    row => String(
+      row?.request?.request_id
+      || ''
+    ).trim() === normalizedRequestId
+  );
+
+  if (matches.length !== 1) {
+    showToast(
+      'Unable to identify exactly one '
+      + 'durable Trading request.',
+      true,
+    );
+
+    return;
+  }
+
+  const recover = (
+    window
+      .recoverTradingLimitDurableRow
+  );
+
+  if (
+    typeof recover !== 'function'
+  ) {
+    showToast(
+      'Trading recovery controls '
+      + 'are unavailable.',
+      true,
+    );
+
+    return;
+  }
+
+  try {
+    const result = recover(
+      matches[0]
+    );
+
+    showToast(
+      (
+        'Recovery controls restored for '
+        + `request ${result.requestId}.`
+      ),
+      false,
+    );
+
+  } catch (error) {
+    showToast(
+      (
+        error?.message
+        || 'Unable to restore Trading recovery.'
+      ),
+      true,
+    );
+  }
+}
+
+
 function tradingRenderRecentOrders() {
   const body = $('#tradingRecentOrders');
   const message = $('#tradingRecentOrdersMessage');
@@ -2175,6 +2350,34 @@ function tradingRenderRecentOrders() {
         )
       );
 
+      const recovery = (
+        tradingRecentRecoveryEligibility(
+          row
+        )
+      );
+
+      const action = (
+        recovery.recoverable
+          ? `
+            <button
+              type="button"
+              class="trading-orders-recover-button"
+              data-trading-recover-request="${escapeHtml(
+                recovery.requestId
+              )}"
+            >
+              Recover
+            </button>
+          `
+          : `
+            <span class="trading-orders-action-note">
+              ${escapeHtml(
+                recovery.label || '—'
+              )}
+            </span>
+          `
+      );
+
       return `
         <tr>
           <td>${escapeHtml(
@@ -2240,6 +2443,10 @@ function tradingRenderRecentOrders() {
                 row?.gate_order_id
               )
             )}</code>
+          </td>
+
+          <td class="trading-orders-action-cell">
+            ${action}
           </td>
         </tr>
       `;
@@ -2696,6 +2903,128 @@ function tradingStartTimers() {
 }
 
 
+
+function tradingApplyRecoveryCheckpointScope() {
+  const reader = (
+    window
+      .tradingLimitRecoveryCheckpointForUser
+  );
+
+  if (
+    typeof reader !== 'function'
+    || !tradingState.catalog
+  ) {
+    return false;
+  }
+
+  const checkpoint = reader();
+
+  if (!checkpoint) {
+    return false;
+  }
+
+  const accountId = String(
+    checkpoint.account_id || ''
+  ).trim().toLowerCase();
+
+  const pair = String(
+    checkpoint.pair || ''
+  ).trim().toUpperCase();
+
+  const accounts = new Set(
+    (
+      tradingState.catalog.accounts
+      || []
+    ).map(
+      item => String(
+        item.id || ''
+      ).trim().toLowerCase()
+    )
+  );
+
+  const pairs = new Set(
+    (
+      tradingState.catalog.pairs
+      || []
+    ).map(
+      item => String(
+        item.id || ''
+      ).trim().toUpperCase()
+    )
+  );
+
+  if (
+    !accountId
+    || !pair
+    || !accounts.has(accountId)
+    || !pairs.has(pair)
+  ) {
+    throw new Error(
+      'An unresolved Trading recovery '
+      + 'checkpoint references an account '
+      + 'or pair that is not currently '
+      + 'available to this user.'
+    );
+  }
+
+  tradingState.accountId = accountId;
+  tradingState.pair = pair;
+
+  const accountSelect = $(
+    '#tradingAccount'
+  );
+
+  const pairInput = $(
+    '#tradingPair'
+  );
+
+  if (accountSelect) {
+    accountSelect.value = accountId;
+  }
+
+  if (pairInput) {
+    pairInput.value = pair;
+  }
+
+  return true;
+}
+
+
+async function tradingRecoverSessionCheckpoint({
+  quiet = true,
+} = {}) {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+    || !tradingState.accountId
+    || !tradingState.pair
+  ) {
+    return {
+      recovered: false,
+      status: 'unavailable',
+    };
+  }
+
+  const recover = (
+    window
+      .recoverTradingLimitCheckpoint
+  );
+
+  if (
+    typeof recover !== 'function'
+  ) {
+    return {
+      recovered: false,
+      status: 'unavailable',
+    };
+  }
+
+  return recover({
+    quiet,
+  });
+}
+
+
 async function activateTradingTab() {
   if (
     !state.adminUser
@@ -2713,6 +3042,14 @@ async function activateTradingTab() {
       tradingPopulateCatalog();
     }
 
+    /*
+     * A session checkpoint from a previous
+     * interrupted browser connection takes
+     * precedence over the normal default scope,
+     * provided that scope remains authorized.
+     */
+    tradingApplyRecoveryCheckpointScope();
+
     if (
       !tradingState.accountId
       || !tradingState.pair
@@ -2728,6 +3065,15 @@ async function activateTradingTab() {
     tradingEnsureChart();
 
     await tradingRefreshAll({
+      quiet: true,
+    });
+
+    /*
+     * One exact request GET may run here when
+     * a matching session checkpoint exists.
+     * No reconciliation POST is automatic.
+     */
+    await tradingRecoverSessionCheckpoint({
       quiet: true,
     });
 
@@ -2781,6 +3127,37 @@ function resetTradingTab() {
 
 
 function bindTradingEvents() {
+  $('#tradingRecentOrders')?.addEventListener(
+    'click',
+    event => {
+      const button = (
+        event.target instanceof Element
+          ? event.target.closest(
+              '[data-trading-recover-request]'
+            )
+          : null
+      );
+
+      if (!button) {
+        return;
+      }
+
+      const requestId = String(
+        button.dataset
+          .tradingRecoverRequest
+        || ''
+      ).trim();
+
+      if (!requestId) {
+        return;
+      }
+
+      tradingRecoverRecentOrder(
+        requestId
+      );
+    },
+  );
+
   $('#tradingOpenOrders')?.addEventListener(
     'click',
     event => {
@@ -2833,6 +3210,10 @@ function bindTradingEvents() {
       void tradingLoadSnapshot();
 
       void tradingRefreshPersistentOrders();
+
+      void tradingRecoverSessionCheckpoint({
+        quiet: true,
+      });
     },
   );
 
@@ -2848,6 +3229,10 @@ function bindTradingEvents() {
       tradingResetPersistentOrders();
 
       void tradingRefreshAll();
+
+      void tradingRecoverSessionCheckpoint({
+        quiet: true,
+      });
 
       if (
         tradingState.marketSideTab === 'trades'
@@ -2979,6 +3364,10 @@ function bindTradingEvents() {
         void tradingLoadSnapshot();
 
         void tradingRefreshPersistentOrders();
+
+        void tradingRecoverSessionCheckpoint({
+          quiet: true,
+        });
       }
     },
   );

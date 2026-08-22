@@ -801,3 +801,32 @@ button.trading-book-row.selected {
   font-size: 11px;
   white-space: nowrap;
 }
+
+
+/* Stage 3I5 durable recovery from Recent Orders */
+
+.trading-orders-recover-button {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.trading-orders-recover-button:hover {
+  background: color-mix(
+    in srgb,
+    var(--text) 7%,
+    transparent
+  );
+}
+
+.trading-orders-recover-button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}

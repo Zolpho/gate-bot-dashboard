@@ -578,6 +578,515 @@ function tradingLimitRequestId() {
 }
 
 
+
+const TRADING_LIMIT_RECOVERY_STORAGE_KEY = (
+  'gate-dashboard.trading-recovery.v1'
+);
+
+const TRADING_LIMIT_RECOVERY_VERSION = 1;
+
+
+function tradingLimitRecoveryScope() {
+  return {
+    username: String(
+      state.adminUser?.username
+      || ''
+    ).trim().toLowerCase(),
+
+    accountId: String(
+      tradingState.accountId
+      || ''
+    ).trim().toLowerCase(),
+
+    pair: String(
+      tradingState.pair
+      || ''
+    ).trim().toUpperCase(),
+  };
+}
+
+
+function tradingLimitRecoveryStorage() {
+  const storage = (
+    globalThis.sessionStorage
+  );
+
+  if (
+    !storage
+    || typeof storage.getItem
+      !== 'function'
+    || typeof storage.setItem
+      !== 'function'
+    || typeof storage.removeItem
+      !== 'function'
+  ) {
+    throw new Error(
+      'Trading recovery session storage '
+      + 'is unavailable.'
+    );
+  }
+
+  return storage;
+}
+
+
+function tradingLimitRecoveryCheckpointRead() {
+  let raw;
+
+  try {
+    raw = (
+      tradingLimitRecoveryStorage()
+        .getItem(
+          TRADING_LIMIT_RECOVERY_STORAGE_KEY
+        )
+    );
+
+  } catch (error) {
+    throw new Error(
+      (
+        'Unable to read the Trading '
+        + 'recovery checkpoint. '
+      )
+      + (
+        error?.message || ''
+      )
+    );
+  }
+
+  if (!raw) {
+    return null;
+  }
+
+  let value;
+
+  try {
+    value = JSON.parse(
+      raw
+    );
+
+  } catch {
+    /*
+     * Fail closed. A corrupt checkpoint may
+     * represent an operation whose outcome is
+     * still unknown. Never silently discard it.
+     */
+    throw new Error(
+      'The Trading recovery checkpoint '
+      + 'is corrupt. Do not submit another '
+      + 'Trading write.'
+    );
+  }
+
+  if (
+    !value
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || value.version
+      !== TRADING_LIMIT_RECOVERY_VERSION
+    || ![
+      'execution',
+      'cancellation',
+    ].includes(
+      String(
+        value.kind || ''
+      )
+    )
+  ) {
+    throw new Error(
+      'The Trading recovery checkpoint '
+      + 'has an unsupported format. '
+      + 'Do not submit another Trading write.'
+    );
+  }
+
+  return value;
+}
+
+
+function tradingLimitRecoveryCheckpointForUser() {
+  const checkpoint = (
+    tradingLimitRecoveryCheckpointRead()
+  );
+
+  if (!checkpoint) {
+    return null;
+  }
+
+  const username = String(
+    state.adminUser?.username
+    || ''
+  ).trim().toLowerCase();
+
+  if (
+    !username
+    || String(
+      checkpoint.username
+      || ''
+    ).trim().toLowerCase()
+      !== username
+  ) {
+    /*
+     * Never expose another dashboard user's
+     * checkpoint into the active login.
+     *
+     * Do not delete it here: that user may log
+     * back in within this same browser tab and
+     * still need recovery.
+     */
+    return null;
+  }
+
+  return checkpoint;
+}
+
+
+function tradingLimitRecoveryCheckpointWrite({
+  kind,
+  requestId,
+  cancelRequestId = '',
+  gateOrderId = '',
+} = {}) {
+  const scope = (
+    tradingLimitRecoveryScope()
+  );
+
+  const normalizedKind = String(
+    kind || ''
+  ).trim().toLowerCase();
+
+  const normalizedRequestId = String(
+    requestId || ''
+  ).trim();
+
+  const normalizedCancelRequestId = String(
+    cancelRequestId || ''
+  ).trim();
+
+  const normalizedGateOrderId = String(
+    gateOrderId || ''
+  ).trim();
+
+  if (
+    !scope.username
+    || !scope.accountId
+    || !scope.pair
+  ) {
+    throw new Error(
+      'Trading recovery scope is incomplete. '
+      + 'No Trading write was sent.'
+    );
+  }
+
+  if (
+    ![
+      'execution',
+      'cancellation',
+    ].includes(
+      normalizedKind
+    )
+    || !normalizedRequestId
+  ) {
+    throw new Error(
+      'Trading recovery identity is invalid. '
+      + 'No Trading write was sent.'
+    );
+  }
+
+  if (
+    normalizedKind === 'cancellation'
+    && !normalizedCancelRequestId
+  ) {
+    throw new Error(
+      'Cancellation recovery identity '
+      + 'is incomplete. '
+      + 'No cancellation write was sent.'
+    );
+  }
+
+  const checkpoint = {
+    version:
+      TRADING_LIMIT_RECOVERY_VERSION,
+
+    kind:
+      normalizedKind,
+
+    username:
+      scope.username,
+
+    account_id:
+      scope.accountId,
+
+    pair:
+      scope.pair,
+
+    request_id:
+      normalizedRequestId,
+
+    cancel_request_id: (
+      normalizedKind === 'cancellation'
+        ? normalizedCancelRequestId
+        : ''
+    ),
+
+    gate_order_id: (
+      normalizedKind === 'cancellation'
+        ? normalizedGateOrderId
+        : ''
+    ),
+
+    created_at: (
+      new Date().toISOString()
+    ),
+  };
+
+  /*
+   * There may be only one unresolved Trading
+   * write checkpoint in this browser tab.
+   *
+   * Never overwrite another operation's
+   * recovery identity. Doing so could make an
+   * uncertain Gate write impossible to recover.
+   */
+  const existing = (
+    tradingLimitRecoveryCheckpointRead()
+  );
+
+  if (existing) {
+    const sameCheckpoint = Boolean(
+      String(existing.kind || '')
+        === checkpoint.kind
+      && String(existing.username || '')
+        === checkpoint.username
+      && String(existing.account_id || '')
+        === checkpoint.account_id
+      && String(existing.pair || '')
+        === checkpoint.pair
+      && String(existing.request_id || '')
+        === checkpoint.request_id
+      && String(
+        existing.cancel_request_id || ''
+      ) === checkpoint.cancel_request_id
+      && String(
+        existing.gate_order_id || ''
+      ) === checkpoint.gate_order_id
+    );
+
+    if (!sameCheckpoint) {
+      throw new Error(
+        'Another unresolved Trading recovery '
+        + 'checkpoint exists in this browser '
+        + 'tab. Resolve it before sending '
+        + 'another Trading write.'
+      );
+    }
+
+    /*
+     * Re-writing the exact same checkpoint is
+     * harmless and does not alter its original
+     * creation timestamp.
+     */
+    return existing;
+  }
+
+  const serialized = JSON.stringify(
+    checkpoint
+  );
+
+  let storage;
+
+  try {
+    storage = (
+      tradingLimitRecoveryStorage()
+    );
+
+    storage.setItem(
+      TRADING_LIMIT_RECOVERY_STORAGE_KEY,
+      serialized,
+    );
+
+    /*
+     * Verify the checkpoint really survived
+     * the storage write before allowing a later
+     * Gate write to cross its POST boundary.
+     */
+    const persisted = storage.getItem(
+      TRADING_LIMIT_RECOVERY_STORAGE_KEY
+    );
+
+    if (persisted !== serialized) {
+      throw new Error(
+        'checkpoint verification failed'
+      );
+    }
+
+  } catch (error) {
+    throw new Error(
+      (
+        'Unable to persist the Trading '
+        + 'recovery checkpoint. '
+        + 'No Trading write was sent. '
+      )
+      + (
+        error?.message || ''
+      )
+    );
+  }
+
+  return checkpoint;
+}
+
+
+function tradingLimitRecoveryCheckpointClear({
+  kind = '',
+  requestId = '',
+  cancelRequestId = '',
+} = {}) {
+  const current = (
+    tradingLimitRecoveryCheckpointRead()
+  );
+
+  if (!current) {
+    return true;
+  }
+
+  const expectedKind = String(
+    kind || ''
+  ).trim().toLowerCase();
+
+  const expectedRequestId = String(
+    requestId || ''
+  ).trim();
+
+  const expectedCancelRequestId = String(
+    cancelRequestId || ''
+  ).trim();
+
+  /*
+   * Never clear a different operation's
+   * checkpoint accidentally.
+   */
+  if (
+    expectedKind
+    && String(
+      current.kind || ''
+    ) !== expectedKind
+  ) {
+    return false;
+  }
+
+  if (
+    expectedRequestId
+    && String(
+      current.request_id || ''
+    ) !== expectedRequestId
+  ) {
+    return false;
+  }
+
+  if (
+    expectedCancelRequestId
+    && String(
+      current.cancel_request_id || ''
+    ) !== expectedCancelRequestId
+  ) {
+    return false;
+  }
+
+  try {
+    const storage = (
+      tradingLimitRecoveryStorage()
+    );
+
+    storage.removeItem(
+      TRADING_LIMIT_RECOVERY_STORAGE_KEY
+    );
+
+    if (
+      storage.getItem(
+        TRADING_LIMIT_RECOVERY_STORAGE_KEY
+      ) !== null
+    ) {
+      throw new Error(
+        'checkpoint removal verification failed'
+      );
+    }
+
+  } catch (error) {
+    throw new Error(
+      (
+        'Unable to clear the Trading '
+        + 'recovery checkpoint. '
+      )
+      + (
+        error?.message || ''
+      )
+    );
+  }
+
+  return true;
+}
+
+
+
+function tradingLimitRecoveryClearKnownDefinitive({
+  kind,
+  requestId,
+  cancelRequestId = '',
+  quiet = false,
+} = {}) {
+  try {
+    const cleared = (
+      tradingLimitRecoveryCheckpointClear({
+        kind,
+        requestId,
+        cancelRequestId,
+      })
+    );
+
+    if (!cleared) {
+      throw new Error(
+        'The stored Trading recovery identity '
+        + 'belongs to a different operation.'
+      );
+    }
+
+    return {
+      cleared: true,
+      error: null,
+    };
+
+  } catch (error) {
+    /*
+     * The exchange/backend outcome may already
+     * be definitive, but failure to remove the
+     * browser checkpoint must remain fail-closed.
+     *
+     * A later Trading write will therefore still
+     * be blocked by the checkpoint writer.
+     */
+    if (!quiet) {
+      showToast(
+        (
+          'Trading outcome is definitive, but '
+          + 'the recovery checkpoint could not '
+          + 'be cleared. New Trading writes '
+          + 'remain blocked. '
+        )
+        + (
+          error?.message || ''
+        ),
+        true,
+      );
+    }
+
+    return {
+      cleared: false,
+      error,
+    };
+  }
+}
+
+
 function tradingLimitApiErrorDetail(
   error
 ) {
@@ -1585,6 +2094,35 @@ async function cancelTradingLimitOrder() {
     executionAttempt.requestId
   );
 
+  /*
+   * Persist BOTH cancellation identities
+   * before the Gate cancellation POST.
+   */
+  try {
+    tradingLimitRecoveryCheckpointWrite({
+      kind: 'cancellation',
+      requestId: orderRequestId,
+      cancelRequestId,
+      gateOrderId,
+    });
+
+  } catch (error) {
+    showToast(
+      (
+        error?.message
+        || 'Unable to preserve cancellation '
+        + 'recovery identity.'
+      )
+      + ' No cancellation was sent.',
+      true,
+    );
+
+    renderTradingLimitOrderTicket();
+    renderTradingLimitExecution();
+
+    return;
+  }
+
   tradingState.limitOrderCancellationAttempt = {
     cancelRequestId,
     orderRequestId,
@@ -1669,6 +2207,12 @@ async function cancelTradingLimitOrder() {
         ),
       );
 
+      tradingLimitRecoveryClearKnownDefinitive({
+        kind: 'cancellation',
+        requestId: orderRequestId,
+        cancelRequestId,
+      });
+
     } else {
       showToast(
         'Cancellation requires recovery. '
@@ -1738,11 +2282,941 @@ async function cancelTradingLimitOrder() {
       true,
     );
 
+    if (explicitNoWrite) {
+      tradingLimitRecoveryClearKnownDefinitive({
+        kind: 'cancellation',
+        requestId: orderRequestId,
+        cancelRequestId,
+      });
+    }
+
   } finally {
     tradingState.loadingLimitOrderCancellation = false;
 
     renderTradingLimitOrderTicket();
     renderTradingLimitExecution();
+  }
+}
+
+
+
+function tradingLimitRecoveryRequestSnapshot(
+  request,
+  checkpoint = {},
+) {
+  return {
+    accountId: String(
+      request?.account_id
+      || checkpoint?.account_id
+      || ''
+    ).trim().toLowerCase(),
+
+    pair: String(
+      request?.pair
+      || checkpoint?.pair
+      || ''
+    ).trim().toUpperCase(),
+
+    side: String(
+      request?.side || ''
+    ).trim().toLowerCase(),
+
+    price: (
+      request?.price
+      ?? null
+    ),
+
+    amount: (
+      request?.amount
+      ?? null
+    ),
+
+    timeInForce: String(
+      request?.time_in_force
+      || ''
+    ).trim().toLowerCase(),
+  };
+}
+
+
+function tradingLimitRecoveryValidateScope(
+  checkpoint,
+  request = {},
+) {
+  const current = (
+    tradingLimitRecoveryScope()
+  );
+
+  const checkpointUsername = String(
+    checkpoint?.username || ''
+  ).trim().toLowerCase();
+
+  const checkpointAccount = String(
+    checkpoint?.account_id || ''
+  ).trim().toLowerCase();
+
+  const checkpointPair = String(
+    checkpoint?.pair || ''
+  ).trim().toUpperCase();
+
+  const checkpointRequestId = String(
+    checkpoint?.request_id || ''
+  ).trim();
+
+  const requestAccount = String(
+    request?.account_id || ''
+  ).trim().toLowerCase();
+
+  const requestPair = String(
+    request?.pair || ''
+  ).trim().toUpperCase();
+
+  const requestId = String(
+    request?.request_id || ''
+  ).trim();
+
+  if (
+    !current.username
+    || checkpointUsername
+      !== current.username
+  ) {
+    throw new Error(
+      'Trading recovery checkpoint belongs '
+      + 'to a different authenticated user.'
+    );
+  }
+
+  if (
+    !current.accountId
+    || !current.pair
+    || checkpointAccount
+      !== current.accountId
+    || checkpointPair
+      !== current.pair
+  ) {
+    return {
+      matchesCurrentMarket: false,
+    };
+  }
+
+  if (
+    requestAccount
+    && requestAccount !== checkpointAccount
+  ) {
+    throw new Error(
+      'Trading recovery account identity '
+      + 'does not match the audited request.'
+    );
+  }
+
+  if (
+    requestPair
+    && requestPair !== checkpointPair
+  ) {
+    throw new Error(
+      'Trading recovery market identity '
+      + 'does not match the audited request.'
+    );
+  }
+
+  if (
+    requestId
+    && requestId !== checkpointRequestId
+  ) {
+    throw new Error(
+      'Trading recovery request identity '
+      + 'does not match the audited request.'
+    );
+  }
+
+  return {
+    matchesCurrentMarket: true,
+  };
+}
+
+
+function tradingLimitRecoveryHydrateExecution(
+  checkpoint,
+  result = {},
+) {
+  const request = (
+    result?.request || {}
+  );
+
+  const orderState = (
+    result?.order_state || {}
+  );
+
+  const status = String(
+    orderState.effective_status
+    || request.status
+    || 'client_uncertain'
+  ).trim().toLowerCase();
+
+  const definitive = (
+    tradingLimitExecutionDefinitive(
+      status,
+      request,
+    )
+  );
+
+  const attempt = {
+    requestId: String(
+      checkpoint?.request_id
+      || request.request_id
+      || ''
+    ).trim(),
+
+    snapshot: (
+      tradingLimitRecoveryRequestSnapshot(
+        request,
+        checkpoint,
+      )
+    ),
+
+    status,
+    definitive,
+
+    gateWritePerformed: (
+      typeof request.write_performed
+      === 'boolean'
+        ? request.write_performed
+        : null
+    ),
+
+    result,
+
+    message: (
+      definitive
+        ? tradingLimitExecutionMessage(
+            status,
+            request,
+          )
+        : (
+            tradingLimitExecutionMessage(
+              status,
+              request,
+            )
+          )
+    ),
+
+    recovered: true,
+  };
+
+  tradingState.limitOrderExecutionAttempt = (
+    attempt
+  );
+
+  return attempt;
+}
+
+
+function tradingLimitRecoveryHydrateCancellation(
+  checkpoint,
+  result = {},
+) {
+  const request = (
+    result?.request || {}
+  );
+
+  const cancellation = (
+    result?.cancellation || null
+  );
+
+  const expectedCancelRequestId = String(
+    checkpoint?.cancel_request_id
+    || ''
+  ).trim();
+
+  const durableCancelRequestId = String(
+    cancellation?.cancel_request_id
+    || ''
+  ).trim();
+
+  if (
+    expectedCancelRequestId
+    && durableCancelRequestId
+    && expectedCancelRequestId
+      !== durableCancelRequestId
+  ) {
+    throw new Error(
+      'Trading cancellation recovery identity '
+      + 'does not match the durable audit.'
+    );
+  }
+
+  const expectedGateOrderId = String(
+    checkpoint?.gate_order_id
+    || ''
+  ).trim();
+
+  const durableGateOrderId = String(
+    request?.gate_order_id
+    || ''
+  ).trim();
+
+  if (
+    expectedGateOrderId
+    && durableGateOrderId
+    && expectedGateOrderId
+      !== durableGateOrderId
+  ) {
+    throw new Error(
+      'Trading cancellation Gate order '
+      + 'identity does not match the audit.'
+    );
+  }
+
+  /*
+   * Missing cancellation audit is explicitly
+   * uncertain. It is NEVER permission to send
+   * another cancellation.
+   */
+  const status = String(
+    cancellation?.status
+    || 'client_uncertain'
+  ).trim().toLowerCase();
+
+  const definitive = Boolean(
+    cancellation
+    && tradingLimitCancellationDefinitive(
+      status,
+      cancellation,
+    )
+  );
+
+  const attempt = {
+    cancelRequestId: (
+      durableCancelRequestId
+      || expectedCancelRequestId
+    ),
+
+    orderRequestId: String(
+      checkpoint?.request_id
+      || request?.request_id
+      || ''
+    ).trim(),
+
+    gateOrderId: (
+      durableGateOrderId
+      || expectedGateOrderId
+    ),
+
+    status,
+    definitive,
+
+    gateWritePerformed: (
+      typeof cancellation
+        ?.write_performed
+      === 'boolean'
+        ? cancellation.write_performed
+        : null
+    ),
+
+    result,
+
+    message: (
+      cancellation
+        ? tradingLimitCancellationMessage(
+            status,
+            cancellation,
+          )
+        : (
+            'No cancellation audit is visible '
+            + 'yet. Do not send another '
+            + 'cancellation. Check status again.'
+          )
+    ),
+
+    recovered: true,
+  };
+
+  tradingState.limitOrderCancellationAttempt = (
+    attempt
+  );
+
+  return attempt;
+}
+
+
+function tradingLimitRecoveryHydrateMissingAudit(
+  checkpoint,
+  message,
+) {
+  const kind = String(
+    checkpoint?.kind || ''
+  ).trim().toLowerCase();
+
+  if (kind === 'execution') {
+    const attempt = {
+      requestId: String(
+        checkpoint?.request_id || ''
+      ).trim(),
+
+      snapshot: (
+        tradingLimitRecoveryRequestSnapshot(
+          {},
+          checkpoint,
+        )
+      ),
+
+      status: 'client_uncertain',
+      definitive: false,
+      gateWritePerformed: null,
+      result: null,
+
+      message: (
+        message
+        || (
+          'The Trading request audit is not '
+          + 'visible yet. Do not submit another '
+          + 'order. Check status again.'
+        )
+      ),
+
+      recovered: true,
+    };
+
+    tradingState.limitOrderExecutionAttempt = (
+      attempt
+    );
+
+    return attempt;
+  }
+
+  const attempt = {
+    cancelRequestId: String(
+      checkpoint?.cancel_request_id || ''
+    ).trim(),
+
+    orderRequestId: String(
+      checkpoint?.request_id || ''
+    ).trim(),
+
+    gateOrderId: String(
+      checkpoint?.gate_order_id || ''
+    ).trim(),
+
+    status: 'client_uncertain',
+    definitive: false,
+    gateWritePerformed: null,
+    result: null,
+
+    message: (
+      message
+      || (
+        'The cancellation audit is not '
+        + 'visible yet. Do not send another '
+        + 'cancellation. Check status again.'
+      )
+    ),
+
+    recovered: true,
+  };
+
+  tradingState.limitOrderCancellationAttempt = (
+    attempt
+  );
+
+  return attempt;
+}
+
+
+
+function tradingLimitDurableRecoveryEligibility(
+  row,
+) {
+  const request = (
+    row?.request || {}
+  );
+
+  const cancellation = (
+    row?.cancellation || null
+  );
+
+  const orderState = (
+    row?.order_state || {}
+  );
+
+  const scope = (
+    tradingLimitRecoveryScope()
+  );
+
+  const requestId = String(
+    request.request_id || ''
+  ).trim();
+
+  const accountId = String(
+    request.account_id || ''
+  ).trim().toLowerCase();
+
+  const pair = String(
+    request.pair || ''
+  ).trim().toUpperCase();
+
+  if (
+    row?.managed === false
+    || !requestId
+    || !scope.username
+    || !scope.accountId
+    || !scope.pair
+  ) {
+    return {
+      recoverable: false,
+      label: '—',
+      reason: 'identity_unavailable',
+    };
+  }
+
+  if (
+    accountId !== scope.accountId
+    || pair !== scope.pair
+  ) {
+    return {
+      recoverable: false,
+      label: 'Review',
+      reason: 'scope_mismatch',
+    };
+  }
+
+  /*
+   * Cancellation state takes precedence over
+   * execution state whenever a durable
+   * cancellation audit exists.
+   */
+  if (cancellation) {
+    const cancelRequestId = String(
+      cancellation.cancel_request_id
+      || ''
+    ).trim();
+
+    const cancelStatus = String(
+      cancellation.status || ''
+    ).trim().toLowerCase();
+
+    if (
+      !cancelRequestId
+      || !cancelStatus
+    ) {
+      return {
+        recoverable: false,
+        label: 'Review',
+        reason: 'cancellation_identity_missing',
+      };
+    }
+
+    if (
+      tradingLimitCancellationDefinitive(
+        cancelStatus,
+        cancellation,
+      )
+    ) {
+      return {
+        recoverable: false,
+        label: '—',
+        reason: 'cancellation_definitive',
+      };
+    }
+
+    return {
+      recoverable: true,
+      kind: 'cancellation',
+      label: 'Recover',
+      reason: 'cancellation_unresolved',
+      requestId,
+      cancelRequestId,
+      gateOrderId: String(
+        request.gate_order_id
+        || row?.gate_order_id
+        || ''
+      ).trim(),
+      status: cancelStatus,
+    };
+  }
+
+  const executionStatus = String(
+    orderState.effective_status
+    || request.status
+    || ''
+  ).trim().toLowerCase();
+
+  if (!executionStatus) {
+    return {
+      recoverable: false,
+      label: 'Review',
+      reason: 'execution_status_missing',
+    };
+  }
+
+  if (
+    tradingLimitExecutionDefinitive(
+      executionStatus,
+      request,
+    )
+  ) {
+    return {
+      recoverable: false,
+      label: '—',
+      reason: 'execution_definitive',
+    };
+  }
+
+  return {
+    recoverable: true,
+    kind: 'execution',
+    label: 'Recover',
+    reason: 'execution_unresolved',
+    requestId,
+    cancelRequestId: '',
+    gateOrderId: String(
+      request.gate_order_id
+      || row?.gate_order_id
+      || ''
+    ).trim(),
+    status: executionStatus,
+  };
+}
+
+
+function recoverTradingLimitDurableRow(
+  row,
+) {
+  const eligibility = (
+    tradingLimitDurableRecoveryEligibility(
+      row
+    )
+  );
+
+  if (!eligibility.recoverable) {
+    throw new Error(
+      'This durable Trading request does not '
+      + 'require recovery.'
+    );
+  }
+
+  /*
+   * Never replace another unresolved in-memory
+   * operation with a different durable row.
+   */
+  if (
+    tradingLimitExecutionRecoveryRequired()
+  ) {
+    const executionId = String(
+      tradingState
+        .limitOrderExecutionAttempt
+        ?.requestId
+      || ''
+    ).trim();
+
+    const cancellationId = String(
+      tradingState
+        .limitOrderCancellationAttempt
+        ?.orderRequestId
+      || ''
+    ).trim();
+
+    const activeId = (
+      cancellationId
+      || executionId
+    );
+
+    if (
+      activeId
+      && activeId !== eligibility.requestId
+    ) {
+      throw new Error(
+        'Resolve the current Trading recovery '
+        + 'request before opening another one.'
+      );
+    }
+  }
+
+  const scope = (
+    tradingLimitRecoveryScope()
+  );
+
+  const checkpoint = {
+    version:
+      TRADING_LIMIT_RECOVERY_VERSION,
+
+    kind:
+      eligibility.kind,
+
+    username:
+      scope.username,
+
+    account_id:
+      scope.accountId,
+
+    pair:
+      scope.pair,
+
+    request_id:
+      eligibility.requestId,
+
+    cancel_request_id:
+      eligibility.cancelRequestId || '',
+
+    gate_order_id:
+      eligibility.gateOrderId || '',
+
+    /*
+     * This is a synthetic recovery identity
+     * derived from durable backend audit.
+     * It is NOT written to sessionStorage.
+     */
+    created_at: '',
+  };
+
+  let attempt;
+
+  if (
+    eligibility.kind === 'cancellation'
+  ) {
+    attempt = (
+      tradingLimitRecoveryHydrateCancellation(
+        checkpoint,
+        row,
+      )
+    );
+
+  } else {
+    attempt = (
+      tradingLimitRecoveryHydrateExecution(
+        checkpoint,
+        row,
+      )
+    );
+  }
+
+  renderTradingLimitOrderTicket();
+  renderTradingLimitExecution();
+
+  return {
+    recovered: true,
+    definitive:
+      attempt.definitive === true,
+    kind: eligibility.kind,
+    requestId: eligibility.requestId,
+    status: attempt.status,
+  };
+}
+
+
+async function recoverTradingLimitCheckpoint({
+  quiet = false,
+} = {}) {
+  let checkpoint;
+
+  try {
+    checkpoint = (
+      tradingLimitRecoveryCheckpointForUser()
+    );
+
+  } catch (error) {
+    if (!quiet) {
+      showToast(
+        (
+          error?.message
+          || 'Trading recovery checkpoint '
+          + 'could not be read.'
+        ),
+        true,
+      );
+    }
+
+    return {
+      status: 'checkpoint_error',
+      recovered: false,
+      definitive: false,
+      error,
+    };
+  }
+
+  if (!checkpoint) {
+    return {
+      status: 'none',
+      recovered: false,
+      definitive: true,
+    };
+  }
+
+  const scope = (
+    tradingLimitRecoveryValidateScope(
+      checkpoint,
+    )
+  );
+
+  if (!scope.matchesCurrentMarket) {
+    return {
+      status: 'different_market',
+      recovered: false,
+      definitive: false,
+      checkpoint,
+    };
+  }
+
+  const requestId = String(
+    checkpoint.request_id || ''
+  ).trim();
+
+  if (!requestId) {
+    return {
+      status: 'checkpoint_error',
+      recovered: false,
+      definitive: false,
+      checkpoint,
+    };
+  }
+
+  try {
+    /*
+     * EXACT REQUEST LOOKUP ONLY.
+     *
+     * This is an authenticated dashboard GET.
+     * It performs no Trading/Gate write.
+     */
+    const result = await adminApi(
+      (
+        '/api/trading/limit-orders/requests/'
+        + encodeURIComponent(
+            requestId
+          )
+      )
+    );
+
+    const request = (
+      result?.request || {}
+    );
+
+    const validated = (
+      tradingLimitRecoveryValidateScope(
+        checkpoint,
+        request,
+      )
+    );
+
+    if (!validated.matchesCurrentMarket) {
+      return {
+        status: 'different_market',
+        recovered: false,
+        definitive: false,
+        checkpoint,
+      };
+    }
+
+    let attempt;
+
+    if (
+      String(checkpoint.kind)
+      === 'cancellation'
+    ) {
+      attempt = (
+        tradingLimitRecoveryHydrateCancellation(
+          checkpoint,
+          result,
+        )
+      );
+
+    } else {
+      attempt = (
+        tradingLimitRecoveryHydrateExecution(
+          checkpoint,
+          result,
+        )
+      );
+    }
+
+    let checkpointCleared = false;
+
+    if (attempt.definitive) {
+      const clearResult = (
+        tradingLimitRecoveryClearKnownDefinitive({
+          kind: checkpoint.kind,
+          requestId:
+            checkpoint.request_id,
+          cancelRequestId: (
+            checkpoint.kind === 'cancellation'
+              ? checkpoint.cancel_request_id
+              : ''
+          ),
+          quiet,
+        })
+      );
+
+      checkpointCleared = (
+        clearResult.cleared === true
+      );
+    }
+
+    renderTradingLimitOrderTicket();
+    renderTradingLimitExecution();
+
+    return {
+      status: attempt.status,
+      recovered: true,
+      definitive: (
+        attempt.definitive === true
+      ),
+      checkpoint_cleared:
+        checkpointCleared,
+      checkpoint,
+      result,
+    };
+
+  } catch (error) {
+    /*
+     * 404 is NOT proof the original mutation
+     * did not reach the backend.
+     *
+     * Network/API errors are treated the same:
+     * preserve recovery identity and block retry.
+     */
+    const statusCode = Number(
+      error?.status || 0
+    );
+
+    const message = (
+      statusCode === 404
+        ? (
+            'The Trading request audit is not '
+            + 'visible yet. Do not repeat the '
+            + 'original Trading write.'
+          )
+        : (
+            tradingLimitApiErrorMessage(
+              error,
+              'Trading recovery status could '
+              + 'not be confirmed. Do not repeat '
+              + 'the original Trading write.',
+            )
+          )
+    );
+
+    const attempt = (
+      tradingLimitRecoveryHydrateMissingAudit(
+        checkpoint,
+        message,
+      )
+    );
+
+    renderTradingLimitOrderTicket();
+    renderTradingLimitExecution();
+
+    if (!quiet) {
+      showToast(
+        message,
+        true,
+      );
+    }
+
+    return {
+      status: attempt.status,
+      recovered: true,
+      definitive: false,
+      checkpoint,
+      error,
+    };
   }
 }
 
@@ -1836,6 +3310,15 @@ async function checkTradingLimitCancellationStatus() {
             )
       ),
     };
+
+    if (definitive) {
+      tradingLimitRecoveryClearKnownDefinitive({
+        kind: 'cancellation',
+        requestId: attempt.orderRequestId,
+        cancelRequestId:
+          attempt.cancelRequestId,
+      });
+    }
 
   } catch (error) {
     tradingState.limitOrderCancellationAttempt = {
@@ -1943,6 +3426,13 @@ async function reconcileTradingLimitCancellation() {
           cancelStatus
         ),
       );
+
+      tradingLimitRecoveryClearKnownDefinitive({
+        kind: 'cancellation',
+        requestId: attempt.orderRequestId,
+        cancelRequestId:
+          attempt.cancelRequestId,
+      });
 
     } else {
       showToast(
@@ -2514,6 +4004,36 @@ async function placeTradingLimitOrder() {
     tradingLimitRequestId()
   );
 
+  /*
+   * Persist recovery identity BEFORE the
+   * execution POST boundary.
+   *
+   * If sessionStorage cannot preserve it,
+   * fail closed and do not send the order.
+   */
+  try {
+    tradingLimitRecoveryCheckpointWrite({
+      kind: 'execution',
+      requestId,
+    });
+
+  } catch (error) {
+    showToast(
+      (
+        error?.message
+        || 'Unable to preserve Trading '
+        + 'recovery identity.'
+      )
+      + ' No Spot order was sent.',
+      true,
+    );
+
+    renderTradingLimitOrderTicket();
+    renderTradingLimitExecution();
+
+    return;
+  }
+
   tradingState.limitOrderExecutionAttempt = {
     requestId,
     snapshot,
@@ -2594,6 +4114,11 @@ async function placeTradingLimitOrder() {
         executionStatus !== 'submitted',
       );
 
+      tradingLimitRecoveryClearKnownDefinitive({
+        kind: 'execution',
+        requestId,
+      });
+
     } else {
       showToast(
         'Trading result requires recovery. '
@@ -2661,6 +4186,13 @@ async function placeTradingLimitOrder() {
       message,
       true,
     );
+
+    if (explicitNoWrite) {
+      tradingLimitRecoveryClearKnownDefinitive({
+        kind: 'execution',
+        requestId,
+      });
+    }
 
   } finally {
     tradingState.loadingLimitOrderExecution = false;
@@ -2738,6 +4270,13 @@ async function checkTradingLimitOrderStatus() {
             )
       ),
     };
+
+    if (definitive) {
+      tradingLimitRecoveryClearKnownDefinitive({
+        kind: 'execution',
+        requestId: attempt.requestId,
+      });
+    }
 
   } catch (error) {
     tradingState.limitOrderExecutionAttempt = {
@@ -2836,6 +4375,11 @@ async function reconcileTradingLimitOrder() {
           reconciliation,
         )
       );
+
+      tradingLimitRecoveryClearKnownDefinitive({
+        kind: 'execution',
+        requestId: attempt.requestId,
+      });
 
     } else {
       showToast(
@@ -3550,6 +5094,41 @@ function bindTradingLimitOrderEvents() {
     resetTradingLimitOrderTicket,
   );
 }
+
+
+window.tradingLimitDurableRecoveryEligibility = (
+  tradingLimitDurableRecoveryEligibility
+);
+
+window.recoverTradingLimitDurableRow = (
+  recoverTradingLimitDurableRow
+);
+
+window.tradingLimitRecoveryClearKnownDefinitive = (
+  tradingLimitRecoveryClearKnownDefinitive
+);
+
+
+window.recoverTradingLimitCheckpoint = (
+  recoverTradingLimitCheckpoint
+);
+
+
+window.tradingLimitRecoveryCheckpointRead = (
+  tradingLimitRecoveryCheckpointRead
+);
+
+window.tradingLimitRecoveryCheckpointForUser = (
+  tradingLimitRecoveryCheckpointForUser
+);
+
+window.tradingLimitRecoveryCheckpointWrite = (
+  tradingLimitRecoveryCheckpointWrite
+);
+
+window.tradingLimitRecoveryCheckpointClear = (
+  tradingLimitRecoveryCheckpointClear
+);
 
 
 window.tradingLimitCancelRequestId = (
