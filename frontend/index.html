@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
   <link rel="stylesheet" href="./trading.css?v=20260821-volume-book-v1">
-  <link rel="stylesheet" href="./trading-limit.css?v=20260821-cancel-wire-v1">
+  <link rel="stylesheet" href="./trading-limit.css?v=20260822-persistent-orders-v1">
 </head>
 <body>
   <div class="app-shell">
@@ -665,6 +665,97 @@
             </div>
           </article>
         </div>
+
+        <article class="panel trading-orders-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Orders</h2>
+              <p>
+                Live Gate open orders and durable dashboard
+                order history for the selected account and market.
+              </p>
+            </div>
+          </div>
+
+          <div class="trading-orders-layout">
+            <section class="trading-orders-section">
+              <div class="trading-orders-section-head">
+                <div>
+                  <strong>Open orders</strong>
+                  <small>Live Gate state</small>
+                </div>
+
+                <span
+                  id="tradingOpenOrdersCount"
+                  class="trading-orders-count"
+                >—</span>
+              </div>
+
+              <div
+                id="tradingOpenOrdersMessage"
+                class="trading-orders-message"
+              >
+                Loading open orders…
+              </div>
+
+              <div class="trading-orders-table-wrap">
+                <table class="trading-orders-table">
+                  <thead>
+                    <tr>
+                      <th>Side</th>
+                      <th>Price</th>
+                      <th>Amount</th>
+                      <th>Filled</th>
+                      <th>Status</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="tradingOpenOrders"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="trading-orders-section">
+              <div class="trading-orders-section-head">
+                <div>
+                  <strong>Recent orders</strong>
+                  <small>Durable dashboard audit</small>
+                </div>
+
+                <span
+                  id="tradingRecentOrdersCount"
+                  class="trading-orders-count"
+                >—</span>
+              </div>
+
+              <div
+                id="tradingRecentOrdersMessage"
+                class="trading-orders-message"
+              >
+                Loading recent orders…
+              </div>
+
+              <div class="trading-orders-table-wrap">
+                <table class="trading-orders-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Side</th>
+                      <th>Price</th>
+                      <th>Amount</th>
+                      <th>Filled</th>
+                      <th>Result</th>
+                      <th>Gate ID</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="tradingRecentOrders"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </article>
 
         <article class="panel">
           <div class="panel-header">
@@ -2228,7 +2319,7 @@
     defer
   ></script>
   <script
-    src="./trading.js?v=20260821-limit-ticket-v1"
+    src="./trading.js?v=20260822-persistent-orders-v1"
     defer
   ></script>
   <script

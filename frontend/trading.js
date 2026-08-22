@@ -19,6 +19,14 @@ const tradingState = {
   loadingCatalog: false,
   loadingSnapshot: false,
   loadingCandles: false,
+  openOrders: [],
+  recentOrders: [],
+  openOrdersLoaded: false,
+  recentOrdersLoaded: false,
+  openOrdersError: '',
+  recentOrdersError: '',
+  loadingOpenOrders: false,
+  loadingRecentOrders: false,
 };
 
 
@@ -343,6 +351,8 @@ function tradingPopulateCatalog() {
   tradingRenderIntervalButtons();
   tradingPopulateBookIntervals();
   tradingRenderMarketSideTabs();
+
+  tradingResetPersistentOrders();
 
   window.renderTradingLimitOrderTicket?.();
 }
@@ -1168,6 +1178,670 @@ async function tradingLoadTrades({
 }
 
 
+function tradingOrderStatusLabel(
+  value,
+) {
+  const normalized = String(
+    value || ''
+  ).trim().toLowerCase();
+
+  const labels = {
+    confirmed_open: 'Open',
+    confirmed_closed: 'Closed',
+    confirmed_cancelled: 'Cancelled',
+    submitted: 'Submitted',
+    cancelling: 'Cancelling',
+    cancelled: 'Cancelled',
+    already_cancelled: 'Cancelled',
+    rejected: 'Rejected',
+    local_rejected: 'Rejected before exchange',
+    trading_disabled: 'Trading disabled',
+    uncertain: 'Needs review',
+    attention: 'Needs review',
+    lookup_error: 'Lookup error',
+  };
+
+  if (labels[normalized]) {
+    return labels[normalized];
+  }
+
+  if (!normalized) {
+    return '—';
+  }
+
+  return normalized
+    .replace(/_/g, ' ')
+    .replace(
+      /\b\w/g,
+      character => character.toUpperCase(),
+    );
+}
+
+
+function tradingOrderTime(
+  value,
+) {
+  if (
+    value === null
+    || value === undefined
+    || value === ''
+  ) {
+    return '—';
+  }
+
+  let date;
+
+  const numeric = Number(value);
+
+  if (
+    Number.isFinite(numeric)
+    && String(value).trim() !== ''
+  ) {
+    const milliseconds = (
+      numeric < 1e12
+        ? numeric * 1000
+        : numeric
+    );
+
+    date = new Date(milliseconds);
+
+  } else {
+    date = new Date(
+      String(value)
+    );
+  }
+
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+
+  return date.toLocaleString(
+    [],
+    {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    },
+  );
+}
+
+
+function tradingResetPersistentOrders() {
+  tradingState.openOrders = [];
+  tradingState.recentOrders = [];
+
+  tradingState.openOrdersLoaded = false;
+  tradingState.recentOrdersLoaded = false;
+
+  tradingState.openOrdersError = '';
+  tradingState.recentOrdersError = '';
+
+  tradingRenderOpenOrders();
+  tradingRenderRecentOrders();
+}
+
+
+function tradingRenderOpenOrders() {
+  const body = $('#tradingOpenOrders');
+  const message = $('#tradingOpenOrdersMessage');
+  const count = $('#tradingOpenOrdersCount');
+
+  if (
+    !body
+    || !message
+    || !count
+  ) {
+    return;
+  }
+
+  const orders = (
+    Array.isArray(
+      tradingState.openOrders
+    )
+      ? tradingState.openOrders
+      : []
+  );
+
+  count.textContent = (
+    tradingState.openOrdersLoaded
+      ? String(orders.length)
+      : '—'
+  );
+
+  if (
+    tradingState.loadingOpenOrders
+    && !tradingState.openOrdersLoaded
+  ) {
+    message.textContent = (
+      'Loading open orders…'
+    );
+
+    message.classList.remove(
+      'hidden',
+      'error',
+    );
+
+  } else if (
+    tradingState.openOrdersError
+  ) {
+    message.textContent = (
+      tradingState.openOrdersError
+    );
+
+    message.classList.remove(
+      'hidden'
+    );
+
+    message.classList.add(
+      'error'
+    );
+
+  } else if (!orders.length) {
+    message.textContent = (
+      tradingState.openOrdersLoaded
+        ? 'No open orders on Gate for this market.'
+        : 'Open orders have not been loaded yet.'
+    );
+
+    message.classList.remove(
+      'hidden',
+      'error',
+    );
+
+  } else {
+    message.textContent = (
+      'Live Gate open-order state.'
+    );
+
+    message.classList.remove(
+      'error'
+    );
+
+    message.classList.add(
+      'hidden'
+    );
+  }
+
+  body.innerHTML = orders
+    .map(row => {
+      const gate = (
+        row?.gate_order || {}
+      );
+
+      const side = String(
+        gate.side || ''
+      ).toLowerCase();
+
+      const status = (
+        row?.state_conflict
+          ? 'State conflict'
+          : tradingOrderStatusLabel(
+              row?.order_state
+                ?.effective_status
+              || row?.gate_status
+              || gate.status
+            )
+      );
+
+      const source = (
+        row?.identity_conflict
+          ? 'Conflict'
+          : row?.managed
+            ? 'Managed'
+            : 'Unmanaged'
+      );
+
+      return `
+        <tr>
+          <td>
+            <span class="trading-orders-side ${escapeHtml(side)}">
+              ${escapeHtml(
+                side
+                  ? side.toUpperCase()
+                  : '—'
+              )}
+            </span>
+          </td>
+
+          <td>${escapeHtml(
+            tradingFormatPrice(
+              gate.price
+            )
+          )}</td>
+
+          <td>${escapeHtml(
+            tradingFormatAmount(
+              gate.amount
+            )
+          )}</td>
+
+          <td>${escapeHtml(
+            (
+              gate.filled_amount
+                === null
+              || gate.filled_amount
+                === undefined
+              || gate.filled_amount
+                === ''
+            )
+              ? '—'
+              : tradingFormatAmount(
+                  gate.filled_amount
+                )
+          )}</td>
+
+          <td>
+            <span
+              class="trading-orders-status ${
+                row?.state_conflict
+                  || row?.identity_conflict
+                    ? 'warning'
+                    : ''
+              }"
+            >
+              ${escapeHtml(status)}
+            </span>
+          </td>
+
+          <td>${escapeHtml(source)}</td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+
+function tradingRenderRecentOrders() {
+  const body = $('#tradingRecentOrders');
+  const message = $('#tradingRecentOrdersMessage');
+  const count = $('#tradingRecentOrdersCount');
+
+  if (
+    !body
+    || !message
+    || !count
+  ) {
+    return;
+  }
+
+  const orders = (
+    Array.isArray(
+      tradingState.recentOrders
+    )
+      ? tradingState.recentOrders
+      : []
+  );
+
+  count.textContent = (
+    tradingState.recentOrdersLoaded
+      ? String(orders.length)
+      : '—'
+  );
+
+  if (
+    tradingState.loadingRecentOrders
+    && !tradingState.recentOrdersLoaded
+  ) {
+    message.textContent = (
+      'Loading recent orders…'
+    );
+
+    message.classList.remove(
+      'hidden',
+      'error',
+    );
+
+  } else if (
+    tradingState.recentOrdersError
+  ) {
+    message.textContent = (
+      tradingState.recentOrdersError
+    );
+
+    message.classList.remove(
+      'hidden'
+    );
+
+    message.classList.add(
+      'error'
+    );
+
+  } else if (!orders.length) {
+    message.textContent = (
+      tradingState.recentOrdersLoaded
+        ? 'No dashboard order history for this market.'
+        : 'Recent orders have not been loaded yet.'
+    );
+
+    message.classList.remove(
+      'hidden',
+      'error',
+    );
+
+  } else {
+    message.textContent = (
+      'Durable dashboard order history.'
+    );
+
+    message.classList.remove(
+      'error'
+    );
+
+    message.classList.add(
+      'hidden'
+    );
+  }
+
+  body.innerHTML = orders
+    .map(row => {
+      const request = (
+        row?.request || {}
+      );
+
+      const cancellation = (
+        row?.cancellation || {}
+      );
+
+      const gate = (
+        row?.gate_snapshot || {}
+      );
+
+      const state = (
+        row?.order_state || {}
+      );
+
+      const side = String(
+        request.side
+        || gate.side
+        || ''
+      ).toLowerCase();
+
+      const timestamp = (
+        cancellation.completed_at
+        || cancellation.updated_at
+        || request.completed_at
+        || request.updated_at
+        || request.created_at
+        || gate.update_time_ms
+        || gate.update_time
+      );
+
+      const status = (
+        tradingOrderStatusLabel(
+          state.effective_status
+          || request.status
+        )
+      );
+
+      return `
+        <tr>
+          <td>${escapeHtml(
+            tradingOrderTime(
+              timestamp
+            )
+          )}</td>
+
+          <td>
+            <span class="trading-orders-side ${escapeHtml(side)}">
+              ${escapeHtml(
+                side
+                  ? side.toUpperCase()
+                  : '—'
+              )}
+            </span>
+          </td>
+
+          <td>${escapeHtml(
+            tradingFormatPrice(
+              request.price
+              ?? gate.price
+            )
+          )}</td>
+
+          <td>${escapeHtml(
+            tradingFormatAmount(
+              request.amount
+              ?? gate.amount
+            )
+          )}</td>
+
+          <td>${escapeHtml(
+            (
+              gate.filled_amount
+                === null
+              || gate.filled_amount
+                === undefined
+              || gate.filled_amount
+                === ''
+            )
+              ? '—'
+              : tradingFormatAmount(
+                  gate.filled_amount
+                )
+          )}</td>
+
+          <td>
+            <span class="trading-orders-status">
+              ${escapeHtml(status)}
+            </span>
+          </td>
+
+          <td>
+            <code>${escapeHtml(
+              row?.gate_order_id
+              || '—'
+            )}</code>
+          </td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+
+async function tradingLoadOpenOrders({
+  quiet = false,
+} = {}) {
+  if (
+    tradingState.loadingOpenOrders
+    || state.activeTab !== 'trading'
+    || !state.adminAuthorization
+    || !tradingState.accountId
+    || !tradingState.pair
+  ) {
+    return;
+  }
+
+  const accountId = (
+    tradingState.accountId
+  );
+
+  const pair = (
+    tradingState.pair
+  );
+
+  tradingState.loadingOpenOrders = true;
+  tradingState.openOrdersError = '';
+
+  tradingRenderOpenOrders();
+
+  try {
+    const result = await adminApi(
+      withParams(
+        '/api/trading/orders/open',
+        {
+          account_id: accountId,
+          pair,
+          limit: 100,
+        },
+      ),
+    );
+
+    if (
+      result?.gate_read_performed !== true
+      || result?.gate_write_performed !== false
+      || result?.write_performed !== false
+      || !Array.isArray(result?.orders)
+    ) {
+      throw new Error(
+        'Safety invariant failed: invalid '
+        + 'Open Orders response.'
+      );
+    }
+
+    /*
+     * Account/pair may have changed while the
+     * authenticated Gate GET was in flight.
+     * Never render an old scope into the new one.
+     */
+    if (
+      tradingState.accountId !== accountId
+      || tradingState.pair !== pair
+    ) {
+      return;
+    }
+
+    tradingState.openOrders = (
+      result.orders
+    );
+
+    tradingState.openOrdersLoaded = true;
+    tradingState.openOrdersError = '';
+
+  } catch (error) {
+    if (
+      tradingState.accountId === accountId
+      && tradingState.pair === pair
+    ) {
+      tradingState.openOrdersError = (
+        error.message
+        || 'Unable to load open orders.'
+      );
+
+      if (!quiet) {
+        showToast(
+          tradingState.openOrdersError,
+          true,
+        );
+      }
+    }
+
+  } finally {
+    tradingState.loadingOpenOrders = false;
+
+    tradingRenderOpenOrders();
+  }
+}
+
+
+async function tradingLoadRecentOrders({
+  quiet = false,
+} = {}) {
+  if (
+    tradingState.loadingRecentOrders
+    || state.activeTab !== 'trading'
+    || !state.adminAuthorization
+    || !tradingState.accountId
+    || !tradingState.pair
+  ) {
+    return;
+  }
+
+  const accountId = (
+    tradingState.accountId
+  );
+
+  const pair = (
+    tradingState.pair
+  );
+
+  tradingState.loadingRecentOrders = true;
+  tradingState.recentOrdersError = '';
+
+  tradingRenderRecentOrders();
+
+  try {
+    const result = await adminApi(
+      withParams(
+        '/api/trading/orders/recent',
+        {
+          account_id: accountId,
+          pair,
+          limit: 50,
+        },
+      ),
+    );
+
+    if (
+      result?.history_source
+        !== 'dashboard_audit'
+      || result?.gate_read_performed !== false
+      || result?.gate_write_performed !== false
+      || result?.write_performed !== false
+      || !Array.isArray(result?.orders)
+    ) {
+      throw new Error(
+        'Safety invariant failed: invalid '
+        + 'Recent Orders response.'
+      );
+    }
+
+    if (
+      tradingState.accountId !== accountId
+      || tradingState.pair !== pair
+    ) {
+      return;
+    }
+
+    tradingState.recentOrders = (
+      result.orders
+    );
+
+    tradingState.recentOrdersLoaded = true;
+    tradingState.recentOrdersError = '';
+
+  } catch (error) {
+    if (
+      tradingState.accountId === accountId
+      && tradingState.pair === pair
+    ) {
+      tradingState.recentOrdersError = (
+        error.message
+        || 'Unable to load recent orders.'
+      );
+
+      if (!quiet) {
+        showToast(
+          tradingState.recentOrdersError,
+          true,
+        );
+      }
+    }
+
+  } finally {
+    tradingState.loadingRecentOrders = false;
+
+    tradingRenderRecentOrders();
+  }
+}
+
+
+async function tradingRefreshPersistentOrders({
+  quiet = false,
+} = {}) {
+  await Promise.all([
+    tradingLoadOpenOrders({
+      quiet,
+    }),
+    tradingLoadRecentOrders({
+      quiet,
+    }),
+  ]);
+}
+
+
 async function tradingLoadCatalog() {
   if (
     tradingState.loadingCatalog
@@ -1350,6 +2024,9 @@ async function tradingRefreshAll({
       tradingLoadCandles({
         quiet,
       }),
+      tradingRefreshPersistentOrders({
+        quiet,
+      }),
     ]);
 
   } finally {
@@ -1372,6 +2049,10 @@ function tradingStartTimers() {
             === 'visible'
         ) {
           void tradingLoadSnapshot({
+            quiet: true,
+          });
+
+          void tradingRefreshPersistentOrders({
             quiet: true,
           });
 
@@ -1466,6 +2147,8 @@ function resetTradingTab() {
   tradingState.pair = '';
   tradingState.snapshot = null;
 
+  tradingResetPersistentOrders();
+
   tradingSetError('');
 
   if (tradingState.series) {
@@ -1507,7 +2190,11 @@ function bindTradingEvents() {
 
       tradingState.accountId = accountId;
 
+      tradingResetPersistentOrders();
+
       void tradingLoadSnapshot();
+
+      void tradingRefreshPersistentOrders();
     },
   );
 
@@ -1519,6 +2206,8 @@ function bindTradingEvents() {
 
       tradingState.bookInterval = '0';
       tradingPopulateBookIntervals();
+
+      tradingResetPersistentOrders();
 
       void tradingRefreshAll();
 
@@ -1647,7 +2336,11 @@ function bindTradingEvents() {
           state.selectedAccount
         );
 
+        tradingResetPersistentOrders();
+
         void tradingLoadSnapshot();
+
+        void tradingRefreshPersistentOrders();
       }
     },
   );
