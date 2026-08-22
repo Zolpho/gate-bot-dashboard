@@ -59,6 +59,9 @@ from ..trading_order_state import (
 from ..trading_recent_orders import (
     build_recent_spot_orders,
 )
+from ..trading_rate_limit import (
+    TradingRateLimitExceeded,
+)
 
 router = APIRouter(
     prefix="/api/trading",
@@ -1648,6 +1651,17 @@ async def cancel_trading_limit_order(
                 request.confirmation
             ),
         )
+
+    except TradingRateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=exc.detail(),
+            headers={
+                "Retry-After": str(
+                    exc.retry_after_seconds
+                ),
+            },
+        ) from exc
 
     except TradingOrderCancelDenied as exc:
         raise HTTPException(

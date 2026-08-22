@@ -21,8 +21,12 @@ from .trading_order_audit import (
 )
 from .trading_order_cancel_audit import (
     TradingOrderCancelConflict,
+    get_order_cancellation,
     mark_order_cancellation,
     reserve_order_cancellation,
+)
+from .trading_rate_limit import (
+    enforce_trading_cancel_rate_limit,
 )
 
 
@@ -956,6 +960,131 @@ async def cancel_limit_order(
                 gate_order=current,
             )
 
+        # Existing cancellation intent is checked
+        # before consuming a new rate-limit token.
+        #
+        # We check both unique identities. The central
+        # reservation verifier remains authoritative:
+        # a matching prior cancellation is replayed,
+        # while an ID collision/mismatch is rejected.
+        existing_by_order = (
+            get_order_cancellation(
+                order_request_id=(
+                    normalized_order_id
+                )
+            )
+        )
+
+        existing_by_cancel = (
+            get_order_cancellation(
+                cancel_request_id=(
+                    normalized_cancel_id
+                )
+            )
+        )
+
+        if (
+            existing_by_order is not None
+            or existing_by_cancel is not None
+        ):
+            try:
+                (
+                    cancellation,
+                    created,
+                ) = reserve_order_cancellation(
+                    cancel_request_id=(
+                        normalized_cancel_id
+                    ),
+                    order_request_id=(
+                        normalized_order_id
+                    ),
+                    account_id=(
+                        account_id
+                    ),
+                    username=(
+                        normalized_username
+                    ),
+                    pair=pair,
+                    gate_order_id=(
+                        gate_order_id
+                    ),
+                )
+
+            except TradingOrderCancelConflict as exc:
+                raise TradingOrderCancelDenied(
+                    code=(
+                        "cancel_idempotency_conflict"
+                    ),
+                    message=str(exc),
+                    status_code=409,
+                ) from exc
+
+            if created:
+                # An existing immutable cancellation
+                # disappeared between lookup and reserve.
+                # Fail closed rather than allowing an
+                # unmetered cancellation write.
+                raise TradingOrderCancelDenied(
+                    code=(
+                        "cancel_idempotency_conflict"
+                    ),
+                    message=(
+                        "Cancellation audit changed "
+                        "during idempotency validation"
+                    ),
+                    status_code=409,
+                )
+
+            return _base_result(
+                status="idempotent_replay",
+                order_request_id=(
+                    normalized_order_id
+                ),
+                gate_write_performed=False,
+                definitive=bool(
+                    cancellation.get(
+                        "completed_at"
+                    )
+                ),
+                cancellation=(
+                    cancellation
+                ),
+                original_status=(
+                    cancellation.get(
+                        "status"
+                    )
+                ),
+                original_write_performed=(
+                    bool(
+                        cancellation.get(
+                            "write_performed"
+                        )
+                    )
+                ),
+                manual_review_required=(
+                    not bool(
+                        cancellation.get(
+                            "completed_at"
+                        )
+                    )
+                ),
+            )
+
+        # Only a genuinely new cancellation intent
+        # consumes the independent cancellation bucket.
+        #
+        # This happens after authorization, confirmation,
+        # credentials and the fresh Gate open-state GET,
+        # but before creating a cancellation audit or
+        # crossing the DELETE boundary.
+        enforce_trading_cancel_rate_limit(
+            settings=settings,
+            username=(
+                normalized_username
+            ),
+            account_id=account_id,
+        )
+
         try:
             (
                 cancellation,
@@ -989,6 +1118,11 @@ async def cancel_limit_order(
             ) from exc
 
         if not created:
+            # A concurrent identical cancellation may
+            # have won after our pre-check. The unique
+            # audit constraint still prevents a second
+            # DELETE. At worst this conservatively
+            # consumes one extra rate-limit token.
             return _base_result(
                 status="idempotent_replay",
                 order_request_id=(

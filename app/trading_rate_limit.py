@@ -29,6 +29,10 @@ TRADING_LIMIT_ORDER_EXECUTE = (
     "limit_order_execute"
 )
 
+TRADING_ORDER_CANCEL = (
+    "order_cancel"
+)
+
 
 class TradingRateLimitExceeded(
     RuntimeError
@@ -40,8 +44,10 @@ class TradingRateLimitExceeded(
         limit: int,
         window_seconds: int,
         retry_after_seconds: int,
+        action: str = TRADING_LIMIT_ORDER_EXECUTE,
     ) -> None:
         self.scope = scope
+        self.action = action
         self.limit = limit
         self.window_seconds = (
             window_seconds
@@ -63,9 +69,7 @@ class TradingRateLimitExceeded(
                 "Trading rate limit exceeded"
             ),
             "scope": self.scope,
-            "action": (
-                TRADING_LIMIT_ORDER_EXECUTE
-            ),
+            "action": self.action,
             "limit": self.limit,
             "window_seconds": (
                 self.window_seconds
@@ -74,6 +78,7 @@ class TradingRateLimitExceeded(
                 self.retry_after_seconds
             ),
             "gate_write_performed": False,
+            "write_performed": False,
         }
 
 
@@ -157,6 +162,11 @@ def enforce_trading_rate_limit(
     settings: Settings,
     username: str,
     account_id: str,
+    action: str = TRADING_LIMIT_ORDER_EXECUTE,
+    user_limit_override: int | None = None,
+    user_window_override: int | None = None,
+    account_limit_override: int | None = None,
+    account_window_override: int | None = None,
 ) -> dict[str, Any] | None:
     if not (
         settings
@@ -164,24 +174,49 @@ def enforce_trading_rate_limit(
     ):
         return None
 
+    normalized_action = (
+        action.strip()
+    )
+
+    if not normalized_action:
+        raise ValueError(
+            "action cannot be empty"
+        )
+
     user_limit = _bounded_limit(
-        settings
-        .trading_limit_order_user_limit
+        (
+            user_limit_override
+            if user_limit_override is not None
+            else settings
+            .trading_limit_order_user_limit
+        )
     )
 
     user_window = _bounded_window(
-        settings
-        .trading_limit_order_user_window_seconds
+        (
+            user_window_override
+            if user_window_override is not None
+            else settings
+            .trading_limit_order_user_window_seconds
+        )
     )
 
     account_limit = _bounded_limit(
-        settings
-        .trading_limit_order_account_limit
+        (
+            account_limit_override
+            if account_limit_override is not None
+            else settings
+            .trading_limit_order_account_limit
+        )
     )
 
     account_window = _bounded_window(
-        settings
-        .trading_limit_order_account_window_seconds
+        (
+            account_window_override
+            if account_window_override is not None
+            else settings
+            .trading_limit_order_account_window_seconds
+        )
     )
 
     normalized_account = (
@@ -240,7 +275,7 @@ def enforce_trading_rate_limit(
             TradingRateLimitEvent.username
             == username,
             TradingRateLimitEvent.action
-            == TRADING_LIMIT_ORDER_EXECUTE,
+            == normalized_action,
             TradingRateLimitEvent.created_at
             >= user_since,
         )
@@ -296,6 +331,9 @@ def enforce_trading_rate_limit(
                     retry_after_seconds=(
                         retry_after
                     ),
+                    action=(
+                        normalized_action
+                    ),
                 )
             )
 
@@ -304,7 +342,7 @@ def enforce_trading_rate_limit(
             .account_id
             == normalized_account,
             TradingRateLimitEvent.action
-            == TRADING_LIMIT_ORDER_EXECUTE,
+            == normalized_action,
             TradingRateLimitEvent
             .created_at
             >= account_since,
@@ -364,6 +402,9 @@ def enforce_trading_rate_limit(
                     retry_after_seconds=(
                         retry_after
                     ),
+                    action=(
+                        normalized_action
+                    ),
                 )
             )
 
@@ -374,7 +415,7 @@ def enforce_trading_rate_limit(
                     normalized_account
                 ),
                 action=(
-                    TRADING_LIMIT_ORDER_EXECUTE
+                    normalized_action
                 ),
                 created_at=now,
             )
@@ -384,7 +425,7 @@ def enforce_trading_rate_limit(
 
         return {
             "action": (
-                TRADING_LIMIT_ORDER_EXECUTE
+                normalized_action
             ),
             "user_count": (
                 user_count + 1
@@ -407,3 +448,39 @@ def enforce_trading_rate_limit(
 
     finally:
         session.close()
+
+def enforce_trading_cancel_rate_limit(
+    *,
+    settings: Settings,
+    username: str,
+    account_id: str,
+) -> dict[str, Any] | None:
+    """
+    Apply the independent Spot cancellation bucket.
+
+    This deliberately shares the persistent event table
+    with order creation but never shares the action key
+    or quota counters.
+    """
+    return enforce_trading_rate_limit(
+        settings=settings,
+        username=username,
+        account_id=account_id,
+        action=TRADING_ORDER_CANCEL,
+        user_limit_override=(
+            settings
+            .trading_order_cancel_user_limit
+        ),
+        user_window_override=(
+            settings
+            .trading_order_cancel_user_window_seconds
+        ),
+        account_limit_override=(
+            settings
+            .trading_order_cancel_account_limit
+        ),
+        account_window_override=(
+            settings
+            .trading_order_cancel_account_window_seconds
+        ),
+    )

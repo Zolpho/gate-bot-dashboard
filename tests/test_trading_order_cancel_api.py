@@ -496,3 +496,88 @@ async def test_status_includes_cancellation_audit(
         ]
         == "uncertain"
     )
+
+
+@pytest.mark.asyncio
+async def test_cancel_api_maps_cancellation_rate_limit_to_429(
+    monkeypatch,
+):
+    from fastapi import HTTPException
+
+    from app.trading_rate_limit import (
+        TRADING_ORDER_CANCEL,
+        TradingRateLimitExceeded,
+    )
+
+    user = DashboardUser(
+        username="arnold",
+        role="account_operator",
+        account_ids=("arnold",),
+    )
+
+    monkeypatch.setattr(
+        trading_api,
+        "_trading_request_for_user",
+        lambda user, request_id:
+            source(),
+    )
+
+    async def rate_limited(
+        **kwargs,
+    ):
+        raise TradingRateLimitExceeded(
+            action=TRADING_ORDER_CANCEL,
+            scope="user",
+            limit=20,
+            window_seconds=600,
+            retry_after_seconds=123,
+        )
+
+    monkeypatch.setattr(
+        trading_api,
+        "cancel_limit_order",
+        rate_limited,
+    )
+
+    with pytest.raises(
+        HTTPException,
+    ) as caught:
+        await (
+            trading_api
+            .cancel_trading_limit_order(
+                request_id="request-a",
+                request=cancel_payload(),
+                user=user,
+                settings=settings(
+                    cancel_enabled=True
+                ),
+            )
+        )
+
+    error = caught.value
+
+    assert error.status_code == 429
+
+    assert (
+        error.headers["Retry-After"]
+        == "123"
+    )
+
+    assert (
+        error.detail["action"]
+        == TRADING_ORDER_CANCEL
+    )
+
+    assert (
+        error.detail[
+            "gate_write_performed"
+        ]
+        is False
+    )
+
+    assert (
+        error.detail[
+            "write_performed"
+        ]
+        is False
+    )

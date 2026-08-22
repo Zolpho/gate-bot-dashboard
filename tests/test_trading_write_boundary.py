@@ -22,7 +22,10 @@ from app.models import (
     TradingRateLimitEvent,
 )
 from app.trading_rate_limit import (
+    TRADING_LIMIT_ORDER_EXECUTE,
+    TRADING_ORDER_CANCEL,
     TradingRateLimitExceeded,
+    enforce_trading_cancel_rate_limit,
     enforce_trading_rate_limit,
 )
 
@@ -263,3 +266,127 @@ def test_disabled_rate_limit_does_not_record_event():
         )
 
     assert count == 0
+
+
+def test_cancel_rate_limit_is_independent_from_create_bucket():
+    settings = settings_for_limit(
+        trading_limit_order_user_limit=1,
+        trading_limit_order_account_limit=1,
+        trading_order_cancel_user_limit=1,
+        trading_order_cancel_user_window_seconds=600,
+        trading_order_cancel_account_limit=1,
+        trading_order_cancel_account_window_seconds=600,
+    )
+
+    create_result = enforce_trading_rate_limit(
+        settings=settings,
+        username="alice",
+        account_id="arnold",
+    )
+
+    cancel_result = enforce_trading_cancel_rate_limit(
+        settings=settings,
+        username="alice",
+        account_id="arnold",
+    )
+
+    assert (
+        create_result["action"]
+        == TRADING_LIMIT_ORDER_EXECUTE
+    )
+
+    assert (
+        cancel_result["action"]
+        == TRADING_ORDER_CANCEL
+    )
+
+    # Each independent action bucket is now full.
+    with pytest.raises(
+        TradingRateLimitExceeded
+    ) as create_caught:
+        enforce_trading_rate_limit(
+            settings=settings,
+            username="alice",
+            account_id="arnold",
+        )
+
+    with pytest.raises(
+        TradingRateLimitExceeded
+    ) as cancel_caught:
+        enforce_trading_cancel_rate_limit(
+            settings=settings,
+            username="alice",
+            account_id="arnold",
+        )
+
+    assert (
+        create_caught.value.detail()["action"]
+        == TRADING_LIMIT_ORDER_EXECUTE
+    )
+
+    assert (
+        cancel_caught.value.detail()["action"]
+        == TRADING_ORDER_CANCEL
+    )
+
+    with session_scope() as db:
+        rows = db.scalars(
+            select(
+                TradingRateLimitEvent
+            ).order_by(
+                TradingRateLimitEvent.id.asc()
+            )
+        ).all()
+
+    assert [
+        row.action
+        for row in rows
+    ] == [
+        TRADING_LIMIT_ORDER_EXECUTE,
+        TRADING_ORDER_CANCEL,
+    ]
+
+
+def test_cancel_rate_limit_rejection_is_explicit_no_write():
+    settings = settings_for_limit(
+        trading_order_cancel_user_limit=1,
+        trading_order_cancel_user_window_seconds=600,
+        trading_order_cancel_account_limit=100,
+        trading_order_cancel_account_window_seconds=600,
+    )
+
+    enforce_trading_cancel_rate_limit(
+        settings=settings,
+        username="alice",
+        account_id="arnold",
+    )
+
+    with pytest.raises(
+        TradingRateLimitExceeded
+    ) as caught:
+        enforce_trading_cancel_rate_limit(
+            settings=settings,
+            username="alice",
+            account_id="arnold",
+        )
+
+    detail = caught.value.detail()
+
+    assert detail["scope"] == "user"
+    assert detail["action"] == TRADING_ORDER_CANCEL
+    assert detail["limit"] == 1
+
+    assert (
+        detail["gate_write_performed"]
+        is False
+    )
+
+    assert (
+        detail["write_performed"]
+        is False
+    )
+
+    assert (
+        caught.value.retry_after_seconds
+        >= 1
+    )

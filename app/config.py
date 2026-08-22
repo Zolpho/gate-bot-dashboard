@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     trading_order_cancel_confirmation_text: str = "CANCEL ORDER"
     trading_order_cancel_exptime_ms: int = 5000
 
+    # Cancellation is a risk-reducing operation,
+    # so it has its own, deliberately more generous
+    # rate-limit bucket than order creation.
+    trading_order_cancel_user_limit: int = 20
+    trading_order_cancel_user_window_seconds: int = 600
+    trading_order_cancel_account_limit: int = 40
+    trading_order_cancel_account_window_seconds: int = 600
+
     # Treasury is deliberately isolated from Monitor and Bot Control.
     # Treasury uses its own read-only credential mount.
     gate_treasury_file: Path = Path("/run/secrets/gate_treasury.json")

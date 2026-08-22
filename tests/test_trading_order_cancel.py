@@ -65,6 +65,8 @@ def make_settings(
             "CANCEL ORDER",
         "trading_order_cancel_exptime_ms":
             5000,
+        "trading_rate_limit_enabled":
+            False,
     }
 
     values.update(
@@ -726,3 +728,156 @@ def test_normal_cancelled_remains_confirmed_cancel():
         cancel._is_finished(data)
         is True
     )
+
+
+def _clear_cancel_rate_limit_events():
+    from sqlalchemy import delete
+
+    from app.models import (
+        TradingRateLimitEvent,
+    )
+    from app.trading_rate_limit import (
+        TRADING_ORDER_CANCEL,
+    )
+
+    with session_scope() as db:
+        db.execute(
+            delete(
+                TradingRateLimitEvent
+            ).where(
+                TradingRateLimitEvent.action
+                == TRADING_ORDER_CANCEL
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_cancel_rate_limit_blocks_before_audit_or_delete():
+    from app.trading_rate_limit import (
+        TRADING_ORDER_CANCEL,
+        TradingRateLimitExceeded,
+        enforce_trading_cancel_rate_limit,
+    )
+
+    value = make_settings(
+        trading_rate_limit_enabled=True,
+        trading_order_cancel_user_limit=1,
+        trading_order_cancel_user_window_seconds=600,
+        trading_order_cancel_account_limit=100,
+        trading_order_cancel_account_window_seconds=600,
+    )
+
+    _clear_cancel_rate_limit_events()
+
+    try:
+        first = (
+            enforce_trading_cancel_rate_limit(
+                settings=value,
+                username="alice",
+                account_id="arnold",
+            )
+        )
+
+        assert (
+            first["action"]
+            == TRADING_ORDER_CANCEL
+        )
+
+        with pytest.raises(
+            TradingRateLimitExceeded,
+        ) as caught:
+            await do_cancel(
+                settings=value,
+            )
+
+        detail = caught.value.detail()
+
+        assert detail["action"] == (
+            TRADING_ORDER_CANCEL
+        )
+
+        assert (
+            detail["gate_write_performed"]
+            is False
+        )
+
+        assert (
+            detail["write_performed"]
+            is False
+        )
+
+        # Fresh Gate GET is intentionally before
+        # the rate-limit boundary.
+        assert FakeGateClient.get_calls == 1
+
+        # The cancellation write boundary was never
+        # crossed.
+        assert FakeGateClient.delete_calls == []
+
+        # Rate-limit rejection must not create a
+        # cancellation audit.
+        assert (
+            get_order_cancellation(
+                order_request_id=(
+                    "request-a"
+                )
+            )
+            is None
+        )
+
+    finally:
+        _clear_cancel_rate_limit_events()
+
+
+@pytest.mark.asyncio
+async def test_idempotent_cancel_replay_does_not_consume_second_token():
+    value = make_settings(
+        trading_rate_limit_enabled=True,
+        trading_order_cancel_user_limit=1,
+        trading_order_cancel_user_window_seconds=600,
+        trading_order_cancel_account_limit=1,
+        trading_order_cancel_account_window_seconds=600,
+    )
+
+    _clear_cancel_rate_limit_events()
+
+    try:
+        first = await do_cancel(
+            settings=value,
+        )
+
+        assert (
+            first["status"]
+            == "cancelled"
+        )
+
+        # User/account bucket is already full. This
+        # must still resolve through the existing
+        # cancellation audit instead of attempting
+        # to consume another token.
+        second = await do_cancel(
+            settings=value,
+            cancel_request_id="cancel-b",
+        )
+
+        assert (
+            second["status"]
+            == "idempotent_replay"
+        )
+
+        assert (
+            len(
+                FakeGateClient.delete_calls
+            )
+            == 1
+        )
+
+        assert (
+            second[
+                "gate_write_performed"
+            ]
+            is False
+        )
+
+    finally:
+        _clear_cancel_rate_limit_events()
