@@ -29,7 +29,11 @@ from ..trading_execution import (
     TradingExecutionDenied,
     execute_limit_order,
 )
+from ..trading_open_orders import (
+    merge_open_spot_orders,
+)
 from ..trading_order_audit import (
+    find_order_requests_by_gate_identity,
     get_order_request,
     list_order_reconciliations,
 )
@@ -1798,6 +1802,181 @@ async def reconcile_trading_limit_order_request(
         "reconciliation": result,
     }
 
+
+
+@router.get("/orders/open")
+async def trading_open_orders(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+    account_id: str = Query(
+        min_length=1,
+        max_length=64,
+    ),
+    pair: str = Query(
+        default="EQTY_USDT",
+        min_length=3,
+        max_length=64,
+    ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=100,
+    ),
+):
+    """
+    Read the actual open Spot orders from Gate and
+    enrich them with dashboard audit/cancellation state.
+
+    This route performs Gate reads only.
+    """
+
+    account_id = (
+        _explicit_trading_account(
+            user,
+            account_id,
+        )
+    )
+
+    market = _market(pair)
+
+    try:
+        trading_account = (
+            get_trading_account(
+                account_id
+            )
+        )
+
+    except TradingConfigError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    if (
+        trading_account is None
+        or not trading_account.enabled
+        or not trading_account.configured
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Isolated Spot Trading "
+                "credentials are not "
+                "configured for Gate account "
+                f"{account_id}"
+            ),
+        )
+
+    try:
+        async with GateClient(
+            settings,
+            trading_account,
+        ) as client:
+            response = (
+                await client.list_spot_orders(
+                    currency_pair=market,
+                    status="open",
+                    page=1,
+                    limit=limit,
+                    account="spot",
+                )
+            )
+
+    except GateAPIError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    gate_orders = (
+        [
+            item
+            for item in response.data
+            if isinstance(item, dict)
+        ]
+        if isinstance(
+            response.data,
+            list,
+        )
+        else []
+    )
+
+    gate_order_ids = {
+        str(
+            item.get("id") or ""
+        ).strip()
+        for item in gate_orders
+        if str(
+            item.get("id") or ""
+        ).strip()
+    }
+
+    gate_texts = {
+        str(
+            item.get("text") or ""
+        ).strip()
+        for item in gate_orders
+        if str(
+            item.get("text") or ""
+        ).strip()
+    }
+
+    local_requests = (
+        find_order_requests_by_gate_identity(
+            account_id=account_id,
+            gate_order_ids=(
+                gate_order_ids
+            ),
+            gate_texts=gate_texts,
+        )
+    )
+
+    cancellations_by_request_id = {
+        str(
+            request.get(
+                "request_id"
+            )
+            or ""
+        ): get_order_cancellation(
+            order_request_id=str(
+                request[
+                    "request_id"
+                ]
+            )
+        )
+        for request in local_requests
+        if request.get(
+            "request_id"
+        )
+    }
+
+    orders = merge_open_spot_orders(
+        account_id=account_id,
+        pair=market,
+        gate_orders=gate_orders,
+        local_requests=(
+            local_requests
+        ),
+        cancellations_by_request_id=(
+            cancellations_by_request_id
+        ),
+    )
+
+    return {
+        "gate_read_performed": True,
+        "gate_write_performed": False,
+        "write_performed": False,
+        "account_id": account_id,
+        "pair": market,
+        "count": len(orders),
+        "orders": orders,
+    }
 
 @router.get("/trades")
 async def trading_trades(

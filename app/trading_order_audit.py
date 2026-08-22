@@ -466,6 +466,110 @@ def list_order_requests(
         ]
 
 
+
+def find_order_requests_by_gate_identity(
+    *,
+    account_id: str,
+    gate_order_ids: set[str] | None = None,
+    gate_texts: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Return local Spot order audits matching Gate identities.
+
+    This is intentionally identity-based rather than
+    "most recent N requests" so a long-lived open order
+    cannot fall out of the dashboard join merely because
+    newer trading requests were created later.
+    """
+
+    normalized_account = (
+        account_id.strip().lower()
+    )
+
+    if not normalized_account:
+        raise ValueError(
+            "account_id cannot be empty"
+        )
+
+    normalized_ids = {
+        str(value).strip()
+        for value in (
+            gate_order_ids or set()
+        )
+        if str(value).strip()
+    }
+
+    normalized_texts = {
+        str(value).strip()
+        for value in (
+            gate_texts or set()
+        )
+        if str(value).strip()
+    }
+
+    if (
+        not normalized_ids
+        and not normalized_texts
+    ):
+        return []
+
+    identity_filter = None
+
+    if normalized_ids:
+        identity_filter = (
+            TradingOrderRequest
+            .gate_order_id.in_(
+                sorted(normalized_ids)
+            )
+        )
+
+    if normalized_texts:
+        text_filter = (
+            TradingOrderRequest
+            .gate_text.in_(
+                sorted(normalized_texts)
+            )
+        )
+
+        identity_filter = (
+            text_filter
+            if identity_filter is None
+            else (
+                identity_filter
+                | text_filter
+            )
+        )
+
+    with session_scope() as db:
+        statement = (
+            select(
+                TradingOrderRequest
+            )
+            .where(
+                TradingOrderRequest
+                .account_id
+                == normalized_account
+            )
+            .where(
+                identity_filter
+            )
+            .order_by(
+                TradingOrderRequest
+                .created_at.desc(),
+                TradingOrderRequest
+                .id.desc(),
+            )
+        )
+
+        rows = db.scalars(
+            statement
+        ).all()
+
+        return [
+            _snapshot(row)
+            for row in rows
+        ]
+
 def mark_order_request(
     request_id: str,
     *,
