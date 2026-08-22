@@ -162,7 +162,7 @@ function clearTradingLimitOrderPreview() {
   tradingState.limitOrderPreview = null;
   tradingState.limitOrderExecutionAttempt = null;
   tradingState.limitOrderCancellationAttempt = null;
-tradingState.limitOrderAmendmentAttempt = null;
+  tradingState.limitOrderAmendmentAttempt = null;
   tradingState.loadingLimitOrderCancellation = false;
   tradingState.loadingLimitOrderCancelStatus = false;
   tradingState.loadingLimitOrderCancelReconcile = false;
@@ -1482,6 +1482,48 @@ function tradingLimitGateOrderId() {
   }
 
   return '';
+}
+
+
+function tradingLimitAmendRequestId() {
+  const timestamp = (
+    Date.now()
+      .toString(36)
+  );
+
+  let random = '';
+
+  if (
+    globalThis.crypto
+    && typeof globalThis.crypto.randomUUID
+    === 'function'
+  ) {
+    random = (
+      globalThis.crypto
+        .randomUUID()
+        .replace(
+          /[^A-Za-z0-9]/g,
+          ''
+        )
+        .slice(0, 18)
+    );
+
+  } else {
+    random = (
+      Math.random()
+        .toString(36)
+        .slice(2, 20)
+    );
+  }
+
+  return (
+    `amend-ui-${timestamp}-${random}`
+      .replace(
+        /[^A-Za-z0-9._-]/g,
+        '-'
+      )
+      .slice(0, 128)
+  );
 }
 
 
@@ -3628,6 +3670,21 @@ async function recoverTradingLimitCheckpoint({
     renderTradingLimitOrderTicket();
     renderTradingLimitExecution();
 
+    /*
+     * Recovery can change whether persistent
+     * Open Orders may expose Cancel/Amend.
+     *
+     * Rerender immediately after hydrating or
+     * clearing the checkpoint rather than
+     * waiting for the next polling refresh.
+     */
+    if (
+      typeof window.tradingRenderPersistentOrders
+      === 'function'
+    ) {
+      window.tradingRenderPersistentOrders();
+    }
+
     return {
       status: attempt.status,
       recovered: true,
@@ -3678,6 +3735,17 @@ async function recoverTradingLimitCheckpoint({
 
     renderTradingLimitOrderTicket();
     renderTradingLimitExecution();
+
+    /*
+     * Missing/failed recovery is itself a
+     * fail-closed action-state change.
+     */
+    if (
+      typeof window.tradingRenderPersistentOrders
+      === 'function'
+    ) {
+      window.tradingRenderPersistentOrders();
+    }
 
     if (!quiet) {
       showToast(
@@ -5626,6 +5694,14 @@ window.tradingLimitRecoveryCheckpointClear = (
   tradingLimitRecoveryCheckpointClear
 );
 
+
+window.tradingLimitRecoveryDecimalIdentity = (
+  tradingLimitRecoveryDecimalIdentity
+);
+
+window.tradingLimitAmendRequestId = (
+  tradingLimitAmendRequestId
+);
 
 window.tradingLimitCancelRequestId = (
   tradingLimitCancelRequestId

@@ -156,7 +156,7 @@ def test_frontend_capabilities_fail_closed_for_amendment():
         assert item in text
 
 
-def test_frontend_amendment_visibility_remains_read_only():
+def test_frontend_amendment_visibility_coexists_with_guarded_action():
     trading = Path(
         "frontend/trading.js"
     ).read_text()
@@ -169,6 +169,8 @@ def test_frontend_amendment_visibility_remains_read_only():
         "frontend/index.html"
     ).read_text()
 
+    # Stage 3J6A amendment visibility remains
+    # present in both persistent order tables.
     assert (
         "function tradingOrderAmendmentReadModel("
         in trading
@@ -178,20 +180,39 @@ def test_frontend_amendment_visibility_remains_read_only():
         "<th>Amendment</th>"
     ) == 2
 
-    for text in (
-        trading,
-        limit,
-    ):
-        assert "'/amend" not in text
-        assert '"/amend' not in text
-        assert "/amendments/" not in text
-        assert (
-            "data-trading-amend-action"
-            not in text
-        )
+    # Stage 3J6B1 deliberately introduces one
+    # guarded browser price-amend operation.
+    assert trading.count(
+        "+ '/amend'"
+    ) == 1
+
+    assert trading.count(
+        "method: 'POST'"
+    ) == 2
+
+    # The recovery module itself still owns no
+    # amendment write route.
+    assert "/amend" not in limit
+
+    # Manual amendment reconciliation remains
+    # outside 3J6B1.
+    assert "/amendments/" not in trading
+    assert "/amendments/" not in limit
+
+    # Runtime eligibility is separately gated
+    # by the amendment arm.
+    assert (
+        ".amend_arm_enabled"
+        in trading
+    )
+
+    assert (
+        "label: 'Amend disabled'"
+        in trading
+    )
 
 
-def test_guarded_notice_describes_read_only_amendment_stage():
+def test_guarded_notice_describes_disarmed_amendment_action():
     html = Path(
         "frontend/index.html"
     ).read_text()
@@ -206,9 +227,32 @@ def test_guarded_notice_describes_read_only_amendment_stage():
         in html
     )
 
+    # Stage 3J6B1 has a browser amendment
+    # operation, but the separate backend arm
+    # still controls whether it is actionable.
+    assert (
+        "browser Amend price action"
+        in html
+    )
+
+    assert (
+        "capability-gated"
+        in html
+    )
+
+    assert (
+        "remains unavailable"
+        in html
+    )
+
+    assert (
+        "amendment arm is disarmed"
+        in html
+    )
+
     assert (
         "no browser amendment action is enabled yet"
-        in html
+        not in html
     )
 
 

@@ -212,31 +212,15 @@ def test_checkpoint_recovery_dispatches_amendment_without_post():
     assert "method: 'POST'" not in recover
 
 
-def test_3j6b0_adds_no_amendment_api_surface():
-    core = Path(
-        "frontend/trading.js"
-    ).read_text()
-
+def test_recovery_module_adds_no_amendment_api_surface():
     limit = _text()
-
-    assert core.count(
-        "method: 'POST'"
-    ) == 1
 
     assert limit.count(
         "method: 'POST'"
     ) == 5
 
-    for text in (
-        core,
-        limit,
-    ):
-        assert "/amend" not in text
-        assert "/amendments/" not in text
-        assert (
-            "data-trading-amend-action"
-            not in text
-        )
+    assert "/amend" not in limit
+    assert "/amendments/" not in limit
 
 
 def test_amendment_recovery_validates_source_gate_order_without_amend_audit():
@@ -263,4 +247,22 @@ def test_amendment_recovery_validates_source_gate_order_without_amend_audit():
     assert (
         "identity does not match the source "
         in hydrate
+    )
+
+
+def test_checkpoint_recovery_rerenders_persistent_order_actions():
+    recover = _function(
+        "recoverTradingLimitCheckpoint"
+    )
+
+    assert (
+        recover.count(
+            "window.tradingRenderPersistentOrders();"
+        )
+        == 2
+    )
+
+    assert (
+        "typeof window.tradingRenderPersistentOrders"
+        in recover
     )

@@ -29,6 +29,8 @@ const tradingState = {
   loadingRecentOrders: false,
   persistentCancelPending: new Set(),
   persistentCancelFrozen: new Set(),
+  persistentAmendPending: new Set(),
+  persistentAmendFrozen: new Set(),
 };
 
 
@@ -1512,6 +1514,1054 @@ function tradingOrderAmendmentReadModel(
 }
 
 
+function tradingPersistentAmendEligibility(
+  row,
+) {
+  const gate = (
+    row?.gate_order || {}
+  );
+
+  const request = (
+    row?.request || {}
+  );
+
+  const capabilities = (
+    tradingState
+      .limitOrderExecutionCapabilities
+    || {}
+  );
+
+  const requestId = String(
+    request.request_id || ''
+  ).trim();
+
+  const gateOrderId = String(
+    row?.gate_order_id
+    || gate.id
+    || ''
+  ).trim();
+
+  const localGateOrderId = String(
+    request.gate_order_id || ''
+  ).trim();
+
+  const gateStatus = String(
+    row?.gate_status
+    || gate.status
+    || ''
+  ).trim().toLowerCase();
+
+  const finishAs = String(
+    gate.finish_as || ''
+  ).trim().toLowerCase();
+
+  const sourceStatus = String(
+    request.status || ''
+  ).trim().toLowerCase();
+
+  const accountId = String(
+    request.account_id || ''
+  ).trim().toLowerCase();
+
+  const pair = String(
+    request.pair || ''
+  ).trim().toUpperCase();
+
+  const configuredAccounts = new Set(
+    (
+      capabilities
+        .configured_account_ids
+      || []
+    ).map(
+      value => String(
+        value || ''
+      ).trim().toLowerCase()
+    )
+  );
+
+  const authorizedAccounts = new Set(
+    (
+      capabilities
+        .authorized_account_ids
+      || []
+    ).map(
+      value => String(
+        value || ''
+      ).trim().toLowerCase()
+    )
+  );
+
+  if (!row?.managed) {
+    return {
+      allowed: false,
+      label: '—',
+      reason: 'unmanaged',
+    };
+  }
+
+  if (
+    row?.identity_conflict
+    || row?.state_conflict
+  ) {
+    return {
+      allowed: false,
+      label: 'Review',
+      reason: 'conflict',
+    };
+  }
+
+  /*
+   * Backend amendment policy is intentionally
+   * stricter than "cancellation in progress":
+   * any cancellation audit blocks amendment.
+   */
+  if (row?.cancellation) {
+    return {
+      allowed: false,
+      label: 'Cancellation recorded',
+      reason: 'existing_cancellation',
+    };
+  }
+
+  if (row?.active_amendment) {
+    const status = String(
+      row.active_amendment.status || ''
+    ).trim();
+
+    return {
+      allowed: false,
+      label: (
+        status
+          ? tradingOrderStatusLabel(
+              status
+            )
+          : 'Amend unresolved'
+      ),
+      reason: 'active_amendment',
+    };
+  }
+
+  if (
+    !requestId
+    || !gateOrderId
+    || !/^[0-9]+$/.test(
+      gateOrderId
+    )
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'identity_missing',
+    };
+  }
+
+  if (
+    !localGateOrderId
+    || localGateOrderId !== gateOrderId
+  ) {
+    return {
+      allowed: false,
+      label: 'Review',
+      reason: 'gate_id_mismatch',
+    };
+  }
+
+  if (
+    gateStatus !== 'open'
+    || ![
+      '',
+      'open',
+    ].includes(
+      finishAs
+    )
+  ) {
+    return {
+      allowed: false,
+      label: 'Not open',
+      reason: 'not_open',
+    };
+  }
+
+  if (
+    request.write_performed !== true
+    || String(
+      request.order_type || ''
+    ).trim().toLowerCase()
+      !== 'limit'
+    || ![
+      'submitted',
+      'confirmed_open',
+    ].includes(
+      sourceStatus
+    )
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'audit_not_amendable',
+    };
+  }
+
+  if (
+    accountId !== (
+      tradingState.accountId || ''
+    ).toLowerCase()
+    || pair !== (
+      tradingState.pair || ''
+    ).toUpperCase()
+  ) {
+    return {
+      allowed: false,
+      label: 'Review',
+      reason: 'scope_mismatch',
+    };
+  }
+
+  if (
+    tradingState
+      .persistentCancelPending
+      .has(requestId)
+    || tradingState
+      .persistentCancelFrozen
+      .has(requestId)
+  ) {
+    return {
+      allowed: false,
+      label: 'Cancellation active',
+      reason: 'cancel_active',
+    };
+  }
+
+  if (
+    tradingState
+      .persistentAmendPending
+      .has(requestId)
+  ) {
+    return {
+      allowed: false,
+      label: 'Amending…',
+      reason: 'pending',
+    };
+  }
+
+  if (
+    tradingState
+      .persistentAmendFrozen
+      .has(requestId)
+  ) {
+    return {
+      allowed: false,
+      label: 'Check amend',
+      reason: 'frozen',
+    };
+  }
+
+  /*
+   * Synthetic or checkpoint-based recovery from
+   * any Trading write blocks a new amendment.
+   */
+  const unresolvedAttempt = [
+    tradingState
+      .limitOrderExecutionAttempt,
+    tradingState
+      .limitOrderCancellationAttempt,
+    tradingState
+      .limitOrderAmendmentAttempt,
+  ].some(
+    attempt => (
+      attempt
+      && attempt.definitive !== true
+    )
+  );
+
+  if (unresolvedAttempt) {
+    return {
+      allowed: false,
+      label: 'Recovery required',
+      reason: 'recovery_required',
+    };
+  }
+
+  const checkpointReader = (
+    window
+      .tradingLimitRecoveryCheckpointForUser
+  );
+
+  if (
+    typeof checkpointReader
+    !== 'function'
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'recovery_unavailable',
+    };
+  }
+
+  try {
+    if (checkpointReader()) {
+      return {
+        allowed: false,
+        label: 'Recovery required',
+        reason: 'checkpoint_present',
+      };
+    }
+
+  } catch {
+    return {
+      allowed: false,
+      label: 'Review',
+      reason: 'checkpoint_error',
+    };
+  }
+
+  if (
+    capabilities
+      .amendment_implemented
+      !== true
+    || capabilities
+      .amendment_route_available
+      !== true
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'capability_unavailable',
+    };
+  }
+
+  /*
+   * This is the primary browser arm gate.
+   * With the current .env=false there must be
+   * no actionable Amend button.
+   */
+  if (
+    capabilities
+      .amend_arm_enabled
+      !== true
+  ) {
+    return {
+      allowed: false,
+      label: 'Amend disabled',
+      reason: 'amend_disarmed',
+    };
+  }
+
+  if (
+    !authorizedAccounts.has(accountId)
+    || !configuredAccounts.has(accountId)
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'account_unavailable',
+    };
+  }
+
+  const confirmation = String(
+    capabilities
+      .amend_required_confirmation
+    || ''
+  );
+
+  if (!confirmation) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'confirmation_missing',
+    };
+  }
+
+  return {
+    allowed: true,
+    label: 'Amend price',
+    reason: 'ready',
+    requestId,
+    gateOrderId,
+    confirmation,
+    currentPrice: String(
+      gate.price || ''
+    ).trim(),
+  };
+}
+
+
+function tradingPersistentAmendMessage(
+  status,
+  result = {},
+) {
+  const normalized = String(
+    status || ''
+  ).trim().toLowerCase();
+
+  if (
+    normalized === 'amended'
+    || normalized === 'confirmed_amended'
+  ) {
+    return (
+      'Gate confirmed the requested '
+      + 'price amendment.'
+    );
+  }
+
+  if (
+    normalized === 'confirmed_not_applied'
+  ) {
+    return (
+      'Gate confirmed that the requested '
+      + 'price was not applied.'
+    );
+  }
+
+  if (
+    normalized === 'already_at_requested_price'
+  ) {
+    return (
+      'The Gate order is already at the '
+      + 'requested price.'
+    );
+  }
+
+  if (
+    normalized === 'uncertain'
+    || normalized === 'attention'
+    || normalized === 'amending'
+  ) {
+    return (
+      'The amendment outcome is not definitive. '
+      + 'Do not send another Trading write '
+      + 'until its status is resolved.'
+    );
+  }
+
+  if (
+    normalized === 'rejected'
+    || normalized === 'local_rejected'
+    || normalized === 'precheck_error'
+    || normalized === 'aborted'
+  ) {
+    return (
+      String(
+        result?.error
+        || result?.message
+        || ''
+      ).trim()
+      || (
+        'The amendment was not accepted.'
+      )
+    );
+  }
+
+  return (
+    `Amendment status: ${normalized || 'unknown'}.`
+  );
+}
+
+
+async function tradingAmendPersistentOpenOrder(
+  requestId,
+) {
+  const normalizedRequestId = String(
+    requestId || ''
+  ).trim();
+
+  if (!normalizedRequestId) {
+    return;
+  }
+
+  /*
+   * Resolve identity again from the current
+   * authenticated Open Orders response.
+   * DOM attributes contain only the source
+   * request ID and are never trusted for Gate
+   * identity, market or account scope.
+   */
+  const matches = (
+    tradingState.openOrders || []
+  ).filter(row => (
+    String(
+      row?.request?.request_id
+      || ''
+    ).trim()
+    === normalizedRequestId
+  ));
+
+  if (matches.length !== 1) {
+    showToast(
+      'Unable to identify exactly one managed '
+      + 'open order for amendment.',
+      true,
+    );
+
+    return;
+  }
+
+  const row = matches[0];
+
+  const eligibility = (
+    tradingPersistentAmendEligibility(
+      row
+    )
+  );
+
+  if (!eligibility.allowed) {
+    showToast(
+      'This open order is not currently '
+      + 'eligible for price amendment.',
+      true,
+    );
+
+    tradingRenderOpenOrders();
+
+    return;
+  }
+
+  const decimalIdentity = (
+    window
+      .tradingLimitRecoveryDecimalIdentity
+  );
+
+  if (
+    typeof decimalIdentity
+    !== 'function'
+  ) {
+    showToast(
+      'Amendment price validation is '
+      + 'unavailable. No amendment was sent.',
+      true,
+    );
+
+    return;
+  }
+
+  const typedPrice = window.prompt(
+    (
+      'Enter the new price for this live '
+      + 'Gate Spot limit order.'
+      + '\n\n'
+      + `Gate order: ${eligibility.gateOrderId}`
+      + '\n'
+      + `Current price: ${
+          eligibility.currentPrice || '—'
+        }`
+    ),
+    eligibility.currentPrice || '',
+  );
+
+  if (typedPrice === null) {
+    return;
+  }
+
+  const requestedPrice = String(
+    decimalIdentity(
+      typedPrice
+    ) || ''
+  ).trim();
+
+  if (!requestedPrice) {
+    showToast(
+      'Requested amendment price must be '
+      + 'a positive decimal.',
+      true,
+    );
+
+    return;
+  }
+
+  const currentPrice = String(
+    decimalIdentity(
+      eligibility.currentPrice
+    ) || ''
+  ).trim();
+
+  if (
+    currentPrice
+    && requestedPrice === currentPrice
+  ) {
+    showToast(
+      'The requested price is already the '
+      + 'current Gate order price.',
+      true,
+    );
+
+    return;
+  }
+
+  const expectedConfirmation = (
+    eligibility.confirmation
+  );
+
+  const typedConfirmation = window.prompt(
+    (
+      'Type exactly:\n\n'
+      + `${expectedConfirmation}`
+      + '\n\n'
+      + 'to amend this LIVE Gate Spot order.'
+      + '\n\n'
+      + `Gate order: ${eligibility.gateOrderId}`
+      + '\n'
+      + `New price: ${requestedPrice}`
+    ),
+    '',
+  );
+
+  if (typedConfirmation === null) {
+    return;
+  }
+
+  if (
+    typedConfirmation
+    !== expectedConfirmation
+  ) {
+    showToast(
+      'Exact amendment confirmation '
+      + 'text did not match.',
+      true,
+    );
+
+    return;
+  }
+
+  const idFactory = (
+    window
+      .tradingLimitAmendRequestId
+  );
+
+  if (
+    typeof idFactory
+    !== 'function'
+  ) {
+    showToast(
+      'Amendment request identity '
+      + 'generator is unavailable.',
+      true,
+    );
+
+    return;
+  }
+
+  const amendRequestId = String(
+    idFactory() || ''
+  ).trim();
+
+  if (!amendRequestId) {
+    showToast(
+      'Unable to create amendment '
+      + 'request identity.',
+      true,
+    );
+
+    return;
+  }
+
+  const checkpointWriter = (
+    window
+      .tradingLimitRecoveryCheckpointWrite
+  );
+
+  if (
+    typeof checkpointWriter
+    !== 'function'
+  ) {
+    showToast(
+      'Trading recovery protection is '
+      + 'unavailable. No amendment was sent.',
+      true,
+    );
+
+    return;
+  }
+
+  /*
+   * CRITICAL:
+   * Persist the full amendment recovery identity
+   * before crossing the browser POST boundary.
+   */
+  try {
+    checkpointWriter({
+      kind: 'amendment',
+      requestId:
+        normalizedRequestId,
+      amendRequestId,
+      gateOrderId:
+        eligibility.gateOrderId,
+      requestedPrice,
+    });
+
+  } catch (error) {
+    showToast(
+      (
+        error?.message
+        || (
+          'Unable to preserve amendment '
+          + 'recovery identity.'
+        )
+      )
+      + ' No amendment was sent.',
+      true,
+    );
+
+    return;
+  }
+
+  /*
+   * Freeze before POST. There is exactly one
+   * browser amendment POST attempt and never
+   * an automatic retry.
+   */
+  tradingState
+    .persistentAmendPending
+    .add(normalizedRequestId);
+
+  tradingState
+    .persistentAmendFrozen
+    .add(normalizedRequestId);
+
+  tradingRenderOpenOrders();
+
+  let definitiveOutcome = false;
+  let checkpointCleared = false;
+
+  try {
+    const result = await adminApi(
+      (
+        '/api/trading/limit-orders/requests/'
+        + encodeURIComponent(
+            normalizedRequestId
+          )
+        + '/amend'
+      ),
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          amend_request_id:
+            amendRequestId,
+          requested_price:
+            requestedPrice,
+          confirmation:
+            typedConfirmation,
+        }),
+      },
+    );
+
+    if (
+      typeof result?.status !== 'string'
+      || typeof result?.definitive
+        !== 'boolean'
+      || typeof result?.gate_write_performed
+        !== 'boolean'
+      || typeof result?.write_performed
+        !== 'boolean'
+      || result.gate_write_performed
+        !== result.write_performed
+      || typeof result?.manual_review_required
+        !== 'boolean'
+      || String(
+        result?.order_request_id
+        || ''
+      ) !== normalizedRequestId
+      || String(
+        result?.amend_request_id
+        || ''
+      ) !== amendRequestId
+    ) {
+      throw new Error(
+        'Safety invariant failed: invalid '
+        + 'amendment response.'
+      );
+    }
+
+    const amendment = (
+      result?.amendment || null
+    );
+
+    if (amendment) {
+      const durableRequestedPrice = String(
+        decimalIdentity(
+          amendment.requested_price
+        ) || ''
+      ).trim();
+
+      if (
+        String(
+          amendment.order_request_id
+          || ''
+        ) !== normalizedRequestId
+        || String(
+          amendment.amend_request_id
+          || ''
+        ) !== amendRequestId
+        || String(
+          amendment.gate_order_id
+          || ''
+        ) !== eligibility.gateOrderId
+        || !durableRequestedPrice
+        || durableRequestedPrice
+          !== requestedPrice
+      ) {
+        throw new Error(
+          'Safety invariant failed: amendment '
+          + 'audit identity mismatch.'
+        );
+      }
+    }
+
+    tradingState
+      .limitOrderAmendmentAttempt = {
+        amendRequestId,
+        orderRequestId:
+          normalizedRequestId,
+        gateOrderId:
+          eligibility.gateOrderId,
+        requestedPrice,
+        status:
+          result.status,
+        definitive:
+          result.definitive,
+        gateWritePerformed:
+          result.gate_write_performed,
+        amendment,
+        result,
+        message: (
+          tradingPersistentAmendMessage(
+            result.status,
+            result,
+          )
+        ),
+        recovered: false,
+      };
+
+    definitiveOutcome = (
+      result.definitive === true
+    );
+
+    showToast(
+      tradingPersistentAmendMessage(
+        result.status,
+        result,
+      ),
+      (
+        !result.definitive
+        || result.manual_review_required
+      ),
+    );
+
+    if (result.definitive) {
+      const clear = (
+        window
+          .tradingLimitRecoveryClearKnownDefinitive
+      );
+
+      if (
+        typeof clear !== 'function'
+      ) {
+        throw new Error(
+          'Trading recovery checkpoint clearer '
+          + 'is unavailable after a definitive '
+          + 'amendment.'
+        );
+      }
+
+      const clearResult = clear({
+        kind: 'amendment',
+        requestId:
+          normalizedRequestId,
+        amendRequestId,
+      });
+
+      checkpointCleared = (
+        clearResult?.cleared === true
+      );
+
+      if (!checkpointCleared) {
+        showToast(
+          'The amendment outcome is definitive, '
+          + 'but its browser recovery checkpoint '
+          + 'could not be cleared. New Trading '
+          + 'writes remain blocked.',
+          true,
+        );
+      }
+    }
+
+  } catch (error) {
+    const detail = (
+      error?.payload?.detail
+    );
+
+    const errorStatus = Number(
+      error?.status || 0
+    );
+
+    const detailStatus = Number(
+      detail?.status_code || 0
+    );
+
+    const structuredNoWriteDenial = Boolean(
+      detail
+      && typeof detail === 'object'
+      && !Array.isArray(detail)
+      && errorStatus > 0
+      && detailStatus === errorStatus
+      && String(
+        detail.code || ''
+      ).trim()
+      && String(
+        detail.message || ''
+      ).trim()
+      && detail.gate_write_performed
+        === false
+      && detail.write_performed
+        === false
+    );
+
+    if (structuredNoWriteDenial) {
+      /*
+       * A complete backend denial response proves
+       * that Gate's amendment write boundary was
+       * not crossed. This is definitive and the
+       * pre-POST browser checkpoint may be cleared.
+       */
+      const status = String(
+        detail.code
+        || 'local_rejected'
+      ).trim().toLowerCase();
+
+      tradingState
+        .limitOrderAmendmentAttempt = {
+          amendRequestId,
+          orderRequestId:
+            normalizedRequestId,
+          gateOrderId:
+            eligibility.gateOrderId,
+          requestedPrice,
+          status,
+          definitive: true,
+          gateWritePerformed: false,
+          amendment: null,
+          result: detail,
+          message: (
+            String(
+              detail.message || ''
+            ).trim()
+            || (
+              'The amendment was rejected '
+              + 'before any Gate write.'
+            )
+          ),
+          recovered: false,
+        };
+
+      definitiveOutcome = true;
+
+      const clear = (
+        window
+          .tradingLimitRecoveryClearKnownDefinitive
+      );
+
+      if (
+        typeof clear === 'function'
+      ) {
+        const clearResult = clear({
+          kind: 'amendment',
+          requestId:
+            normalizedRequestId,
+          amendRequestId,
+        });
+
+        checkpointCleared = (
+          clearResult?.cleared === true
+        );
+      }
+
+      showToast(
+        String(
+          detail.message || ''
+        ).trim()
+        || (
+          'The amendment was rejected before '
+          + 'any Gate write.'
+        ),
+        true,
+      );
+
+    } else {
+      /*
+       * Browser/network/invalid-response ambiguity
+       * after POST must remain frozen. Never retry
+       * automatically.
+       */
+      tradingState
+        .limitOrderAmendmentAttempt = {
+          amendRequestId,
+          orderRequestId:
+            normalizedRequestId,
+          gateOrderId:
+            eligibility.gateOrderId,
+          requestedPrice,
+          status: 'client_uncertain',
+          definitive: false,
+          gateWritePerformed: null,
+          amendment: null,
+          result: null,
+          message: (
+            error?.message
+            || (
+              'Amendment outcome is uncertain.'
+            )
+          ),
+          recovered: false,
+        };
+
+      showToast(
+        (
+          error?.message
+          || 'Amendment outcome is uncertain.'
+        )
+        + ' Do not send another Trading write '
+        + 'until status is checked.',
+        true,
+      );
+    }
+
+  } finally {
+    tradingState
+      .persistentAmendPending
+      .delete(normalizedRequestId);
+
+    /*
+     * A definitive response is allowed to release
+     * the session freeze only after the matching
+     * recovery checkpoint was successfully cleared.
+     */
+    if (
+      definitiveOutcome
+      && checkpointCleared
+    ) {
+      tradingState
+        .persistentAmendFrozen
+        .delete(normalizedRequestId);
+    }
+
+    tradingRenderOpenOrders();
+
+    /*
+     * Read-only refresh after the one POST.
+     * There is no automatic amendment retry and
+     * no automatic manual-reconciliation POST.
+     */
+    await Promise.allSettled([
+      tradingRefreshPersistentOrders({
+        quiet: true,
+      }),
+      tradingLoadSnapshot({
+        quiet: true,
+      }),
+    ]);
+  }
+}
+
+
 function tradingPersistentCancelEligibility(
   row,
 ) {
@@ -1622,6 +2672,42 @@ function tradingPersistentCancelEligibility(
     };
   }
 
+  if (row?.active_amendment) {
+    const status = String(
+      row.active_amendment.status || ''
+    ).trim();
+
+    return {
+      allowed: false,
+      label: (
+        status
+          ? tradingOrderStatusLabel(
+              status
+            )
+          : 'Amend unresolved'
+      ),
+      reason: 'active_amendment',
+    };
+  }
+
+  if (
+    requestId
+    && (
+      tradingState
+        .persistentAmendPending
+        .has(requestId)
+      || tradingState
+        .persistentAmendFrozen
+        .has(requestId)
+    )
+  ) {
+    return {
+      allowed: false,
+      label: 'Amend active',
+      reason: 'amend_active',
+    };
+  }
+
   if (
     !requestId
     || !gateOrderId
@@ -1717,6 +2803,69 @@ function tradingPersistentCancelEligibility(
       allowed: false,
       label: 'Check status',
       reason: 'frozen',
+    };
+  }
+
+  /*
+   * A surviving recovery attempt from ANY
+   * Trading write blocks another cancellation.
+   *
+   * This is especially important after browser
+   * reload: an amendment checkpoint can hydrate
+   * before Open Orders exposes active_amendment.
+   */
+  const unresolvedAttempt = [
+    tradingState
+      .limitOrderExecutionAttempt,
+    tradingState
+      .limitOrderCancellationAttempt,
+    tradingState
+      .limitOrderAmendmentAttempt,
+  ].some(
+    attempt => (
+      attempt
+      && attempt.definitive !== true
+    )
+  );
+
+  if (unresolvedAttempt) {
+    return {
+      allowed: false,
+      label: 'Recovery required',
+      reason: 'recovery_required',
+    };
+  }
+
+  const checkpointReader = (
+    window
+      .tradingLimitRecoveryCheckpointForUser
+  );
+
+  if (
+    typeof checkpointReader
+    !== 'function'
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'recovery_unavailable',
+    };
+  }
+
+  try {
+    if (checkpointReader()) {
+      return {
+        allowed: false,
+        label: 'Recovery required',
+        reason: 'checkpoint_present',
+      };
+    }
+
+  } catch {
+    return {
+      allowed: false,
+      label: 'Review',
+      reason: 'checkpoint_error',
     };
   }
 
@@ -2238,15 +3387,39 @@ function tradingRenderOpenOrders() {
         )
       );
 
+      const amendEligibility = (
+        tradingPersistentAmendEligibility(
+          row
+        )
+      );
+
       const amendmentReadModel = (
         tradingOrderAmendmentReadModel(
           row
         )
       );
 
-      const action = (
-        cancelEligibility.allowed
-          ? `
+      const actionButtons = [];
+
+      if (amendEligibility.allowed) {
+        actionButtons.push(
+          `
+            <button
+              type="button"
+              class="trading-orders-amend-button"
+              data-trading-persistent-amend-request="${escapeHtml(
+                amendEligibility.requestId
+              )}"
+            >
+              Amend price
+            </button>
+          `
+        );
+      }
+
+      if (cancelEligibility.allowed) {
+        actionButtons.push(
+          `
             <button
               type="button"
               class="trading-orders-cancel-button"
@@ -2257,14 +3430,40 @@ function tradingRenderOpenOrders() {
               Cancel
             </button>
           `
-          : `
-            <span class="trading-orders-action-note">
-              ${escapeHtml(
-                cancelEligibility.label
-              )}
-            </span>
-          `
-      );
+        );
+      }
+
+      let action;
+
+      if (actionButtons.length) {
+        action = `
+          <div class="trading-orders-action-buttons">
+            ${actionButtons.join('')}
+          </div>
+        `;
+
+      } else {
+        const amendOperationalReason = [
+          'pending',
+          'frozen',
+          'active_amendment',
+          'recovery_required',
+          'checkpoint_present',
+          'checkpoint_error',
+        ].includes(
+          amendEligibility.reason
+        );
+
+        action = `
+          <span class="trading-orders-action-note">
+            ${escapeHtml(
+              amendOperationalReason
+                ? amendEligibility.label
+                : cancelEligibility.label
+            )}
+          </span>
+        `;
+      }
 
       return `
         <tr>
@@ -3432,20 +4631,46 @@ function bindTradingEvents() {
   $('#tradingOpenOrders')?.addEventListener(
     'click',
     event => {
-      const button = (
+      const target = (
         event.target instanceof Element
-          ? event.target.closest(
-              '[data-trading-persistent-cancel-request]'
-            )
+          ? event.target
           : null
       );
 
-      if (!button) {
+      if (!target) {
+        return;
+      }
+
+      const amendButton = target.closest(
+        '[data-trading-persistent-amend-request]'
+      );
+
+      if (amendButton) {
+        const requestId = String(
+          amendButton.dataset
+            .tradingPersistentAmendRequest
+          || ''
+        ).trim();
+
+        if (requestId) {
+          void tradingAmendPersistentOpenOrder(
+            requestId
+          );
+        }
+
+        return;
+      }
+
+      const cancelButton = target.closest(
+        '[data-trading-persistent-cancel-request]'
+      );
+
+      if (!cancelButton) {
         return;
       }
 
       const requestId = String(
-        button.dataset
+        cancelButton.dataset
           .tradingPersistentCancelRequest
         || ''
       ).trim();
