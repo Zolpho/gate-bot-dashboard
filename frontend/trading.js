@@ -31,6 +31,7 @@ const tradingState = {
   persistentCancelFrozen: new Set(),
   persistentAmendPending: new Set(),
   persistentAmendFrozen: new Set(),
+  persistentAmendReconcilePending: new Set(),
 };
 
 
@@ -1511,6 +1512,647 @@ function tradingOrderAmendmentReadModel(
       + 'for this managed order.'
     ),
   };
+}
+
+
+function tradingAmendReconcileKey(
+  requestId,
+  amendRequestId,
+) {
+  return (
+    String(
+      requestId || ''
+    ).trim()
+    + '::'
+    + String(
+      amendRequestId || ''
+    ).trim()
+  );
+}
+
+
+function tradingPersistentAmendReconcileEligibility(
+  row,
+) {
+  const request = (
+    row?.request || {}
+  );
+
+  const amendment = (
+    row?.active_amendment || null
+  );
+
+  const capabilities = (
+    tradingState
+      .limitOrderExecutionCapabilities
+    || {}
+  );
+
+  const requestId = String(
+    request.request_id || ''
+  ).trim();
+
+  const amendRequestId = String(
+    amendment?.amend_request_id || ''
+  ).trim();
+
+  const amendmentOrderRequestId = String(
+    amendment?.order_request_id || ''
+  ).trim();
+
+  const gateOrderId = String(
+    row?.gate_order_id
+    || row?.gate_order?.id
+    || row?.gate_snapshot?.id
+    || ''
+  ).trim();
+
+  const sourceGateOrderId = String(
+    request.gate_order_id || ''
+  ).trim();
+
+  const amendmentGateOrderId = String(
+    amendment?.gate_order_id || ''
+  ).trim();
+
+  const accountId = String(
+    request.account_id || ''
+  ).trim().toLowerCase();
+
+  const pair = String(
+    request.pair || ''
+  ).trim().toUpperCase();
+
+  const status = String(
+    amendment?.status || ''
+  ).trim().toLowerCase();
+
+  const requestedPrice = String(
+    amendment?.requested_price || ''
+  ).trim();
+
+  const configuredAccounts = new Set(
+    (
+      capabilities
+        .configured_account_ids
+      || []
+    ).map(
+      value => String(
+        value || ''
+      ).trim().toLowerCase()
+    )
+  );
+
+  const authorizedAccounts = new Set(
+    (
+      capabilities
+        .authorized_account_ids
+      || []
+    ).map(
+      value => String(
+        value || ''
+      ).trim().toLowerCase()
+    )
+  );
+
+  if (!row?.managed) {
+    return {
+      reconcilable: false,
+      label: '—',
+      reason: 'unmanaged',
+    };
+  }
+
+  if (
+    row?.identity_conflict
+    || row?.state_conflict
+  ) {
+    return {
+      reconcilable: false,
+      label: 'Review',
+      reason: 'conflict',
+    };
+  }
+
+  /*
+   * Only the durable ACTIVE amendment may be
+   * manually reconciled. Completed historical
+   * amendments need no recovery operation.
+   */
+  if (!amendment) {
+    return {
+      reconcilable: false,
+      label: '—',
+      reason: 'no_active_amendment',
+    };
+  }
+
+  if (
+    ![
+      'amending',
+      'uncertain',
+      'attention',
+    ].includes(
+      status
+    )
+  ) {
+    return {
+      reconcilable: false,
+      label: '—',
+      reason: 'status_not_reconcilable',
+    };
+  }
+
+  if (
+    amendment.write_performed !== true
+    || String(
+      amendment.completed_at || ''
+    ).trim()
+  ) {
+    return {
+      reconcilable: false,
+      label: '—',
+      reason: 'audit_not_reconcilable',
+    };
+  }
+
+  if (
+    !requestId
+    || !amendRequestId
+    || amendmentOrderRequestId
+      !== requestId
+    || !gateOrderId
+    || !/^[0-9]+$/.test(
+      gateOrderId
+    )
+  ) {
+    return {
+      reconcilable: false,
+      label: 'Review',
+      reason: 'identity_missing',
+    };
+  }
+
+  /*
+   * Source audit, amendment audit and current
+   * row must all identify the same Gate order.
+   */
+  if (
+    !sourceGateOrderId
+    || sourceGateOrderId !== gateOrderId
+    || !amendmentGateOrderId
+    || amendmentGateOrderId !== gateOrderId
+  ) {
+    return {
+      reconcilable: false,
+      label: 'Review',
+      reason: 'gate_id_mismatch',
+    };
+  }
+
+  if (
+    accountId !== (
+      tradingState.accountId || ''
+    ).toLowerCase()
+    || pair !== (
+      tradingState.pair || ''
+    ).toUpperCase()
+  ) {
+    return {
+      reconcilable: false,
+      label: 'Review',
+      reason: 'scope_mismatch',
+    };
+  }
+
+  if (
+    capabilities
+      .amend_reconciliation_implemented
+      !== true
+    || capabilities
+      .amend_reconciliation_route_available
+      !== true
+    || capabilities
+      .amend_reconciliation_gate_get_only
+      !== true
+  ) {
+    return {
+      reconcilable: false,
+      label: 'Check unavailable',
+      reason: 'capability_unavailable',
+    };
+  }
+
+  if (
+    !authorizedAccounts.has(accountId)
+    || !configuredAccounts.has(accountId)
+  ) {
+    return {
+      reconcilable: false,
+      label: 'Check unavailable',
+      reason: 'account_unavailable',
+    };
+  }
+
+  const pendingKey = (
+    tradingAmendReconcileKey(
+      requestId,
+      amendRequestId,
+    )
+  );
+
+  if (
+    tradingState
+      .persistentAmendReconcilePending
+      .has(pendingKey)
+  ) {
+    return {
+      reconcilable: false,
+      label: 'Checking amendment…',
+      reason: 'pending',
+    };
+  }
+
+  /*
+   * Deliberately NO amend_arm_enabled check.
+   *
+   * Manual reconciliation must remain available
+   * while new amendment writes are disarmed.
+   */
+  return {
+    reconcilable: true,
+    label: 'Check amendment',
+    reason: 'ready',
+    requestId,
+    amendRequestId,
+    gateOrderId,
+    requestedPrice,
+    accountId,
+    pair,
+    status,
+    pendingKey,
+  };
+}
+
+
+async function tradingReconcilePersistentAmendment(
+  requestId,
+  amendRequestId,
+) {
+  const normalizedRequestId = String(
+    requestId || ''
+  ).trim();
+
+  const normalizedAmendRequestId = String(
+    amendRequestId || ''
+  ).trim();
+
+  if (
+    !normalizedRequestId
+    || !normalizedAmendRequestId
+  ) {
+    return;
+  }
+
+  /*
+   * Re-resolve from authenticated Open/Recent
+   * data. The DOM contributes only lookup keys.
+   */
+  const candidates = [
+    ...(
+      tradingState.openOrders || []
+    ),
+    ...(
+      tradingState.recentOrders || []
+    ),
+  ].filter(
+    row => (
+      String(
+        row?.request?.request_id || ''
+      ).trim()
+        === normalizedRequestId
+      && String(
+        row?.active_amendment
+          ?.amend_request_id
+        || ''
+      ).trim()
+        === normalizedAmendRequestId
+    )
+  );
+
+  if (!candidates.length) {
+    showToast(
+      'Unable to identify the unresolved '
+      + 'amendment for manual checking.',
+      true,
+    );
+
+    tradingRenderPersistentOrders();
+
+    return;
+  }
+
+  const eligible = candidates
+    .map(
+      row => (
+        tradingPersistentAmendReconcileEligibility(
+          row
+        )
+      )
+    )
+    .filter(
+      item => (
+        item.reconcilable
+        && item.requestId
+          === normalizedRequestId
+        && item.amendRequestId
+          === normalizedAmendRequestId
+      )
+    );
+
+  /*
+   * Every authenticated copy of this exact
+   * amendment must independently pass all
+   * reconciliation identity/scope checks.
+   *
+   * Never ignore a conflicting Open/Recent
+   * duplicate merely because another copy is
+   * eligible.
+   */
+  if (
+    eligible.length
+    !== candidates.length
+  ) {
+    showToast(
+      'Amendment reconciliation candidate '
+      + 'conflict detected. Refresh order '
+      + 'state before trying again.',
+      true,
+    );
+
+    tradingRenderPersistentOrders();
+
+    return;
+  }
+
+  /*
+   * Open and Recent may theoretically both
+   * contain the same source request. Multiple
+   * copies are acceptable only when every
+   * durable identity agrees exactly.
+   */
+  const identities = new Set(
+    eligible.map(
+      item => JSON.stringify({
+        requestId:
+          item.requestId,
+        amendRequestId:
+          item.amendRequestId,
+        gateOrderId:
+          item.gateOrderId,
+        requestedPrice:
+          item.requestedPrice,
+        accountId:
+          item.accountId,
+        pair:
+          item.pair,
+      })
+    )
+  );
+
+  if (identities.size !== 1) {
+    showToast(
+      'Amendment reconciliation identity '
+      + 'conflict detected.',
+      true,
+    );
+
+    return;
+  }
+
+  const eligibility = eligible[0];
+
+  const decimalIdentity = (
+    window
+      .tradingLimitRecoveryDecimalIdentity
+  );
+
+  if (
+    typeof decimalIdentity !== 'function'
+  ) {
+    showToast(
+      'Amendment reconciliation price '
+      + 'identity helper is unavailable.',
+      true,
+    );
+
+    return;
+  }
+
+  const expectedRequestedPrice = String(
+    decimalIdentity(
+      eligibility.requestedPrice
+    ) || ''
+  ).trim();
+
+  if (!expectedRequestedPrice) {
+    showToast(
+      'Amendment reconciliation requested '
+      + 'price identity is invalid.',
+      true,
+    );
+
+    return;
+  }
+
+  const pendingKey = (
+    eligibility.pendingKey
+  );
+
+  tradingState
+    .persistentAmendReconcilePending
+    .add(pendingKey);
+
+  tradingRenderPersistentOrders();
+
+  try {
+    /*
+     * This dashboard POST asks the backend to
+     * perform the existing MANUAL reconciliation.
+     *
+     * Backend contract:
+     * - Gate GET may occur
+     * - Gate PATCH cannot occur
+     * - no new amendment is created
+     */
+    const result = await adminApi(
+      (
+        '/api/trading/limit-orders/requests/'
+        + encodeURIComponent(
+            normalizedRequestId
+          )
+        + '/amendments/'
+        + encodeURIComponent(
+            normalizedAmendRequestId
+          )
+        + '/reconcile'
+      ),
+      {
+        method: 'POST',
+      },
+    );
+
+    const reconciliation = (
+      result?.reconciliation
+    );
+
+    if (
+      result?.gate_read_performed
+        !== true
+      || result?.gate_write_performed
+        !== false
+      || result?.write_performed
+        !== false
+      || !reconciliation
+      || typeof reconciliation
+        !== 'object'
+      || Array.isArray(
+        reconciliation
+      )
+      || typeof reconciliation.status
+        !== 'string'
+      || typeof reconciliation.definitive
+        !== 'boolean'
+      || reconciliation
+        .gate_read_performed
+        !== true
+      || reconciliation
+        .gate_write_performed
+        !== false
+      || reconciliation
+        .write_performed
+        !== false
+      || reconciliation
+        .manual_reconciliation
+        !== true
+      || reconciliation
+        .historical_amend_write_performed
+        !== true
+      || String(
+        reconciliation.order_request_id
+        || ''
+      ) !== normalizedRequestId
+      || String(
+        reconciliation.amend_request_id
+        || ''
+      ) !== normalizedAmendRequestId
+    ) {
+      throw new Error(
+        'Safety invariant failed: invalid '
+        + 'manual amendment reconciliation '
+        + 'response.'
+      );
+    }
+
+    const amendment = (
+      reconciliation.amendment || null
+    );
+
+    if (amendment) {
+      const durableRequestedPrice = String(
+        decimalIdentity(
+          amendment.requested_price
+        ) || ''
+      ).trim();
+
+      if (
+        String(
+          amendment.order_request_id
+          || ''
+        ) !== normalizedRequestId
+        || String(
+          amendment.amend_request_id
+          || ''
+        ) !== normalizedAmendRequestId
+        || String(
+          amendment.gate_order_id
+          || ''
+        ) !== eligibility.gateOrderId
+        || !durableRequestedPrice
+        || durableRequestedPrice
+          !== expectedRequestedPrice
+      ) {
+        throw new Error(
+          'Safety invariant failed: reconciled '
+          + 'amendment audit identity mismatch.'
+        );
+      }
+    }
+
+    showToast(
+      (
+        'Amendment check: '
+        + tradingPersistentAmendMessage(
+            reconciliation.status,
+            reconciliation,
+          )
+      ),
+      !reconciliation.definitive,
+    );
+
+  } catch (error) {
+    /*
+     * Safe to retry manually:
+     * this route cannot PATCH Gate.
+     *
+     * Do NOT create a durable write checkpoint
+     * and do NOT freeze future recovery checks.
+     */
+    showToast(
+      (
+        error?.message
+        || (
+          'Unable to check the amendment '
+          + 'status.'
+        )
+      )
+      + ' This check cannot write Gate; '
+      + 'you may retry it manually.',
+      true,
+    );
+
+  } finally {
+    tradingState
+      .persistentAmendReconcilePending
+      .delete(pendingKey);
+
+    /*
+     * Refresh durable audit/order state.
+     */
+    await Promise.allSettled([
+      tradingRefreshPersistentOrders({
+        quiet: true,
+      }),
+      tradingLoadSnapshot({
+        quiet: true,
+      }),
+    ]);
+
+    /*
+     * If this browser holds the matching B0
+     * amendment checkpoint, the normal GET-only
+     * checkpoint recovery can now observe the
+     * reconciled durable state and clear it when
+     * definitive.
+     */
+    await Promise.allSettled([
+      tradingRecoverSessionCheckpoint({
+        quiet: true,
+      }),
+    ]);
+
+    tradingRenderPersistentOrders();
+  }
 }
 
 
@@ -3393,6 +4035,12 @@ function tradingRenderOpenOrders() {
         )
       );
 
+      const amendReconcileEligibility = (
+        tradingPersistentAmendReconcileEligibility(
+          row
+        )
+      );
+
       const amendmentReadModel = (
         tradingOrderAmendmentReadModel(
           row
@@ -3400,6 +4048,27 @@ function tradingRenderOpenOrders() {
       );
 
       const actionButtons = [];
+
+      if (
+        amendReconcileEligibility.reconcilable
+      ) {
+        actionButtons.push(
+          `
+            <button
+              type="button"
+              class="trading-orders-reconcile-button"
+              data-trading-amend-reconcile-request="${escapeHtml(
+                amendReconcileEligibility.requestId
+              )}"
+              data-trading-amend-reconcile-id="${escapeHtml(
+                amendReconcileEligibility.amendRequestId
+              )}"
+            >
+              Check amendment
+            </button>
+          `
+        );
+      }
 
       if (amendEligibility.allowed) {
         actionButtons.push(
@@ -3443,6 +4112,11 @@ function tradingRenderOpenOrders() {
         `;
 
       } else {
+        const reconcilePending = (
+          amendReconcileEligibility.reason
+          === 'pending'
+        );
+
         const amendOperationalReason = [
           'pending',
           'frozen',
@@ -3457,9 +4131,11 @@ function tradingRenderOpenOrders() {
         action = `
           <span class="trading-orders-action-note">
             ${escapeHtml(
-              amendOperationalReason
-                ? amendEligibility.label
-                : cancelEligibility.label
+              reconcilePending
+                ? amendReconcileEligibility.label
+                : amendOperationalReason
+                  ? amendEligibility.label
+                  : cancelEligibility.label
             )}
           </span>
         `;
@@ -3780,15 +4456,44 @@ function tradingRenderRecentOrders() {
         )
       );
 
+      const amendReconcileEligibility = (
+        tradingPersistentAmendReconcileEligibility(
+          row
+        )
+      );
+
       const amendmentReadModel = (
         tradingOrderAmendmentReadModel(
           row
         )
       );
 
-      const action = (
-        recovery.recoverable
-          ? `
+      const actionButtons = [];
+
+      if (
+        amendReconcileEligibility.reconcilable
+      ) {
+        actionButtons.push(
+          `
+            <button
+              type="button"
+              class="trading-orders-reconcile-button"
+              data-trading-amend-reconcile-request="${escapeHtml(
+                amendReconcileEligibility.requestId
+              )}"
+              data-trading-amend-reconcile-id="${escapeHtml(
+                amendReconcileEligibility.amendRequestId
+              )}"
+            >
+              Check amendment
+            </button>
+          `
+        );
+      }
+
+      if (recovery.recoverable) {
+        actionButtons.push(
+          `
             <button
               type="button"
               class="trading-orders-recover-button"
@@ -3799,10 +4504,23 @@ function tradingRenderRecentOrders() {
               Recover
             </button>
           `
+        );
+      }
+
+      const action = (
+        actionButtons.length
+          ? `
+            <div class="trading-orders-action-buttons">
+              ${actionButtons.join('')}
+            </div>
+          `
           : `
             <span class="trading-orders-action-note">
               ${escapeHtml(
-                recovery.label || '—'
+                amendReconcileEligibility.reason
+                  === 'pending'
+                    ? amendReconcileEligibility.label
+                    : recovery.label || '—'
               )}
             </span>
           `
@@ -4600,20 +5318,56 @@ function bindTradingEvents() {
   $('#tradingRecentOrders')?.addEventListener(
     'click',
     event => {
-      const button = (
+      const target = (
         event.target instanceof Element
-          ? event.target.closest(
-              '[data-trading-recover-request]'
-            )
+          ? event.target
           : null
       );
 
-      if (!button) {
+      if (!target) {
+        return;
+      }
+
+      const reconcileButton = target.closest(
+        '[data-trading-amend-reconcile-request]'
+      );
+
+      if (reconcileButton) {
+        const requestId = String(
+          reconcileButton.dataset
+            .tradingAmendReconcileRequest
+          || ''
+        ).trim();
+
+        const amendRequestId = String(
+          reconcileButton.dataset
+            .tradingAmendReconcileId
+          || ''
+        ).trim();
+
+        if (
+          requestId
+          && amendRequestId
+        ) {
+          void tradingReconcilePersistentAmendment(
+            requestId,
+            amendRequestId,
+          );
+        }
+
+        return;
+      }
+
+      const recoverButton = target.closest(
+        '[data-trading-recover-request]'
+      );
+
+      if (!recoverButton) {
         return;
       }
 
       const requestId = String(
-        button.dataset
+        recoverButton.dataset
           .tradingRecoverRequest
         || ''
       ).trim();
@@ -4638,6 +5392,36 @@ function bindTradingEvents() {
       );
 
       if (!target) {
+        return;
+      }
+
+      const reconcileButton = target.closest(
+        '[data-trading-amend-reconcile-request]'
+      );
+
+      if (reconcileButton) {
+        const requestId = String(
+          reconcileButton.dataset
+            .tradingAmendReconcileRequest
+          || ''
+        ).trim();
+
+        const amendRequestId = String(
+          reconcileButton.dataset
+            .tradingAmendReconcileId
+          || ''
+        ).trim();
+
+        if (
+          requestId
+          && amendRequestId
+        ) {
+          void tradingReconcilePersistentAmendment(
+            requestId,
+            amendRequestId,
+          );
+        }
+
         return;
       }
 

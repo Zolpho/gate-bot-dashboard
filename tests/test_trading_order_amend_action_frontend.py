@@ -64,24 +64,33 @@ def _function(
     return text[start:end]
 
 
-def test_amend_action_has_exactly_one_new_post_surface():
+def test_amend_action_has_exactly_one_write_surface():
     core = _core()
     limit = _limit()
 
-    assert core.count(
-        "method: 'POST'"
-    ) == 2
+    amend = _function(
+        core,
+        "tradingAmendPersistentOpenOrder",
+    )
 
+    assert amend.count(
+        "method: 'POST'"
+    ) == 1
+
+    assert amend.count(
+        "+ '/amend'"
+    ) == 1
+
+    assert "/amendments/" not in amend
+    assert "/reconcile" not in amend
+
+    # Recovery module itself still owns no
+    # amendment write route.
     assert limit.count(
         "method: 'POST'"
     ) == 5
 
-    assert core.count(
-        "+ '/amend'"
-    ) == 1
-
-    assert "/amendments/" not in core
-    assert "/amendments/" not in limit
+    assert "/amend" not in limit
 
 
 def test_amend_eligibility_is_capability_and_arm_gated():

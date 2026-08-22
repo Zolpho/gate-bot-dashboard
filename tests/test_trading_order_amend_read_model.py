@@ -169,8 +169,6 @@ def test_frontend_amendment_visibility_coexists_with_guarded_action():
         "frontend/index.html"
     ).read_text()
 
-    # Stage 3J6A amendment visibility remains
-    # present in both persistent order tables.
     assert (
         "function tradingOrderAmendmentReadModel("
         in trading
@@ -180,27 +178,21 @@ def test_frontend_amendment_visibility_coexists_with_guarded_action():
         "<th>Amendment</th>"
     ) == 2
 
-    # Stage 3J6B1 deliberately introduces one
-    # guarded browser price-amend operation.
+    # B1 amendment mutation remains exactly one
+    # isolated browser action.
     assert trading.count(
         "+ '/amend'"
     ) == 1
 
-    assert trading.count(
-        "method: 'POST'"
-    ) == 2
+    assert (
+        "async function tradingAmendPersistentOpenOrder("
+        in trading
+    )
 
-    # The recovery module itself still owns no
-    # amendment write route.
+    # The recovery module itself remains free of
+    # amendment mutation/reconciliation routes.
     assert "/amend" not in limit
 
-    # Manual amendment reconciliation remains
-    # outside 3J6B1.
-    assert "/amendments/" not in trading
-    assert "/amendments/" not in limit
-
-    # Runtime eligibility is separately gated
-    # by the amendment arm.
     assert (
         ".amend_arm_enabled"
         in trading
