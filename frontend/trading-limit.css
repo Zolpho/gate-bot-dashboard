@@ -623,7 +623,7 @@ button.trading-book-row.selected {
 
 .trading-orders-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 
@@ -771,15 +771,11 @@ button.trading-book-row.selected {
 }
 
 /*
- * The dashboard sidebar reduces the actual Trading
- * content width considerably. Stack the order views
- * before their tables become cramped or clip Action.
+ * Open and Recent Orders deliberately use full-width
+ * rows. Recent Orders carries Time, Result, Gate ID and
+ * Action columns, so a split layout hides operational
+ * information even on wide desktop screens.
  */
-@media (max-width: 1500px) {
-  .trading-orders-layout {
-    grid-template-columns: 1fr;
-  }
-}
 
 
 /* Stage 3I3a compact persistent Gate order IDs */
