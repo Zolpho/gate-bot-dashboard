@@ -672,7 +672,7 @@
               <h2>Orders</h2>
               <p>
                 Live Gate open orders and durable dashboard
-                order history for the selected account and market.
+                order history across all Spot pairs for the selected account.
               </p>
             </div>
           </div>
@@ -682,7 +682,7 @@
               <div class="trading-orders-section-head">
                 <div>
                   <strong>Open orders</strong>
-                  <small>Live Gate state</small>
+                  <small>Live Gate state · all Spot pairs</small>
                 </div>
 
                 <span
@@ -702,6 +702,7 @@
                 <table class="trading-orders-table trading-orders-table-open">
                   <thead>
                     <tr>
+                      <th>Pair</th>
                       <th>Side</th>
                       <th>Price</th>
                       <th>Amount</th>
@@ -722,7 +723,7 @@
               <div class="trading-orders-section-head">
                 <div>
                   <strong>Recent orders</strong>
-                  <small>Durable dashboard audit</small>
+                  <small>Durable dashboard audit · all pairs</small>
                 </div>
 
                 <span
@@ -743,6 +744,7 @@
                   <thead>
                     <tr>
                       <th>Time</th>
+                      <th>Pair</th>
                       <th>Side</th>
                       <th>Price</th>
                       <th>Amount</th>
@@ -2324,7 +2326,7 @@
     defer
   ></script>
   <script
-    src="./trading.js?v=20260822-ui-polish-v1"
+    src="./trading.js?v=20260822-account-orders-v1"
     defer
   ></script>
   <script

@@ -90,6 +90,171 @@ def _gate_order_state(
     }
 
 
+
+def flatten_open_spot_orders(
+    value: Any,
+    *,
+    inherited_pair: str = "",
+) -> list[dict[str, Any]]:
+    """
+    Flatten Gate /spot/open_orders data into actual
+    Spot order dictionaries.
+
+    Gate may group account-wide open orders by pair.
+    Preserve/inherit the group pair when an individual
+    order omits currency_pair.
+
+    This helper is pure/read-only.
+    """
+
+    rows: list[
+        dict[str, Any]
+    ] = []
+
+    if isinstance(
+        value,
+        list,
+    ):
+        for item in value:
+            rows.extend(
+                flatten_open_spot_orders(
+                    item,
+                    inherited_pair=(
+                        inherited_pair
+                    ),
+                )
+            )
+
+        return rows
+
+    if not isinstance(
+        value,
+        dict,
+    ):
+        return rows
+
+    pair = (
+        _normalized(
+            value.get(
+                "currency_pair"
+            )
+        ).upper()
+        or inherited_pair.strip().upper()
+    )
+
+    gate_id = _normalized(
+        value.get("id")
+    )
+
+    if gate_id:
+        row = dict(value)
+
+        if (
+            pair
+            and not _normalized(
+                row.get(
+                    "currency_pair"
+                )
+            )
+        ):
+            row[
+                "currency_pair"
+            ] = pair
+
+        rows.append(row)
+
+        return rows
+
+    for child in value.values():
+        if isinstance(
+            child,
+            (list, dict),
+        ):
+            rows.extend(
+                flatten_open_spot_orders(
+                    child,
+                    inherited_pair=pair,
+                )
+            )
+
+    return rows
+
+
+def merge_account_open_spot_orders(
+    *,
+    account_id: str,
+    gate_orders: list[dict[str, Any]],
+    local_requests: list[dict[str, Any]],
+    cancellations_by_request_id: dict[
+        str,
+        dict[str, Any] | None,
+    ],
+) -> list[dict[str, Any]]:
+    """
+    Merge an account-wide Gate open-order set.
+
+    Existing pair-scoped identity logic remains the
+    authority. Gate orders are grouped by their live
+    currency_pair and each group is passed through
+    merge_open_spot_orders() independently.
+
+    This prevents an audit from one pair from managing
+    a live Gate order belonging to another pair even if
+    an identity value collides.
+    """
+
+    by_pair: dict[
+        str,
+        list[dict[str, Any]],
+    ] = {}
+
+    pair_order: list[str] = []
+
+    for gate_order in gate_orders:
+        if not isinstance(
+            gate_order,
+            dict,
+        ):
+            continue
+
+        pair = _normalized(
+            gate_order.get(
+                "currency_pair"
+            )
+        ).upper()
+
+        if pair not in by_pair:
+            by_pair[pair] = []
+            pair_order.append(pair)
+
+        by_pair[pair].append(
+            gate_order
+        )
+
+    result: list[
+        dict[str, Any]
+    ] = []
+
+    for pair in pair_order:
+        result.extend(
+            merge_open_spot_orders(
+                account_id=account_id,
+                pair=pair,
+                gate_orders=(
+                    by_pair[pair]
+                ),
+                local_requests=(
+                    local_requests
+                ),
+                cancellations_by_request_id=(
+                    cancellations_by_request_id
+                ),
+            )
+        )
+
+    return result
+
+
 def merge_open_spot_orders(
     *,
     account_id: str,

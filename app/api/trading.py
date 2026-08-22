@@ -30,12 +30,15 @@ from ..trading_execution import (
     execute_limit_order,
 )
 from ..trading_open_orders import (
+    flatten_open_spot_orders,
+    merge_account_open_spot_orders,
     merge_open_spot_orders,
 )
 from ..trading_order_audit import (
     find_order_requests_by_gate_identity,
     get_order_request,
     list_order_reconciliations,
+    list_order_requests,
     list_order_requests_for_market,
 )
 from ..trading_order_amend import (
@@ -2143,8 +2146,8 @@ async def trading_recent_orders(
         min_length=1,
         max_length=64,
     ),
-    pair: str = Query(
-        default="EQTY_USDT",
+    pair: str | None = Query(
+        default=None,
         min_length=3,
         max_length=64,
     ),
@@ -2158,6 +2161,12 @@ async def trading_recent_orders(
     Return durable recent Spot order history from
     the dashboard audit database.
 
+    Without pair, the scope is the explicitly
+    selected Gate account across all managed pairs.
+
+    Supplying pair preserves the older market-scoped
+    read contract.
+
     This route intentionally performs no Gate request.
     """
 
@@ -2168,15 +2177,30 @@ async def trading_recent_orders(
         )
     )
 
-    market = _market(pair)
-
-    requests = (
-        list_order_requests_for_market(
-            account_id=account_id,
-            pair=market,
-            limit=limit,
-        )
+    market = (
+        _market(pair)
+        if pair
+        else None
     )
+
+    if market:
+        requests = (
+            list_order_requests_for_market(
+                account_id=account_id,
+                pair=market,
+                limit=limit,
+            )
+        )
+
+    else:
+        requests = (
+            list_order_requests(
+                account_ids={
+                    account_id
+                },
+                limit=limit,
+            )
+        )
 
     cancellations_by_request_id = {
         str(
@@ -2204,8 +2228,10 @@ async def trading_recent_orders(
         ),
     )
 
-    orders = _order_rows_with_amendment_read_model(
-        orders
+    orders = (
+        _order_rows_with_amendment_read_model(
+            orders
+        )
     )
 
     return {
@@ -2216,6 +2242,11 @@ async def trading_recent_orders(
         "gate_write_performed": False,
         "write_performed": False,
         "account_id": account_id,
+        "scope": (
+            "market"
+            if market
+            else "account"
+        ),
         "pair": market,
         "count": len(orders),
         "orders": orders,
@@ -2235,8 +2266,8 @@ async def trading_open_orders(
         min_length=1,
         max_length=64,
     ),
-    pair: str = Query(
-        default="EQTY_USDT",
+    pair: str | None = Query(
+        default=None,
         min_length=3,
         max_length=64,
     ),
@@ -2247,8 +2278,14 @@ async def trading_open_orders(
     ),
 ):
     """
-    Read the actual open Spot orders from Gate and
+    Read actual open Spot orders from Gate and
     enrich them with dashboard audit/cancellation state.
+
+    Without pair, use Gate /spot/open_orders and
+    return the selected account across all Spot pairs.
+
+    Supplying pair preserves the older market-scoped
+    read contract.
 
     This route performs Gate reads only.
     """
@@ -2260,7 +2297,11 @@ async def trading_open_orders(
         )
     )
 
-    market = _market(pair)
+    market = (
+        _market(pair)
+        if pair
+        else None
+    )
 
     try:
         trading_account = (
@@ -2295,34 +2336,60 @@ async def trading_open_orders(
             settings,
             trading_account,
         ) as client:
-            response = (
-                await client.list_spot_orders(
-                    currency_pair=market,
-                    status="open",
-                    page=1,
-                    limit=limit,
-                    account="spot",
+
+            if market:
+                response = (
+                    await client.list_spot_orders(
+                        currency_pair=market,
+                        status="open",
+                        page=1,
+                        limit=limit,
+                        account="spot",
+                    )
                 )
-            )
+
+                gate_orders = (
+                    [
+                        item
+                        for item
+                        in response.data
+                        if isinstance(
+                            item,
+                            dict,
+                        )
+                    ]
+                    if isinstance(
+                        response.data,
+                        list,
+                    )
+                    else []
+                )
+
+            else:
+                response = (
+                    await client.request(
+                        "GET",
+                        "/spot/open_orders",
+                        params=[
+                            (
+                                "account",
+                                "spot",
+                            ),
+                        ],
+                    )
+                )
+
+                gate_orders = (
+                    flatten_open_spot_orders(
+                        response.data
+                    )
+                )
 
     except GateAPIError as exc:
         raise HTTPException(
             status_code=502,
             detail=str(exc),
         ) from exc
-
-    gate_orders = (
-        [
-            item
-            for item in response.data
-            if isinstance(item, dict)
-        ]
-        if isinstance(
-            response.data,
-            list,
-        )
-        else []
-    )
 
     gate_order_ids = {
         str(
@@ -2373,20 +2440,37 @@ async def trading_open_orders(
         )
     }
 
-    orders = merge_open_spot_orders(
-        account_id=account_id,
-        pair=market,
-        gate_orders=gate_orders,
-        local_requests=(
-            local_requests
-        ),
-        cancellations_by_request_id=(
-            cancellations_by_request_id
-        ),
-    )
+    if market:
+        orders = merge_open_spot_orders(
+            account_id=account_id,
+            pair=market,
+            gate_orders=gate_orders,
+            local_requests=(
+                local_requests
+            ),
+            cancellations_by_request_id=(
+                cancellations_by_request_id
+            ),
+        )
 
-    orders = _order_rows_with_amendment_read_model(
-        orders
+    else:
+        orders = (
+            merge_account_open_spot_orders(
+                account_id=account_id,
+                gate_orders=gate_orders,
+                local_requests=(
+                    local_requests
+                ),
+                cancellations_by_request_id=(
+                    cancellations_by_request_id
+                ),
+            )
+        )
+
+    orders = (
+        _order_rows_with_amendment_read_model(
+            orders
+        )
     )
 
     return {
@@ -2394,6 +2478,11 @@ async def trading_open_orders(
         "gate_write_performed": False,
         "write_performed": False,
         "account_id": account_id,
+        "scope": (
+            "market"
+            if market
+            else "account"
+        ),
         "pair": market,
         "count": len(orders),
         "orders": orders,

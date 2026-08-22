@@ -2209,6 +2209,10 @@ function tradingPersistentAmendEligibility(
     request.pair || ''
   ).trim().toUpperCase();
 
+  const gatePair = String(
+    gate.currency_pair || ''
+  ).trim().toUpperCase();
+
   const configuredAccounts = new Set(
     (
       capabilities
@@ -2344,13 +2348,22 @@ function tradingPersistentAmendEligibility(
     };
   }
 
+  /*
+   * Account-wide Orders deliberately ignores the
+   * currently selected form market.
+   *
+   * Fail closed unless:
+   * - the durable audit belongs to the selected account
+   * - the durable request pair exactly equals the
+   *   authenticated live Gate order pair.
+   */
   if (
     accountId !== (
       tradingState.accountId || ''
     ).toLowerCase()
-    || pair !== (
-      tradingState.pair || ''
-    ).toUpperCase()
+    || !pair
+    || !gatePair
+    || pair !== gatePair
   ) {
     return {
       allowed: false,
@@ -3253,6 +3266,10 @@ function tradingPersistentCancelEligibility(
     request.pair || ''
   ).trim().toUpperCase();
 
+  const gatePair = String(
+    gate.currency_pair || ''
+  ).trim().toUpperCase();
+
   const configuredAccounts = new Set(
     (
       capabilities
@@ -3409,13 +3426,22 @@ function tradingPersistentCancelEligibility(
     };
   }
 
+  /*
+   * Account-wide Orders deliberately ignores the
+   * currently selected form market.
+   *
+   * Fail closed unless:
+   * - the durable audit belongs to the selected account
+   * - the durable request pair exactly equals the
+   *   authenticated live Gate order pair.
+   */
   if (
     accountId !== (
       tradingState.accountId || ''
     ).toLowerCase()
-    || pair !== (
-      tradingState.pair || ''
-    ).toUpperCase()
+    || !pair
+    || !gatePair
+    || pair !== gatePair
   ) {
     return {
       allowed: false,
@@ -3971,7 +3997,7 @@ function tradingRenderOpenOrders() {
   } else if (!orders.length) {
     message.textContent = (
       tradingState.openOrdersLoaded
-        ? 'No open Gate orders for the selected account and market.'
+        ? 'No open Gate Spot orders for the selected account.'
         : 'Open orders have not been loaded yet.'
     );
 
@@ -3999,6 +4025,12 @@ function tradingRenderOpenOrders() {
       const gate = (
         row?.gate_order || {}
       );
+
+      const pair = String(
+        gate.currency_pair
+        || row?.request?.pair
+        || ''
+      ).trim().toUpperCase();
 
       const side = String(
         gate.side || ''
@@ -4143,6 +4175,12 @@ function tradingRenderOpenOrders() {
 
       return `
         <tr>
+          <td>
+            <code>${escapeHtml(
+              pair || '—'
+            )}</code>
+          </td>
+
           <td>
             <span class="trading-orders-side ${escapeHtml(side)}">
               ${escapeHtml(
@@ -4386,7 +4424,7 @@ function tradingRenderRecentOrders() {
   } else if (!orders.length) {
     message.textContent = (
       tradingState.recentOrdersLoaded
-        ? 'No dashboard-managed order history for the selected account and market.'
+        ? 'No dashboard-managed order history for the selected account.'
         : 'Recent orders have not been loaded yet.'
     );
 
@@ -4426,6 +4464,12 @@ function tradingRenderRecentOrders() {
       const state = (
         row?.order_state || {}
       );
+
+      const pair = String(
+        request.pair
+        || gate.currency_pair
+        || ''
+      ).trim().toUpperCase();
 
       const side = String(
         request.side
@@ -4535,6 +4579,12 @@ function tradingRenderRecentOrders() {
           )}</td>
 
           <td>
+            <code>${escapeHtml(
+              pair || '—'
+            )}</code>
+          </td>
+
+          <td>
             <span class="trading-orders-side ${escapeHtml(side)}">
               ${escapeHtml(
                 side
@@ -4634,17 +4684,12 @@ async function tradingLoadOpenOrders({
     || state.activeTab !== 'trading'
     || !state.adminAuthorization
     || !tradingState.accountId
-    || !tradingState.pair
   ) {
     return;
   }
 
   const accountId = (
     tradingState.accountId
-  );
-
-  const pair = (
-    tradingState.pair
   );
 
   tradingState.loadingOpenOrders = true;
@@ -4658,7 +4703,6 @@ async function tradingLoadOpenOrders({
         '/api/trading/orders/open',
         {
           account_id: accountId,
-          pair,
           limit: 100,
         },
       ),
@@ -4668,22 +4712,28 @@ async function tradingLoadOpenOrders({
       result?.gate_read_performed !== true
       || result?.gate_write_performed !== false
       || result?.write_performed !== false
+      || result?.scope !== 'account'
+      || String(
+        result?.account_id || ''
+      ).toLowerCase() !== accountId
+      || result?.pair !== null
       || !Array.isArray(result?.orders)
     ) {
       throw new Error(
         'Safety invariant failed: invalid '
-        + 'Open Orders response.'
+        + 'account-wide Open Orders response.'
       );
     }
 
     /*
-     * Account/pair may have changed while the
+     * Account may have changed while the
      * authenticated Gate GET was in flight.
-     * Never render an old scope into the new one.
+     *
+     * Pair changes do not invalidate this result:
+     * this table is intentionally account-wide.
      */
     if (
       tradingState.accountId !== accountId
-      || tradingState.pair !== pair
     ) {
       return;
     }
@@ -4698,7 +4748,6 @@ async function tradingLoadOpenOrders({
   } catch (error) {
     if (
       tradingState.accountId === accountId
-      && tradingState.pair === pair
     ) {
       tradingState.openOrdersError = (
         error.message
@@ -4729,17 +4778,12 @@ async function tradingLoadRecentOrders({
     || state.activeTab !== 'trading'
     || !state.adminAuthorization
     || !tradingState.accountId
-    || !tradingState.pair
   ) {
     return;
   }
 
   const accountId = (
     tradingState.accountId
-  );
-
-  const pair = (
-    tradingState.pair
   );
 
   tradingState.loadingRecentOrders = true;
@@ -4753,7 +4797,6 @@ async function tradingLoadRecentOrders({
         '/api/trading/orders/recent',
         {
           account_id: accountId,
-          pair,
           limit: 50,
         },
       ),
@@ -4765,17 +4808,28 @@ async function tradingLoadRecentOrders({
       || result?.gate_read_performed !== false
       || result?.gate_write_performed !== false
       || result?.write_performed !== false
+      || result?.scope !== 'account'
+      || String(
+        result?.account_id || ''
+      ).toLowerCase() !== accountId
+      || result?.pair !== null
       || !Array.isArray(result?.orders)
     ) {
       throw new Error(
         'Safety invariant failed: invalid '
-        + 'Recent Orders response.'
+        + 'account-wide Recent Orders response.'
       );
     }
 
+    /*
+     * Account may have changed while the
+     * database read was in flight.
+     *
+     * Selected market is irrelevant to this
+     * account-wide durable history.
+     */
     if (
       tradingState.accountId !== accountId
-      || tradingState.pair !== pair
     ) {
       return;
     }
@@ -4790,7 +4844,6 @@ async function tradingLoadRecentOrders({
   } catch (error) {
     if (
       tradingState.accountId === accountId
-      && tradingState.pair === pair
     ) {
       tradingState.recentOrdersError = (
         error.message
@@ -5506,8 +5559,10 @@ function bindTradingEvents() {
       tradingState.bookInterval = '0';
       tradingPopulateBookIntervals();
 
-      tradingResetPersistentOrders();
-
+      /*
+       * Open/Recent Orders are account-wide.
+       * Changing only the market must not clear them.
+       */
       void tradingRefreshAll();
 
       void tradingRecoverSessionCheckpoint({
