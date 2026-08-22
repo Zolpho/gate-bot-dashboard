@@ -65,12 +65,21 @@ def capabilities(
         )
     ]
 
+    settings = get_settings()
+
     account_capabilities = [
         {
             "account_id": account.id,
             "account_name": account.name,
             "monitor": True,
             "bot_control": account.id in control_ids,
+            "bot_control_live": bool(
+                account.id in control_ids
+                and settings.bot_control_live_armed
+                and settings.bot_control_live_account_allowed(
+                    account.id
+                )
+            ),
             "treasury": False,
         }
         for account in visible_accounts

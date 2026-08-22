@@ -2737,6 +2737,139 @@ function botControlAccounts() {
   );
 }
 
+
+function botControlAccountCapability(accountId) {
+  const normalized = String(
+    accountId || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) {
+    return null;
+  }
+
+  return (
+    state.botControlCapabilities?.accounts
+    || []
+  ).find(
+    account => (
+      String(
+        account.account_id || ''
+      )
+        .trim()
+        .toLowerCase()
+      === normalized
+    )
+  ) || null;
+}
+
+
+function botControlAccountLiveEnabled(accountId) {
+  return (
+    botControlAccountCapability(
+      accountId
+    )?.bot_control_live
+    === true
+  );
+}
+
+
+function selectedBotControlAccountId() {
+  return String(
+    $('#spotGridAccount')?.value
+    || state.botControlDraft?.account_id
+    || ''
+  )
+    .trim()
+    .toLowerCase();
+}
+
+
+function botCreationSubmissionAvailableForAccount(
+  accountId,
+) {
+  /*
+   * Simulation deliberately performs no Gate write,
+   * so the live-account allowlist is irrelevant to
+   * simulation mode.
+   */
+  if (botCreationSimulation()) {
+    return true;
+  }
+
+  return Boolean(
+    botCreationLive()
+    && botControlAccountLiveEnabled(
+      accountId
+    )
+  );
+}
+
+
+
+function botStopSubmissionAvailableForAccount(
+  accountId,
+) {
+  /*
+   * Stop simulation performs no Gate mutation and
+   * therefore does not require live-account eligibility.
+   */
+  if (botStopSimulation()) {
+    return true;
+  }
+
+  return Boolean(
+    botStopLive()
+    && botControlAccountLiveEnabled(
+      accountId
+    )
+  );
+}
+
+
+function renderBotControlCreateState() {
+  const badge = $('#botControlCreateState');
+
+  if (!badge) {
+    return;
+  }
+
+  const simulation = botCreationSimulation();
+
+  const liveGloballyEnabled =
+    botCreationLive();
+
+  const liveForAccount = Boolean(
+    liveGloballyEnabled
+    && botControlAccountLiveEnabled(
+      selectedBotControlAccountId()
+    )
+  );
+
+  badge.textContent = simulation
+    ? 'Simulation mode'
+    : liveForAccount
+      ? 'LIVE creation enabled'
+      : liveGloballyEnabled
+        ? (
+          'LIVE creation not enabled '
+          + 'for this account'
+        )
+        : 'Review only · creation disabled';
+
+  badge.className = (
+    `status-badge ${
+      liveForAccount
+        ? 'warning'
+        : simulation
+          ? 'running'
+          : 'disabled'
+    }`
+  );
+}
+
+
 function renderBotControlAccess() {
   const nav = $('#botControlNavItem');
 
@@ -2793,28 +2926,7 @@ function renderBotControlAccess() {
     select.value = target;
   }
 
-  const badge = $('#botControlCreateState');
-
-  if (badge) {
-    const enabled = botCreationEnabled();
-    const simulation = botCreationSimulation();
-
-    badge.textContent = enabled
-      ? 'LIVE creation enabled'
-      : simulation
-        ? 'Simulation mode'
-        : 'Review only · creation disabled';
-
-    badge.className = (
-      `status-badge ${
-        enabled
-          ? 'warning'
-          : simulation
-            ? 'running'
-            : 'disabled'
-      }`
-    );
-  }
+  renderBotControlCreateState();
 
   updateSpotGridConfirmButton();
 
@@ -3152,8 +3264,13 @@ function renderSpotGridReview() {
       2,
     );
 
-  $('#openSpotGridConfirmation').disabled =
-    !ready;
+  $('#openSpotGridConfirmation').disabled = (
+    !ready
+    || !botCreationSubmissionAvailableForAccount(
+      state.botControlDraft?.account_id
+      || selectedBotControlAccountId()
+    )
+  );
 
   $('#spotGridCreateResult').classList.add(
     'hidden'
@@ -3177,6 +3294,33 @@ function openSpotGridConfirmation() {
     !prepared?.can_create
     || !draft
   ) {
+    return;
+  }
+
+  const accountId = String(
+    draft.account_id || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  if (
+    !botCreationSubmissionAvailableForAccount(
+      accountId
+    )
+  ) {
+    showToast(
+      botCreationLive()
+        ? (
+          'LIVE Bot creation is not enabled '
+          + 'for this account.'
+        )
+        : (
+          'Bot creation is currently disabled '
+          + 'on the server.'
+        ),
+      true,
+    );
+
     return;
   }
 
@@ -3278,9 +3422,18 @@ function openSpotGridConfirmation() {
     ...optionalRows,
   ].join('');
 
-  const enabled = botCreationEnabled();
   const simulation = botCreationSimulation();
-  const live = botCreationLive();
+
+  const liveGloballyEnabled =
+    botCreationLive();
+
+  const live = Boolean(
+    liveGloballyEnabled
+    && botControlAccountLiveEnabled(
+      accountId
+    )
+  );
+
   const notice = $('#botCreateDisabledNotice');
 
   notice.classList.toggle(
@@ -3299,10 +3452,16 @@ function openSpotGridConfirmation() {
         + 'Bot Control workflow and audit trail, but NO '
         + 'request will be sent to Gate to create a bot.'
       )
-      : (
-        'Bot creation is currently disabled on the server. '
-        + 'No Gate write can be submitted.'
-      );
+      : liveGloballyEnabled
+        ? (
+          'LIVE Bot creation is not enabled for this '
+          + 'account. No Gate write can be submitted '
+          + 'for this account.'
+        )
+        : (
+          'Bot creation is currently disabled on the '
+          + 'server. No Gate write can be submitted.'
+        );
 
   const requiredConfirmation =
     botCreationRequiredConfirmation();
@@ -3339,7 +3498,10 @@ function updateSpotGridConfirmButton() {
   if (!button) return;
 
   button.disabled = !(
-    botCreationAvailable()
+    botCreationSubmissionAvailableForAccount(
+      state.botControlDraft?.account_id
+      || selectedBotControlAccountId()
+    )
     && state.botControlPrepared?.can_create
     && $('#spotGridConfirmText')?.value
       === botCreationRequiredConfirmation()
@@ -3375,6 +3537,20 @@ async function submitSpotGridCreate() {
     return;
   }
 
+  const accountId = String(
+    state.botControlDraft.account_id || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  if (
+    !botCreationSubmissionAvailableForAccount(
+      accountId
+    )
+  ) {
+    return;
+  }
+
   const button =
     $('#confirmSpotGridCreate');
 
@@ -3389,8 +3565,24 @@ async function submitSpotGridCreate() {
   const modeBefore =
     botCreationMode();
 
+  const accountLiveBefore =
+    botCreationSubmissionAvailableForAccount(
+      accountId
+    );
+
   try {
     await refreshBotControlRuntimeHealth();
+
+    /*
+     * Health contains the global Bot Control arm.
+     * Auth capabilities contain the account-specific
+     * live policy. Re-read BOTH before any Create POST.
+     */
+    state.botControlCapabilities = await adminApi(
+      '/api/auth/capabilities'
+    );
+
+    renderBotControlAccess();
 
   } catch (error) {
     errorBox.textContent = (
@@ -3408,7 +3600,16 @@ async function submitSpotGridCreate() {
   const modeAfter =
     botCreationMode();
 
-  if (modeAfter !== modeBefore) {
+  const accountLiveAfter =
+    botCreationSubmissionAvailableForAccount(
+      accountId
+    );
+
+  if (
+    modeAfter !== modeBefore
+    || accountLiveAfter !== accountLiveBefore
+    || !accountLiveAfter
+  ) {
     /*
      * Stronger than trying to mutate an already-open
      * confirmation: close it and force the operator to
@@ -3426,7 +3627,11 @@ async function submitSpotGridCreate() {
     return;
   }
 
-  if (!botCreationAvailable()) {
+  if (
+    !botCreationSubmissionAvailableForAccount(
+      accountId
+    )
+  ) {
     return;
   }
 
@@ -10690,7 +10895,10 @@ function updateBotAdminControls(bot) {
     bot.account_id
   );
 
-  const available = botStopAvailable();
+  const available =
+    botStopSubmissionAvailableForAccount(
+      bot.account_id
+    );
 
   const stopEnabled = Boolean(
     available
@@ -10721,17 +10929,28 @@ function updateBotAdminControls(bot) {
       + 'this strategy.'
     );
 
-  } else if (botStopEnabled()) {
-    message.textContent = (
-      'LIVE Bot Stop is enabled. A final typed '
-      + 'confirmation is required.'
-    );
-
   } else if (botStopSimulation()) {
     message.textContent = (
       'Stop simulation mode. The complete Bot '
       + 'Control workflow will run, but no Gate '
       + 'Stop request will be sent.'
+    );
+
+  } else if (
+    botStopLive()
+    && botControlAccountLiveEnabled(
+      bot.account_id
+    )
+  ) {
+    message.textContent = (
+      'LIVE Bot Stop is enabled. A final typed '
+      + 'confirmation is required.'
+    );
+
+  } else if (botStopLive()) {
+    message.textContent = (
+      'LIVE Bot Stop is not enabled for this '
+      + 'account.'
     );
 
   } else {
@@ -10801,9 +11020,21 @@ async function stopCurrentBot() {
     return;
   }
 
-  if (!botStopAvailable()) {
+  if (
+    !botStopSubmissionAvailableForAccount(
+      bot.account_id
+    )
+  ) {
     showToast(
-      'Bot stopping is disabled on the server.',
+      botStopLive()
+        ? (
+          'LIVE Bot Stop is not enabled '
+          + 'for this account.'
+        )
+        : (
+          'Bot stopping is disabled '
+          + 'on the server.'
+        ),
       true,
     );
     return;
@@ -11112,14 +11343,30 @@ function renderBotStopConfirmation(prepared) {
   $('#botStopValidationMessages').innerHTML =
     messages.join('');
 
+  const accountId = String(
+    bot.account_id || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  const liveGloballyEnabled =
+    botStopLive();
+
+  const live = Boolean(
+    liveGloballyEnabled
+    && botControlAccountLiveEnabled(
+      accountId
+    )
+  );
+
   const notice = $('#botStopSafetyNotice');
 
   notice.classList.toggle(
     'enabled',
-    botStopLive(),
+    live,
   );
 
-  notice.textContent = botStopLive()
+  notice.textContent = live
     ? (
       'LIVE BOT STOP IS ENABLED. Submitting this '
       + 'confirmation can stop the live Gate strategy.'
@@ -11130,9 +11377,15 @@ function renderBotStopConfirmation(prepared) {
         + 'validated, reserved and audited, but NO '
         + 'Gate Stop request will be sent.'
       )
-      : (
-        'Bot stopping is disabled on the server.'
-      );
+      : liveGloballyEnabled
+        ? (
+          'LIVE Bot Stop is not enabled for this '
+          + 'account. No Gate Stop request can be '
+          + 'submitted for this account.'
+        )
+        : (
+          'Bot stopping is disabled on the server.'
+        );
 
   const requiredConfirmation =
     botStopRequiredConfirmation();
@@ -11159,7 +11412,9 @@ function updateBotStopConfirmButton() {
   if (!button) return;
 
   button.disabled = !(
-    botStopAvailable()
+    botStopSubmissionAvailableForAccount(
+      state.botStopPrepared?.bot?.account_id
+    )
     && state.botStopPrepared?.can_stop
     && $('#stopBotConfirmText')?.value
       === botStopRequiredConfirmation()
@@ -11180,10 +11435,46 @@ async function submitBotStop() {
     return;
   }
 
+  const accountId = String(
+    prepared.bot?.account_id || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  if (
+    !botStopSubmissionAvailableForAccount(
+      accountId
+    )
+  ) {
+    return;
+  }
+
   const modeBefore = botStopMode();
+
+  const accountLiveBefore =
+    botStopSubmissionAvailableForAccount(
+      accountId
+    );
 
   try {
     await refreshBotControlRuntimeHealth();
+
+    /*
+     * Runtime health contains the global Stop arm.
+     * Auth capabilities contain account eligibility.
+     * Re-read BOTH before any live Stop POST.
+     */
+    state.botControlCapabilities = await adminApi(
+      '/api/auth/capabilities'
+    );
+
+    renderBotControlAccess();
+
+    if (state.currentBotData?.bot) {
+      updateBotAdminControls(
+        state.currentBotData.bot
+      );
+    }
 
   } catch (error) {
     const errorBox =
@@ -11200,7 +11491,16 @@ async function submitBotStop() {
 
   const modeAfter = botStopMode();
 
-  if (modeAfter !== modeBefore) {
+  const accountLiveAfter =
+    botStopSubmissionAvailableForAccount(
+      accountId
+    );
+
+  if (
+    modeAfter !== modeBefore
+    || accountLiveAfter !== accountLiveBefore
+    || !accountLiveAfter
+  ) {
     renderBotStopConfirmation(
       prepared
     );
@@ -11209,15 +11509,20 @@ async function submitBotStop() {
       $('#stopBotConfirmError');
 
     errorBox.textContent = (
-      'Bot Control mode changed on the server. '
-      + 'Review the updated mode and confirm again.'
+      'Bot Control mode or account policy changed '
+      + 'on the server. Review the updated state and '
+      + 'confirm again.'
     );
 
     errorBox.classList.remove('hidden');
     return;
   }
 
-  if (!botStopAvailable()) {
+  if (
+    !botStopSubmissionAvailableForAccount(
+      accountId
+    )
+  ) {
     return;
   }
 
@@ -11583,6 +11888,14 @@ function bindEvents() {
   $('#spotGridForm')?.addEventListener(
     'change',
     invalidateSpotGridReview,
+  );
+
+  $('#spotGridAccount')?.addEventListener(
+    'change',
+    () => {
+      renderBotControlCreateState();
+      updateSpotGridConfirmButton();
+    },
   );
 
   $('#openSpotGridConfirmation')?.addEventListener(
