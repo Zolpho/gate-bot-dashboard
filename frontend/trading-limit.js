@@ -8,6 +8,7 @@ tradingState.limitOrderExecutionCapabilities = null;
 tradingState.loadingLimitOrderExecutionCapabilities = false;
 tradingState.limitOrderExecutionAttempt = null;
 tradingState.limitOrderCancellationAttempt = null;
+tradingState.limitOrderAmendmentAttempt = null;
 tradingState.loadingLimitOrderCancellation = false;
 tradingState.loadingLimitOrderCancelStatus = false;
 tradingState.loadingLimitOrderCancelReconcile = false;
@@ -161,6 +162,7 @@ function clearTradingLimitOrderPreview() {
   tradingState.limitOrderPreview = null;
   tradingState.limitOrderExecutionAttempt = null;
   tradingState.limitOrderCancellationAttempt = null;
+tradingState.limitOrderAmendmentAttempt = null;
   tradingState.loadingLimitOrderCancellation = false;
   tradingState.loadingLimitOrderCancelStatus = false;
   tradingState.loadingLimitOrderCancelReconcile = false;
@@ -464,6 +466,10 @@ function tradingLimitExecutionRecoveryRequired() {
     tradingState.limitOrderCancellationAttempt
   );
 
+  const amendmentAttempt = (
+    tradingState.limitOrderAmendmentAttempt
+  );
+
   return Boolean(
     (
       executionAttempt
@@ -473,9 +479,12 @@ function tradingLimitExecutionRecoveryRequired() {
       cancellationAttempt
       && !cancellationAttempt.definitive
     )
+    || (
+      amendmentAttempt
+      && !amendmentAttempt.definitive
+    )
   );
 }
-
 
 function tradingLimitExecutionSnapshot() {
   const preview = (
@@ -685,6 +694,7 @@ function tradingLimitRecoveryCheckpointRead() {
     || ![
       'execution',
       'cancellation',
+      'amendment',
     ].includes(
       String(
         value.kind || ''
@@ -739,11 +749,70 @@ function tradingLimitRecoveryCheckpointForUser() {
 }
 
 
+function tradingLimitRecoveryDecimalIdentity(
+  value,
+) {
+  const raw = String(
+    value ?? ''
+  ).trim();
+
+  if (
+    !/^\+?(?:\d+(?:\.\d*)?|\.\d+)$/
+      .test(raw)
+  ) {
+    return '';
+  }
+
+  const unsigned = raw.replace(
+    /^\+/,
+    ''
+  );
+
+  const parts = unsigned.split('.');
+
+  let whole = String(
+    parts[0] || '0'
+  );
+
+  let fraction = String(
+    parts[1] || ''
+  );
+
+  whole = (
+    whole.replace(
+      /^0+(?=\d)/,
+      ''
+    )
+    || '0'
+  );
+
+  fraction = fraction.replace(
+    /0+$/,
+    ''
+  );
+
+  const normalized = (
+    fraction
+      ? `${whole}.${fraction}`
+      : whole
+  );
+
+  if (
+    normalized === '0'
+  ) {
+    return '';
+  }
+
+  return normalized;
+}
+
 function tradingLimitRecoveryCheckpointWrite({
   kind,
   requestId,
   cancelRequestId = '',
+  amendRequestId = '',
   gateOrderId = '',
+  requestedPrice = '',
 } = {}) {
   const scope = (
     tradingLimitRecoveryScope()
@@ -761,9 +830,19 @@ function tradingLimitRecoveryCheckpointWrite({
     cancelRequestId || ''
   ).trim();
 
+  const normalizedAmendRequestId = String(
+    amendRequestId || ''
+  ).trim();
+
   const normalizedGateOrderId = String(
     gateOrderId || ''
   ).trim();
+
+  const normalizedRequestedPrice = (
+    tradingLimitRecoveryDecimalIdentity(
+      requestedPrice
+    )
+  );
 
   if (
     !scope.username
@@ -780,6 +859,7 @@ function tradingLimitRecoveryCheckpointWrite({
     ![
       'execution',
       'cancellation',
+      'amendment',
     ].includes(
       normalizedKind
     )
@@ -802,6 +882,24 @@ function tradingLimitRecoveryCheckpointWrite({
     );
   }
 
+  if (
+    normalizedKind === 'amendment'
+    && (
+      !normalizedAmendRequestId
+      || !normalizedGateOrderId
+      || !/^[0-9]+$/.test(
+        normalizedGateOrderId
+      )
+      || !normalizedRequestedPrice
+    )
+  ) {
+    throw new Error(
+      'Amendment recovery identity '
+      + 'is incomplete. '
+      + 'No amendment write was sent.'
+    );
+  }
+
   const checkpoint = {
     version:
       TRADING_LIMIT_RECOVERY_VERSION,
@@ -818,6 +916,10 @@ function tradingLimitRecoveryCheckpointWrite({
     pair:
       scope.pair,
 
+    /*
+     * For amendment recovery this is the
+     * SOURCE audited order request ID.
+     */
     request_id:
       normalizedRequestId,
 
@@ -827,9 +929,26 @@ function tradingLimitRecoveryCheckpointWrite({
         : ''
     ),
 
+    amend_request_id: (
+      normalizedKind === 'amendment'
+        ? normalizedAmendRequestId
+        : ''
+    ),
+
     gate_order_id: (
-      normalizedKind === 'cancellation'
+      [
+        'cancellation',
+        'amendment',
+      ].includes(
+        normalizedKind
+      )
         ? normalizedGateOrderId
+        : ''
+    ),
+
+    requested_price: (
+      normalizedKind === 'amendment'
+        ? normalizedRequestedPrice
         : ''
     ),
 
@@ -866,8 +985,14 @@ function tradingLimitRecoveryCheckpointWrite({
         existing.cancel_request_id || ''
       ) === checkpoint.cancel_request_id
       && String(
+        existing.amend_request_id || ''
+      ) === checkpoint.amend_request_id
+      && String(
         existing.gate_order_id || ''
       ) === checkpoint.gate_order_id
+      && String(
+        existing.requested_price || ''
+      ) === checkpoint.requested_price
     );
 
     if (!sameCheckpoint) {
@@ -934,11 +1059,11 @@ function tradingLimitRecoveryCheckpointWrite({
   return checkpoint;
 }
 
-
 function tradingLimitRecoveryCheckpointClear({
   kind = '',
   requestId = '',
   cancelRequestId = '',
+  amendRequestId = '',
 } = {}) {
   const current = (
     tradingLimitRecoveryCheckpointRead()
@@ -958,6 +1083,10 @@ function tradingLimitRecoveryCheckpointClear({
 
   const expectedCancelRequestId = String(
     cancelRequestId || ''
+  ).trim();
+
+  const expectedAmendRequestId = String(
+    amendRequestId || ''
   ).trim();
 
   /*
@@ -987,6 +1116,25 @@ function tradingLimitRecoveryCheckpointClear({
     && String(
       current.cancel_request_id || ''
     ) !== expectedCancelRequestId
+  ) {
+    return false;
+  }
+
+  /*
+   * Amendment recovery has two request IDs:
+   * source order request + amendment request.
+   * Require both identities before clearing it.
+   */
+  if (
+    String(
+      current.kind || ''
+    ) === 'amendment'
+    && (
+      !expectedAmendRequestId
+      || String(
+        current.amend_request_id || ''
+      ) !== expectedAmendRequestId
+    )
   ) {
     return false;
   }
@@ -1025,12 +1173,11 @@ function tradingLimitRecoveryCheckpointClear({
   return true;
 }
 
-
-
 function tradingLimitRecoveryClearKnownDefinitive({
   kind,
   requestId,
   cancelRequestId = '',
+  amendRequestId = '',
   quiet = false,
 } = {}) {
   try {
@@ -1039,6 +1186,7 @@ function tradingLimitRecoveryClearKnownDefinitive({
         kind,
         requestId,
         cancelRequestId,
+        amendRequestId,
       })
     );
 
@@ -1084,7 +1232,6 @@ function tradingLimitRecoveryClearKnownDefinitive({
     };
   }
 }
-
 
 function tradingLimitApiErrorDetail(
   error
@@ -2638,6 +2785,301 @@ function tradingLimitRecoveryHydrateCancellation(
 }
 
 
+function tradingLimitAmendmentDefinitive(
+  status,
+  amendment = {},
+) {
+  const normalizedStatus = String(
+    status || ''
+  ).trim().toLowerCase();
+
+  /*
+   * Durable amendment audit completion is the
+   * authority here.
+   *
+   * "uncertain", "attention" and "amending"
+   * remain unresolved because their audit row
+   * intentionally has no completed_at.
+   */
+  return Boolean(
+    normalizedStatus
+    && String(
+      amendment?.completed_at || ''
+    ).trim()
+  );
+}
+
+
+function tradingLimitRecoveryHydrateAmendment(
+  checkpoint,
+  result = {},
+) {
+  const request = (
+    result?.request || {}
+  );
+
+  const expectedAmendRequestId = String(
+    checkpoint?.amend_request_id || ''
+  ).trim();
+
+  const expectedOrderRequestId = String(
+    checkpoint?.request_id || ''
+  ).trim();
+
+  const expectedGateOrderId = String(
+    checkpoint?.gate_order_id || ''
+  ).trim();
+
+  const expectedRequestedPrice = (
+    tradingLimitRecoveryDecimalIdentity(
+      checkpoint?.requested_price
+    )
+  );
+
+  if (
+    !expectedAmendRequestId
+    || !expectedOrderRequestId
+    || !expectedGateOrderId
+    || !expectedRequestedPrice
+  ) {
+    throw new Error(
+      'Trading amendment recovery checkpoint '
+      + 'identity is incomplete.'
+    );
+  }
+
+  const amendments = (
+    Array.isArray(
+      result?.amendments
+    )
+      ? result.amendments
+      : []
+  );
+
+  const matches = amendments.filter(
+    amendment => (
+      String(
+        amendment?.amend_request_id
+        || ''
+      ).trim()
+      === expectedAmendRequestId
+    )
+  );
+
+  if (matches.length > 1) {
+    throw new Error(
+      'Trading amendment recovery found '
+      + 'duplicate durable amendment identities.'
+    );
+  }
+
+  let amendment = (
+    matches.length === 1
+      ? matches[0]
+      : null
+  );
+
+  /*
+   * Request-detail also exposes the active row
+   * separately. Accept it only when its exact
+   * amendment identity matches the checkpoint.
+   */
+  if (!amendment) {
+    const active = (
+      result?.active_amendment || null
+    );
+
+    if (
+      active
+      && String(
+        active.amend_request_id || ''
+      ).trim()
+      === expectedAmendRequestId
+    ) {
+      amendment = active;
+    }
+  }
+
+  const durableRequestId = String(
+    request?.request_id || ''
+  ).trim();
+
+  if (
+    durableRequestId
+    && durableRequestId
+      !== expectedOrderRequestId
+  ) {
+    throw new Error(
+      'Trading amendment recovery source '
+      + 'request identity does not match '
+      + 'the durable audit.'
+    );
+  }
+
+  /*
+   * Even when the exact amendment audit has
+   * not appeared yet, request-detail already
+   * exposes the durable source Gate order ID.
+   * A mismatch is an identity conflict, not
+   * ordinary write uncertainty.
+   */
+  const durableSourceGateOrderId = String(
+    request?.gate_order_id || ''
+  ).trim();
+
+  if (
+    durableSourceGateOrderId
+    && durableSourceGateOrderId
+      !== expectedGateOrderId
+  ) {
+    throw new Error(
+      'Trading amendment recovery Gate order '
+      + 'identity does not match the source '
+      + 'order audit.'
+    );
+  }
+
+  if (amendment) {
+    const amendmentOrderRequestId = String(
+      amendment.order_request_id || ''
+    ).trim();
+
+    if (
+      amendmentOrderRequestId
+      !== expectedOrderRequestId
+    ) {
+      throw new Error(
+        'Trading amendment recovery source '
+        + 'identity does not match the '
+        + 'amendment audit.'
+      );
+    }
+
+    const durableAmendRequestId = String(
+      amendment.amend_request_id || ''
+    ).trim();
+
+    if (
+      durableAmendRequestId
+      !== expectedAmendRequestId
+    ) {
+      throw new Error(
+        'Trading amendment recovery request '
+        + 'identity does not match the audit.'
+      );
+    }
+
+    const durableGateOrderId = String(
+      amendment.gate_order_id
+      || request?.gate_order_id
+      || ''
+    ).trim();
+
+    if (
+      !durableGateOrderId
+      || durableGateOrderId
+        !== expectedGateOrderId
+    ) {
+      throw new Error(
+        'Trading amendment recovery Gate order '
+        + 'identity does not match the audit.'
+      );
+    }
+
+    const durableRequestedPrice = (
+      tradingLimitRecoveryDecimalIdentity(
+        amendment.requested_price
+      )
+    );
+
+    if (
+      !durableRequestedPrice
+      || durableRequestedPrice
+        !== expectedRequestedPrice
+    ) {
+      throw new Error(
+        'Trading amendment recovery requested '
+        + 'price does not match the audit.'
+      );
+    }
+  }
+
+  /*
+   * Missing matching amendment audit is NEVER
+   * permission to repeat the write.
+   */
+  const status = String(
+    amendment?.status
+    || 'client_uncertain'
+  ).trim().toLowerCase();
+
+  const definitive = Boolean(
+    amendment
+    && tradingLimitAmendmentDefinitive(
+      status,
+      amendment,
+    )
+  );
+
+  const attempt = {
+    amendRequestId:
+      expectedAmendRequestId,
+
+    orderRequestId:
+      expectedOrderRequestId,
+
+    gateOrderId:
+      expectedGateOrderId,
+
+    requestedPrice:
+      expectedRequestedPrice,
+
+    status,
+    definitive,
+
+    gateWritePerformed: (
+      typeof amendment?.write_performed
+      === 'boolean'
+        ? amendment.write_performed
+        : null
+    ),
+
+    amendment,
+    result,
+
+    message: (
+      amendment
+        ? (
+            definitive
+              ? (
+                  'Recovered definitive amendment '
+                  + `status: ${status}.`
+                )
+              : (
+                  'The amendment remains unresolved. '
+                  + 'Do not send another Trading '
+                  + 'write until its status is '
+                  + 'resolved.'
+                )
+          )
+        : (
+            'The amendment audit is not visible '
+            + 'yet. Do not repeat the amendment '
+            + 'or send another Trading write. '
+            + 'Check status again.'
+          )
+    ),
+
+    recovered: true,
+  };
+
+  tradingState.limitOrderAmendmentAttempt = (
+    attempt
+  );
+
+  return attempt;
+}
+
 function tradingLimitRecoveryHydrateMissingAudit(
   checkpoint,
   message,
@@ -2683,44 +3125,63 @@ function tradingLimitRecoveryHydrateMissingAudit(
     return attempt;
   }
 
-  const attempt = {
-    cancelRequestId: String(
-      checkpoint?.cancel_request_id || ''
-    ).trim(),
+  if (kind === 'cancellation') {
+    const attempt = {
+      cancelRequestId: String(
+        checkpoint?.cancel_request_id || ''
+      ).trim(),
 
-    orderRequestId: String(
-      checkpoint?.request_id || ''
-    ).trim(),
+      orderRequestId: String(
+        checkpoint?.request_id || ''
+      ).trim(),
 
-    gateOrderId: String(
-      checkpoint?.gate_order_id || ''
-    ).trim(),
+      gateOrderId: String(
+        checkpoint?.gate_order_id || ''
+      ).trim(),
 
-    status: 'client_uncertain',
-    definitive: false,
-    gateWritePerformed: null,
-    result: null,
+      status: 'client_uncertain',
+      definitive: false,
+      gateWritePerformed: null,
+      result: null,
 
-    message: (
-      message
-      || (
-        'The cancellation audit is not '
-        + 'visible yet. Do not send another '
-        + 'cancellation. Check status again.'
+      message: (
+        message
+        || (
+          'The cancellation audit is not '
+          + 'visible yet. Do not send another '
+          + 'cancellation. Check status again.'
+        )
+      ),
+
+      recovered: true,
+    };
+
+    tradingState.limitOrderCancellationAttempt = (
+      attempt
+    );
+
+    return attempt;
+  }
+
+  if (kind === 'amendment') {
+    const attempt = (
+      tradingLimitRecoveryHydrateAmendment(
+        checkpoint,
+        {},
       )
-    ),
+    );
 
-    recovered: true,
-  };
+    if (message) {
+      attempt.message = message;
+    }
 
-  tradingState.limitOrderCancellationAttempt = (
-    attempt
+    return attempt;
+  }
+
+  throw new Error(
+    'Unsupported Trading recovery kind.'
   );
-
-  return attempt;
 }
-
-
 
 function tradingLimitDurableRecoveryEligibility(
   row,
@@ -3117,6 +3578,17 @@ async function recoverTradingLimitCheckpoint({
         )
       );
 
+    } else if (
+      String(checkpoint.kind)
+      === 'amendment'
+    ) {
+      attempt = (
+        tradingLimitRecoveryHydrateAmendment(
+          checkpoint,
+          result,
+        )
+      );
+
     } else {
       attempt = (
         tradingLimitRecoveryHydrateExecution(
@@ -3137,6 +3609,11 @@ async function recoverTradingLimitCheckpoint({
           cancelRequestId: (
             checkpoint.kind === 'cancellation'
               ? checkpoint.cancel_request_id
+              : ''
+          ),
+          amendRequestId: (
+            checkpoint.kind === 'amendment'
+              ? checkpoint.amend_request_id
               : ''
           ),
           quiet,
