@@ -562,3 +562,174 @@ def test_public_serializer_hides_archived_by():
     assert '"archived"' in source
     assert '"archived_at"' in source
     assert '"archived_by"' not in source
+
+
+def test_archive_persists_after_original_session_closes(
+    tmp_path,
+):
+    path = (
+        tmp_path
+        / "archive-persistence.db"
+    )
+
+    engine = create_engine(
+        f"sqlite:///{path}"
+    )
+
+    Base.metadata.create_all(
+        engine
+    )
+
+    session_factory = sessionmaker(
+        bind=engine
+    )
+
+    try:
+        with session_factory() as db:
+            bot = _add_account_and_bot(
+                db
+            )
+
+            bot_id = bot.id
+
+            result = archive_bot(
+                bot_id,
+                user=_user("zolnode"),
+                db=db,
+            )
+
+            assert (
+                result["gate_write_performed"]
+                is False
+            )
+
+        #
+        # The request session is gone. Persistence must
+        # still be visible from a completely new session.
+        #
+        with session_factory() as db:
+            archive = db.scalar(
+                select(BotArchive)
+                .where(
+                    BotArchive.bot_id
+                    == bot_id
+                )
+            )
+
+            assert archive is not None
+            assert (
+                archive.account_id
+                == "zolnode"
+            )
+
+            bot = db.get(
+                Bot,
+                bot_id,
+            )
+
+            assert bot is not None
+            assert bot.status == "stopped"
+
+    finally:
+        engine.dispose()
+
+
+def test_restore_persists_after_original_session_closes(
+    tmp_path,
+):
+    path = (
+        tmp_path
+        / "restore-persistence.db"
+    )
+
+    engine = create_engine(
+        f"sqlite:///{path}"
+    )
+
+    Base.metadata.create_all(
+        engine
+    )
+
+    session_factory = sessionmaker(
+        bind=engine
+    )
+
+    try:
+        with session_factory() as db:
+            bot = _add_account_and_bot(
+                db
+            )
+
+            bot_id = bot.id
+
+            archive_bot(
+                bot_id,
+                user=_user("zolnode"),
+                db=db,
+            )
+
+        #
+        # Prove Archive itself survived the first session.
+        #
+        with session_factory() as db:
+            assert db.scalar(
+                select(BotArchive)
+                .where(
+                    BotArchive.bot_id
+                    == bot_id
+                )
+            ) is not None
+
+            result = restore_bot(
+                bot_id,
+                user=_user("zolnode"),
+                db=db,
+            )
+
+            assert (
+                result["gate_write_performed"]
+                is False
+            )
+
+        #
+        # Restore must also survive session close.
+        #
+        with session_factory() as db:
+            assert db.scalar(
+                select(BotArchive)
+                .where(
+                    BotArchive.bot_id
+                    == bot_id
+                )
+            ) is None
+
+            bot = db.get(
+                Bot,
+                bot_id,
+            )
+
+            assert bot is not None
+            assert bot.status == "stopped"
+
+    finally:
+        engine.dispose()
+
+
+def test_archive_and_restore_explicitly_commit():
+    archive_source = (
+        python_inspect.getsource(
+            archive_bot
+        )
+    )
+
+    restore_source = (
+        python_inspect.getsource(
+            restore_bot
+        )
+    )
+
+    assert "db.commit()" in archive_source
+    assert "db.rollback()" in archive_source
+
+    assert "db.commit()" in restore_source
+    assert "db.rollback()" in restore_source

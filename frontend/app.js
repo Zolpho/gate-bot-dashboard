@@ -10851,12 +10851,32 @@ async function archiveBot(botId) {
       );
     }
 
-    await loadCore();
+    state.bots = state.bots.map(
+      item => (
+        Number(item.id)
+        === Number(bot.id)
+          ? {
+            ...item,
+            ...result.bot,
+          }
+          : item
+      )
+    );
+
+    applyBotFilters();
 
     showToast(
       'Bot archived locally. '
       + 'No Gate request was sent.'
     );
+
+    /*
+     * Reconcile from the backend asynchronously.
+     * The local committed response already contains the
+     * authoritative archive state, so the user should not
+     * wait for the full dashboard refresh.
+     */
+    void loadCore();
 
   } catch (error) {
     showToast(
@@ -10902,12 +10922,31 @@ async function restoreBot(botId) {
       );
     }
 
-    await loadCore();
+    state.bots = state.bots.map(
+      item => (
+        Number(item.id)
+        === Number(bot.id)
+          ? {
+            ...item,
+            archived: false,
+            archived_at: null,
+          }
+          : item
+      )
+    );
+
+    applyBotFilters();
 
     showToast(
       'Bot restored to the main list. '
       + 'No Gate request was sent.'
     );
+
+    /*
+     * Reconcile from the backend asynchronously without
+     * delaying the successful local-only UI action.
+     */
+    void loadCore();
 
   } catch (error) {
     showToast(

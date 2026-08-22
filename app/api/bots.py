@@ -219,6 +219,13 @@ def archive_bot(
 
         db.flush()
 
+    try:
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
+
     return {
         "status": "archived",
         "bot_id": bot.id,
@@ -265,6 +272,13 @@ def restore_bot(
         )
 
         db.flush()
+
+    try:
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "status": "restored",

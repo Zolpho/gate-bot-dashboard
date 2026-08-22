@@ -217,6 +217,96 @@ def test_archive_cache_busters_exact():
     )
 
     assert (
-        "./app.js?v=20260822-bot-archive-v1"
+        "./app.js?v=20260822-bot-archive-v2"
         in html
     )
+
+
+def test_archive_ui_updates_before_background_refresh():
+    app = _app()
+
+    start = app.index(
+        "async function archiveBot("
+    )
+
+    end = app.index(
+        "async function restoreBot(",
+        start,
+    )
+
+    block = app[start:end]
+
+    assert (
+        "state.bots = state.bots.map("
+        in block
+    )
+
+    assert (
+        "...result.bot"
+        in block
+    )
+
+    assert (
+        "applyBotFilters();"
+        in block
+    )
+
+    assert (
+        "void loadCore();"
+        in block
+    )
+
+    toast = block.index(
+        "Bot archived locally."
+    )
+
+    refresh = block.index(
+        "void loadCore();"
+    )
+
+    assert toast < refresh
+
+
+def test_restore_ui_updates_before_background_refresh():
+    app = _app()
+
+    start = app.index(
+        "async function restoreBot("
+    )
+
+    block = app[start:]
+
+    assert (
+        "state.bots = state.bots.map("
+        in block
+    )
+
+    assert (
+        "archived: false"
+        in block
+    )
+
+    assert (
+        "archived_at: null"
+        in block
+    )
+
+    assert (
+        "applyBotFilters();"
+        in block
+    )
+
+    assert (
+        "void loadCore();"
+        in block
+    )
+
+    toast = block.index(
+        "Bot restored to the main list."
+    )
+
+    refresh = block.index(
+        "void loadCore();"
+    )
+
+    assert toast < refresh
