@@ -611,6 +611,83 @@ def list_order_amendments(
         ]
 
 
+def list_order_amendments_for_requests(
+    order_request_ids: (
+        list[str]
+        | set[str]
+        | tuple[str, ...]
+    ),
+) -> dict[
+    str,
+    list[dict[str, Any]],
+]:
+    """
+    Bulk read amendment history for dashboard
+    order-list rendering.
+
+    This helper is read-only and performs one
+    local database SELECT regardless of the
+    number of requested order IDs.
+
+    Each history is newest-first, matching
+    get_latest_order_amendment().
+    """
+    normalized = sorted(
+        {
+            str(value or "").strip()
+            for value in order_request_ids
+            if str(value or "").strip()
+        }
+    )
+
+    if not normalized:
+        return {}
+
+    result: dict[
+        str,
+        list[dict[str, Any]],
+    ] = {
+        request_id: []
+        for request_id in normalized
+    }
+
+    with session_scope() as db:
+        rows = db.scalars(
+            select(
+                TradingOrderAmendment
+            )
+            .where(
+                TradingOrderAmendment
+                .order_request_id.in_(
+                    normalized
+                )
+            )
+            .order_by(
+                TradingOrderAmendment
+                .order_request_id.asc(),
+                TradingOrderAmendment
+                .created_at.desc(),
+                TradingOrderAmendment
+                .id.desc(),
+            )
+        ).all()
+
+        for row in rows:
+            request_id = str(
+                row.order_request_id
+                or ""
+            ).strip()
+
+            if request_id in result:
+                result[
+                    request_id
+                ].append(
+                    _snapshot(row)
+                )
+
+    return result
+
+
 def mark_order_amendment(
     amend_request_id: str,
     *,

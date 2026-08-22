@@ -159,7 +159,6 @@ function clearTradingLimitOrderPreview() {
   }
 
   tradingState.limitOrderPreview = null;
-  tradingState.limitOrderExecutionCapabilities = null;
   tradingState.limitOrderExecutionAttempt = null;
   tradingState.limitOrderCancellationAttempt = null;
   tradingState.loadingLimitOrderCancellation = false;
@@ -4441,6 +4440,12 @@ async function loadTradingExecutionCapabilities() {
       || result.execution_route_available !== true
       || result.cancellation_implemented !== true
       || result.cancellation_route_available !== true
+      || result.amendment_implemented !== true
+      || result.amendment_route_available !== true
+      || typeof result.amend_arm_enabled !== 'boolean'
+      || result.amend_reconciliation_implemented !== true
+      || result.amend_reconciliation_route_available !== true
+      || result.amend_reconciliation_gate_get_only !== true
       || result.gate_write_performed !== false
       || result.write_performed !== false
     ) {
@@ -4462,6 +4467,13 @@ async function loadTradingExecutionCapabilities() {
         cancellation_implemented: false,
         cancellation_route_available: false,
         cancel_arm_enabled: false,
+        amendment_implemented: false,
+        amendment_route_available: false,
+        amend_arm_enabled: false,
+        amend_required_confirmation: '',
+        amend_reconciliation_implemented: false,
+        amend_reconciliation_route_available: false,
+        amend_reconciliation_gate_get_only: false,
         configured_account_ids: [],
         required_confirmation: '',
         cancel_required_confirmation: '',
@@ -4476,6 +4488,13 @@ async function loadTradingExecutionCapabilities() {
       .loadingLimitOrderExecutionCapabilities = false;
 
     renderTradingLimitExecution();
+
+    if (
+      typeof window.tradingRenderPersistentOrders
+      === 'function'
+    ) {
+      window.tradingRenderPersistentOrders();
+    }
   }
 }
 
@@ -5139,6 +5158,10 @@ window.tradingLimitCancellationMessage = (
   tradingLimitCancellationMessage
 );
 
+
+window.loadTradingExecutionCapabilities = (
+  loadTradingExecutionCapabilities
+);
 
 window.renderTradingLimitOrderTicket = (
   renderTradingLimitOrderTicket

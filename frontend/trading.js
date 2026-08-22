@@ -1310,6 +1310,208 @@ function tradingResetPersistentOrders() {
 
 
 
+function tradingOrderAmendmentReadModel(
+  row,
+) {
+  if (!row?.managed) {
+    return {
+      label: '—',
+      warning: false,
+      title: (
+        'Unmanaged Gate order. '
+        + 'No dashboard amendment audit.'
+      ),
+    };
+  }
+
+  const history = (
+    Array.isArray(
+      row?.amendments
+    )
+      ? row.amendments
+      : []
+  );
+
+  const active = (
+    row?.active_amendment || null
+  );
+
+  const latest = (
+    row?.latest_amendment
+    || history[0]
+    || null
+  );
+
+  const amendment = (
+    active || latest
+  );
+
+  if (amendment) {
+    const status = String(
+      amendment.status || ''
+    ).trim().toLowerCase();
+
+    const count = Number(
+      row?.amendment_count
+      ?? history.length
+    );
+
+    const activeStatus = Boolean(
+      active
+    );
+
+    let label;
+
+    if (status === 'confirmed_amended') {
+      label = 'Amended';
+
+    } else if (status === 'amended') {
+      label = 'Amended';
+
+    } else if (
+      status === 'confirmed_not_applied'
+    ) {
+      label = 'Not applied';
+
+    } else if (status === 'uncertain') {
+      label = 'Amend uncertain';
+
+    } else if (status === 'attention') {
+      label = 'Amend attention';
+
+    } else if (status === 'amending') {
+      label = 'Amending';
+
+    } else if (status === 'reserved') {
+      label = 'Amend reserved';
+
+    } else {
+      label = (
+        tradingOrderStatusLabel(
+          status || 'unknown'
+        )
+      );
+    }
+
+    if (count > 1) {
+      label += ` · ${count}`;
+    }
+
+    const currentPrice = String(
+      amendment.current_price || ''
+    ).trim();
+
+    const requestedPrice = String(
+      amendment.requested_price || ''
+    ).trim();
+
+    const priceSummary = (
+      currentPrice
+      && requestedPrice
+        ? (
+            `${currentPrice} → `
+            + requestedPrice
+          )
+        : ''
+    );
+
+    const requestId = String(
+      amendment.amend_request_id || ''
+    ).trim();
+
+    return {
+      label,
+      warning: (
+        activeStatus
+        || [
+          'uncertain',
+          'attention',
+          'amending',
+          'reserved',
+        ].includes(status)
+      ),
+      title: [
+        (
+          activeStatus
+            ? 'Unresolved amendment'
+            : 'Latest amendment'
+        ),
+        priceSummary,
+        requestId
+          ? `ID ${requestId}`
+          : '',
+        count > 0
+          ? (
+              `${count} amendment`
+              + (
+                count === 1
+                  ? ''
+                  : 's'
+              )
+              + ' recorded'
+            )
+          : '',
+      ].filter(Boolean).join(' · '),
+    };
+  }
+
+  const capabilities = (
+    tradingState
+      .limitOrderExecutionCapabilities
+  );
+
+  if (!capabilities) {
+    return {
+      label: 'Checking…',
+      warning: false,
+      title: (
+        'Waiting for backend amendment '
+        + 'capabilities.'
+      ),
+    };
+  }
+
+  if (
+    capabilities
+      .amendment_implemented !== true
+    || capabilities
+      .amendment_route_available !== true
+  ) {
+    return {
+      label: 'Unavailable',
+      warning: true,
+      title: (
+        'Guarded amendment backend '
+        + 'is unavailable.'
+      ),
+    };
+  }
+
+  if (
+    capabilities
+      .amend_arm_enabled !== true
+  ) {
+    return {
+      label: 'Amend disabled',
+      warning: false,
+      title: (
+        'Price amendment is implemented '
+        + 'but currently disarmed.'
+      ),
+    };
+  }
+
+  return {
+    label: 'No history',
+    warning: false,
+    title: (
+      'No amendment has been recorded '
+      + 'for this managed order.'
+    ),
+  };
+}
+
+
 function tradingPersistentCancelEligibility(
   row,
 ) {
@@ -2036,6 +2238,12 @@ function tradingRenderOpenOrders() {
         )
       );
 
+      const amendmentReadModel = (
+        tradingOrderAmendmentReadModel(
+          row
+        )
+      );
+
       const action = (
         cancelEligibility.allowed
           ? `
@@ -2111,6 +2319,23 @@ function tradingRenderOpenOrders() {
           </td>
 
           <td>${escapeHtml(source)}</td>
+
+          <td>
+            <span
+              class="trading-orders-status ${
+                amendmentReadModel.warning
+                  ? 'warning'
+                  : ''
+              }"
+              title="${escapeHtml(
+                amendmentReadModel.title
+              )}"
+            >
+              ${escapeHtml(
+                amendmentReadModel.label
+              )}
+            </span>
+          </td>
 
           <td class="trading-orders-action-cell">
             ${action}
@@ -2356,6 +2581,12 @@ function tradingRenderRecentOrders() {
         )
       );
 
+      const amendmentReadModel = (
+        tradingOrderAmendmentReadModel(
+          row
+        )
+      );
+
       const action = (
         recovery.recoverable
           ? `
@@ -2445,6 +2676,23 @@ function tradingRenderRecentOrders() {
             )}</code>
           </td>
 
+          <td>
+            <span
+              class="trading-orders-status ${
+                amendmentReadModel.warning
+                  ? 'warning'
+                  : ''
+              }"
+              title="${escapeHtml(
+                amendmentReadModel.title
+              )}"
+            >
+              ${escapeHtml(
+                amendmentReadModel.label
+              )}
+            </span>
+          </td>
+
           <td class="trading-orders-action-cell">
             ${action}
           </td>
@@ -2452,6 +2700,12 @@ function tradingRenderRecentOrders() {
       `;
     })
     .join('');
+}
+
+
+function tradingRenderPersistentOrders() {
+  tradingRenderOpenOrders();
+  tradingRenderRecentOrders();
 }
 
 
@@ -3062,6 +3316,20 @@ async function activateTradingTab() {
       return;
     }
 
+    const loadCapabilities = (
+      window.loadTradingExecutionCapabilities
+    );
+
+    if (
+      typeof loadCapabilities !== 'function'
+    ) {
+      throw new Error(
+        'Trading capability loader is unavailable.'
+      );
+    }
+
+    await loadCapabilities();
+
     tradingEnsureChart();
 
     await tradingRefreshAll({
@@ -3099,6 +3367,9 @@ function resetTradingTab() {
   tradingState.accountId = '';
   tradingState.pair = '';
   tradingState.snapshot = null;
+
+  tradingState.limitOrderExecutionCapabilities = null;
+  tradingState.loadingLimitOrderExecutionCapabilities = false;
 
   tradingResetPersistentOrders();
 
@@ -3373,6 +3644,10 @@ function bindTradingEvents() {
   );
 }
 
+
+window.tradingRenderPersistentOrders = (
+  tradingRenderPersistentOrders
+);
 
 window.activateTradingTab = activateTradingTab;
 window.resetTradingTab = resetTradingTab;

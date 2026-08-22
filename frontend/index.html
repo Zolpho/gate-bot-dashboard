@@ -708,6 +708,7 @@
                       <th>Filled</th>
                       <th>Status</th>
                       <th>Source</th>
+                      <th>Amendment</th>
                       <th class="trading-orders-action-heading">Action</th>
                     </tr>
                   </thead>
@@ -748,6 +749,7 @@
                       <th>Filled</th>
                       <th>Result</th>
                       <th>Gate ID</th>
+                      <th>Amendment</th>
                       <th class="trading-orders-action-heading">Action</th>
                     </tr>
                   </thead>
@@ -801,7 +803,7 @@
             views. New limit orders require the separate execution
             arm and exact confirmation. Eligible managed open orders
             may expose the separately controlled cancellation action
-            when its arm is enabled. Order amendment is not implemented yet.
+            when its arm is enabled. Price-only order amendment is implemented in the guarded backend but remains separately disarmed. This page exposes amendment audit state only; no browser amendment action is enabled yet.
           </span>
         </div>
       </section>

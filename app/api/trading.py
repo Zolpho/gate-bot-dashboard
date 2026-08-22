@@ -46,6 +46,7 @@ from ..trading_order_amend import (
 from ..trading_order_amend_audit import (
     get_active_order_amendment,
     list_order_amendments,
+    list_order_amendments_for_requests,
 )
 from ..trading_order_cancel import (
     TradingOrderCancelDenied,
@@ -2001,6 +2002,137 @@ async def reconcile_trading_limit_order_request(
 
 
 
+def _order_rows_with_amendment_read_model(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Attach amendment audit state to Open/Recent
+    order rows.
+
+    This performs local database reads only.
+    No Gate request is made here.
+
+    Amendment state intentionally remains
+    separate from order_state/effective_status.
+    """
+    request_ids = {
+        str(
+            (
+                row.get("request")
+                or {}
+            ).get(
+                "request_id"
+            )
+            or ""
+        ).strip()
+        for row in rows
+        if isinstance(row, dict)
+        and isinstance(
+            row.get("request"),
+            dict,
+        )
+    }
+
+    request_ids.discard("")
+
+    histories = (
+        list_order_amendments_for_requests(
+            request_ids
+        )
+    )
+
+    result: list[
+        dict[str, Any]
+    ] = []
+
+    unresolved_statuses = {
+        "reserved",
+        "amending",
+        "uncertain",
+        "attention",
+    }
+
+    for row in rows:
+        if not isinstance(
+            row,
+            dict,
+        ):
+            continue
+
+        enriched = dict(row)
+
+        request = (
+            row.get("request")
+            if isinstance(
+                row.get("request"),
+                dict,
+            )
+            else {}
+        )
+
+        request_id = str(
+            request.get(
+                "request_id"
+            )
+            or ""
+        ).strip()
+
+        history = list(
+            histories.get(
+                request_id,
+                [],
+            )
+        )
+
+        latest = (
+            history[0]
+            if history
+            else None
+        )
+
+        active = next(
+            (
+                amendment
+                for amendment in history
+                if (
+                    not amendment.get(
+                        "completed_at"
+                    )
+                    and str(
+                        amendment.get(
+                            "status"
+                        )
+                        or ""
+                    ).strip().lower()
+                    in unresolved_statuses
+                )
+            ),
+            None,
+        )
+
+        enriched[
+            "amendments"
+        ] = history
+
+        enriched[
+            "amendment_count"
+        ] = len(history)
+
+        enriched[
+            "latest_amendment"
+        ] = latest
+
+        enriched[
+            "active_amendment"
+        ] = active
+
+        result.append(
+            enriched
+        )
+
+    return result
+
+
 @router.get("/orders/recent")
 async def trading_recent_orders(
     user: Annotated[
@@ -2070,6 +2202,10 @@ async def trading_recent_orders(
         cancellations_by_request_id=(
             cancellations_by_request_id
         ),
+    )
+
+    orders = _order_rows_with_amendment_read_model(
+        orders
     )
 
     return {
@@ -2247,6 +2383,10 @@ async def trading_open_orders(
         cancellations_by_request_id=(
             cancellations_by_request_id
         ),
+    )
+
+    orders = _order_rows_with_amendment_read_model(
+        orders
     )
 
     return {
