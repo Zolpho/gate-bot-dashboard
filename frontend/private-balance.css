@@ -25,3 +25,280 @@
 @media (max-width:1250px) { .private-balance-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:820px) { .private-balance-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .private-balance-header { gap:12px; } }
 @media (max-width:560px) { .private-balance-grid { grid-template-columns:1fr; } .private-balance-header { align-items:stretch; flex-direction:column; } .private-balance-header .button { width:100%; } }
+
+/* 3J17 Wallet balance polish v1 */
+
+#tab-wallet
+.private-balance-panel {
+  padding: 16px;
+
+  border-color:
+    var(--border-soft);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(23, 211, 154, .018),
+      var(--surface)
+    );
+}
+
+
+#tab-wallet
+.private-balance-header {
+  align-items: center;
+
+  margin-bottom: 12px;
+}
+
+
+#tab-wallet
+.private-balance-title-row {
+  gap: 7px;
+}
+
+
+#tab-wallet
+.private-balance-title-row h2 {
+  font-size: .96rem;
+}
+
+
+#tab-wallet
+.private-badge {
+  padding: 2px 7px;
+
+  font-size: .63rem;
+}
+
+
+#tab-wallet
+.private-balance-actions {
+  gap: 7px;
+}
+
+
+#tab-wallet
+.private-balance-actions .button {
+  min-height: 31px;
+
+  padding: 6px 10px;
+
+  font-size: .72rem;
+}
+
+
+#tab-wallet
+.private-balance-grid {
+  gap: 8px;
+}
+
+
+#tab-wallet
+.private-balance-card {
+  min-height: 88px;
+
+  padding: 10px 11px;
+
+  border-color:
+    var(--border-soft);
+
+  border-radius: 10px;
+
+  background:
+    rgba(255, 255, 255, .012);
+}
+
+
+#tab-wallet
+.private-balance-card:first-child {
+  border-color:
+    rgba(23, 211, 154, .22);
+
+  background:
+    rgba(23, 211, 154, .035);
+}
+
+
+#tab-wallet
+.private-balance-card > span {
+  font-size: .72rem;
+  font-weight: 500;
+}
+
+
+#tab-wallet
+.private-balance-card strong {
+  margin:
+    5px
+    0
+    2px;
+
+  font-size:
+    clamp(.96rem, 1.25vw, 1.08rem);
+
+  letter-spacing: -.018em;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+#tab-wallet
+.private-balance-card small {
+  font-size: .69rem;
+  line-height: 1.38;
+}
+
+
+#tab-wallet
+.private-balance-meta {
+  margin:
+    9px
+    0
+    6px;
+
+  font-size: .70rem;
+}
+
+
+#tab-wallet
+.private-account-breakdown {
+  gap: 6px;
+
+  margin:
+    6px
+    0
+    9px;
+}
+
+
+#tab-wallet
+.private-account-chip {
+  padding: 3px 7px;
+
+  font-size: .67rem;
+}
+
+
+#tab-wallet
+.private-assets-details {
+  margin-top: 3px;
+
+  padding-top: 9px;
+
+  border-top-color:
+    var(--border-soft);
+}
+
+
+#tab-wallet
+.private-assets-details summary {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 27px;
+
+  padding: 3px 6px;
+
+  border: 1px solid transparent;
+  border-radius: 7px;
+
+  color: var(--accent);
+
+  font-size: .73rem;
+  font-weight: 650;
+
+  cursor: pointer;
+}
+
+
+#tab-wallet
+.private-assets-details summary:hover {
+  background:
+    rgba(23, 211, 154, .045);
+}
+
+
+#tab-wallet
+.private-assets-details summary:focus-visible {
+  outline: none;
+
+  border-color:
+    rgba(23, 211, 154, .30);
+
+  background:
+    rgba(23, 211, 154, .055);
+
+  box-shadow:
+    0 0 0 2px
+    rgba(23, 211, 154, .10);
+}
+
+
+#tab-wallet
+.private-assets-details[open]
+summary {
+  margin-bottom: 7px;
+}
+
+
+#tab-wallet
+.private-assets-table {
+  font-size: .76rem;
+}
+
+
+#tab-wallet
+.private-assets-table th,
+#tab-wallet
+.private-assets-table td {
+  padding: 8px 9px;
+}
+
+
+#tab-wallet
+.private-balance-footnote {
+  margin-top: 7px;
+
+  font-size: .68rem;
+}
+
+
+@media (max-width: 1250px) {
+  #tab-wallet
+  .private-balance-grid {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+
+@media (max-width: 820px) {
+  #tab-wallet
+  .private-balance-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+
+@media (max-width: 560px) {
+  #tab-wallet
+  .private-balance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  .private-balance-header {
+    align-items: stretch;
+  }
+}
+
+/* End 3J17 Wallet balance polish v1 */

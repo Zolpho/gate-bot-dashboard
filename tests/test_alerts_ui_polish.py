@@ -322,7 +322,7 @@ def test_alerts_assets_are_versioned():
 
     assert (
         "./app.js?"
-        "v=20260823-overview-incidents-v1"
+        "v=20260823-wallet-summary-v1"
         in HTML
     )
 

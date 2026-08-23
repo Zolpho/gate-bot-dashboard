@@ -1119,7 +1119,7 @@ function renderDepositHistory(payload) {
       <td>${escapeHtml(fmtDate(item.deposited_at))}</td>
       <td><strong>${escapeHtml(item.currency)}</strong></td>
       <td>${escapeHtml(item.chain || '—')}</td>
-      <td>${escapeHtml(item.amount)}</td>
+      <td>${escapeHtml(fmtAssetQuantity(item.amount))}</td>
       <td><span class="deposit-status ${depositStatusClass(item.status)}">${escapeHtml(item.status)}</span></td>
       <td>${item.txid ? `<code title="${escapeHtml(item.txid)}">${escapeHtml(item.txid)}</code>` : '—'}</td>
     </tr>
