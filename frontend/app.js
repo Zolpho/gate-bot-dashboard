@@ -3013,6 +3013,101 @@ function selectedBotControlAccountId() {
 }
 
 
+function formatBotControlSidebarUtc(value) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.valueOf())) {
+    return '';
+  }
+
+  const pad = number => String(
+    number
+  ).padStart(
+    2,
+    '0',
+  );
+
+  return (
+    `${pad(date.getUTCHours())}:`
+    + `${pad(date.getUTCMinutes())} UTC`
+  );
+}
+
+
+function renderSidebarSyncScope(
+  latestOverride = null,
+) {
+  const target = $('#lastSyncSidebar');
+
+  if (!target) {
+    return;
+  }
+
+  if (state.activeTab === 'bot-control') {
+    const accountId = (
+      selectedBotControlAccountId()
+    );
+
+    const account = (
+      state.overview?.accounts
+      || []
+    ).find(
+      item => (
+        String(item.id || '').toLowerCase()
+        === accountId
+      )
+    );
+
+    const accountName = (
+      account?.name
+      || accountId
+      || 'Bot Control'
+    );
+
+    const syncTime = (
+      formatBotControlSidebarUtc(
+        account?.last_success_at
+      )
+    );
+
+    target.textContent = syncTime
+      ? `${accountName} · ${syncTime}`
+      : `${accountName} · no sync yet`;
+
+    return;
+  }
+
+  const latest = (
+    latestOverride
+    || state.syncRuns?.[0]
+    || null
+  );
+
+  const accountLabel = (
+    state.selectedAccount
+      ? (
+        state.overview?.selected_account?.name
+        || state.selectedAccount
+      )
+      : 'All accounts'
+  );
+
+  target.textContent = latest
+    ? (
+      `${accountLabel} · `
+      + `${fmtDate(
+        latest.finished_at
+        || latest.started_at
+      )}`
+    )
+    : `${accountLabel} · no sync yet`;
+}
+
+
 function botCreationSubmissionAvailableForAccount(
   accountId,
 ) {
@@ -3137,7 +3232,8 @@ function renderBotControlAccess() {
   nav.tabIndex = available ? 0 : -1;
 
   const select = $('#spotGridAccount');
-  const staticAccount = $('#spotGridAccountStatic');
+  const accountField = $('#spotGridAccountField');
+  const accountChip = $('#spotGridAccountChip');
 
   if (select) {
     const accounts = botControlAccounts();
@@ -3162,11 +3258,13 @@ function renderBotControlAccess() {
       && ids.includes(state.selectedAccount)
     ) {
       target = state.selectedAccount;
+
     } else if (
       previous
       && ids.includes(previous)
     ) {
       target = previous;
+
     } else {
       target = ids[0] || '';
     }
@@ -3177,30 +3275,24 @@ function renderBotControlAccess() {
       accounts.length === 1
     );
 
-    select.classList.toggle(
+    accountField?.classList.toggle(
       'hidden',
       singleAccount,
     );
 
-    select.setAttribute(
+    accountField?.setAttribute(
       'aria-hidden',
       String(singleAccount),
     );
 
-    select.tabIndex = (
-      singleAccount
-        ? -1
-        : 0
-    );
-
-    if (staticAccount) {
+    if (accountChip) {
       const account = (
         singleAccount
           ? accounts[0]
           : null
       );
 
-      staticAccount.textContent = (
+      accountChip.textContent = (
         account
           ? (
             account.account_name
@@ -3209,12 +3301,12 @@ function renderBotControlAccess() {
           : '—'
       );
 
-      staticAccount.classList.toggle(
+      accountChip.classList.toggle(
         'hidden',
         !singleAccount,
       );
 
-      staticAccount.setAttribute(
+      accountChip.setAttribute(
         'aria-hidden',
         String(!singleAccount),
       );
@@ -3225,12 +3317,155 @@ function renderBotControlAccess() {
 
   updateSpotGridConfirmButton();
 
+  renderSidebarSyncScope();
+
   if (
     state.activeTab === 'bot-control'
     && !available
   ) {
     switchTab('overview');
   }
+}
+
+
+function resetSpotGridForm() {
+  const form = $('#spotGridForm');
+
+  if (!form) {
+    return;
+  }
+
+  /*
+   * Preserve Bot Control account scope while resetting
+   * all strategy parameters to their HTML defaults.
+   */
+  const accountId = (
+    selectedBotControlAccountId()
+  );
+
+  form.reset();
+
+  const accountSelect = $('#spotGridAccount');
+
+  if (
+    accountSelect
+    && accountId
+    && Array.from(
+      accountSelect.options
+    ).some(
+      option => option.value === accountId
+    )
+  ) {
+    accountSelect.value = accountId;
+  }
+
+  form.querySelector(
+    '.bot-control-advanced'
+  )?.removeAttribute(
+    'open'
+  );
+
+  state.botControlPrepared = null;
+  state.botControlDraft = null;
+  state.botControlRequestId = '';
+
+  setSpotGridFormError('');
+
+  $('#spotGridReview')?.classList.add(
+    'hidden'
+  );
+
+  const empty = $('#spotGridReviewEmpty');
+
+  if (empty) {
+    empty.innerHTML = (
+      'Enter the strategy parameters and choose '
+      + '<strong>Review Spot Grid</strong>.'
+    );
+
+    empty.classList.remove(
+      'hidden'
+    );
+  }
+
+  const reviewStatus = $(
+    '#spotGridReviewStatus'
+  );
+
+  if (reviewStatus) {
+    reviewStatus.innerHTML = '';
+  }
+
+  const reviewMetrics = $(
+    '#spotGridReviewMetrics'
+  );
+
+  if (reviewMetrics) {
+    reviewMetrics.innerHTML = '';
+  }
+
+  const validation = $(
+    '#spotGridValidationMessages'
+  );
+
+  if (validation) {
+    validation.innerHTML = '';
+  }
+
+  const payload = $(
+    '#spotGridPayloadPreview'
+  );
+
+  if (payload) {
+    payload.textContent = '';
+  }
+
+  const createResult = $(
+    '#spotGridCreateResult'
+  );
+
+  if (createResult) {
+    createResult.textContent = '';
+    createResult.classList.add(
+      'hidden'
+    );
+  }
+
+  const confirmationButton = $(
+    '#openSpotGridConfirmation'
+  );
+
+  if (confirmationButton) {
+    confirmationButton.disabled = true;
+  }
+
+  const confirmationText = $(
+    '#spotGridConfirmText'
+  );
+
+  if (confirmationText) {
+    confirmationText.value = '';
+  }
+
+  const confirmationError = $(
+    '#spotGridConfirmError'
+  );
+
+  if (confirmationError) {
+    confirmationError.textContent = '';
+    confirmationError.classList.add(
+      'hidden'
+    );
+  }
+
+  const dialog = $('#spotGridConfirmDialog');
+
+  if (dialog?.open) {
+    dialog.close();
+  }
+
+  renderBotControlCreateState();
+  updateSpotGridConfirmButton();
 }
 
 function invalidateSpotGridReview() {
@@ -9675,6 +9910,8 @@ function switchTab(tab, { updateHash = true } = {}) {
 
   state.activeTab = target;
 
+  renderSidebarSyncScope();
+
   const globalAccountSelector = $(
     '#globalAccountSelector'
   );
@@ -9958,8 +10195,9 @@ function renderOverview() {
     }).join('')
     : '<div class="empty-state">No running bots yet.</div>';
 
-  const accountLabel = state.selectedAccount ? (state.overview.selected_account?.name || state.selectedAccount) : 'All accounts';
-  $('#lastSyncSidebar').textContent = latest ? `${accountLabel} · ${fmtDate(latest.finished_at || latest.started_at)}` : `${accountLabel} · no sync yet`;
+  renderSidebarSyncScope(
+    latest
+  );
   renderOverviewAlerts();
   drawPortfolioChart();
 }
@@ -12849,6 +13087,11 @@ function bindEvents() {
   $('#spotGridForm')?.addEventListener(
     'submit',
     prepareSpotGrid,
+  );
+
+  $('#resetSpotGridButton')?.addEventListener(
+    'click',
+    resetSpotGridForm,
   );
 
   $('#spotGridForm')?.addEventListener(

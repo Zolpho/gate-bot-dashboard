@@ -28,7 +28,7 @@ def test_global_account_scope_is_hidden_on_bot_control():
 def test_single_bot_control_account_has_static_surface():
     assert 'id="spotGridAccount"' in HTML
     assert 'name="account_id"' in HTML
-    assert 'id="spotGridAccountStatic"' in HTML
+    assert 'id="spotGridAccountChip"' in HTML
 
     assert "accounts.length === 1" in APP
     assert "singleAccount" in APP
@@ -163,13 +163,13 @@ def test_preflight_panel_is_compact():
 def test_bot_control_asset_versions_are_bumped():
     assert (
         "./bot-control.css?"
-        "v=20260823-bot-control-polish-v1"
+        "v=20260823-bot-control-final-v2"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260823-bot-control-polish-v1"
+        "v=20260823-bot-control-final-v2"
         in HTML
     )
 
@@ -207,3 +207,192 @@ def test_activity_pagination_loader_is_get_only():
         "PATCH",
     ):
         assert forbidden not in loader
+
+
+
+def test_single_account_is_presented_as_header_context():
+    assert 'id="spotGridAccountChip"' in HTML
+    assert 'id="spotGridAccountField"' in HTML
+
+    assert (
+        "accountField?.classList.toggle("
+        in APP
+    )
+
+    assert (
+        "accountChip.classList.toggle("
+        in APP
+    )
+
+    # Multi-account operators keep the real selector.
+    assert 'id="spotGridAccount"' in HTML
+    assert 'name="account_id"' in HTML
+
+
+def test_create_spot_grid_has_local_reset_action():
+    assert 'id="resetSpotGridButton"' in HTML
+
+    assert (
+        "function resetSpotGridForm()"
+        in APP
+    )
+
+    assert (
+        "$('#resetSpotGridButton')?.addEventListener("
+        in APP
+    )
+
+
+def test_reset_restores_form_defaults_and_clears_preflight():
+    start = APP.index(
+        "function resetSpotGridForm()"
+    )
+
+    end = APP.index(
+        "\nfunction invalidateSpotGridReview()",
+        start,
+    )
+
+    reset = APP[start:end]
+
+    for token in (
+        "form.reset();",
+        "state.botControlPrepared = null;",
+        "state.botControlDraft = null;",
+        "state.botControlRequestId = '';",
+        "setSpotGridFormError('');",
+        "'#spotGridReview'",
+        "'#spotGridReviewEmpty'",
+        "'#spotGridReviewStatus'",
+        "'#spotGridReviewMetrics'",
+        "'#spotGridValidationMessages'",
+        "'#spotGridPayloadPreview'",
+        "'#spotGridCreateResult'",
+        "'#spotGridConfirmText'",
+        "'#spotGridConfirmError'",
+        "'#spotGridConfirmDialog'",
+    ):
+        assert token in reset
+
+    assert (
+        "Enter the strategy parameters and choose "
+        in reset
+    )
+
+    assert (
+        "<strong>Review Spot Grid</strong>."
+        in reset
+    )
+
+
+def test_reset_is_strictly_local_and_preserves_account_scope():
+    start = APP.index(
+        "function resetSpotGridForm()"
+    )
+
+    end = APP.index(
+        "\nfunction invalidateSpotGridReview()",
+        start,
+    )
+
+    reset = APP[start:end]
+
+    assert (
+        "const accountId = ("
+        in reset
+    )
+
+    assert (
+        "accountSelect.value = accountId;"
+        in reset
+    )
+
+    for forbidden in (
+        "adminApi(",
+        "api(",
+        "fetch(",
+        "loadCore(",
+        "syncNow(",
+    ):
+        assert forbidden not in reset
+
+
+def test_activity_header_actions_are_grouped():
+    assert (
+        'class="bot-control-activity-actions"'
+        in HTML
+    )
+
+    for element_id in (
+        "exportBotControlJson",
+        "exportBotControlCsv",
+        "refreshBotControlActivity",
+    ):
+        assert f'id="{element_id}"' in HTML
+
+    assert (
+        ".bot-control-activity-actions"
+        in CSS
+    )
+
+
+def test_bot_control_sidebar_uses_account_scope_and_utc():
+    assert (
+        "function renderSidebarSyncScope("
+        in APP
+    )
+
+    assert (
+        "state.activeTab === 'bot-control'"
+        in APP
+    )
+
+    assert (
+        "selectedBotControlAccountId()"
+        in APP
+    )
+
+    assert (
+        "account?.last_success_at"
+        in APP
+    )
+
+    assert (
+        "formatBotControlSidebarUtc"
+        in APP
+    )
+
+    start = APP.index(
+        "function formatBotControlSidebarUtc(value) {"
+    )
+
+    end = APP.index(
+        "\n\nfunction renderSidebarSyncScope(",
+        start,
+    )
+
+    formatter = APP[start:end]
+
+    assert "getUTCHours()" in formatter
+    assert "getUTCMinutes()" in formatter
+    assert " UTC" in formatter
+
+    assert "toLocaleTimeString" not in formatter
+    assert "toLocaleString" not in formatter
+
+
+def test_final_bot_control_cleanup_css_present():
+    assert (
+        "/* 3J13 Bot Control final cleanup v2 */"
+        in CSS
+    )
+
+    assert (
+        ".bot-control-create-title-row"
+        in CSS
+    )
+
+    assert (
+        ".bot-control-form-actions"
+        in CSS
+    )

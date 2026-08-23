@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit-history.css">
   <link rel="stylesheet" href="./wallet-tab.css">
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
-  <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-polish-v1">
+  <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v2">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
 </head>
@@ -1509,7 +1509,15 @@
           <article class="panel bot-control-form-panel">
             <div class="panel-header">
               <div>
-                <h2>Create Spot Grid</h2>
+                <div class="bot-control-create-title-row">
+                  <h2>Create Spot Grid</h2>
+
+                  <span
+                    id="spotGridAccountChip"
+                    class="bot-control-account-chip hidden"
+                    title="Bot Control account"
+                  >—</span>
+                </div>
                 <p>
                   Review with Monitor credentials before any
                   Bot Control write is allowed.
@@ -1530,19 +1538,17 @@
 
             <form id="spotGridForm" class="bot-control-form">
 
-              <label class="full">
+              <label
+                class="full bot-control-account-field"
+                id="spotGridAccountField"
+              >
                 Gate account
+
                 <select
                   id="spotGridAccount"
                   name="account_id"
                   required
                 ></select>
-
-                <span
-                  id="spotGridAccountStatic"
-                  class="bot-control-account-static hidden"
-                  aria-live="polite"
-                >—</span>
               </label>
 
               <label class="full">
@@ -1662,7 +1668,17 @@
                 role="alert"
               ></p>
 
-              <div class="form-actions full">
+              <div
+                class="form-actions full bot-control-form-actions"
+              >
+                <button
+                  type="button"
+                  class="button secondary"
+                  id="resetSpotGridButton"
+                >
+                  Reset
+                </button>
+
                 <button
                   type="submit"
                   class="button primary"
@@ -1795,29 +1811,31 @@
             </div>
 
             
-            <button
-              type="button"
-              class="button secondary"
-              id="exportBotControlJson"
-            >
-              Export JSON
-            </button>
+            <div class="bot-control-activity-actions">
+              <button
+                type="button"
+                class="button secondary"
+                id="exportBotControlJson"
+              >
+                Export JSON
+              </button>
 
-            <button
-              type="button"
-              class="button secondary"
-              id="exportBotControlCsv"
-            >
-              Export CSV
-            </button>
+              <button
+                type="button"
+                class="button secondary"
+                id="exportBotControlCsv"
+              >
+                Export CSV
+              </button>
 
-<button
-              type="button"
-              class="button secondary"
-              id="refreshBotControlActivity"
-            >
-              Refresh activity
-            </button>
+              <button
+                type="button"
+                class="button secondary"
+                id="refreshBotControlActivity"
+              >
+                Refresh activity
+              </button>
+            </div>
           </div>
 
           <div
@@ -2439,7 +2457,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-bot-control-polish-v1"
+    src="./app.js?v=20260823-bot-control-final-v2"
     defer
   ></script>
   <script
