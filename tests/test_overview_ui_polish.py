@@ -70,8 +70,23 @@ def test_alert_display_formatter_exists():
     )
 
     assert (
-        "formatAlertMessage(event.message)"
+        "function overviewIncidentHtml(incident)"
         in app
+    )
+
+    assert (
+        "state.alertIncidents.slice(0, 4)"
+        in app
+    )
+
+    assert (
+        "No active incidents."
+        in app
+    )
+
+    assert (
+        "formatAlertMessage(event.message)"
+        not in app
     )
 
     assert "minimumFractionDigits: 2" in app

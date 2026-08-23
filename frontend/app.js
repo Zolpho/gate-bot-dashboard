@@ -26,7 +26,6 @@ const state = {
   filteredArchivedBots: [],
   botFilters: {},
   history: [],
-  alertEvents: [],
   alertIncidents: [],
   alertIncidentHistory: [],
   rules: [],
@@ -11605,17 +11604,95 @@ function formatAlertMessage(message) {
 
 function renderOverviewAlerts() {
   const target = $('#overviewAlerts');
-  const items = state.alertEvents.slice(0,4);
-  target.innerHTML = items.length ? items.map(eventHtml).join('') : '<div class="empty-state">No alert events.</div>';
+  const items = state.alertIncidents.slice(0, 4);
+
+  target.innerHTML = items.length
+    ? items.map(
+      overviewIncidentHtml
+    ).join('')
+    : (
+      '<div class="empty-state">'
+      + 'No active incidents.'
+      + '</div>'
+    );
 }
 
-function eventHtml(event) {
-  let action = '<span class="status-badge">Open</span>';
-  if (event.acknowledged_at) action = '<span class="status-badge">Ack</span>';
-  else if ((event.account_id && canManageAccount(event.account_id)) || (!event.account_id && state.adminUser?.role === 'super_admin')) {
-    action = `<button class="text-button ack-event" data-event-id="${event.id}">Acknowledge</button>`;
+
+function overviewIncidentHtml(incident) {
+  const acknowledged = Boolean(
+    incident.is_acknowledged
+    || incident.acknowledged_at
+  );
+
+  const manageable = (
+    alertIncidentManageable(
+      incident
+    )
+  );
+
+  let action = (
+    '<span class="status-badge">'
+    + `${acknowledged ? 'Ack' : 'Open'}`
+    + '</span>'
+  );
+
+  if (
+    !acknowledged
+    && manageable
+  ) {
+    action = (
+      `<button class="text-button ack-incident" `
+      + `data-incident-id="${incident.id}">`
+      + 'Acknowledge'
+      + '</button>'
+    );
   }
-  return `<article class="event"><i class="event-dot"></i><div><p>${escapeHtml(formatAlertMessage(event.message))}</p><small>${fmtDate(event.triggered_at)}</small></div>${action}</article>`;
+
+  const ruleName = (
+    incident.rule_name
+    || `Rule ${incident.rule_id}`
+  );
+
+  const scope = alertIncidentScope(
+    incident
+  );
+
+  const condition = alertIncidentCondition(
+    incident
+  );
+
+  const current = (
+    alertIncidentMetricValue(
+      incident.metric,
+      incident.current_value,
+      incident.bot,
+    )
+  );
+
+  return (
+    '<article class="event">'
+    + '<i class="event-dot"></i>'
+    + '<div>'
+    + `<p>${escapeHtml(ruleName)}</p>`
+    + (
+      `<small>${
+        escapeHtml(scope)
+      } · ${
+        escapeHtml(condition)
+      } · Current ${
+        escapeHtml(current)
+      } · Opened ${
+        escapeHtml(
+          fmtDate(
+            incident.opened_at
+          )
+        )
+      }</small>`
+    )
+    + '</div>'
+    + action
+    + '</article>'
+  );
 }
 
 
@@ -12274,7 +12351,6 @@ async function loadCore() {
       botData,
       historyData,
       ruleData,
-      eventData,
       openIncidentData,
       historyIncidentData,
       syncData,
@@ -12284,7 +12360,6 @@ async function loadCore() {
       api(scopedPath('/api/bots')),
       api(scopedPath('/api/portfolio/history', { hours })),
       api('/api/alerts/rules'),
-      api(scopedPath('/api/alerts/events', { limit: 100 })),
       api(scopedPath('/api/alerts/incidents', {
         state: 'open',
         limit: 100,
@@ -12302,10 +12377,6 @@ async function loadCore() {
     state.botFilters = botData.filters || {};
     state.history = historyData.items;
     state.rules = ruleData.items;
-
-    // Legacy AlertEvent data remains exclusively for
-    // frozen Overview "Recent alerts".
-    state.alertEvents = eventData.items;
 
     // Alerts tab uses durable incident lifecycle data.
     state.alertIncidents = openIncidentData.items;
@@ -13464,13 +13535,6 @@ function exportCsv() {
   const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `gate-bots-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
 }
 
-async function acknowledgeEvent(id) {
-  if (!state.adminUser) { openAdminDialog(); return; }
-  try { await adminApi(`/api/alerts/events/${id}/acknowledge`, { method:'POST' }); await loadCore(); showToast('Alert acknowledged.'); }
-  catch (error) { showToast(error.message, true); }
-}
-
-
 async function acknowledgeIncident(id) {
   if (!state.adminUser) {
     openAdminDialog();
@@ -14055,8 +14119,6 @@ function bindEvents() {
       return;
     }
 
-    // Legacy Overview alert acknowledgement remains intact.
-    const ack = event.target.closest('.ack-event'); if (ack) acknowledgeEvent(Number(ack.dataset.eventId));
     const del = event.target.closest('.delete-rule'); if (del) deleteRule(Number(del.dataset.ruleId));
     const depositCurrency = event.target.closest('[data-deposit-currency]'); if (depositCurrency) selectDepositCurrency(depositCurrency.dataset.depositCurrency);
     const depositChain = event.target.closest('[data-deposit-chain]'); if (depositChain) selectDepositNetwork(depositChain.dataset.depositChain);

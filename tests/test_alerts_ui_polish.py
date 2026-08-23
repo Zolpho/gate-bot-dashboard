@@ -152,50 +152,59 @@ def test_incident_acknowledgement_hook():
     assert "Incident acknowledged." in APP
 
 
-def test_overview_alert_renderer_remains_separate():
+def test_overview_uses_active_incidents():
+    assert "<h2>Active incidents</h2>" in HTML
+    assert (
+        "Current conditions needing attention"
+        in HTML
+    )
+
     start = APP.index(
         "function renderOverviewAlerts()"
     )
 
     end = APP.index(
-        "\nfunction eventHtml(event)",
+        "\nfunction formatAlertUtcDate",
         start,
     )
 
     overview = APP[start:end]
 
     assert (
-        "state.alertEvents.slice(0,4)"
+        "state.alertIncidents.slice(0, 4)"
         in overview
     )
 
-    assert ".map(eventHtml)" in overview
-
-    event_start = APP.index(
-        "function eventHtml(event)"
-    )
-
-    event_end = APP.index(
-        "\nfunction formatAlertUtcDate",
-        event_start,
-    )
-
-    event_renderer = APP[
-        event_start:event_end
-    ]
-
     assert (
-        "fmtDate(event.triggered_at)"
-        in event_renderer
+        ".map("
+        in overview
     )
 
     assert (
-        'class="text-button ack-event"'
-        in event_renderer
+        "overviewIncidentHtml"
+        in overview
     )
 
+    assert (
+        "No active incidents."
+        in overview
+    )
 
-def test_load_core_keeps_events_for_overview_and_incidents_for_alerts():
+    assert (
+        "function overviewIncidentHtml(incident)"
+        in overview
+    )
+
+    assert (
+        'class="text-button ack-incident"'
+        in overview
+    )
+
+    assert "state.alertEvents" not in overview
+    assert "eventHtml(event)" not in overview
+    assert "ack-event" not in overview
+
+def test_load_core_uses_incidents_not_legacy_events():
     start = APP.index(
         "async function loadCore()"
     )
@@ -208,22 +217,12 @@ def test_load_core_keeps_events_for_overview_and_incidents_for_alerts():
     loader = APP[start:end]
 
     assert (
-        "api(scopedPath('/api/alerts/events'"
-        in loader
-    )
-
-    assert (
         "api(scopedPath('/api/alerts/incidents'"
         in loader
     )
 
     assert "state: 'open'" in loader
     assert "state: 'history'" in loader
-
-    assert (
-        "state.alertEvents = eventData.items"
-        in loader
-    )
 
     assert (
         "state.alertIncidents = "
@@ -237,8 +236,9 @@ def test_load_core_keeps_events_for_overview_and_incidents_for_alerts():
         in loader
     )
 
-    assert "unacknowledged_only" not in loader
-
+    assert "/api/alerts/events" not in loader
+    assert "eventData" not in loader
+    assert "state.alertEvents" not in loader
 
 def test_alerts_use_explicit_utc_timestamps():
     start = APP.index(
@@ -316,13 +316,13 @@ def test_incident_visual_states_exist():
 def test_alerts_assets_are_versioned():
     assert (
         "./alerts.css?"
-        "v=20260823-alert-open-badge-v1"
+        "v=20260823-overview-incidents-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260823-alert-open-badge-v1"
+        "v=20260823-overview-incidents-v1"
         in HTML
     )
 
