@@ -4574,26 +4574,9 @@ function renderTreasurySafety() {
     )
   );
 
-  const transfersEnabled = Boolean(
-    health.treasury_transfers_enabled
-  );
-
   const withdrawalsEnabled = Boolean(
     health.treasury_withdrawals_enabled
   );
-
-  const badge = $('#treasurySafetyBadge');
-
-  if (badge) {
-    badge.textContent = transfersEnabled
-      ? 'TREASURY TRANSFER ARM ENABLED'
-      : 'TREASURY TRANSFER ARM DISABLED';
-
-    setTreasuryCapabilityBadge(
-      badge,
-      transfersEnabled,
-    );
-  }
 
   const warning = $(
     '#treasuryConfigurationWarning'
@@ -4906,6 +4889,7 @@ function setTreasuryUserTransferFormLocked(locked) {
     '#treasuryUserTransferDestination',
     '#treasuryUserTransferCurrency',
     '#treasuryUserTransferAmount',
+    '#treasuryUserTransferResetButton',
     '#treasuryUserTransferPreviewButton',
   ].forEach(selector => {
     const element = $(selector);
@@ -5046,9 +5030,8 @@ function renderTreasuryUserTransferParticipants() {
         );
 
         const displayAmount = (
-          `${fmtAssetQuantity(item.available)} `
-          + currency
-        ).trim();
+          fmtAssetQuantity(item.available)
+        );
 
         return (
           `<option value="${escapeHtml(currency)}">`
@@ -5339,20 +5322,6 @@ function renderTreasuryUserTransferPreview() {
     )} ${currency}`
   ).trim();
 
-  const transferHelper = liveEnabled
-    ? (
-        '<span '
-        + 'class="treasury-user-transfer-helper success">'
-        + 'USER TRANSFERS ENABLED'
-        + '</span>'
-      )
-    : (
-        '<span '
-        + 'class="treasury-user-transfer-helper warning">'
-        + 'USER TRANSFERS DISABLED'
-        + '</span>'
-      );
-
   const blockerHelper = blockers.length
     ? (
         '<span '
@@ -5426,7 +5395,6 @@ function renderTreasuryUserTransferPreview() {
     </div>
 
     <div class="treasury-user-transfer-review-helpers">
-      ${transferHelper}
       ${blockerHelper}
 
       <span class="treasury-user-transfer-helper-note">
@@ -5540,6 +5508,81 @@ function clearTreasuryUserTransferPreview() {
 
   setTreasuryUserTransferFormLocked(false);
   renderTreasuryUserTransferPreview();
+}
+
+
+function resetTreasuryUserTransferForm() {
+  const snapshot = state.treasuryUserTransferPreview;
+
+  /*
+   * Once execution has been attempted, preserve the exact
+   * request. Successful operations use New transfer; uncertain
+   * operations remain locked for reconciliation.
+   */
+  if (
+    state.treasuryUserTransferExecutionAttempted
+    || snapshot?.executionResult
+  ) {
+    return;
+  }
+
+  const previewButton = $(
+    '#treasuryUserTransferPreviewButton'
+  );
+
+  /*
+   * Do not mutate the form while a preview request is in flight.
+   */
+  if (
+    previewButton?.disabled
+    && previewButton.textContent.trim() === 'Reviewing…'
+  ) {
+    return;
+  }
+
+  const destination = $(
+    '#treasuryUserTransferDestination'
+  );
+
+  const currency = $(
+    '#treasuryUserTransferCurrency'
+  );
+
+  const amount = $(
+    '#treasuryUserTransferAmount'
+  );
+
+  const confirmation = $(
+    '#treasuryUserTransferConfirmation'
+  );
+
+  const errorBox = $(
+    '#treasuryUserTransferError'
+  );
+
+  if (destination) {
+    destination.value = '';
+  }
+
+  if (currency) {
+    currency.value = '';
+  }
+
+  if (amount) {
+    amount.value = '';
+  }
+
+  if (confirmation) {
+    confirmation.value = '';
+  }
+
+  if (errorBox) {
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+
+  clearTreasuryUserTransferPreview();
+  renderTreasuryUserTransferParticipants();
 }
 
 
@@ -14424,6 +14467,22 @@ function bindTreasuryUserTransferEvents() {
     amount.addEventListener(
       'input',
       invalidateTreasuryUserTransferPreview,
+    );
+  }
+
+  const reset = $(
+    '#treasuryUserTransferResetButton'
+  );
+
+  if (
+    reset
+    && reset.dataset.userTransferEventsBound !== 'true'
+  ) {
+    reset.dataset.userTransferEventsBound = 'true';
+
+    reset.addEventListener(
+      'click',
+      resetTreasuryUserTransferForm,
     );
   }
 

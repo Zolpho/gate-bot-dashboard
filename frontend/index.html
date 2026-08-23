@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css">
-  <link rel="stylesheet" href="./treasury.css?v=20260823-treasury-action-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260823-treasury-form-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -921,11 +921,7 @@
             <div>
               <div class="treasury-title-row">
                 <h2>Treasury operations</h2>
-                <span
-                  id="treasurySafetyBadge"
-                  class="treasury-state-badge treasury-capability-badge"
-                >Checking…</span>
-              </div>
+                              </div>
 
               <p>
                 Account-scoped Treasury controls, safety state and
@@ -1036,6 +1032,14 @@
 
               <div class="treasury-user-transfer-actions">
                 <button
+                  type="button"
+                  class="button secondary"
+                  id="treasuryUserTransferResetButton"
+                >
+                  Reset
+                </button>
+
+                <button
                   type="submit"
                   class="button secondary"
                   id="treasuryUserTransferPreviewButton"
@@ -1060,21 +1064,25 @@
               id="treasuryUserTransferConfirmationBlock"
               class="treasury-user-transfer-confirmation hidden"
             >
-              <p id="treasuryUserTransferConfirmationText">
-                Exact confirmation is required for a live transfer.
-              </p>
+              <div class="treasury-user-transfer-confirmation-head">
+                <strong>Final confirmation</strong>
 
-              <code id="treasuryUserTransferRequiredConfirmation">—</code>
+                <span id="treasuryUserTransferConfirmationText">
+                  Type the exact confirmation before transferring.
+                </span>
+              </div>
 
-              <input
-                id="treasuryUserTransferConfirmation"
-                type="text"
-                autocomplete="off"
-                spellcheck="false"
-                placeholder="Exact confirmation"
-              >
+              <div class="treasury-user-transfer-confirmation-row">
+                <code id="treasuryUserTransferRequiredConfirmation">—</code>
 
-              <div class="treasury-user-transfer-actions">
+                <input
+                  id="treasuryUserTransferConfirmation"
+                  type="text"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="Exact confirmation"
+                >
+
                 <button
                   type="button"
                   class="button"
@@ -2537,7 +2545,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-treasury-action-v1"
+    src="./app.js?v=20260823-treasury-form-v1"
     defer
   ></script>
   <script

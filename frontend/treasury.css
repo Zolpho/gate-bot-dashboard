@@ -2158,3 +2158,203 @@ tbody tr:last-child td {
 }
 
 /* End 3J18 Treasury final action polish v1 */
+/* 3J18 Treasury final form polish v1 */
+
+/* From is account scope, not an editable control. */
+
+#tab-wallet
+.treasury-user-transfer-static-field > strong {
+  min-height: 0;
+
+  padding: 1px 0 0;
+
+  border: 0;
+
+  border-radius: 0;
+
+  background: transparent;
+
+  font-size: .8rem;
+  line-height: 1.35;
+}
+
+
+/* Reset and Review are peer form actions. */
+
+#tab-wallet
+.treasury-user-transfer-form
+> .treasury-user-transfer-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+
+#tab-wallet
+#treasuryUserTransferResetButton {
+  min-width: 82px;
+}
+
+
+#tab-wallet
+#treasuryUserTransferPreviewButton {
+  min-width: 140px;
+}
+
+
+/* Compact final confirmation. */
+
+#tab-wallet
+.treasury-user-transfer-confirmation {
+  margin-top: 8px;
+
+  padding: 9px 10px;
+
+  border-radius: 9px;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-confirmation-head {
+  display: flex;
+
+  align-items: baseline;
+
+  gap: 8px;
+
+  margin-bottom: 7px;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-confirmation-head > strong {
+  flex: 0 0 auto;
+
+  font-size: .72rem;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-confirmation-head > span {
+  min-width: 0;
+
+  color: var(--muted);
+
+  font-size: .66rem;
+  line-height: 1.35;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-confirmation-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(210px, .95fr)
+    minmax(210px, 1.2fr)
+    auto;
+
+  gap: 7px;
+
+  align-items: center;
+}
+
+
+#tab-wallet
+#treasuryUserTransferRequiredConfirmation {
+  width: 100%;
+  max-width: none;
+
+  margin: 0;
+
+  padding: 7px 8px;
+
+  border-radius: 7px;
+
+  font-size: .68rem;
+  line-height: 1.3;
+}
+
+
+#tab-wallet
+#treasuryUserTransferConfirmation {
+  width: 100%;
+
+  min-height: 34px;
+
+  padding: 7px 9px;
+}
+
+
+#tab-wallet
+#executeTreasuryUserTransfer {
+  min-height: 34px;
+
+  white-space: nowrap;
+}
+
+
+/*
+ * Capability state lives in the action header.
+ * Review helpers describe the actual review only.
+ */
+
+#tab-wallet
+.treasury-user-transfer-review-helpers {
+  margin-top: 7px;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-helper-note {
+  font-size: .65rem;
+}
+
+
+@media (max-width: 880px) {
+  #tab-wallet
+  .treasury-user-transfer-confirmation-row {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  #executeTreasuryUserTransfer {
+    width: 100%;
+  }
+}
+
+
+@media (max-width: 680px) {
+  #tab-wallet
+  .treasury-user-transfer-form
+  > .treasury-user-transfer-actions {
+    display: grid;
+
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #tab-wallet
+  #treasuryUserTransferResetButton,
+
+  #tab-wallet
+  #treasuryUserTransferPreviewButton {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #tab-wallet
+  .treasury-user-transfer-confirmation-head {
+    display: block;
+  }
+
+  #tab-wallet
+  .treasury-user-transfer-confirmation-head > span {
+    display: block;
+
+    margin-top: 2px;
+  }
+}
+
+/* End 3J18 Treasury final form polish v1 */

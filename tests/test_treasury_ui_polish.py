@@ -19,13 +19,13 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260823-treasury-action-v1"
+        "v=20260823-treasury-form-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260823-treasury-action-v1"
+        "v=20260823-treasury-form-v1"
         in HTML
     )
 
@@ -49,7 +49,7 @@ def test_treasury_four_status_cards_are_removed():
 def test_treasury_capabilities_are_shown_where_used():
     assert (
         'id="treasurySafetyBadge"'
-        in HTML
+        not in HTML
     )
 
     assert (
@@ -90,14 +90,22 @@ def test_treasury_capability_colors_are_semantic():
 
 def test_treasury_status_copy_is_explicit():
     for token in (
-        "TREASURY TRANSFER ARM ENABLED",
-        "TREASURY TRANSFER ARM DISABLED",
         "USER TRANSFERS ENABLED",
         "USER TRANSFERS DISABLED",
         "WITHDRAWAL ARM ENABLED",
         "WITHDRAWAL ARM DISABLED",
     ):
         assert token in APP
+
+    assert (
+        "TREASURY TRANSFER ARM ENABLED"
+        not in APP
+    )
+
+    assert (
+        "TREASURY TRANSFER ARM DISABLED"
+        not in APP
+    )
 
     assert "LIVE TRANSFERS DISABLED" not in APP
     assert "LIVE TRANSFERS ENABLED" not in APP
@@ -231,6 +239,7 @@ def test_active_locks_force_records_visible():
 def test_existing_treasury_action_ids_are_preserved():
     for element_id in (
         "treasuryUserTransferForm",
+        "treasuryUserTransferResetButton",
         "treasuryUserTransferPreviewButton",
         "executeTreasuryUserTransfer",
         "treasuryWithdrawalForm",
@@ -251,11 +260,6 @@ def test_existing_treasury_action_ids_are_preserved():
 
 
 def test_treasury_backend_semantics_remain_separate():
-    assert (
-        "health.treasury_transfers_enabled"
-        in APP
-    )
-
     assert (
         "health.treasury_withdrawals_enabled"
         in APP
@@ -398,8 +402,8 @@ def test_user_transfer_review_uses_compact_helpers():
 
     renderer = APP[start:end]
 
-    assert "USER TRANSFERS ENABLED" in renderer
-    assert "USER TRANSFERS DISABLED" in renderer
+    assert "USER TRANSFERS ENABLED" not in renderer
+    assert "USER TRANSFERS DISABLED" not in renderer
     assert "NO BLOCKERS" in renderer
 
     assert (
@@ -507,3 +511,183 @@ def test_zero_destination_withdrawal_hides_form():
     )
 
     assert "display: none;" in CSS
+
+def test_generic_treasury_arm_is_removed_from_wallet():
+    assert 'id="treasurySafetyBadge"' not in HTML
+
+    assert (
+        "TREASURY TRANSFER ARM ENABLED"
+        not in APP
+    )
+
+    assert (
+        "TREASURY TRANSFER ARM DISABLED"
+        not in APP
+    )
+
+
+def test_user_transfer_asset_does_not_repeat_currency():
+    start = APP.index(
+        "function renderTreasuryUserTransferParticipants()"
+    )
+
+    end = APP.index(
+        "\nfunction treasuryUserTransferPathLabel(",
+        start,
+    )
+
+    renderer = APP[start:end]
+
+    amount_start = renderer.index(
+        "const displayAmount"
+    )
+
+    amount_end = renderer.index(
+        "return (",
+        amount_start,
+    )
+
+    amount_block = renderer[
+        amount_start:amount_end
+    ]
+
+    assert "fmtAssetQuantity(item.available)" in amount_block
+    assert "+ currency" not in amount_block
+
+
+def test_user_transfer_reset_exists_and_is_bound():
+    assert (
+        'id="treasuryUserTransferResetButton"'
+        in HTML
+    )
+
+    assert (
+        "function resetTreasuryUserTransferForm()"
+        in APP
+    )
+
+    binder_start = APP.index(
+        "function bindTreasuryUserTransferEvents()"
+    )
+
+    binder = APP[binder_start:]
+
+    assert (
+        "'#treasuryUserTransferResetButton'"
+        in binder
+    )
+
+    assert (
+        "resetTreasuryUserTransferForm"
+        in binder
+    )
+
+
+def test_reset_preserves_execution_immutability():
+    start = APP.index(
+        "function resetTreasuryUserTransferForm()"
+    )
+
+    end = APP.index(
+        "\n\nasync function startNewTreasuryUserTransfer()",
+        start,
+    )
+
+    resetter = APP[start:end]
+
+    assert (
+        "state.treasuryUserTransferExecutionAttempted"
+        in resetter
+    )
+
+    assert "snapshot?.executionResult" in resetter
+
+    assert (
+        "clearTreasuryUserTransferPreview();"
+        in resetter
+    )
+
+    assert (
+        "renderTreasuryUserTransferParticipants();"
+        in resetter
+    )
+
+
+def test_reset_is_locked_with_transfer_form():
+    start = APP.index(
+        "function setTreasuryUserTransferFormLocked("
+    )
+
+    end = APP.index(
+        "\n\nfunction treasuryScopedUserTransferSource(",
+        start,
+    )
+
+    locker = APP[start:end]
+
+    assert (
+        "'#treasuryUserTransferResetButton'"
+        in locker
+    )
+
+
+def test_final_confirmation_is_compact():
+    assert "Final confirmation" in HTML
+
+    assert (
+        "treasury-user-transfer-confirmation-head"
+        in HTML
+    )
+
+    assert (
+        "treasury-user-transfer-confirmation-row"
+        in HTML
+    )
+
+    assert (
+        ".treasury-user-transfer-confirmation-row"
+        in CSS
+    )
+
+
+def test_static_from_is_not_styled_like_input():
+    marker = (
+        "/* 3J18 Treasury final form polish v1 */"
+    )
+
+    final_css = CSS[
+        CSS.index(marker):
+    ]
+
+    assert (
+        ".treasury-user-transfer-static-field > strong"
+        in final_css
+    )
+
+    assert "border: 0;" in final_css
+    assert "background: transparent;" in final_css
+
+
+def test_review_capability_is_not_duplicated():
+    start = APP.index(
+        "function renderTreasuryUserTransferPreview()"
+    )
+
+    end = APP.index(
+        "\nfunction clearTreasuryUserTransferPreview()",
+        start,
+    )
+
+    renderer = APP[start:end]
+
+    assert "NO BLOCKERS" in renderer
+
+    assert (
+        "USER TRANSFERS ENABLED"
+        not in renderer
+    )
+
+    assert (
+        "USER TRANSFERS DISABLED"
+        not in renderer
+    )

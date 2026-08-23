@@ -169,7 +169,7 @@ def test_bot_control_asset_versions_are_bumped():
 
     assert (
         "./app.js?"
-        "v=20260823-treasury-action-v1"
+        "v=20260823-treasury-form-v1"
         in HTML
     )
 
