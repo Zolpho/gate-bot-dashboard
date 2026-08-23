@@ -9436,7 +9436,7 @@ function renderOverview() {
   if (!state.overview) return;
   const { totals, counts, periods = {}, latest_sync: latest } = state.overview;
   setMetric('#totalInvest', totals.invest_amount, fmtMoney, null);
-  setMetric('#currentValue', totals.current_value, fmtMoney, totals.pnl);
+  setMetric('#currentValue', totals.current_value, fmtMoney, null);
   setMetric('#totalPnl', totals.pnl, fmtMoney, totals.pnl);
   setMetric('#gridProfit', totals.grid_profit, fmtMoney, totals.grid_profit);
   const displayCounts = {
@@ -9614,7 +9614,42 @@ function renderOverview() {
       )
     )
     .slice(0, 4);
-  $('#leaderCards').innerHTML = leaders.length ? leaders.map(bot => `<button class="leader row-button" data-bot-id="${bot.id}"><span><b>${escapeHtml(bot.strategy_name)}</b><small>${escapeHtml(bot.account_name)} · ${escapeHtml(bot.market)} · ${strategyLabel(bot.strategy_type)}</small></span><strong class="${valueClass(bot.profit_rate ?? bot.pnl_rate)}">${fmtRatioPct(bot.profit_rate ?? bot.pnl_rate)}<small>${fmtMoney(bot.total_profit ?? bot.pnl)}</small></strong></button>`).join('') : '<div class="empty-state">No running bots yet.</div>';
+  $('#leaderCards').innerHTML = leaders.length
+    ? leaders.map(bot => {
+      const rate =
+        bot.profit_rate
+        ?? bot.pnl_rate;
+
+      const profit =
+        bot.total_profit
+        ?? bot.pnl;
+
+      return `
+        <button
+          class="leader row-button"
+          data-bot-id="${bot.id}"
+        >
+          <span class="leader-copy">
+            <b class="leader-name">
+              ${escapeHtml(bot.strategy_name)}
+            </b>
+            <small class="leader-meta">
+              ${escapeHtml(bot.account_name)}
+              · ${escapeHtml(bot.market)}
+              · ${strategyLabel(bot.strategy_type)}
+            </small>
+          </span>
+
+          <span
+            class="leader-result ${valueClass(rate)}"
+          >
+            <strong>${fmtRatioPct(rate)}</strong>
+            <small>${fmtMoney(profit)}</small>
+          </span>
+        </button>
+      `;
+    }).join('')
+    : '<div class="empty-state">No running bots yet.</div>';
 
   const accountLabel = state.selectedAccount ? (state.overview.selected_account?.name || state.selectedAccount) : 'All accounts';
   $('#lastSyncSidebar').textContent = latest ? `${accountLabel} · ${fmtDate(latest.finished_at || latest.started_at)}` : `${accountLabel} · no sync yet`;
@@ -10957,6 +10992,70 @@ async function restoreBot(botId) {
   }
 }
 
+function formatAlertMessage(message) {
+  const text = String(
+    message ?? ''
+  );
+
+  const percentageFormatted = text.replace(
+    /-?\d+(?:\.\d+)?%/g,
+    token => {
+      const numeric = Number(
+        token.slice(0, -1)
+      );
+
+      if (!Number.isFinite(numeric)) {
+        return token;
+      }
+
+      return (
+        numeric.toLocaleString(
+          'en-US',
+          {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          },
+        )
+        + '%'
+      );
+    },
+  );
+
+  return percentageFormatted.replace(
+    /\brule\s*(>=|<=|==|>|<)\s*(-?\d+(?:\.\d+)?)/gi,
+    (
+      _match,
+      operator,
+      rawValue,
+    ) => {
+      const operators = {
+        '>=': '≥',
+        '<=': '≤',
+        '==': '=',
+        '>': '>',
+        '<': '<',
+      };
+
+      const numeric = Number(rawValue);
+
+      const value = Number.isFinite(numeric)
+        ? numeric.toLocaleString(
+          'en-US',
+          {
+            maximumFractionDigits: 2,
+          },
+        )
+        : rawValue;
+
+      return (
+        `rule ${operators[operator] || operator} `
+        + value
+      );
+    },
+  );
+}
+
+
 function renderOverviewAlerts() {
   const target = $('#overviewAlerts');
   const items = state.alertEvents.slice(0,4);
@@ -10969,7 +11068,7 @@ function eventHtml(event) {
   else if ((event.account_id && canManageAccount(event.account_id)) || (!event.account_id && state.adminUser?.role === 'super_admin')) {
     action = `<button class="text-button ack-event" data-event-id="${event.id}">Acknowledge</button>`;
   }
-  return `<article class="event"><i class="event-dot"></i><div><p>${escapeHtml(event.message)}</p><small>${fmtDate(event.triggered_at)}</small></div>${action}</article>`;
+  return `<article class="event"><i class="event-dot"></i><div><p>${escapeHtml(formatAlertMessage(event.message))}</p><small>${fmtDate(event.triggered_at)}</small></div>${action}</article>`;
 }
 
 function renderAlerts() {

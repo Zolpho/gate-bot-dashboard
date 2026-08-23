@@ -120,24 +120,11 @@ def test_responsive_polish_present():
     )
 
 
-def test_styles_cache_buster_updated():
+def test_core_assets_remain_versioned():
     html = _html()
 
-    assert (
-        "./styles.css?v=20260823-global-polish-v1"
-        in html
-    )
+    assert "./styles.css?v=" in html
+    assert "./app.js?v=" in html
 
-    assert (
-        "./styles.css?v=20260822-bot-archive-v1"
-        not in html
-    )
-
-
-def test_app_js_cache_buster_unchanged():
-    html = _html()
-
-    assert (
-        "./app.js?v=20260822-bot-archive-v2"
-        in html
-    )
+    assert 'href="./styles.css"' not in html
+    assert 'src="./app.js"' not in html

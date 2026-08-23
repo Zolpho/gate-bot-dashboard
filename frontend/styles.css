@@ -1294,3 +1294,187 @@ dialog::backdrop {
 
 /* End 3J13 global design-system polish v1 */
 
+/* 3J13 Overview-specific polish v1 */
+
+/*
+ * The lower Overview panels should size to their content.
+ * A tall Recent alerts panel must not force Performance
+ * leaders to become a large empty card.
+ */
+#tab-overview .dashboard-grid.equal {
+  align-items: start;
+}
+
+
+/* Performance leaders */
+
+#tab-overview .leader-list {
+  gap: 0;
+}
+
+#tab-overview .leader {
+  width: 100%;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+  gap: 20px;
+
+  padding: 13px 4px;
+
+  border-radius: 0;
+
+  color: var(--text);
+  text-align: left;
+}
+
+#tab-overview .leader:first-child {
+  padding-top: 5px;
+}
+
+#tab-overview .leader:last-child {
+  padding-bottom: 5px;
+}
+
+#tab-overview .leader:hover {
+  background:
+    rgba(255, 255, 255, .018);
+}
+
+#tab-overview .leader-copy {
+  min-width: 0;
+
+  display: grid;
+  gap: 4px;
+}
+
+#tab-overview .leader-name {
+  overflow: hidden;
+
+  color: var(--text);
+
+  font-size: .86rem;
+  font-weight: 700;
+  line-height: 1.3;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#tab-overview .leader-meta {
+  overflow: hidden;
+
+  color: var(--muted);
+
+  font-size: .72rem;
+  font-weight: 500;
+  line-height: 1.35;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#tab-overview .leader-result {
+  min-width: 82px;
+
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  text-align: right;
+}
+
+#tab-overview .leader-result strong {
+  font-size: .86rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+#tab-overview .leader-result small {
+  color: var(--muted);
+
+  font-size: .71rem;
+  font-weight: 550;
+}
+
+
+/* Recent alerts */
+
+#tab-overview #overviewAlerts {
+  gap: 8px;
+}
+
+#tab-overview #overviewAlerts .event {
+  grid-template-columns:
+    9px
+    minmax(0, 1fr)
+    auto;
+
+  padding: 11px 12px;
+}
+
+#tab-overview #overviewAlerts .event p {
+  color: var(--text-soft);
+
+  font-size: .79rem;
+  line-height: 1.48;
+}
+
+#tab-overview #overviewAlerts .event small {
+  display: block;
+
+  margin-top: 5px;
+
+  font-size: .70rem;
+}
+
+#tab-overview #overviewAlerts .status-badge {
+  align-self: center;
+}
+
+
+/* Metric semantic hierarchy */
+
+#tab-overview #currentValue {
+  color: var(--text) !important;
+}
+
+
+/* Small screens */
+
+@media (max-width: 560px) {
+  #tab-overview .leader {
+    gap: 12px;
+
+    padding:
+      12px 2px;
+  }
+
+  #tab-overview .leader-result {
+    min-width: 68px;
+  }
+
+  #tab-overview .leader-meta {
+    white-space: normal;
+  }
+
+  #tab-overview #overviewAlerts .event {
+    grid-template-columns:
+      8px
+      minmax(0, 1fr);
+  }
+
+  #tab-overview #overviewAlerts
+  .event > :last-child {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+/* End 3J13 Overview-specific polish v1 */
+
