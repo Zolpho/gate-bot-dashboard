@@ -158,18 +158,29 @@
   padding: 3px 8px;
 
   border: 1px solid
-    rgba(241, 189, 100, .25);
+    rgba(32, 212, 155, .25);
   border-radius: 999px;
 
   background:
-    rgba(241, 189, 100, .05);
+    rgba(32, 212, 155, .05);
 
-  color: var(--warning);
+  color: var(--positive);
 
   font-size: .67rem;
   font-weight: 650;
 
   white-space: nowrap;
+}
+
+#tab-alerts
+.alerts-count-badge.has-open {
+  border-color:
+    rgba(241, 189, 100, .25);
+
+  background:
+    rgba(241, 189, 100, .05);
+
+  color: var(--warning);
 }
 
 #tab-alerts

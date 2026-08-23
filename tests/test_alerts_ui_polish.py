@@ -316,13 +316,13 @@ def test_incident_visual_states_exist():
 def test_alerts_assets_are_versioned():
     assert (
         "./alerts.css?"
-        "v=20260823-alert-incidents-v1"
+        "v=20260823-alert-open-badge-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260823-alert-incidents-v1"
+        "v=20260823-alert-open-badge-v1"
         in HTML
     )
 
@@ -330,3 +330,49 @@ def test_alerts_assets_are_versioned():
         "/* 3J15 Alerts incident UI v1 */"
         in CSS
     )
+
+def test_active_incident_count_uses_health_state_color():
+    start = APP.index(
+        "if (activeCount) {"
+    )
+
+    end = APP.index(
+        "const historyCount",
+        start,
+    )
+
+    block = APP[start:end]
+
+    assert (
+        "activeCount.classList.toggle("
+        in block
+    )
+
+    assert "'has-open'" in block
+
+    assert (
+        "state.alertIncidents.length > 0"
+        in block
+    )
+
+    assert (
+        ".alerts-count-badge.has-open"
+        in CSS
+    )
+
+    # Base badge is healthy; amber is only used
+    # when one or more incidents are open.
+    base_start = CSS.index(
+        ".alerts-count-badge {"
+    )
+
+    open_start = CSS.index(
+        ".alerts-count-badge.has-open",
+        base_start,
+    )
+
+    base = CSS[
+        base_start:open_start
+    ]
+
+    assert "color: var(--positive);" in base

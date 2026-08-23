@@ -12198,6 +12198,11 @@ function renderAlerts() {
     activeCount.textContent = (
       `${state.alertIncidents.length} open`
     );
+
+    activeCount.classList.toggle(
+      'has-open',
+      state.alertIncidents.length > 0,
+    );
   }
 
   const historyCount = $('#incidentHistoryCount');
