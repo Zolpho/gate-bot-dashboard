@@ -436,8 +436,11 @@ async function unlockAdmin(event) {
   submitButton.disabled = true;
   submitButton.textContent = 'Unlocking…';
 
+  let authRequestSucceeded = false;
+
   try {
     const result = await api('/api/auth/me', { headers: { Authorization: authorization } });
+    authRequestSucceeded = true;
     state.adminSessionEpoch += 1;
     state.adminAuthorization = authorization;
     state.adminUser = result.user;
@@ -458,9 +461,11 @@ async function unlockAdmin(event) {
   } catch (error) {
     const message = error instanceof ApiError && error.status === 401
       ? 'Invalid username or password.'
-      : error instanceof TypeError
+      : error instanceof TypeError && !authRequestSucceeded
         ? 'The dashboard could not contact the API. Check the network connection and CORS configuration.'
-        : (error.message || 'Unable to unlock account actions.');
+        : error instanceof TypeError
+          ? 'Authentication succeeded, but the dashboard could not initialize the private workspace. Reload and try again.'
+          : (error.message || 'Unable to unlock account actions.');
 
     setAdminError(message);
     const passwordInput = formElement.querySelector('input[name="password"]');

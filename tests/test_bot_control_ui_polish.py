@@ -169,7 +169,7 @@ def test_bot_control_asset_versions_are_bumped():
 
     assert (
         "./app.js?"
-        "v=20260823-cross-user-isolation-v2"
+        "v=20260823-cross-user-isolation-v3"
         in HTML
     )
 

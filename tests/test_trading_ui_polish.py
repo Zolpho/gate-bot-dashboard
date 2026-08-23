@@ -196,7 +196,7 @@ def test_trading_asset_versions_exact():
     )
 
     assert (
-        "./trading-limit.js?v=20260823-trading-session-isolation-v1"
+        "./trading-limit.js?v=20260823-trading-session-isolation-v2"
         in html
     )
 
@@ -612,7 +612,7 @@ def test_trading_limit_identity_reset_clears_ticket_memory_only():
         "tradingState.limitOrderCancellationAttempt = null;",
         "tradingState.limitOrderAmendmentAttempt = null;",
         "tradingState.loadingLimitOrderExecution = false;",
-        "form.reset();",
+        "tif.value = 'gtc';",
         "'#tradingLimitPrice'",
         "'#tradingLimitAmount'",
         "'#tradingLimitConfirmation'",
@@ -712,6 +712,113 @@ def test_trading_script_versions_mark_session_isolation():
 
     assert (
         "./trading-limit.js?"
-        "v=20260823-trading-session-isolation-v1"
+        "v=20260823-trading-session-isolation-v2"
+        in html
+    )
+
+def test_trading_session_reset_does_not_call_reset_on_ticket_div():
+    limit = Path(
+        "frontend/trading-limit.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    start = limit.index(
+        "function resetTradingLimitOrderSession()"
+    )
+
+    end = limit.index(
+        "\n\nfunction renderTradingLimitOrderTicket(",
+        start,
+    )
+
+    block = limit[start:end]
+
+    assert (
+        "const form = $('#tradingLimitOrderForm');"
+        not in block
+    )
+
+    assert "form.reset();" not in block
+
+    assert (
+        "const tif = $('#tradingLimitTif');"
+        in block
+    )
+
+    assert "tif.value = 'gtc';" in block
+
+
+def test_trading_session_reset_restores_complete_ticket_defaults():
+    limit = Path(
+        "frontend/trading-limit.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    start = limit.index(
+        "function resetTradingLimitOrderSession()"
+    )
+
+    end = limit.index(
+        "\n\nfunction renderTradingLimitOrderTicket(",
+        start,
+    )
+
+    block = limit[start:end]
+
+    assert "tradingState.limitOrderSide = 'buy';" in block
+    assert "tradingState.limitOrderPercent = null;" in block
+
+    for selector in (
+        "'#tradingLimitPrice'",
+        "'#tradingLimitAmount'",
+        "'#tradingLimitConfirmation'",
+        "'#tradingLimitCancelConfirmation'",
+    ):
+        assert selector in block
+
+    assert "tif.value = 'gtc';" in block
+
+
+def test_login_typeerror_distinguishes_network_from_post_auth_ui():
+    app = Path(
+        "frontend/app.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    start = app.index(
+        "async function unlockAdmin("
+    )
+
+    end = app.index(
+        "\n\nasync function changeOwnPassword(",
+        start,
+    )
+
+    block = app[start:end]
+
+    assert "let authRequestSucceeded = false;" in block
+    assert "authRequestSucceeded = true;" in block
+
+    assert (
+        "error instanceof TypeError && !authRequestSucceeded"
+        in block
+    )
+
+    assert (
+        "Authentication succeeded, but the dashboard "
+        "could not initialize the private workspace."
+        in block
+    )
+
+
+def test_trading_limit_script_version_marks_typeerror_fix():
+    html = _html()
+
+    assert (
+        "./trading-limit.js?"
+        "v=20260823-trading-session-isolation-v2"
         in html
     )

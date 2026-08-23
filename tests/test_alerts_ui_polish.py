@@ -322,7 +322,7 @@ def test_alerts_assets_are_versioned():
 
     assert (
         "./app.js?"
-        "v=20260823-cross-user-isolation-v2"
+        "v=20260823-cross-user-isolation-v3"
         in HTML
     )
 

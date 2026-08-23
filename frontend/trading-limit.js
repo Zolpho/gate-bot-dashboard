@@ -294,10 +294,10 @@ function resetTradingLimitOrderSession() {
   tradingState.loadingLimitOrderStatus = false;
   tradingState.loadingLimitOrderReconcile = false;
 
-  const form = $('#tradingLimitOrderForm');
+  const tif = $('#tradingLimitTif');
 
-  if (form) {
-    form.reset();
+  if (tif) {
+    tif.value = 'gtc';
   }
 
   for (const selector of [
