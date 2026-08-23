@@ -36,7 +36,7 @@ def test_single_bot_control_account_has_static_surface():
 
 def test_bot_control_live_state_is_compact():
     assert "badge.textContent = 'LIVE'" in APP
-    assert "detail.textContent = 'Creation armed'" in APP
+    assert "detail.textContent = 'Armed'" in APP
 
     assert "LIVE creation enabled" not in APP
 
@@ -163,13 +163,13 @@ def test_preflight_panel_is_compact():
 def test_bot_control_asset_versions_are_bumped():
     assert (
         "./bot-control.css?"
-        "v=20260823-bot-control-final-v2"
+        "v=20260823-bot-control-final-v3"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260823-bot-control-final-v2"
+        "v=20260823-bot-control-final-v3"
         in HTML
     )
 
@@ -396,3 +396,43 @@ def test_final_bot_control_cleanup_css_present():
         ".bot-control-form-actions"
         in CSS
     )
+
+
+
+def test_create_card_uses_natural_height():
+    assert (
+        ".bot-control-form-panel"
+        in CSS
+    )
+
+    assert (
+        "align-self: start;"
+        in CSS
+    )
+
+
+def test_live_creation_state_is_horizontal_and_compact():
+    assert (
+        "detail.textContent = 'Armed'"
+        in APP
+    )
+
+    assert (
+        "Creation armed"
+        not in APP
+    )
+
+    marker = (
+        "/* 3J13 Bot Control final symmetry tweak v3 */"
+    )
+
+    start = CSS.index(marker)
+    section = CSS[start:]
+
+    assert (
+        ".bot-control-create-state"
+        in section
+    )
+
+    assert "display: flex;" in section
+    assert "align-items: center;" in section

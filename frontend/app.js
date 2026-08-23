@@ -3181,7 +3181,7 @@ function renderBotControlCreateState() {
     badge.textContent = 'LIVE';
 
     if (detail) {
-      detail.textContent = 'Creation armed';
+      detail.textContent = 'Armed';
     }
 
   } else if (liveGloballyEnabled) {

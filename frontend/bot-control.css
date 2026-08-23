@@ -1635,3 +1635,43 @@
 }
 
 /* End 3J13 Bot Control final cleanup v2 */
+
+
+/* 3J13 Bot Control final symmetry tweak v3 */
+
+
+/* Let Create Spot Grid stop at its natural height. */
+#tab-bot-control
+.bot-control-form-panel {
+  align-self: start;
+}
+
+
+/*
+ * Keep Bot Control mode/state on one visual axis:
+ *
+ *   LIVE   Armed
+ *
+ * rather than hanging the state text below the badge.
+ */
+#tab-bot-control
+.bot-control-create-state {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+#tab-bot-control
+.bot-control-create-state small {
+  line-height: 1;
+}
+
+@media (max-width: 760px) {
+  #tab-bot-control
+  .bot-control-create-state {
+    justify-content: flex-start;
+  }
+}
+
+/* End 3J13 Bot Control final symmetry tweak v3 */
