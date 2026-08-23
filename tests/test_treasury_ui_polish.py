@@ -19,13 +19,13 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260823-treasury-final-v1"
+        "v=20260823-withdraw-polish-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260823-cross-user-isolation-v3"
+        "v=20260823-withdraw-polish-v1"
         in HTML
     )
 
@@ -1028,17 +1028,165 @@ def test_logged_out_treasury_uses_canonical_session_reset():
     )
 
 
-def test_treasury_css_version_is_not_changed_by_session_fix():
+def test_treasury_css_version_marks_withdraw_polish():
     assert (
         "./treasury.css?"
-        "v=20260823-treasury-final-v1"
+        "v=20260823-withdraw-polish-v1"
         in HTML
     )
 
 
-def test_app_version_marks_session_isolation_fix():
+def test_app_version_marks_withdraw_polish():
     assert (
         "./app.js?"
-        "v=20260823-cross-user-isolation-v3"
+        "v=20260823-withdraw-polish-v1"
         in HTML
     )
+
+def test_withdraw_approved_destination_flow_is_compact():
+    withdraw_start = HTML.index(
+        'id="treasuryWithdrawalAction"'
+    )
+
+    records_start = HTML.index(
+        'id="treasuryRecords"',
+        withdraw_start,
+    )
+
+    block = HTML[
+        withdraw_start:records_start
+    ]
+
+    assert (
+        'class="treasury-withdrawal-destination-field"'
+        in block
+    )
+
+    assert (
+        'class="treasury-withdrawal-execution-row"'
+        in block
+    )
+
+    assert (
+        block.index(
+            'id="treasuryWithdrawalDestination"'
+        )
+        < block.index(
+            'id="treasuryWithdrawalDestinationSummary"'
+        )
+        < block.index(
+            'id="treasuryWithdrawalAmount"'
+        )
+        < block.index(
+            'id="treasuryWithdrawalPreflight"'
+        )
+    )
+
+
+def test_withdraw_preflight_is_hidden_until_run():
+    assert (
+        'id="treasuryWithdrawalPreflight"\n'
+        '              class="treasury-withdrawal-preflight hidden"'
+        in HTML
+    )
+
+    start = APP.index(
+        "function renderTreasuryWithdrawalPreflight()"
+    )
+
+    end = APP.index(
+        "\nfunction treasuryWithdrawalRequestStatusClass(",
+        start,
+    )
+
+    block = APP[start:end]
+
+    assert "element.innerHTML = '';" in block
+
+    assert (
+        "element.classList.add('hidden');"
+        in block
+    )
+
+    assert (
+        "element.classList.remove('hidden');"
+        in block
+    )
+
+    assert (
+        "Run a preflight to review Gate limits"
+        not in block
+    )
+
+
+def test_withdraw_preparation_card_drops_repetitive_safety_footer():
+    withdraw_start = HTML.index(
+        'id="treasuryWithdrawalAction"'
+    )
+
+    records_start = HTML.index(
+        'id="treasuryRecords"',
+        withdraw_start,
+    )
+
+    block = HTML[
+        withdraw_start:records_start
+    ]
+
+    assert (
+        "treasury-withdrawal-safety-note"
+        not in block
+    )
+
+    assert (
+        "The browser never supplies the withdrawal address"
+        not in block
+    )
+
+
+def test_withdraw_polish_does_not_touch_records_boundary():
+    withdraw_start = HTML.index(
+        'id="treasuryWithdrawalAction"'
+    )
+
+    records_start = HTML.index(
+        'id="treasuryRecords"',
+        withdraw_start,
+    )
+
+    assert withdraw_start < records_start
+
+    assert (
+        "Records &amp; audit"
+        in HTML[records_start:]
+    )
+
+
+def test_withdraw_polish_css_marks_compact_operational_flow():
+    assert (
+        "/* 3J19 Withdraw approved-destination polish v1 */"
+        in CSS
+    )
+
+    for token in (
+        ".treasury-withdrawal-execution-row",
+        "repeat(5, minmax(0, 1fr))",
+        "minmax(120px, .7fr)",
+        ".treasury-withdrawal-preflight-grid",
+    ):
+        assert token in CSS
+
+
+def test_withdraw_polish_preserves_operational_controls():
+    for element_id in (
+        "treasuryWithdrawalDestination",
+        "treasuryWithdrawalAmount",
+        "treasuryWithdrawalPreflightButton",
+        "createTreasuryWithdrawalRequest",
+    ):
+        assert (
+            HTML.count(
+                f'id="{element_id}"'
+            )
+            == 1
+        )

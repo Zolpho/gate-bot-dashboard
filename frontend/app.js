@@ -6674,12 +6674,8 @@ function renderTreasuryWithdrawalPreflight() {
   const snapshot = state.treasuryWithdrawalPreflight;
 
   if (!snapshot) {
-    element.innerHTML = (
-      '<div class="treasury-empty">'
-      + 'Run a preflight to review Gate limits, fee, '
-      + 'recipient estimate, ownership and JIT requirements.'
-      + '</div>'
-    );
+    element.innerHTML = '';
+    element.classList.add('hidden');
 
     if (createButton) {
       createButton.disabled = true;
@@ -6687,6 +6683,8 @@ function renderTreasuryWithdrawalPreflight() {
 
     return;
   }
+
+  element.classList.remove('hidden');
 
   const response = snapshot.response || {};
   const preflight = response.preflight || {};

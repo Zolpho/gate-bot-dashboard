@@ -2525,3 +2525,205 @@ tbody tr:last-child td {
 }
 
 /* End 3J18 Treasury final operational polish v1 */
+
+/* 3J19 Withdraw approved-destination polish v1 */
+
+/*
+ * Compact preparation flow:
+ * destination -> verification -> amount/actions -> result.
+ */
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-form {
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-field {
+  min-width: 0;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-summary {
+  grid-column: auto;
+  grid-template-columns:
+    repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px 9px;
+  border-color: var(--border-soft);
+  border-radius: 9px;
+  background:
+    rgba(255, 255, 255, .012);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-summary-field span {
+  margin-bottom: 2px;
+  font-size: .61rem;
+  letter-spacing: .035em;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-summary-field strong {
+  font-size: .75rem;
+  line-height: 1.25;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-execution-row {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, .7fr)
+    auto;
+  align-items: end;
+  gap: 8px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-amount-field {
+  min-width: 0;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-actions {
+  grid-column: auto;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-actions .button {
+  min-height: 34px;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight {
+  margin-top: 8px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-head {
+  padding: 8px 9px;
+  gap: 8px;
+  border-radius:
+    9px
+    9px
+    0
+    0;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-head span {
+  font-size: .68rem;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid {
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  border-radius:
+    0
+    0
+    9px
+    9px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid > div {
+  padding: 8px 9px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid span {
+  margin-bottom: 2px;
+  font-size: .62rem;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid strong {
+  font-size: .74rem;
+  line-height: 1.25;
+}
+
+
+@media (max-width: 760px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-destination-summary {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-execution-row {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-actions {
+    justify-content: stretch;
+  }
+}
+
+
+@media (max-width: 520px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-destination-summary,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-preflight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-actions {
+    flex-direction: column;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-actions .button {
+    width: 100%;
+  }
+}
+
+/* End 3J19 Withdraw approved-destination polish v1 */
