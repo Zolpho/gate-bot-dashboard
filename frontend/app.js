@@ -4559,8 +4559,8 @@ function renderTreasurySafety() {
 
   if (badge) {
     badge.textContent = transfersEnabled
-      ? 'LIVE TRANSFERS ENABLED'
-      : 'LIVE TRANSFERS DISABLED';
+      ? 'TREASURY TRANSFER ARM ENABLED'
+      : 'TREASURY TRANSFER ARM DISABLED';
 
     badge.classList.toggle(
       'safe',
@@ -5007,8 +5007,8 @@ function renderTreasuryUserTransferParticipants() {
   if (stateElement) {
     stateElement.textContent = (
       state.treasuryUserTransfersEnabled
-        ? 'LIVE ENABLED'
-        : 'Transfers disabled'
+        ? 'USER TRANSFERS ENABLED'
+        : 'USER TRANSFERS DISABLED'
     );
   }
 
@@ -6057,6 +6057,32 @@ function renderTreasuryWithdrawalDestinations() {
   if (!select) return;
 
   const rows = treasuryApprovedWithdrawalDestinations();
+
+  const action = $('#treasuryWithdrawalAction');
+  const unavailable = $('#treasuryWithdrawalUnavailable');
+  const amount = $('#treasuryWithdrawalAmount');
+  const preflightButton = $(
+    '#treasuryWithdrawalPreflightButton'
+  );
+
+  action?.classList.toggle(
+    'has-no-destinations',
+    !rows.length
+  );
+
+  unavailable?.classList.toggle(
+    'hidden',
+    rows.length > 0
+  );
+
+  if (amount) {
+    amount.disabled = !rows.length;
+  }
+
+  if (preflightButton) {
+    preflightButton.disabled = !rows.length;
+  }
+
   const previous = select.value;
 
   if (!rows.length) {
@@ -8986,6 +9012,12 @@ function renderTreasuryLocks() {
   if (!container) return;
 
   const rows = state.treasuryLocks || [];
+
+  const records = $('#treasuryRecords');
+
+  if (rows.length && records) {
+    records.open = true;
+  }
 
   if (!rows.length) {
     container.innerHTML = (

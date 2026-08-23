@@ -1188,3 +1188,670 @@ tbody tr:last-child td {
 }
 
 /* END account-scoped user transfer UI */
+
+/* 3J18 Treasury compact workspace v1 */
+
+#tab-wallet
+.treasury-panel {
+  padding: 16px;
+}
+
+
+#tab-wallet
+.treasury-header {
+  align-items: center;
+
+  margin-bottom: 10px;
+}
+
+
+#tab-wallet
+.treasury-header p {
+  max-width: 760px;
+
+  font-size: .78rem;
+  line-height: 1.42;
+}
+
+
+#tab-wallet
+.treasury-safety-grid {
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 0;
+
+  margin-top: 10px;
+
+  overflow: hidden;
+
+  border:
+    1px solid var(--border-soft);
+
+  border-radius: 10px;
+
+  background:
+    var(--surface-muted);
+}
+
+
+#tab-wallet
+.treasury-safety-card {
+  min-height: 68px;
+
+  padding: 9px 11px;
+
+  border: 0;
+  border-left:
+    1px solid var(--border-soft);
+
+  border-radius: 0;
+
+  background:
+    rgba(255, 255, 255, .008);
+}
+
+
+#tab-wallet
+.treasury-safety-card:first-child {
+  border-left: 0;
+}
+
+
+#tab-wallet
+.treasury-safety-card > span {
+  margin-bottom: 4px;
+
+  font-size: .68rem;
+}
+
+
+#tab-wallet
+.treasury-safety-card > strong {
+  font-size: .86rem;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+#tab-wallet
+.treasury-safety-card > small {
+  margin-top: 3px;
+
+  font-size: .65rem;
+  line-height: 1.32;
+}
+
+
+#tab-wallet
+.treasury-actions-grid {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1.08fr)
+    minmax(0, .92fr);
+
+  gap: 10px;
+
+  align-items: start;
+
+  margin-top: 12px;
+}
+
+
+#tab-wallet
+.treasury-actions-grid
+> .treasury-withdrawal-section {
+  margin-top: 0;
+
+  padding: 13px;
+
+  border-color:
+    var(--border-soft);
+
+  border-radius: 11px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(17, 30, 26, .58),
+      rgba(10, 21, 18, .46)
+    );
+}
+
+
+#tab-wallet
+.treasury-actions-grid
+.treasury-section-header {
+  margin-bottom: 8px;
+}
+
+
+#tab-wallet
+.treasury-actions-grid
+.treasury-section-header h3 {
+  font-size: .88rem;
+}
+
+
+#tab-wallet
+.treasury-actions-grid
+.treasury-section-header p {
+  max-width: 680px;
+
+  font-size: .71rem;
+  line-height: 1.4;
+}
+
+
+#tab-wallet
+.treasury-actions-grid
+.treasury-count {
+  padding: 4px 7px;
+
+  font-size: .65rem;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-form {
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 10px;
+
+  margin-top: 12px;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-form > label,
+#tab-wallet
+.treasury-withdrawal-form label {
+  gap: 5px;
+
+  font-size: .71rem;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-form > label {
+  font-weight: 550;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-form select,
+#tab-wallet
+.treasury-user-transfer-form input,
+#tab-wallet
+.treasury-withdrawal-form select,
+#tab-wallet
+.treasury-withdrawal-form input {
+  min-height: 34px;
+
+  padding: 7px 8px;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-actions {
+  gap: 8px;
+
+  margin-top: 0;
+}
+
+
+#tab-wallet
+#treasuryUserTransferPreviewButton {
+  min-width: 150px;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-preview {
+  margin-top: 10px;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-preview-grid {
+  gap: 8px;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-card {
+  min-height: 64px;
+
+  padding: 10px 11px;
+
+  border-radius: 9px;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-card > span {
+  margin-bottom: 5px;
+
+  font-size: .68rem;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-card > strong {
+  font-size: .82rem;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-confirmation {
+  margin-top: 10px;
+
+  padding: 12px;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-confirmation > p {
+  margin-bottom: 9px;
+
+  font-size: .72rem;
+}
+
+
+#tab-wallet
+#treasuryUserTransferRequiredConfirmation {
+  margin-bottom: 9px;
+
+  padding: 8px 9px;
+
+  font-size: .76rem;
+}
+
+
+#tab-wallet
+.treasury-withdrawal-form {
+  gap: 10px;
+
+  margin-top: 12px;
+}
+
+
+#tab-wallet
+.treasury-withdrawal-destination-summary {
+  gap: 7px;
+
+  padding: 9px;
+}
+
+
+#tab-wallet
+.treasury-withdrawal-summary-field span {
+  font-size: .64rem;
+}
+
+
+#tab-wallet
+.treasury-withdrawal-summary-field strong {
+  font-size: .78rem;
+}
+
+
+#tab-wallet
+.treasury-withdrawal-actions {
+  gap: 8px;
+}
+
+
+#tab-wallet
+.treasury-withdrawal-preflight {
+  margin-top: 10px;
+}
+
+
+#tab-wallet
+.treasury-withdrawal-safety-note {
+  margin-top: 9px;
+
+  font-size: .68rem;
+  line-height: 1.42;
+}
+
+
+#tab-wallet
+.treasury-withdrawal-unavailable {
+  margin-top: 8px;
+
+  padding: 9px 10px;
+
+  border:
+    1px solid var(--border-soft);
+
+  border-radius: 9px;
+
+  background:
+    rgba(255, 255, 255, .012);
+
+  color: var(--muted);
+
+  font-size: .71rem;
+  line-height: 1.42;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction.has-no-destinations
+.treasury-withdrawal-amount-field,
+
+#tab-wallet
+#treasuryWithdrawalAction.has-no-destinations
+.treasury-withdrawal-actions,
+
+#tab-wallet
+#treasuryWithdrawalAction.has-no-destinations
+#treasuryWithdrawalDestinationSummary,
+
+#tab-wallet
+#treasuryWithdrawalAction.has-no-destinations
+#treasuryWithdrawalPreflight,
+
+#tab-wallet
+#treasuryWithdrawalAction.has-no-destinations
+.treasury-withdrawal-safety-note {
+  display: none;
+}
+
+
+#tab-wallet
+.treasury-records {
+  margin-top: 12px;
+
+  overflow: hidden;
+
+  border:
+    1px solid var(--border-soft);
+
+  border-radius: 11px;
+
+  background:
+    rgba(255, 255, 255, .008);
+}
+
+
+#tab-wallet
+.treasury-records-summary {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 10px 12px;
+
+  cursor: pointer;
+
+  list-style: none;
+
+  user-select: none;
+}
+
+
+#tab-wallet
+.treasury-records-summary::-webkit-details-marker {
+  display: none;
+}
+
+
+#tab-wallet
+.treasury-records-summary::before {
+  content: "▸";
+
+  flex: 0 0 auto;
+
+  color: var(--muted);
+
+  transition:
+    transform .15s ease;
+}
+
+
+#tab-wallet
+.treasury-records[open]
+> .treasury-records-summary::before {
+  transform:
+    rotate(90deg);
+}
+
+
+#tab-wallet
+.treasury-records-summary > div {
+  flex: 1 1 auto;
+
+  min-width: 0;
+}
+
+
+#tab-wallet
+.treasury-records-summary strong,
+#tab-wallet
+.treasury-records-summary small {
+  display: block;
+}
+
+
+#tab-wallet
+.treasury-records-summary strong {
+  font-size: .84rem;
+}
+
+
+#tab-wallet
+.treasury-records-summary small {
+  margin-top: 2px;
+
+  color: var(--muted);
+
+  font-size: .68rem;
+  font-weight: 400;
+}
+
+
+#tab-wallet
+.treasury-records-summary > span {
+  flex: 0 0 auto;
+
+  padding: 4px 7px;
+
+  border:
+    1px solid var(--border-soft);
+
+  border-radius: 999px;
+
+  color: var(--muted);
+
+  font-size: .64rem;
+}
+
+
+#tab-wallet
+.treasury-records-content {
+  padding:
+    0 12px 10px;
+
+  border-top:
+    1px solid var(--border-soft);
+}
+
+
+#tab-wallet
+.treasury-records-content
+> .treasury-withdrawal-section,
+
+#tab-wallet
+.treasury-records-content
+> .treasury-ownership-section,
+
+#tab-wallet
+.treasury-records-content
+> .treasury-lock-section,
+
+#tab-wallet
+.treasury-records-content
+> .treasury-activity-section {
+  margin-top: 0;
+
+  padding:
+    12px 0;
+
+  border: 0;
+  border-top:
+    1px solid var(--border-soft);
+
+  border-radius: 0;
+
+  background: transparent;
+}
+
+
+#tab-wallet
+.treasury-records-content
+> :first-child {
+  border-top: 0;
+}
+
+
+#tab-wallet
+.treasury-records
+.treasury-section-header {
+  margin-bottom: 8px;
+}
+
+
+#tab-wallet
+.treasury-records
+.treasury-section-header h3,
+
+#tab-wallet
+.treasury-records
+.treasury-ownership-ledger-header h3 {
+  font-size: .84rem;
+}
+
+
+#tab-wallet
+.treasury-records
+.treasury-section-header p,
+
+#tab-wallet
+.treasury-records
+.treasury-ownership-ledger-header p {
+  font-size: .69rem;
+  line-height: 1.4;
+}
+
+
+#tab-wallet
+.treasury-records
+.treasury-ownership-ledger-header {
+  margin-top: 14px;
+  margin-bottom: 8px;
+}
+
+
+#tab-wallet
+.treasury-records
+.treasury-empty {
+  padding: 9px 10px;
+
+  font-size: .72rem;
+}
+
+
+#tab-wallet
+.treasury-footnote {
+  margin-top: 10px;
+
+  font-size: .68rem;
+}
+
+
+@media (max-width: 1080px) {
+  #tab-wallet
+  .treasury-actions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+@media (max-width: 900px) {
+  #tab-wallet
+  .treasury-safety-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  #tab-wallet
+  .treasury-safety-card:nth-child(3) {
+    border-left: 0;
+
+    border-top:
+      1px solid var(--border-soft);
+  }
+
+  #tab-wallet
+  .treasury-safety-card:nth-child(4) {
+    border-top:
+      1px solid var(--border-soft);
+  }
+}
+
+
+@media (max-width: 680px) {
+  #tab-wallet
+  .treasury-user-transfer-form {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  .treasury-records-summary {
+    align-items: flex-start;
+  }
+}
+
+
+@media (max-width: 560px) {
+  #tab-wallet
+  .treasury-safety-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  .treasury-safety-card {
+    border-left: 0;
+
+    border-top:
+      1px solid var(--border-soft);
+  }
+
+  #tab-wallet
+  .treasury-safety-card:first-child {
+    border-top: 0;
+  }
+
+  #tab-wallet
+  .treasury-records-summary > span {
+    display: none;
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  #tab-wallet
+  .treasury-records-summary::before {
+    transition: none;
+  }
+}
+
+/* End 3J18 Treasury compact workspace v1 */

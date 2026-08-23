@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css">
-  <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260823-treasury-polish-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -928,8 +928,8 @@
               </div>
 
               <p>
-                Account-scoped transfer audit, Gate
-                reconciliation and unresolved operation locks.
+                Account-scoped Treasury controls, safety state and
+                audit history.
               </p>
             </div>
 
@@ -956,18 +956,18 @@
             </section>
 
             <section class="treasury-safety-card">
-              <span>Live transfer path</span>
+              <span>Treasury transfer arm</span>
               <strong id="treasuryTransferState">—</strong>
               <small>
-                Arming remains outside the dashboard
+                Separate from registered-user transfers
               </small>
             </section>
 
             <section class="treasury-safety-card">
-              <span>Withdrawals</span>
+              <span>Withdrawal arm</span>
               <strong id="treasuryWithdrawalState">—</strong>
               <small>
-                UI preparation is available; live execution remains separately armed
+                Live external execution is separately armed
               </small>
             </section>
 
@@ -979,6 +979,8 @@
               </small>
             </section>
           </div>
+
+          <div class="treasury-actions-grid">
 
           <section
             class="treasury-withdrawal-section treasury-user-transfer-section"
@@ -1119,7 +1121,10 @@
             </div>
           </section>
 
-          <section class="treasury-withdrawal-section">
+          <section
+            class="treasury-withdrawal-section"
+            id="treasuryWithdrawalAction"
+          >
             <div class="treasury-section-header">
               <div>
                 <h3>Withdraw funds</h3>
@@ -1135,6 +1140,13 @@
                 id="treasuryWithdrawalDestinationCount"
                 class="treasury-count"
               >0 approved destinations</span>
+            </div>
+
+            <div
+              id="treasuryWithdrawalUnavailable"
+              class="treasury-withdrawal-unavailable hidden"
+            >
+              No approved withdrawal destinations are configured. Preparation is unavailable until a destination is approved server-side.
             </div>
 
             <form
@@ -1161,7 +1173,7 @@
                 Select an approved destination.
               </div>
 
-              <label>
+              <label class="treasury-withdrawal-amount-field">
                 Amount
 
                 <input
@@ -1217,6 +1229,24 @@
               the server.
             </div>
           </section>
+
+          </div>
+
+          <details
+            class="treasury-records"
+            id="treasuryRecords"
+          >
+            <summary class="treasury-records-summary">
+              <div>
+                <strong>Records &amp; audit</strong>
+                <small>
+                  Withdrawal requests, ownership, locks and activity
+                </small>
+              </div>
+              <span>Review history</span>
+            </summary>
+
+            <div class="treasury-records-content">
 
           <section class="treasury-withdrawal-section">
             <div class="treasury-section-header">
@@ -1405,6 +1435,9 @@
               </table>
             </div>
           </section>
+
+            </div>
+          </details>
 
           <div class="treasury-footnote">
             This dashboard does not arm Treasury or change Gate API permissions. The current withdrawal UI performs read-only preflight and local audited request creation only. JIT transfer, external submission and ownership settlement remain unavailable from the browser.
@@ -2517,7 +2550,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-wallet-bots-label-v1"
+    src="./app.js?v=20260823-treasury-polish-v1"
     defer
   ></script>
   <script

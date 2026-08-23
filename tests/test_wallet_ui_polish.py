@@ -41,7 +41,7 @@ def test_wallet_balance_assets_are_versioned():
 
     assert (
         "./app.js?"
-        "v=20260823-wallet-bots-label-v1"
+        "v=20260823-treasury-polish-v1"
         in HTML
     )
 
