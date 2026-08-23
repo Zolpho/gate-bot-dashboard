@@ -1065,3 +1065,60 @@ button.trading-book-row.selected {
 }
 
 /* End 3J13 Trading order-surface polish v1 */
+
+/* 3J13 Trading sticky market-side panel v1 */
+
+/*
+ * Desktop trading-terminal behavior:
+ *
+ * Keep Order Book / Trades visible while the user
+ * scrolls from the chart into the Limit order ticket.
+ *
+ * The panel remains inside .trading-market-grid,
+ * therefore sticky positioning naturally ends before
+ * the Orders section begins.
+ *
+ * No DOM repositioning or JavaScript scroll behavior.
+ */
+@media (min-width: 901px) {
+  #tab-trading
+  .trading-book-panel {
+    position: sticky;
+    top: 16px;
+
+    align-self: start;
+    height: fit-content;
+
+    max-height:
+      calc(100vh - 32px);
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    overscroll-behavior:
+      contain;
+  }
+}
+
+
+/*
+ * Once Trading becomes a single-column layout,
+ * restore ordinary document flow.
+ */
+@media (max-width: 900px) {
+  #tab-trading
+  .trading-book-panel {
+    position: static;
+    top: auto;
+
+    align-self: stretch;
+    height: auto;
+
+    max-height: none;
+
+    overflow:
+      visible;
+  }
+}
+
+/* End 3J13 Trading sticky market-side panel v1 */

@@ -186,7 +186,7 @@ def test_trading_asset_versions_exact():
     )
 
     assert (
-        "./trading-limit.css?v=20260823-trading-polish-v1"
+        "./trading-limit.css?v=20260823-sticky-book-v1"
         in html
     )
 
@@ -429,6 +429,106 @@ def test_trading_scope_width_refinement_markers_once():
     assert (
         css.count(
             "/* End 3J13 Trading scope/width refinement v3 */"
+        )
+        == 1
+    )
+
+
+def test_order_book_is_sticky_on_desktop():
+    limit_css = _limit_css()
+
+    assert (
+        "/* 3J13 Trading sticky market-side panel v1 */"
+        in limit_css
+    )
+
+    desktop_start = limit_css.index(
+        "@media (min-width: 901px)"
+    )
+
+    desktop_end = limit_css.index(
+        "@media (max-width: 900px)",
+        desktop_start,
+    )
+
+    desktop = limit_css[
+        desktop_start:desktop_end
+    ]
+
+    for token in (
+        ".trading-book-panel",
+        "position: sticky;",
+        "top: 16px;",
+        "align-self: start;",
+        "height: fit-content;",
+        "max-height:",
+        "calc(100vh - 32px);",
+        "overflow-y: auto;",
+    ):
+        assert token in desktop
+
+
+def test_sticky_book_returns_to_normal_flow_on_small_screens():
+    limit_css = _limit_css()
+
+    mobile_start = limit_css.index(
+        "@media (max-width: 900px)",
+        limit_css.index(
+            "/* 3J13 Trading sticky market-side panel v1 */"
+        ),
+    )
+
+    mobile_end = limit_css.index(
+        "/* End 3J13 Trading sticky market-side panel v1 */",
+        mobile_start,
+    )
+
+    mobile = limit_css[
+        mobile_start:mobile_end
+    ]
+
+    for token in (
+        ".trading-book-panel",
+        "position: static;",
+        "align-self: stretch;",
+        "max-height: none;",
+        "overflow:",
+        "visible;",
+    ):
+        assert token in mobile
+
+
+def test_sticky_book_uses_css_only():
+    app = Path(
+        "frontend/app.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    trading = _js()
+
+    assert "IntersectionObserver" not in trading
+    assert "scrollY" not in trading
+    assert "scrollTo(" not in trading
+
+    # No Trading-specific scroll implementation
+    # was introduced into the global app either.
+    assert "stickyTradingBook" not in app
+
+
+def test_sticky_book_markers_present_once():
+    limit_css = _limit_css()
+
+    assert (
+        limit_css.count(
+            "/* 3J13 Trading sticky market-side panel v1 */"
+        )
+        == 1
+    )
+
+    assert (
+        limit_css.count(
+            "/* End 3J13 Trading sticky market-side panel v1 */"
         )
         == 1
     )
