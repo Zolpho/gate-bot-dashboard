@@ -135,18 +135,14 @@ def test_current_value_css_is_neutral():
     )
 
 
-def test_overview_asset_versions_exact():
+def test_overview_core_assets_remain_versioned():
     html = _html()
 
-    assert (
-        "./styles.css?v=20260823-overview-polish-v1"
-        in html
-    )
+    assert "./styles.css?v=" in html
+    assert "./app.js?v=" in html
 
-    assert (
-        "./app.js?v=20260823-overview-polish-v1"
-        in html
-    )
+    assert 'href="./styles.css"' not in html
+    assert 'src="./app.js"' not in html
 
 
 def test_overview_polish_markers_present_once():

@@ -1478,3 +1478,422 @@ dialog::backdrop {
 
 /* End 3J13 Overview-specific polish v1 */
 
+/* 3J13 Bots-specific polish v1 */
+
+
+/* -------------------------------------------------------
+ * FILTER TOOLBAR
+ * ---------------------------------------------------- */
+
+#tab-bots .toolbar-panel {
+  padding:
+    14px 16px;
+
+  gap: 14px;
+}
+
+#tab-bots .filters {
+  grid-template-columns:
+    minmax(240px, 1.45fr)
+    repeat(
+      4,
+      minmax(125px, .72fr)
+    );
+
+  gap: 11px;
+}
+
+#tab-bots .filters label {
+  gap: 6px;
+
+  color: var(--muted);
+
+  font-size: .71rem;
+  font-weight: 650;
+}
+
+#tab-bots .filters input,
+#tab-bots .filters select {
+  width: 100%;
+}
+
+#tab-bots #botSearch {
+  padding-left: 12px;
+}
+
+#tab-bots #exportCsv {
+  flex: 0 0 auto;
+
+  min-width: 105px;
+
+  white-space: nowrap;
+}
+
+
+/* -------------------------------------------------------
+ * ACTIVE BOT TABLE
+ * ---------------------------------------------------- */
+
+#tab-bots .table-panel table {
+  min-width: 980px;
+
+  font-size: .84rem;
+}
+
+#tab-bots .table-panel th,
+#tab-bots .table-panel td {
+  padding:
+    12px 14px;
+}
+
+#tab-bots .table-panel th {
+  font-size: .69rem;
+}
+
+/*
+ * Financial values and runtime scan more naturally
+ * when their decimal/value edges line up.
+ */
+#tab-bots .table-panel
+:is(
+  th:nth-child(4),
+  th:nth-child(5),
+  th:nth-child(6),
+  th:nth-child(7),
+  th:nth-child(8),
+  td:nth-child(4),
+  td:nth-child(5),
+  td:nth-child(6),
+  td:nth-child(7),
+  td:nth-child(8)
+) {
+  text-align: right;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#tab-bots .table-panel
+th:last-child,
+#tab-bots .table-panel
+td:last-child {
+  text-align: right;
+}
+
+#tab-bots .table-panel
+.strategy-cell {
+  min-width: 180px;
+}
+
+#tab-bots .table-panel
+.strategy-cell strong {
+  color: var(--text);
+
+  font-size: .83rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+#tab-bots .table-panel
+.strategy-cell small {
+  margin-top: 4px;
+
+  font-size: .70rem;
+  line-height: 1.35;
+}
+
+#tab-bots .table-panel
+tbody tr {
+  transition:
+    background-color .14s ease,
+    box-shadow .14s ease;
+}
+
+#tab-bots .table-panel
+tbody tr:hover {
+  background:
+    rgba(255, 255, 255, .025);
+
+  box-shadow:
+    inset 2px 0 0
+    rgba(23, 211, 154, .30);
+}
+
+
+/* -------------------------------------------------------
+ * ROW ACTIONS
+ * ---------------------------------------------------- */
+
+#tab-bots .bot-row-actions {
+  justify-content: flex-end;
+
+  gap: 5px;
+
+  white-space: nowrap;
+}
+
+#tab-bots .bot-row-actions
+.row-button {
+  color: var(--text-soft);
+
+  font-size: .76rem;
+  font-weight: 600;
+
+  padding:
+    5px 6px;
+}
+
+#tab-bots .bot-row-actions
+.row-button:hover {
+  color: var(--accent);
+
+  background:
+    rgba(23, 211, 154, .065);
+}
+
+#tab-bots .bot-archive-action {
+  color: var(--muted);
+
+  font-size: .76rem;
+}
+
+#tab-bots .bot-archive-action:hover {
+  color: var(--text);
+}
+
+#tab-bots .bot-restore-action {
+  border-radius: 7px;
+
+  padding:
+    5px 7px;
+
+  color: var(--accent);
+
+  background:
+    rgba(23, 211, 154, .055);
+}
+
+#tab-bots .bot-restore-action:hover {
+  background:
+    rgba(23, 211, 154, .10);
+}
+
+
+/* -------------------------------------------------------
+ * ACCOUNT / STATUS BADGES
+ * ---------------------------------------------------- */
+
+#tab-bots .account-badge,
+#tab-bots .status-badge {
+  padding:
+    4px 8px;
+
+  font-size: .71rem;
+}
+
+#tab-bots .status-badge {
+  min-width: 0;
+}
+
+
+/* -------------------------------------------------------
+ * ARCHIVED BOTS
+ * ---------------------------------------------------- */
+
+#tab-bots .archived-bots-panel {
+  margin-top: 16px;
+
+  border-color:
+    rgba(143, 165, 157, .13);
+
+  background:
+    rgba(7, 16, 14, .72);
+}
+
+#tab-bots .archived-bots-summary {
+  padding:
+    15px 17px;
+}
+
+#tab-bots .archived-bots-summary::before {
+  font-size: .70rem;
+}
+
+#tab-bots .archived-bots-summary strong {
+  color: var(--text-soft);
+
+  font-size: .83rem;
+}
+
+#tab-bots .archived-bots-summary small {
+  max-width: 720px;
+
+  margin-top: 4px;
+
+  font-size: .70rem;
+  line-height: 1.4;
+}
+
+#tab-bots #archivedBotsCount {
+  color: var(--muted);
+
+  border-color:
+    rgba(143, 165, 157, .18);
+
+  background:
+    rgba(255, 255, 255, .018);
+
+  font-size: .69rem;
+}
+
+#tab-bots .archived-bots-content {
+  border-top-color:
+    rgba(143, 165, 157, .13);
+
+  background:
+    rgba(0, 0, 0, .055);
+}
+
+#tab-bots .archived-bots-content
+table {
+  min-width: 1060px;
+
+  font-size: .81rem;
+}
+
+#tab-bots .archived-bots-content
+th,
+#tab-bots .archived-bots-content
+td {
+  padding:
+    11px 14px;
+}
+
+#tab-bots .archived-bots-content
+th {
+  color:
+    rgba(143, 165, 157, .88);
+
+  font-size: .68rem;
+}
+
+/*
+ * Archived financial values remain fully readable,
+ * while the row itself is visually secondary to
+ * active trading strategies.
+ */
+#tab-bots .archived-bots-content
+:is(
+  th:nth-child(4),
+  th:nth-child(5),
+  th:nth-child(6),
+  th:nth-child(7),
+  td:nth-child(4),
+  td:nth-child(5),
+  td:nth-child(6),
+  td:nth-child(7)
+) {
+  text-align: right;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#tab-bots .archived-bots-content
+th:last-child,
+#tab-bots .archived-bots-content
+td:last-child {
+  text-align: right;
+}
+
+#tab-bots .archived-bots-content
+tbody tr {
+  background:
+    rgba(255, 255, 255, .004);
+
+  transition:
+    background-color .14s ease;
+}
+
+#tab-bots .archived-bots-content
+tbody tr:hover {
+  background:
+    rgba(255, 255, 255, .018);
+}
+
+#tab-bots .archived-bots-content
+.strategy-cell strong {
+  color: var(--text-soft);
+
+  font-size: .81rem;
+}
+
+#tab-bots .archived-bots-content
+.strategy-cell small {
+  font-size: .69rem;
+}
+
+#tab-bots .archived-bots-content
+.account-badge {
+  opacity: .90;
+}
+
+
+/* -------------------------------------------------------
+ * RESPONSIVE
+ * ---------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  #tab-bots .filters {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      );
+  }
+
+  #tab-bots .filters
+  label:first-child {
+    grid-column:
+      span 2;
+  }
+}
+
+@media (max-width: 820px) {
+  #tab-bots .toolbar-panel {
+    gap: 12px;
+  }
+
+  #tab-bots #exportCsv {
+    width: fit-content;
+  }
+}
+
+@media (max-width: 560px) {
+  #tab-bots .filters {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-bots .filters
+  label:first-child {
+    grid-column: auto;
+  }
+
+  #tab-bots #exportCsv {
+    width: 100%;
+  }
+
+  #tab-bots .archived-bots-summary {
+    gap: 12px;
+
+    padding:
+      14px 15px;
+  }
+
+  #tab-bots .archived-bots-summary small {
+    max-width: none;
+  }
+}
+
+/* End 3J13 Bots-specific polish v1 */
+
