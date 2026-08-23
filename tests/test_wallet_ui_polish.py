@@ -29,7 +29,7 @@ DEPOSIT_CSS = Path(
 def test_wallet_balance_assets_are_versioned():
     assert (
         "./private-balance.css?"
-        "v=20260823-wallet-summary-v1"
+        "v=20260823-wallet-card-depth-v1"
         in HTML
     )
 
@@ -204,3 +204,55 @@ def test_wallet_internal_quant_contract_is_preserved():
     assert "data.quant_value" in APP
     assert "#privateQuantValue" in APP
     assert "#privateQuantNote" in APP
+
+def test_wallet_balance_cards_have_restrained_depth():
+    assert (
+        "/* 3J17 Wallet balance card depth v1 */"
+        in BALANCE_CSS
+    )
+
+    for token in (
+        "box-shadow:",
+        "var(--shadow-sm);",
+        "transform:",
+        "translateY(-1px);",
+        "border-color .16s ease",
+    ):
+        assert token in BALANCE_CSS
+
+
+def test_wallet_balance_cards_do_not_imply_clickability():
+    depth_start = BALANCE_CSS.index(
+        "/* 3J17 Wallet balance card depth v1 */"
+    )
+
+    depth_css = BALANCE_CSS[depth_start:]
+
+    assert "cursor: pointer" not in depth_css
+
+
+def test_wallet_total_card_remains_emphasized():
+    depth_start = BALANCE_CSS.index(
+        "/* 3J17 Wallet balance card depth v1 */"
+    )
+
+    depth_css = BALANCE_CSS[depth_start:]
+
+    assert (
+        ".private-balance-card:first-child"
+        in depth_css
+    )
+
+    assert (
+        "rgba(23, 211, 154, .34)"
+        in depth_css
+    )
+
+
+def test_wallet_card_motion_respects_reduced_motion():
+    assert (
+        "@media (prefers-reduced-motion: reduce)"
+        in BALANCE_CSS
+    )
+
+    assert "transition: none;" in BALANCE_CSS

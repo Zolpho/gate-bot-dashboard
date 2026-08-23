@@ -302,3 +302,81 @@ summary {
 }
 
 /* End 3J17 Wallet balance polish v1 */
+
+/* 3J17 Wallet balance card depth v1 */
+
+#tab-wallet
+.private-balance-card {
+  position: relative;
+
+  box-shadow:
+    inset 0 1px 0
+      rgba(255, 255, 255, .018),
+    0 1px 1px
+      rgba(0, 0, 0, .12);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(17, 30, 26, .72),
+      rgba(10, 21, 18, .58)
+    );
+
+  transition:
+    border-color .16s ease,
+    transform .16s ease,
+    box-shadow .16s ease,
+    background-color .16s ease;
+}
+
+
+#tab-wallet
+.private-balance-card:first-child {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(23, 211, 154, .055),
+      rgba(10, 25, 20, .72)
+    );
+
+  box-shadow:
+    inset 0 1px 0
+      rgba(255, 255, 255, .022),
+    0 1px 1px
+      rgba(0, 0, 0, .14);
+}
+
+
+#tab-wallet
+.private-balance-card:hover {
+  border-color:
+    var(--border-strong);
+
+  box-shadow:
+    var(--shadow-sm);
+
+  transform:
+    translateY(-1px);
+}
+
+
+#tab-wallet
+.private-balance-card:first-child:hover {
+  border-color:
+    rgba(23, 211, 154, .34);
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  #tab-wallet
+  .private-balance-card {
+    transition: none;
+  }
+
+  #tab-wallet
+  .private-balance-card:hover {
+    transform: none;
+  }
+}
+
+/* End 3J17 Wallet balance card depth v1 */
