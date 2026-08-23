@@ -25,7 +25,7 @@ def test_treasury_assets_are_versioned():
 
     assert (
         "./app.js?"
-        "v=20260823-treasury-final-v1"
+        "v=20260823-session-isolation-v1"
         in HTML
     )
 
@@ -789,5 +789,256 @@ def test_user_transfer_credential_footer_is_removed():
 def test_confirmation_helper_copy_is_short():
     assert (
         "Type the exact phrase shown below."
+        in HTML
+    )
+
+def test_logout_is_hard_treasury_session_boundary():
+    start = APP.index(
+        "function lockAdmin("
+    )
+
+    end = APP.index(
+        "\n\nasync function unlockAdmin(",
+        start,
+    )
+
+    block = APP[start:end]
+
+    assert (
+        "state.adminSessionEpoch += 1;"
+        in block
+    )
+
+    assert "clearTreasurySession();" in block
+
+    assert (
+        block.index(
+            "state.adminSessionEpoch += 1;"
+        )
+        < block.index(
+            "state.adminAuthorization = '';"
+        )
+    )
+
+
+def test_clear_treasury_session_removes_user_private_state():
+    start = APP.index(
+        "function clearTreasurySession()"
+    )
+
+    end = APP.index(
+        "\n\nfunction lockAdmin(",
+        start,
+    )
+
+    block = APP[start:end]
+
+    required = (
+        "state.treasuryTransfers = [];",
+        "state.treasuryLocks = [];",
+        "state.treasuryOwnershipBalances = [];",
+        "state.treasuryOwnershipLedger = [];",
+        "state.treasuryUserTransferParticipants = [];",
+        "state.treasuryUserTransfersEnabled = false;",
+        "state.treasuryUserTransferPreview = null;",
+        (
+            "state.treasuryUserTransferExecutionAttempted "
+            "= false;"
+        ),
+        "state.treasuryWithdrawalDestinations = [];",
+        "state.treasuryWithdrawalRequests = [];",
+        "state.treasuryWithdrawalPreflight = null;",
+        "state.treasuryWithdrawalRequestDetail = null;",
+        "state.treasuryRequestDetail = null;",
+    )
+
+    for token in required:
+        assert token in block
+
+    assert (
+        "renderTreasuryUserTransferPreview();"
+        in block
+    )
+
+    assert (
+        "renderTreasuryWithdrawalPreflight();"
+        in block
+    )
+
+
+def test_new_login_clears_treasury_before_wallet_load():
+    start = APP.index(
+        "async function unlockAdmin("
+    )
+
+    end = APP.index(
+        "\n\nasync function changeOwnPassword(",
+        start,
+    )
+
+    block = APP[start:end]
+
+    epoch = block.index(
+        "state.adminSessionEpoch += 1;"
+    )
+
+    authorization = block.index(
+        "state.adminAuthorization = authorization;"
+    )
+
+    user = block.index(
+        "state.adminUser = result.user;"
+    )
+
+    clear = block.index(
+        "clearTreasurySession();"
+    )
+
+    wallet = block.index(
+        "switchTab('wallet');"
+    )
+
+    assert (
+        epoch
+        < authorization
+        < user
+        < clear
+        < wallet
+    )
+
+
+def test_admin_api_rejects_old_login_response():
+    start = APP.index(
+        "function adminApi("
+    )
+
+    end = APP.index(
+        "\n\nfunction staleAdminSessionError(",
+        start,
+    )
+
+    block = APP[start:end]
+
+    assert (
+        "const sessionEpoch = state.adminSessionEpoch;"
+        in block
+    )
+
+    assert (
+        "const authorization = state.adminAuthorization;"
+        in block
+    )
+
+    assert (
+        "state.adminSessionEpoch !== sessionEpoch"
+        in block
+    )
+
+    assert (
+        "state.adminAuthorization !== authorization"
+        in block
+    )
+
+    assert "stale_admin_session: true" in block
+
+    # Old-session 401 must not call lockAdmin against
+    # a different/new authenticated browser session.
+    assert (
+        "state.adminSessionEpoch === sessionEpoch"
+        in block
+    )
+
+    assert (
+        "state.adminAuthorization === authorization"
+        in block
+    )
+
+
+def test_wallet_loaders_ignore_stale_admin_response():
+    function_names = (
+        "loadPrivateBalance",
+        "loadDepositHistory",
+        "loadTreasuryOverview",
+    )
+
+    for name in function_names:
+        start = APP.index(
+            f"async function {name}("
+        )
+
+        remainder = APP[start:]
+
+        next_functions = [
+            value
+            for value in (
+                remainder.find(
+                    "\nfunction ",
+                    1,
+                ),
+                remainder.find(
+                    "\nasync function ",
+                    1,
+                ),
+            )
+            if value >= 0
+        ]
+
+        assert next_functions
+
+        block = remainder[
+            :min(next_functions)
+        ]
+
+        assert (
+            "if (staleAdminSessionError(error))"
+            in block
+        )
+
+
+def test_logged_out_treasury_uses_canonical_session_reset():
+    start = APP.index(
+        "async function loadTreasuryOverview("
+    )
+
+    end = APP.index(
+        "\n\nasync function openTreasuryRequestDetail(",
+        start,
+    )
+
+    block = APP[start:end]
+
+    logged_out_start = block.index(
+        "if (\n    !state.adminUser"
+    )
+
+    logged_out_end = block.index(
+        "const button =",
+        logged_out_start,
+    )
+
+    logged_out = block[
+        logged_out_start:logged_out_end
+    ]
+
+    assert "clearTreasurySession();" in logged_out
+
+    assert (
+        "state.treasuryUserTransferPreview = null"
+        not in logged_out
+    )
+
+
+def test_treasury_css_version_is_not_changed_by_session_fix():
+    assert (
+        "./treasury.css?"
+        "v=20260823-treasury-final-v1"
+        in HTML
+    )
+
+
+def test_app_version_marks_session_isolation_fix():
+    assert (
+        "./app.js?"
+        "v=20260823-session-isolation-v1"
         in HTML
     )

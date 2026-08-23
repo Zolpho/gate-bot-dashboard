@@ -40,6 +40,7 @@ const state = {
   activeTab: 'overview',
   adminAuthorization: '',
   adminUser: null,
+  adminSessionEpoch: 0,
   privateBalance: null,
   privateBalanceAccountId: '',
   privateBalanceFetchedAt: 0,
@@ -121,18 +122,59 @@ async function api(path, options = {}) {
 function adminApi(path, options = {}) {
   if (!state.adminAuthorization) {
     openAdminDialog();
-    throw new ApiError('Sign in to your account first.', 401, {});
+
+    throw new ApiError(
+      'Sign in to your account first.',
+      401,
+      {},
+    );
   }
+
+  const sessionEpoch = state.adminSessionEpoch;
+  const authorization = state.adminAuthorization;
+
   return api(path, {
     ...options,
     headers: {
-      Authorization: state.adminAuthorization,
+      Authorization: authorization,
       ...(options.headers || {}),
     },
-  }).catch(error => {
-    if (error.status === 401) lockAdmin(false);
-    throw error;
-  });
+  })
+    .then(payload => {
+      if (
+        state.adminSessionEpoch !== sessionEpoch
+        || state.adminAuthorization !== authorization
+      ) {
+        throw new ApiError(
+          'Account session changed while the request was in progress.',
+          409,
+          {
+            stale_admin_session: true,
+          },
+        );
+      }
+
+      return payload;
+    })
+    .catch(error => {
+      if (
+        error.status === 401
+        && state.adminSessionEpoch === sessionEpoch
+        && state.adminAuthorization === authorization
+      ) {
+        lockAdmin(false);
+      }
+
+      throw error;
+    });
+}
+
+
+function staleAdminSessionError(error) {
+  return Boolean(
+    error instanceof ApiError
+    && error.payload?.stale_admin_session === true
+  );
 }
 
 function canManageAccount(accountId) {
@@ -275,14 +317,100 @@ function renderAdminState() {
   }
   renderBotControlAccess();
 }
+function clearTreasurySession() {
+  state.treasuryTransfers = [];
+  state.treasuryLocks = [];
+  state.treasuryOwnershipBalances = [];
+  state.treasuryOwnershipLedger = [];
+
+  state.treasuryUserTransferParticipants = [];
+  state.treasuryUserTransfersEnabled = false;
+  state.treasuryUserTransferPreview = null;
+  state.treasuryUserTransferExecutionAttempted = false;
+
+  state.treasuryWithdrawalDestinations = [];
+  state.treasuryWithdrawalRequests = [];
+  state.treasuryWithdrawalPreflight = null;
+  state.treasuryWithdrawalRequestDetail = null;
+
+  state.treasuryRequestDetail = null;
+
+  const userAmount = $(
+    '#treasuryUserTransferAmount'
+  );
+
+  const userConfirmation = $(
+    '#treasuryUserTransferConfirmation'
+  );
+
+  const userError = $(
+    '#treasuryUserTransferError'
+  );
+
+  const withdrawalAmount = $(
+    '#treasuryWithdrawalAmount'
+  );
+
+  if (userAmount) {
+    userAmount.value = '';
+  }
+
+  if (userConfirmation) {
+    userConfirmation.value = '';
+  }
+
+  if (userError) {
+    userError.textContent = '';
+    userError.classList.add('hidden');
+  }
+
+  if (withdrawalAmount) {
+    withdrawalAmount.value = '';
+  }
+
+  setTreasuryUserTransferFormLocked(false);
+
+  renderTreasuryTransfers();
+  renderTreasuryLocks();
+  renderTreasuryOwnershipBalances();
+  renderTreasuryOwnershipLedger();
+  renderTreasuryWithdrawalDestinations();
+  renderTreasuryWithdrawalRequests();
+  renderTreasuryWithdrawalPreflight();
+  renderTreasuryUserTransferParticipants();
+  renderTreasuryUserTransferPreview();
+
+  const treasuryRequestDialog = $(
+    '#treasuryRequestDialog'
+  );
+
+  if (treasuryRequestDialog?.open) {
+    treasuryRequestDialog.close();
+  }
+
+  const withdrawalRequestDialog = $(
+    '#treasuryWithdrawalRequestDialog'
+  );
+
+  if (withdrawalRequestDialog?.open) {
+    withdrawalRequestDialog.close();
+  }
+}
+
+
 function lockAdmin(showMessage = true) {
+  state.adminSessionEpoch += 1;
+
   state.adminAuthorization = '';
   state.adminUser = null;
   state.currentRawData = null;
+
   clearPrivateBalance();
   clearDepositHistory();
   clearDepositState({ keepCatalog: false });
   clearBotControlSession();
+  clearTreasurySession();
+
   const depositDialog = $('#depositDialog');
   if (depositDialog?.open) depositDialog.close();
   const passwordDialog = $('#changePasswordDialog');
@@ -310,8 +438,12 @@ async function unlockAdmin(event) {
 
   try {
     const result = await api('/api/auth/me', { headers: { Authorization: authorization } });
+    state.adminSessionEpoch += 1;
     state.adminAuthorization = authorization;
     state.adminUser = result.user;
+
+    clearTreasurySession();
+
     await loadBotControlCapabilities();
     formElement.reset();
     $('#adminDialog').close();
@@ -388,7 +520,13 @@ async function changeOwnPassword(event) {
 
     // Basic authentication is stateless. Keep this browser session unlocked by
     // replacing the in-memory Authorization value with the new password.
-    state.adminAuthorization = basicAuthorization(state.adminUser.username, newPassword);
+    state.adminAuthorization = basicAuthorization(
+      state.adminUser.username,
+      newPassword,
+    );
+
+    state.adminSessionEpoch += 1;
+
     formElement.reset();
     $('#changePasswordDialog').close();
     showToast('Password changed successfully.');
@@ -771,6 +909,10 @@ async function loadPrivateBalance({ force = false, quiet = false } = {}) {
     state.privateBalanceFetchedAt = Date.now();
     renderPrivateBalance();
   } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
     if (state.adminUser) setPrivateBalanceView('error', error.message || 'Unable to load the private account balance.');
     if (!quiet && state.adminUser) showToast(error.message || 'Unable to load private balance.', true);
   } finally {
@@ -1168,6 +1310,10 @@ async function loadDepositHistory({ quiet = false } = {}) {
     }));
     renderDepositHistory(payload);
   } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
     $('#depositHistoryError').textContent = error.message || 'Unable to load deposit history.';
     $('#depositHistoryError').classList.remove('hidden');
   } finally {
@@ -9728,27 +9874,7 @@ async function loadTreasuryOverview(
     !state.adminUser
     || !state.adminAuthorization
   ) {
-    state.treasuryTransfers = [];
-    state.treasuryLocks = [];
-    state.treasuryOwnershipBalances = [];
-    state.treasuryOwnershipLedger = [];
-    state.treasuryWithdrawalDestinations = [];
-    state.treasuryWithdrawalRequests = [];
-    state.treasuryWithdrawalPreflight = null;
-    state.treasuryUserTransferParticipants = [];
-    state.treasuryUserTransfersEnabled = false;
-    state.treasuryUserTransferPreview = null;
-    state.treasuryUserTransferExecutionAttempted = false;
-
-    renderTreasuryTransfers();
-    renderTreasuryLocks();
-    renderTreasuryOwnershipBalances();
-    renderTreasuryOwnershipLedger();
-    renderTreasuryWithdrawalDestinations();
-    renderTreasuryWithdrawalRequests();
-    renderTreasuryWithdrawalPreflight();
-    renderTreasuryUserTransferParticipants();
-    renderTreasuryUserTransferPreview();
+    clearTreasurySession();
     return;
   }
 
@@ -9847,6 +9973,10 @@ async function loadTreasuryOverview(
     renderTreasuryTransfers();
 
   } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
     const message = treasuryErrorMessage(error);
 
     if (errorBox) {

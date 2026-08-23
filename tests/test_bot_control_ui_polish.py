@@ -169,7 +169,7 @@ def test_bot_control_asset_versions_are_bumped():
 
     assert (
         "./app.js?"
-        "v=20260823-treasury-final-v1"
+        "v=20260823-session-isolation-v1"
         in HTML
     )
 
