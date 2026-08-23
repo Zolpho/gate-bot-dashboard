@@ -54,8 +54,8 @@ def test_desktop_account_selector_is_compact():
         in CSS
     )
 
-    assert "width: 128px;" in CSS
-    assert "min-width: 128px;" in CSS
+    assert "width: 156px;" in CSS
+    assert "min-width: 156px;" in CSS
     assert "height: 32px;" in CSS
     assert "font-size: .76rem;" in CSS
 
@@ -112,6 +112,6 @@ def test_account_selector_remains_responsive():
 def test_stylesheet_cache_version_is_bumped():
     assert (
         "./styles.css?"
-        "v=20260823-account-selector-v1"
+        "v=20260823-account-selector-wide-v1"
         in HTML
     )
