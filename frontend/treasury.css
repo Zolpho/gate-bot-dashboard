@@ -1855,3 +1855,121 @@ tbody tr:last-child td {
 }
 
 /* End 3J18 Treasury compact workspace v1 */
+
+
+/* 3J18 Treasury status simplification v1 */
+
+#tab-wallet
+.treasury-capability-badge.enabled {
+  color: var(--positive);
+
+  border-color:
+    rgba(23, 211, 154, .40);
+
+  background:
+    rgba(23, 211, 154, .075);
+}
+
+
+#tab-wallet
+.treasury-capability-badge.disabled {
+  color: var(--warning);
+
+  border-color:
+    rgba(250, 190, 80, .42);
+
+  background:
+    rgba(250, 190, 80, .065);
+}
+
+
+#tab-wallet
+.treasury-message.warning {
+  color: var(--warning);
+
+  border-color:
+    rgba(250, 190, 80, .38);
+
+  background:
+    rgba(250, 190, 80, .055);
+}
+
+
+#tab-wallet
+.treasury-action-badges {
+  display: flex;
+
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 6px;
+
+  flex-wrap: wrap;
+}
+
+
+#tab-wallet
+.treasury-records-badges {
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  flex: 0 0 auto;
+}
+
+
+#tab-wallet
+.treasury-lock-count.attention {
+  color: var(--warning);
+
+  border-color:
+    rgba(250, 190, 80, .45);
+
+  background:
+    rgba(250, 190, 80, .07);
+}
+
+
+#tab-wallet
+.treasury-records-review {
+  display: inline-flex;
+
+  align-items: center;
+
+  padding: 4px 7px;
+
+  border:
+    1px solid var(--border-soft);
+
+  border-radius: 999px;
+
+  color: var(--muted);
+
+  font-size: .64rem;
+}
+
+
+#tab-wallet
+.treasury-records-summary
+> .treasury-records-badges {
+  margin-left: auto;
+}
+
+
+@media (max-width: 680px) {
+  #tab-wallet
+  .treasury-action-badges {
+    justify-content: flex-start;
+  }
+
+  #tab-wallet
+  .treasury-records-badges {
+    margin-left: 0;
+
+    flex-wrap: wrap;
+  }
+}
+
+/* End 3J18 Treasury status simplification v1 */

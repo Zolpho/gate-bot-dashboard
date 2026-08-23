@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css">
-  <link rel="stylesheet" href="./treasury.css?v=20260823-treasury-polish-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260823-treasury-status-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -923,7 +923,7 @@
                 <h2>Treasury operations</h2>
                 <span
                   id="treasurySafetyBadge"
-                  class="treasury-state-badge"
+                  class="treasury-state-badge treasury-capability-badge"
                 >Checking…</span>
               </div>
 
@@ -948,37 +948,11 @@
             role="alert"
           ></div>
 
-          <div class="treasury-safety-grid">
-            <section class="treasury-safety-card">
-              <span>Treasury configuration</span>
-              <strong id="treasuryConfigured">—</strong>
-              <small id="treasuryPhase">—</small>
-            </section>
-
-            <section class="treasury-safety-card">
-              <span>Treasury transfer arm</span>
-              <strong id="treasuryTransferState">—</strong>
-              <small>
-                Separate from registered-user transfers
-              </small>
-            </section>
-
-            <section class="treasury-safety-card">
-              <span>Withdrawal arm</span>
-              <strong id="treasuryWithdrawalState">—</strong>
-              <small>
-                Live external execution is separately armed
-              </small>
-            </section>
-
-            <section class="treasury-safety-card">
-              <span>Active operation locks</span>
-              <strong id="treasuryLockCount">0</strong>
-              <small>
-                Source + currency collision protection
-              </small>
-            </section>
-          </div>
+          <div
+            id="treasuryConfigurationWarning"
+            class="treasury-message warning hidden"
+            role="status"
+          ></div>
 
           <div class="treasury-actions-grid">
 
@@ -998,7 +972,7 @@
 
               <span
                 id="treasuryUserTransferState"
-                class="treasury-count"
+                class="treasury-count treasury-capability-badge"
               >Checking…</span>
             </div>
 
@@ -1136,10 +1110,17 @@
                 </p>
               </div>
 
-              <span
-                id="treasuryWithdrawalDestinationCount"
-                class="treasury-count"
-              >0 approved destinations</span>
+              <div class="treasury-action-badges">
+                <span
+                  id="treasuryWithdrawalState"
+                  class="treasury-count treasury-capability-badge"
+                >Checking…</span>
+
+                <span
+                  id="treasuryWithdrawalDestinationCount"
+                  class="treasury-count"
+                >0 approved destinations</span>
+              </div>
             </div>
 
             <div
@@ -1243,7 +1224,16 @@
                   Withdrawal requests, ownership, locks and activity
                 </small>
               </div>
-              <span>Review history</span>
+              <div class="treasury-records-badges">
+                <span
+                  id="treasuryLockCount"
+                  class="treasury-count treasury-lock-count hidden"
+                >0 ACTIVE LOCKS</span>
+
+                <span class="treasury-records-review">
+                  Review history
+                </span>
+              </div>
             </summary>
 
             <div class="treasury-records-content">
@@ -2550,7 +2540,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-treasury-polish-v1"
+    src="./app.js?v=20260823-treasury-status-v1"
     defer
   ></script>
   <script

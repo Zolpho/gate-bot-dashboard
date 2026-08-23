@@ -4536,11 +4536,42 @@ function shortTreasuryGateId(value) {
 }
 
 
+function setTreasuryCapabilityBadge(
+  element,
+  enabled,
+) {
+  if (!element) return;
+
+  element.classList.remove(
+    'safe',
+    'danger',
+    'warning',
+  );
+
+  element.classList.toggle(
+    'enabled',
+    Boolean(enabled),
+  );
+
+  element.classList.toggle(
+    'disabled',
+    !enabled,
+  );
+}
+
+
 function renderTreasurySafety() {
   const health = state.health || {};
 
   const configured = Boolean(
     health.treasury_configured
+  );
+
+  const configurationKnown = (
+    Object.prototype.hasOwnProperty.call(
+      health,
+      'treasury_configured'
+    )
   );
 
   const transfersEnabled = Boolean(
@@ -4551,10 +4582,6 @@ function renderTreasurySafety() {
     health.treasury_withdrawals_enabled
   );
 
-  const phase = String(
-    health.treasury_phase || '—'
-  );
-
   const badge = $('#treasurySafetyBadge');
 
   if (badge) {
@@ -4562,46 +4589,75 @@ function renderTreasurySafety() {
       ? 'TREASURY TRANSFER ARM ENABLED'
       : 'TREASURY TRANSFER ARM DISABLED';
 
-    badge.classList.toggle(
-      'safe',
-      !transfersEnabled
-    );
-
-    badge.classList.toggle(
-      'danger',
-      transfersEnabled
+    setTreasuryCapabilityBadge(
+      badge,
+      transfersEnabled,
     );
   }
 
-  if ($('#treasuryConfigured')) {
-    $('#treasuryConfigured').textContent = (
-      configured ? 'Configured' : 'Unavailable'
+  const warning = $(
+    '#treasuryConfigurationWarning'
+  );
+
+  if (warning) {
+    const showWarning = (
+      configurationKnown
+      && !configured
+    );
+
+    warning.textContent = (
+      showWarning
+        ? 'Treasury configuration is unavailable.'
+        : ''
+    );
+
+    warning.classList.toggle(
+      'hidden',
+      !showWarning,
     );
   }
 
-  if ($('#treasuryPhase')) {
-    $('#treasuryPhase').textContent = phase;
-  }
+  const withdrawalBadge = $(
+    '#treasuryWithdrawalState'
+  );
 
-  if ($('#treasuryTransferState')) {
-    $('#treasuryTransferState').textContent = (
-      transfersEnabled ? 'ENABLED' : 'DISABLED'
+  if (withdrawalBadge) {
+    withdrawalBadge.textContent = (
+      withdrawalsEnabled
+        ? 'WITHDRAWAL ARM ENABLED'
+        : 'WITHDRAWAL ARM DISABLED'
+    );
+
+    setTreasuryCapabilityBadge(
+      withdrawalBadge,
+      withdrawalsEnabled,
     );
   }
 
-  if ($('#treasuryWithdrawalState')) {
-    $('#treasuryWithdrawalState').textContent = (
-      withdrawalsEnabled ? 'ENABLED' : 'DISABLED'
-    );
-  }
+  const lockBadge = $('#treasuryLockCount');
 
-  if ($('#treasuryLockCount')) {
-    $('#treasuryLockCount').textContent = String(
+  if (lockBadge) {
+    const lockCount = (
       state.treasuryLocks?.length || 0
+    );
+
+    lockBadge.textContent = (
+      `${lockCount} ACTIVE ${
+        lockCount === 1 ? 'LOCK' : 'LOCKS'
+      }`
+    );
+
+    lockBadge.classList.toggle(
+      'hidden',
+      lockCount === 0,
+    );
+
+    lockBadge.classList.toggle(
+      'attention',
+      lockCount > 0,
     );
   }
 }
-
 
 function shortTreasuryId(value) {
   const text = String(value || '');
@@ -5009,6 +5065,11 @@ function renderTreasuryUserTransferParticipants() {
       state.treasuryUserTransfersEnabled
         ? 'USER TRANSFERS ENABLED'
         : 'USER TRANSFERS DISABLED'
+    );
+
+    setTreasuryCapabilityBadge(
+      stateElement,
+      state.treasuryUserTransfersEnabled,
     );
   }
 
