@@ -169,7 +169,7 @@ def test_bot_control_asset_versions_are_bumped():
 
     assert (
         "./app.js?"
-        "v=20260823-bot-control-final-v3"
+        "v=20260823-alerts-polish-v1"
         in HTML
     )
 

@@ -11616,20 +11616,272 @@ function eventHtml(event) {
   return `<article class="event"><i class="event-dot"></i><div><p>${escapeHtml(formatAlertMessage(event.message))}</p><small>${fmtDate(event.triggered_at)}</small></div>${action}</article>`;
 }
 
-function renderAlerts() {
-  $('#rulesList').innerHTML = state.rules.length ? state.rules.map(rule => {
-    const scope = rule.account_name || 'All accounts';
-    const controls = canManageRule(rule)
-      ? `<div class="button-row"><label class="switch" title="Enable rule"><input class="rule-toggle" type="checkbox" data-rule-id="${rule.id}" ${rule.enabled ? 'checked' : ''}><span></span></label><button class="text-button delete-rule" data-rule-id="${rule.id}">Delete</button></div>`
-      : `<span class="status-badge">${rule.enabled ? 'Active' : 'Disabled'}</span>`;
-    return `<article class="rule"><div><p><strong>${escapeHtml(rule.name)}</strong></p><small>${escapeHtml(scope)} · ${escapeHtml(rule.metric)} ${escapeHtml(rule.operator)} ${fmtNumber(rule.threshold,4)} · cooldown ${fmtDuration(rule.cooldown_seconds)}</small></div>${controls}</article>`;
-  }).join('') : '<div class="empty-state">No rules configured.</div>';
-  $('#alertEvents').innerHTML = state.alertEvents.length ? state.alertEvents.map(eventHtml).join('') : '<div class="empty-state">No alert events.</div>';
-  $('#addRuleButton').disabled = !state.adminUser;
-  $('#addRuleButton').title = state.adminUser ? 'Create a rule for an authorized bot' : 'Unlock account actions first';
+
+function formatAlertUtcDate(value) {
+  if (!value) {
+    return '—';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.valueOf())) {
+    return String(value);
+  }
+
+  const pad = number => String(
+    number
+  ).padStart(
+    2,
+    '0',
+  );
+
+  return (
+    `${date.getUTCFullYear()}-`
+    + `${pad(date.getUTCMonth() + 1)}-`
+    + `${pad(date.getUTCDate())} `
+    + `${pad(date.getUTCHours())}:`
+    + `${pad(date.getUTCMinutes())} UTC`
+  );
 }
 
 
+function alertMetricLabel(metric) {
+  const labels = {
+    drawdown_pct: 'Drawdown %',
+    pnl: 'PnL USDT',
+    pnl_rate: 'ROI %',
+    floating_pnl: 'Floating PnL',
+    current_value: 'Current value',
+    liquidation_distance_pct: (
+      'Liquidation distance %'
+    ),
+    stale_minutes: 'Data age minutes',
+  };
+
+  return (
+    labels[String(metric || '')]
+    || strategyLabel(metric)
+  );
+}
+
+
+function alertOperatorLabel(operator) {
+  const labels = {
+    '>=': '≥',
+    '<=': '≤',
+    '>': '>',
+    '<': '<',
+    '==': '=',
+  };
+
+  return (
+    labels[String(operator || '')]
+    || String(operator || '—')
+  );
+}
+
+
+function alertEventHtml(event) {
+  const acknowledged = Boolean(
+    event.acknowledged_at
+  );
+
+  const manageable = Boolean(
+    (
+      event.account_id
+      && canManageAccount(
+        event.account_id
+      )
+    )
+    || (
+      !event.account_id
+      && state.adminUser?.role
+        === 'super_admin'
+    )
+  );
+
+  const status = acknowledged
+    ? (
+      '<span class="alerts-event-status acknowledged">'
+      + 'Acknowledged'
+      + '</span>'
+    )
+    : (
+      '<span class="alerts-event-status open">'
+      + 'Open'
+      + '</span>'
+    );
+
+  const action = (
+    !acknowledged
+    && manageable
+  )
+    ? (
+      `<button class="text-button ack-event" `
+      + `data-event-id="${event.id}">`
+      + 'Acknowledge'
+      + '</button>'
+    )
+    : '';
+
+  return (
+    `<article class="event alerts-event ${
+      acknowledged
+        ? 'is-acknowledged'
+        : 'is-open'
+    }">`
+    + '<i class="event-dot" aria-hidden="true"></i>'
+    + '<div class="alerts-event-content">'
+    + (
+      `<p class="alerts-event-message">${
+        escapeHtml(
+          formatAlertMessage(
+            event.message
+          )
+        )
+      }</p>`
+    )
+    + (
+      `<small class="alerts-event-time">${
+        escapeHtml(
+          formatAlertUtcDate(
+            event.triggered_at
+          )
+        )
+      }</small>`
+    )
+    + '</div>'
+    + '<div class="alerts-event-actions">'
+    + status
+    + action
+    + '</div>'
+    + '</article>'
+  );
+}
+
+
+
+function renderAlerts() {
+  const rulesTarget = $('#rulesList');
+  const eventsTarget = $('#alertEvents');
+
+  if (rulesTarget) {
+    rulesTarget.innerHTML = state.rules.length
+      ? state.rules.map(rule => {
+        const scope = (
+          rule.account_name
+          || 'All accounts'
+        );
+
+        const controls = canManageRule(rule)
+          ? (
+            '<div class="alerts-rule-actions">'
+            + (
+              '<label '
+              + 'class="switch alerts-rule-toggle" '
+              + 'title="Enable or disable rule">'
+              + (
+                `<input class="rule-toggle" `
+                + `type="checkbox" `
+                + `data-rule-id="${rule.id}" `
+                + `${rule.enabled ? 'checked' : ''}>`
+              )
+              + '<span></span>'
+              + '</label>'
+            )
+            + (
+              `<button class="text-button delete-rule" `
+              + `data-rule-id="${rule.id}">`
+              + 'Delete'
+              + '</button>'
+            )
+            + '</div>'
+          )
+          : (
+            `<span class="alerts-rule-status ${
+              rule.enabled
+                ? 'active'
+                : 'disabled'
+            }">`
+            + `${rule.enabled ? 'Active' : 'Disabled'}`
+            + '</span>'
+          );
+
+        const condition = (
+          `${alertMetricLabel(rule.metric)} `
+          + `${alertOperatorLabel(rule.operator)} `
+          + `${fmtNumber(rule.threshold, 4)}`
+        );
+
+        return (
+          '<article class="rule alerts-rule">'
+          + '<div class="alerts-rule-content">'
+          + (
+            `<p class="alerts-rule-title"><strong>${
+              escapeHtml(rule.name)
+            }</strong></p>`
+          )
+          + '<div class="alerts-rule-meta">'
+          + (
+            `<span class="alerts-rule-scope">${
+              escapeHtml(scope)
+            }</span>`
+          )
+          + (
+            `<span class="alerts-rule-condition">${
+              escapeHtml(condition)
+            }</span>`
+          )
+          + (
+            `<span class="alerts-rule-cooldown">Cooldown ${
+              escapeHtml(
+                fmtDuration(
+                  rule.cooldown_seconds
+                )
+              )
+            }</span>`
+          )
+          + '</div>'
+          + '</div>'
+          + controls
+          + '</article>'
+        );
+      }).join('')
+      : (
+        '<div class="empty-state">'
+        + 'No rules configured.'
+        + '</div>'
+      );
+  }
+
+  if (eventsTarget) {
+    eventsTarget.innerHTML = (
+      state.alertEvents.length
+        ? state.alertEvents
+          .map(alertEventHtml)
+          .join('')
+        : (
+          '<div class="empty-state">'
+          + 'No alert events.'
+          + '</div>'
+        )
+    );
+  }
+
+  const addRuleButton = $('#addRuleButton');
+
+  if (addRuleButton) {
+    addRuleButton.disabled = (
+      !state.adminUser
+    );
+
+    addRuleButton.title = (
+      state.adminUser
+        ? 'Create a rule for an authorized bot'
+        : 'Unlock account actions first'
+    );
+  }
+}
 function renderSystem() {
   if (!state.health) return;
   const health = state.health;

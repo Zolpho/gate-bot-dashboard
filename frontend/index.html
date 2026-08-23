@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0b1110">
   <title>Gate Bot Dashboard</title>
   <link rel="stylesheet" href="./styles.css?v=20260823-bots-polish-v1">
+  <link rel="stylesheet" href="./alerts.css?v=20260823-alerts-polish-v1">
   <link rel="stylesheet" href="./private-balance.css">
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css">
@@ -1923,18 +1924,56 @@
 </section>
 
 <section class="tab-panel" id="tab-alerts">
-        <div class="dashboard-grid equal">
-          <article class="panel">
-            <div class="panel-header"><div><h2>Alert rules</h2><p>Evaluated after every collection</p></div><button class="button secondary" id="addRuleButton">Add rule</button></div>
-            <div id="rulesList" class="rule-list"></div>
+        <div class="dashboard-grid equal alerts-grid">
+
+          <article class="panel alerts-panel alerts-rules-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Alert rules</h2>
+                <p>Evaluated after every collection</p>
+              </div>
+
+              <button
+                class="button secondary"
+                id="addRuleButton"
+              >
+                Add rule
+              </button>
+            </div>
+
+            <div
+              id="rulesList"
+              class="rule-list alerts-rule-list"
+            ></div>
           </article>
-          <article class="panel">
-            <div class="panel-header"><div><h2>Alert events</h2><p>Newest first</p></div><label class="inline-check"><input id="unackedOnly" type="checkbox">Unacknowledged only</label></div>
-            <div id="alertEvents" class="event-list"></div>
+
+          <article class="panel alerts-panel alerts-events-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Alert events</h2>
+                <p>Newest first · timestamps in UTC</p>
+              </div>
+
+              <label
+                class="alerts-unacked-filter"
+                title="Show only events that still need acknowledgement"
+              >
+                <input
+                  id="unackedOnly"
+                  type="checkbox"
+                >
+                <span>Unacknowledged only</span>
+              </label>
+            </div>
+
+            <div
+              id="alertEvents"
+              class="event-list alerts-event-list"
+            ></div>
           </article>
+
         </div>
       </section>
-
       <section class="tab-panel" id="tab-system">
         <div class="dashboard-grid equal">
           <article class="panel">
@@ -2457,7 +2496,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-bot-control-final-v3"
+    src="./app.js?v=20260823-alerts-polish-v1"
     defer
   ></script>
   <script
