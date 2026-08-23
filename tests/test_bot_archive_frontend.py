@@ -204,22 +204,21 @@ def test_archive_css_exists():
     )
 
 
-def test_archive_cache_busters_exact():
+def test_archive_assets_remain_versioned():
     html = Path(
         "frontend/index.html"
     ).read_text(
         encoding="utf-8"
     )
 
-    assert (
-        "./styles.css?v=20260822-bot-archive-v1"
-        in html
-    )
+    # Archive does not own future global CSS/JS release
+    # versions. Preserve the durable browser-cache safety
+    # contract instead: both core assets remain versioned.
+    assert "./styles.css?v=" in html
+    assert "./app.js?v=" in html
 
-    assert (
-        "./app.js?v=20260822-bot-archive-v2"
-        in html
-    )
+    assert 'href="./styles.css"' not in html
+    assert 'src="./app.js"' not in html
 
 
 def test_archive_ui_updates_before_background_refresh():
