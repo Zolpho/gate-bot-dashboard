@@ -176,12 +176,12 @@ def test_create_ui_uses_account_specific_live_policy():
     )
 
     assert (
-        "'LIVE creation not enabled '"
+        "badge.textContent = 'REVIEW ONLY'"
         in app
     )
 
     assert (
-        "+ 'for this account'"
+        "'Creation not armed for this account'"
         in app
     )
 

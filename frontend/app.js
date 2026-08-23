@@ -54,6 +54,13 @@ const state = {
   botControlDraft: null,
   botControlRequestId: '',
   botControlActivity: [],
+  botControlActivityPagination: {
+    limit: 10,
+    offset: 0,
+    total: 0,
+    hasPrevious: false,
+    hasNext: false,
+  },
   botControlAttention: [],
   botControlAttentionSummary: null,
   botControlRequestDetail: null,
@@ -1274,6 +1281,15 @@ function renderBotControlAttention() {
     || []
   );
 
+  const panel = container?.closest(
+    '.bot-control-attention-panel'
+  );
+
+  panel?.classList.toggle(
+    'is-clear',
+    rows.length === 0,
+  );
+
   if (badge) {
     badge.textContent = String(
       rows.length
@@ -1289,6 +1305,11 @@ function renderBotControlAttention() {
     countElement.textContent = String(
       rows.length
     );
+
+    countElement.classList.toggle(
+      'is-clear',
+      rows.length === 0,
+    );
   }
 
   if (!container) {
@@ -1297,8 +1318,10 @@ function renderBotControlAttention() {
 
   if (!rows.length) {
     container.innerHTML = (
-      '<div class="empty-state">'
-      + 'No Bot Control requests need attention.'
+      '<div class="bot-control-attention-clear">'
+      + '<span aria-hidden="true">✓</span>'
+      + '<strong>All clear</strong>'
+      + '<span>No Bot Control requests need attention.</span>'
       + '</div>'
     );
 
@@ -1709,6 +1732,35 @@ async function downloadBotControlAuditExport(
 }
 
 
+function formatBotControlUtcDate(value) {
+  if (!value) {
+    return '—';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.valueOf())) {
+    return String(value);
+  }
+
+  const pad = number => String(
+    number
+  ).padStart(
+    2,
+    '0',
+  );
+
+  return (
+    `${date.getUTCFullYear()}-`
+    + `${pad(date.getUTCMonth() + 1)}-`
+    + `${pad(date.getUTCDate())} `
+    + `${pad(date.getUTCHours())}:`
+    + `${pad(date.getUTCMinutes())}:`
+    + `${pad(date.getUTCSeconds())}`
+  );
+}
+
+
 function renderBotControlActivity() {
   const body = $('#botControlActivityBody');
 
@@ -1721,6 +1773,32 @@ function renderBotControlActivity() {
     || []
   );
 
+  const pagination = (
+    state.botControlActivityPagination
+    || {
+      limit: 10,
+      offset: 0,
+      total: 0,
+      hasPrevious: false,
+      hasNext: false,
+    }
+  );
+
+  const limit = Math.max(
+    1,
+    Number(pagination.limit) || 10,
+  );
+
+  const offset = Math.max(
+    0,
+    Number(pagination.offset) || 0,
+  );
+
+  const total = Math.max(
+    0,
+    Number(pagination.total) || 0,
+  );
+
   if (!rows.length) {
     body.innerHTML = (
       '<tr>'
@@ -1730,83 +1808,136 @@ function renderBotControlActivity() {
       + '</tr>'
     );
 
-    const footer = $('#botControlActivityFooter');
+  } else {
+    body.innerHTML = rows.map(item => {
+      const mode = String(
+        item.mode || 'pending'
+      ).toLowerCase();
 
-    if (footer) {
-      footer.textContent = '0 activity records';
-    }
+      const status = String(
+        item.status || 'unknown'
+      ).toLowerCase();
 
-    return;
-  }
+      const requestId = String(
+        item.request_id || ''
+      );
 
-  body.innerHTML = rows.map(item => {
-    const mode = String(
-      item.mode || 'pending'
-    ).toLowerCase();
-
-    const status = String(
-      item.status || 'unknown'
-    ).toLowerCase();
-
-    const requestId = String(
-      item.request_id || ''
-    );
-
-    const investment = (
-      item.investment !== null
-      && item.investment !== undefined
-    )
-      ? `${item.investment} USDT`
-      : '—';
-
-    return (
-      '<tr>'
-      + `<td>${escapeHtml(fmtDate(item.created_at))}</td>`
-      + `<td><strong>${escapeHtml(item.account_id || '—')}</strong></td>`
-      + `<td>${escapeHtml(item.username || '—')}</td>`
-      + `<td>${escapeHtml(botControlActionLabel(item.action))}</td>`
-      + `<td>${escapeHtml(item.market || '—')}</td>`
-      + `<td>${escapeHtml(investment)}</td>`
-      + '<td>'
-      + (
-        `<span class="bot-control-activity-mode ${escapeHtml(mode)}">`
-        + `${escapeHtml(mode)}`
-        + '</span>'
+      const investment = (
+        item.investment !== null
+        && item.investment !== undefined
       )
-      + '</td>'
-      + '<td>'
-      + (
-        `<span class="bot-control-activity-status ${
-          escapeHtml(
-            botControlActivityStatusClass(status)
+        ? `${item.investment} USDT`
+        : '—';
+
+      return (
+        '<tr>'
+        + `<td>${escapeHtml(
+          formatBotControlUtcDate(
+            item.created_at
           )
-        }">`
-        + `${escapeHtml(status)}`
-        + '</span>'
-      )
-      + '</td>'
-      + `<td>${escapeHtml(item.strategy_id || '—')}</td>`
-      + '<td>'
-      + (
-        `<button type="button" `
-        + `class="bot-control-activity-request-button `
-        + `bot-control-activity-request" `
-        + `data-bot-control-request="${escapeHtml(requestId)}" `
-        + `title="${escapeHtml(requestId)}">`
-        + `${escapeHtml(shortBotControlRequestId(requestId))}`
-        + '</button>'
-      )
-      + '</td>'
-      + '</tr>'
-    );
-  }).join('');
+        )}</td>`
+        + `<td><strong>${escapeHtml(item.account_id || '—')}</strong></td>`
+        + `<td>${escapeHtml(item.username || '—')}</td>`
+        + `<td>${escapeHtml(botControlActionLabel(item.action))}</td>`
+        + `<td>${escapeHtml(item.market || '—')}</td>`
+        + `<td>${escapeHtml(investment)}</td>`
+        + '<td>'
+        + (
+          `<span class="bot-control-activity-mode ${escapeHtml(mode)}">`
+          + `${escapeHtml(mode)}`
+          + '</span>'
+        )
+        + '</td>'
+        + '<td>'
+        + (
+          `<span class="bot-control-activity-status ${
+            escapeHtml(
+              botControlActivityStatusClass(status)
+            )
+          }">`
+          + `${escapeHtml(status)}`
+          + '</span>'
+        )
+        + '</td>'
+        + `<td>${escapeHtml(item.strategy_id || '—')}</td>`
+        + '<td>'
+        + (
+          `<button type="button" `
+          + `class="bot-control-activity-request-button `
+          + `bot-control-activity-request" `
+          + `data-bot-control-request="${escapeHtml(requestId)}" `
+          + `title="${escapeHtml(requestId)}">`
+          + `${escapeHtml(shortBotControlRequestId(requestId))}`
+          + '</button>'
+        )
+        + '</td>'
+        + '</tr>'
+      );
+    }).join('');
+  }
 
   const footer = $('#botControlActivityFooter');
 
   if (footer) {
-    footer.textContent = (
-      `${rows.length} most recent `
-      + `Bot Control record${rows.length === 1 ? '' : 's'}`
+    if (!total) {
+      footer.textContent = '0 activity records';
+
+    } else {
+      const first = offset + 1;
+
+      const last = Math.min(
+        offset + rows.length,
+        total,
+      );
+
+      footer.textContent = (
+        `Showing ${first}–${last} of `
+        + `${total} Bot Control records`
+      );
+    }
+  }
+
+  const pageSize = $('#botControlActivityPageSize');
+
+  if (pageSize) {
+    pageSize.value = String(limit);
+  }
+
+  const pageCount = Math.max(
+    1,
+    Math.ceil(
+      total / limit
+    ),
+  );
+
+  const pageNumber = Math.min(
+    pageCount,
+    Math.floor(
+      offset / limit
+    ) + 1,
+  );
+
+  const pageLabel = $('#botControlActivityPage');
+
+  if (pageLabel) {
+    pageLabel.textContent = (
+      `Page ${pageNumber} of ${pageCount}`
+    );
+  }
+
+  const previous = $('#botControlActivityPrevious');
+
+  if (previous) {
+    previous.disabled = (
+      !pagination.hasPrevious
+    );
+  }
+
+  const next = $('#botControlActivityNext');
+
+  if (next) {
+    next.disabled = (
+      !pagination.hasNext
     );
   }
 }
@@ -1814,21 +1945,69 @@ function renderBotControlActivity() {
 async function loadBotControlActivity(
   {
     quiet = false,
+    limit = null,
+    offset = null,
   } = {},
 ) {
   if (!botControlAvailable()) {
     state.botControlActivity = [];
+
+    state.botControlActivityPagination = {
+      limit: 10,
+      offset: 0,
+      total: 0,
+      hasPrevious: false,
+      hasNext: false,
+    };
+
     state.botControlAttention = [];
     state.botControlAttentionSummary = null;
-  state.botStopPrepared = null;
-  state.botStopRequestId = '';
+    state.botStopPrepared = null;
+    state.botStopRequestId = '';
+
     renderBotControlActivity();
     renderBotControlAttention();
+
     return;
   }
 
   const button = $('#refreshBotControlActivity');
   const errorBox = $('#botControlActivityError');
+
+  const current = (
+    state.botControlActivityPagination
+    || {}
+  );
+
+  const requestedLimit = (
+    [10, 25, 50].includes(
+      Number(limit)
+    )
+      ? Number(limit)
+      : (
+        [10, 25, 50].includes(
+          Number(current.limit)
+        )
+          ? Number(current.limit)
+          : 10
+      )
+  );
+
+  const requestedOffset = Math.max(
+    0,
+    (
+      offset === null
+      || offset === undefined
+    )
+      ? (
+        Number(current.offset)
+        || 0
+      )
+      : (
+        Number(offset)
+        || 0
+      ),
+  );
 
   if (button) {
     button.disabled = true;
@@ -1841,14 +2020,45 @@ async function loadBotControlActivity(
   }
 
   try {
+    const query = (
+      `?limit=${encodeURIComponent(requestedLimit)}`
+      + `&offset=${encodeURIComponent(requestedOffset)}`
+    );
+
     const result = await adminApi(
-      '/api/bot-control/requests?limit=50'
+      `/api/bot-control/requests${query}`
     );
 
     state.botControlActivity = (
       result.items
       || []
     );
+
+    state.botControlActivityPagination = {
+      limit: Number(
+        result.limit
+        ?? requestedLimit
+      ),
+
+      offset: Number(
+        result.offset
+        ?? requestedOffset
+      ),
+
+      total: Number(
+        result.total
+        ?? result.count
+        ?? 0
+      ),
+
+      hasPrevious: (
+        result.has_previous === true
+      ),
+
+      hasNext: (
+        result.has_next === true
+      ),
+    };
 
     renderBotControlActivity();
 
@@ -1859,7 +2069,9 @@ async function loadBotControlActivity(
   } catch (error) {
     if (errorBox) {
       errorBox.textContent = (
-        botControlErrorMessage(error)
+        botControlErrorMessage(
+          error
+        )
       );
 
       errorBox.classList.remove(
@@ -1879,10 +2091,10 @@ async function loadBotControlActivity(
       button.disabled = false;
       button.textContent = 'Refresh activity';
     }
+
+    renderBotControlActivity();
   }
 }
-
-
 
 function reconciliationLabel(value) {
   return String(
@@ -2678,6 +2890,13 @@ function clearBotControlSession() {
   state.botControlDraft = null;
   state.botControlRequestId = '';
   state.botControlActivity = [];
+  state.botControlActivityPagination = {
+    limit: 10,
+    offset: 0,
+    total: 0,
+    hasPrevious: false,
+    hasNext: false,
+  };
   state.botControlRequestDetail = null;
 
   $('#spotGridReview')?.classList.add('hidden');
@@ -2838,6 +3057,7 @@ function botStopSubmissionAvailableForAccount(
 
 function renderBotControlCreateState() {
   const badge = $('#botControlCreateState');
+  const detail = $('#botControlCreateStateDetail');
 
   if (!badge) {
     return;
@@ -2855,16 +3075,36 @@ function renderBotControlCreateState() {
     )
   );
 
-  badge.textContent = simulation
-    ? 'Simulation mode'
-    : liveForAccount
-      ? 'LIVE creation enabled'
-      : liveGloballyEnabled
-        ? (
-          'LIVE creation not enabled '
-          + 'for this account'
-        )
-        : 'Review only · creation disabled';
+  if (simulation) {
+    badge.textContent = 'SIMULATION';
+
+    if (detail) {
+      detail.textContent = 'No Gate write';
+    }
+
+  } else if (liveForAccount) {
+    badge.textContent = 'LIVE';
+
+    if (detail) {
+      detail.textContent = 'Creation armed';
+    }
+
+  } else if (liveGloballyEnabled) {
+    badge.textContent = 'REVIEW ONLY';
+
+    if (detail) {
+      detail.textContent = (
+        'Creation not armed for this account'
+      );
+    }
+
+  } else {
+    badge.textContent = 'REVIEW ONLY';
+
+    if (detail) {
+      detail.textContent = 'Creation disabled';
+    }
+  }
 
   badge.className = (
     `status-badge ${
@@ -2876,7 +3116,6 @@ function renderBotControlCreateState() {
     }`
   );
 }
-
 
 function renderBotControlAccess() {
   const nav = $('#botControlNavItem');
@@ -2898,6 +3137,7 @@ function renderBotControlAccess() {
   nav.tabIndex = available ? 0 : -1;
 
   const select = $('#spotGridAccount');
+  const staticAccount = $('#spotGridAccountStatic');
 
   if (select) {
     const accounts = botControlAccounts();
@@ -2932,6 +3172,53 @@ function renderBotControlAccess() {
     }
 
     select.value = target;
+
+    const singleAccount = (
+      accounts.length === 1
+    );
+
+    select.classList.toggle(
+      'hidden',
+      singleAccount,
+    );
+
+    select.setAttribute(
+      'aria-hidden',
+      String(singleAccount),
+    );
+
+    select.tabIndex = (
+      singleAccount
+        ? -1
+        : 0
+    );
+
+    if (staticAccount) {
+      const account = (
+        singleAccount
+          ? accounts[0]
+          : null
+      );
+
+      staticAccount.textContent = (
+        account
+          ? (
+            account.account_name
+            || account.account_id
+          )
+          : '—'
+      );
+
+      staticAccount.classList.toggle(
+        'hidden',
+        !singleAccount,
+      );
+
+      staticAccount.setAttribute(
+        'aria-hidden',
+        String(!singleAccount),
+      );
+    }
   }
 
   renderBotControlCreateState();
@@ -9394,6 +9681,7 @@ function switchTab(tab, { updateHash = true } = {}) {
 
   const globalAccountVisible = (
     target !== 'trading'
+    && target !== 'bot-control'
   );
 
   globalAccountSelector?.classList.toggle(
@@ -12483,6 +12771,79 @@ function bindEvents() {
   $('#refreshBotControlActivity')?.addEventListener(
     'click',
     () => loadBotControlActivity(),
+  );
+
+  $('#botControlActivityPageSize')?.addEventListener(
+    'change',
+    event => {
+      const limit = Number(
+        event.currentTarget.value
+      );
+
+      if (![10, 25, 50].includes(limit)) {
+        return;
+      }
+
+      loadBotControlActivity({
+        limit,
+        offset: 0,
+      });
+    },
+  );
+
+  $('#botControlActivityPrevious')?.addEventListener(
+    'click',
+    () => {
+      const pagination = (
+        state.botControlActivityPagination
+        || {}
+      );
+
+      if (!pagination.hasPrevious) {
+        return;
+      }
+
+      const limit = (
+        Number(pagination.limit)
+        || 10
+      );
+
+      loadBotControlActivity({
+        offset: Math.max(
+          0,
+          (
+            Number(pagination.offset)
+            || 0
+          ) - limit,
+        ),
+      });
+    },
+  );
+
+  $('#botControlActivityNext')?.addEventListener(
+    'click',
+    () => {
+      const pagination = (
+        state.botControlActivityPagination
+        || {}
+      );
+
+      if (!pagination.hasNext) {
+        return;
+      }
+
+      const limit = (
+        Number(pagination.limit)
+        || 10
+      );
+
+      loadBotControlActivity({
+        offset: (
+          Number(pagination.offset)
+          || 0
+        ) + limit,
+      });
+    },
   );
 
   $('#spotGridForm')?.addEventListener(

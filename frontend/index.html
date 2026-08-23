@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit-history.css">
   <link rel="stylesheet" href="./wallet-tab.css">
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
-  <link rel="stylesheet" href="./bot-control.css">
+  <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-polish-v1">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
 </head>
@@ -1516,10 +1516,16 @@
                 </p>
               </div>
 
-              <span
-                class="status-badge"
-                id="botControlCreateState"
-              >Review only</span>
+              <div class="bot-control-create-state">
+                <span
+                  class="status-badge"
+                  id="botControlCreateState"
+                >REVIEW ONLY</span>
+
+                <small id="botControlCreateStateDetail">
+                  Creation disabled
+                </small>
+              </div>
             </div>
 
             <form id="spotGridForm" class="bot-control-form">
@@ -1531,6 +1537,12 @@
                   name="account_id"
                   required
                 ></select>
+
+                <span
+                  id="spotGridAccountStatic"
+                  class="bot-control-account-static hidden"
+                  aria-live="polite"
+                >—</span>
               </label>
 
               <label class="full">
@@ -1818,7 +1830,7 @@
             <table class="bot-control-activity-table">
               <thead>
                 <tr>
-                  <th>Time</th>
+                  <th>Time (UTC)</th>
                   <th>Account</th>
                   <th>User</th>
                   <th>Action</th>
@@ -1844,10 +1856,50 @@
             </table>
           </div>
 
-          <div
-            id="botControlActivityFooter"
-            class="bot-control-activity-footer"
-          ></div>
+          <div class="bot-control-activity-controls">
+            <div
+              id="botControlActivityFooter"
+              class="bot-control-activity-footer"
+            ></div>
+
+            <div class="bot-control-activity-pagination">
+              <label class="bot-control-activity-page-size">
+                <span>Rows</span>
+
+                <select
+                  id="botControlActivityPageSize"
+                  aria-label="Bot Control activity rows per page"
+                >
+                  <option value="10" selected>10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+              </label>
+
+              <button
+                type="button"
+                class="button secondary"
+                id="botControlActivityPrevious"
+                disabled
+              >
+                Previous
+              </button>
+
+              <span
+                id="botControlActivityPage"
+                class="bot-control-activity-page"
+              >Page 1 of 1</span>
+
+              <button
+                type="button"
+                class="button secondary"
+                id="botControlActivityNext"
+                disabled
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </article>
 
 </section>
@@ -2387,7 +2439,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-trading-scope-v1"
+    src="./app.js?v=20260823-bot-control-polish-v1"
     defer
   ></script>
   <script
