@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1110">
   <title>Gate Bot Dashboard</title>
   <link rel="stylesheet" href="./styles.css?v=20260823-bots-polish-v1">
-  <link rel="stylesheet" href="./alerts.css?v=20260823-alerts-polish-v1">
+  <link rel="stylesheet" href="./alerts.css?v=20260823-alert-incidents-v1">
   <link rel="stylesheet" href="./private-balance.css">
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css">
@@ -1947,29 +1947,50 @@
             ></div>
           </article>
 
-          <article class="panel alerts-panel alerts-events-panel">
+          <article class="panel alerts-panel alerts-incidents-panel">
             <div class="panel-header">
               <div>
-                <h2>Alert events</h2>
-                <p>Newest first · timestamps in UTC</p>
+                <h2>Active incidents</h2>
+                <p>
+                  One row per continuous breach · timestamps in UTC
+                </p>
               </div>
 
-              <label
-                class="alerts-unacked-filter"
-                title="Show only events that still need acknowledgement"
+              <span
+                id="activeIncidentCount"
+                class="alerts-count-badge"
               >
-                <input
-                  id="unackedOnly"
-                  type="checkbox"
-                >
-                <span>Unacknowledged only</span>
-              </label>
+                0 open
+              </span>
             </div>
 
             <div
-              id="alertEvents"
-              class="event-list alerts-event-list"
+              id="alertIncidents"
+              class="alerts-incident-list"
             ></div>
+
+            <section class="alerts-history-section">
+              <div class="alerts-history-header">
+                <div>
+                  <h3>History</h3>
+                  <p>
+                    Recovered incidents · newest first
+                  </p>
+                </div>
+
+                <span
+                  id="incidentHistoryCount"
+                  class="alerts-count-badge muted"
+                >
+                  0 recovered
+                </span>
+              </div>
+
+              <div
+                id="alertIncidentHistory"
+                class="alerts-history-list"
+              ></div>
+            </section>
           </article>
 
         </div>
@@ -2496,7 +2517,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-alerts-polish-v1"
+    src="./app.js?v=20260823-alert-incidents-v1"
     defer
   ></script>
   <script

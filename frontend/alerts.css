@@ -1,4 +1,4 @@
-/* 3J14 Alerts-specific polish v1 */
+/* 3J15 Alerts incident UI v1 */
 
 
 /* Layout ------------------------------------------------------ */
@@ -146,15 +146,52 @@
 }
 
 
-/* Events ------------------------------------------------------ */
+/* Incidents --------------------------------------------------- */
 
 #tab-alerts
-.alerts-event-list {
+.alerts-count-badge {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 26px;
+
+  padding: 3px 8px;
+
+  border: 1px solid
+    rgba(241, 189, 100, .25);
+  border-radius: 999px;
+
+  background:
+    rgba(241, 189, 100, .05);
+
+  color: var(--warning);
+
+  font-size: .67rem;
+  font-weight: 650;
+
+  white-space: nowrap;
+}
+
+#tab-alerts
+.alerts-count-badge.muted {
+  border-color: var(--border);
+
+  background:
+    rgba(255, 255, 255, .018);
+
+  color: var(--muted);
+}
+
+#tab-alerts
+.alerts-incident-list,
+#tab-alerts
+.alerts-history-list {
+  display: grid;
   gap: 8px;
 }
 
 #tab-alerts
-.alerts-event {
+.alerts-incident {
   grid-template-columns:
     8px
     minmax(0, 1fr)
@@ -162,72 +199,168 @@
 
   gap: 10px;
 
-  align-items: center;
+  align-items: start;
 
-  padding: 10px 12px;
+  padding: 11px 12px;
 }
 
 #tab-alerts
-.alerts-event
+.alerts-incident
 .event-dot {
   width: 7px;
   height: 7px;
 
-  margin-top: 0;
+  margin-top: 6px;
 
   background: var(--warning);
 }
 
 #tab-alerts
-.alerts-event.is-acknowledged
+.alerts-incident.is-acknowledged
 .event-dot {
   background: var(--muted);
   opacity: .65;
 }
 
 #tab-alerts
-.alerts-event-content {
+.alerts-incident-content {
   min-width: 0;
 }
 
 #tab-alerts
-.alerts-event-message {
-  margin: 0;
+.alerts-incident-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
 
-  color: var(--text-soft);
+  min-width: 0;
 
-  font-size: .80rem;
-  line-height: 1.42;
+  flex-wrap: wrap;
+}
+
+#tab-alerts
+.alerts-incident-heading strong {
+  color: var(--text);
+
+  font-size: .82rem;
+  line-height: 1.35;
+}
+
+#tab-alerts
+.alerts-incident-heading span {
+  color: var(--muted);
+
+  font-size: .68rem;
+  line-height: 1.3;
 
   overflow-wrap: anywhere;
 }
 
 #tab-alerts
-.alerts-event-time {
-  display: block;
-
+.alerts-incident-condition {
   margin-top: 4px;
 
-  color: var(--muted);
+  color: var(--text-soft);
 
-  font-size: .68rem;
-  line-height: 1.2;
+  font-size: .72rem;
+  font-weight: 600;
 
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric:
+    tabular-nums;
 }
 
 #tab-alerts
-.alerts-event-actions {
+.alerts-incident-values {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 6px;
+
+  margin-top: 8px;
+}
+
+#tab-alerts
+.alerts-incident-values > div {
+  min-width: 0;
+
+  padding: 6px 7px;
+
+  border: 1px solid
+    var(--border-soft);
+  border-radius: 6px;
+
+  background:
+    rgba(255, 255, 255, .015);
+}
+
+#tab-alerts
+.alerts-incident-values span {
+  display: block;
+
+  color: var(--muted);
+
+  font-size: .62rem;
+  line-height: 1.1;
+
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+#tab-alerts
+.alerts-incident-values strong {
+  display: block;
+
+  margin-top: 3px;
+
+  color: var(--text-soft);
+
+  font-size: .74rem;
+  line-height: 1.2;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  overflow-wrap: anywhere;
+}
+
+#tab-alerts
+.alerts-incident-time-row {
+  display: flex;
+  align-items: center;
+  gap: 5px 10px;
+
+  margin-top: 7px;
+
+  flex-wrap: wrap;
+
+  color: var(--muted);
+
+  font-size: .65rem;
+  line-height: 1.25;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#tab-alerts
+.alerts-incident-actions,
+#tab-alerts
+.alerts-history-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 7px;
 
   min-width: max-content;
 }
 
 #tab-alerts
-.alerts-event-status {
+.alerts-incident-status {
   display: inline-flex;
   align-items: center;
 
@@ -243,7 +376,7 @@
 }
 
 #tab-alerts
-.alerts-event-status.open {
+.alerts-incident-status.open {
   border-color:
     rgba(241, 189, 100, .25);
 
@@ -254,13 +387,23 @@
 }
 
 #tab-alerts
-.alerts-event-status.acknowledged {
+.alerts-incident-status.acknowledged {
   color: var(--muted);
 }
 
 #tab-alerts
-.alerts-event
-.ack-event {
+.alerts-incident-status.recovered {
+  border-color:
+    rgba(32, 212, 155, .20);
+
+  background:
+    rgba(32, 212, 155, .04);
+
+  color: var(--positive);
+}
+
+#tab-alerts
+.ack-incident {
   padding: 3px 4px;
 
   font-size: .70rem;
@@ -268,36 +411,137 @@
 }
 
 
-/* Filter ------------------------------------------------------ */
+/* History ----------------------------------------------------- */
 
 #tab-alerts
-.alerts-unacked-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+.alerts-history-section {
+  margin-top: 18px;
+  padding-top: 15px;
 
-  min-height: 32px;
-
-  padding: 5px 9px;
-
-  border: 1px solid var(--border);
-  border-radius: 999px;
-
-  background:
-    rgba(255, 255, 255, .018);
-
-  color: var(--muted);
-
-  font-size: .71rem;
-  line-height: 1;
+  border-top: 1px solid
+    var(--border-soft);
 }
 
 #tab-alerts
-.alerts-unacked-filter input {
-  width: auto;
+.alerts-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-bottom: 8px;
+}
+
+#tab-alerts
+.alerts-history-header h3 {
   margin: 0;
 
-  accent-color: var(--accent);
+  color: var(--text);
+
+  font-size: .88rem;
+}
+
+#tab-alerts
+.alerts-history-header p {
+  margin: 3px 0 0;
+
+  color: var(--muted);
+
+  font-size: .68rem;
+}
+
+#tab-alerts
+.alerts-history-item {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  gap: 10px;
+
+  align-items: center;
+
+  padding: 9px 10px;
+
+  border: 1px solid
+    var(--border-soft);
+  border-radius: 7px;
+
+  background:
+    rgba(255, 255, 255, .012);
+}
+
+#tab-alerts
+.alerts-history-item.is-acknowledged {
+  opacity: .82;
+}
+
+#tab-alerts
+.alerts-history-main {
+  min-width: 0;
+}
+
+#tab-alerts
+.alerts-history-title {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+
+  flex-wrap: wrap;
+}
+
+#tab-alerts
+.alerts-history-title strong {
+  color: var(--text-soft);
+
+  font-size: .76rem;
+}
+
+#tab-alerts
+.alerts-history-title span {
+  color: var(--muted);
+
+  font-size: .66rem;
+
+  overflow-wrap: anywhere;
+}
+
+#tab-alerts
+.alerts-history-condition,
+#tab-alerts
+.alerts-history-values {
+  margin-top: 3px;
+
+  color: var(--text-soft);
+
+  font-size: .68rem;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#tab-alerts
+.alerts-history-values {
+  color: var(--muted);
+}
+
+#tab-alerts
+.alerts-history-times {
+  display: flex;
+  align-items: center;
+  gap: 4px 9px;
+
+  margin-top: 5px;
+
+  flex-wrap: wrap;
+
+  color: var(--muted);
+
+  font-size: .63rem;
+
+  font-variant-numeric:
+    tabular-nums;
 }
 
 
@@ -305,7 +549,9 @@
 
 @media (max-width: 700px) {
   #tab-alerts
-  .panel-header {
+  .panel-header,
+  #tab-alerts
+  .alerts-history-header {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -322,17 +568,34 @@
   }
 
   #tab-alerts
-  .alerts-event {
+  .alerts-incident {
     grid-template-columns:
       8px
       minmax(0, 1fr);
   }
 
   #tab-alerts
-  .alerts-event-actions {
+  .alerts-incident-actions {
     grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  #tab-alerts
+  .alerts-incident-values {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+  #tab-alerts
+  .alerts-history-item {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+  #tab-alerts
+  .alerts-history-actions {
     justify-content: flex-start;
   }
 }
 
-/* End 3J14 Alerts-specific polish v1 */
+/* End 3J15 Alerts incident UI v1 */

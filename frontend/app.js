@@ -27,6 +27,8 @@ const state = {
   botFilters: {},
   history: [],
   alertEvents: [],
+  alertIncidents: [],
+  alertIncidentHistory: [],
   rules: [],
   health: null,
   syncRuns: [],
@@ -11681,89 +11683,397 @@ function alertOperatorLabel(operator) {
 }
 
 
-function alertEventHtml(event) {
-  const acknowledged = Boolean(
-    event.acknowledged_at
-  );
-
-  const manageable = Boolean(
+function alertIncidentManageable(incident) {
+  return Boolean(
     (
-      event.account_id
+      incident.account_id
       && canManageAccount(
-        event.account_id
+        incident.account_id
       )
     )
     || (
-      !event.account_id
+      !incident.account_id
       && state.adminUser?.role
         === 'super_admin'
     )
   );
+}
+
+
+function alertIncidentMetricValue(
+  metric,
+  value,
+  bot = null,
+) {
+  if (
+    value === null
+    || value === undefined
+    || value === ''
+  ) {
+    return '—';
+  }
+
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return String(value);
+  }
+
+  if (
+    String(metric || '').endsWith('_pct')
+    || metric === 'pnl_rate'
+  ) {
+    return `${fmtNumber(numeric, 2)}%`;
+  }
+
+  if (metric === 'stale_minutes') {
+    return `${fmtNumber(numeric, 1)} min`;
+  }
+
+  if (
+    metric === 'pnl'
+    || metric === 'floating_pnl'
+    || metric === 'current_value'
+  ) {
+    const quote = bot?.market
+      ? marketAssets(bot.market).quote
+      : '';
+
+    return (
+      `${fmtNumber(numeric, 4)}`
+      + `${quote ? ` ${quote}` : ''}`
+    );
+  }
+
+  return fmtNumber(
+    numeric,
+    4,
+  );
+}
+
+
+function alertIncidentCondition(incident) {
+  return (
+    `${alertMetricLabel(incident.metric)} `
+    + `${alertOperatorLabel(incident.operator)} `
+    + `${alertIncidentMetricValue(
+      incident.metric,
+      incident.threshold,
+      incident.bot,
+    )}`
+  );
+}
+
+
+function alertIncidentScope(incident) {
+  const account = (
+    incident.account_name
+    || incident.account_id
+    || 'Unknown account'
+  );
+
+  const bot = (
+    incident.bot?.strategy_name
+    || incident.bot?.strategy_id
+    || (
+      incident.bot_id
+        ? `Bot ${incident.bot_id}`
+        : 'Removed bot'
+    )
+  );
+
+  const market = (
+    incident.bot?.market
+      ? ` · ${incident.bot.market}`
+      : ''
+  );
+
+  return `${account} · ${bot}${market}`;
+}
+
+
+function alertIncidentAckMeta(incident) {
+  if (!incident.acknowledged_at) {
+    return '';
+  }
+
+  const actor = (
+    incident.acknowledged_by
+    || 'operator'
+  );
+
+  return (
+    `Acknowledged by ${actor} · `
+    + `${formatAlertUtcDate(
+      incident.acknowledged_at
+    )}`
+  );
+}
+
+
+function alertIncidentAction(incident) {
+  if (
+    incident.is_acknowledged
+    || incident.acknowledged_at
+    || !alertIncidentManageable(
+      incident
+    )
+  ) {
+    return '';
+  }
+
+  return (
+    `<button class="text-button ack-incident" `
+    + `data-incident-id="${incident.id}">`
+    + 'Acknowledge'
+    + '</button>'
+  );
+}
+
+
+function alertIncidentHtml(incident) {
+  const acknowledged = Boolean(
+    incident.is_acknowledged
+    || incident.acknowledged_at
+  );
 
   const status = acknowledged
     ? (
-      '<span class="alerts-event-status acknowledged">'
+      '<span class="alerts-incident-status acknowledged">'
       + 'Acknowledged'
       + '</span>'
     )
     : (
-      '<span class="alerts-event-status open">'
+      '<span class="alerts-incident-status open">'
       + 'Open'
       + '</span>'
     );
 
-  const action = (
-    !acknowledged
-    && manageable
-  )
-    ? (
-      `<button class="text-button ack-event" `
-      + `data-event-id="${event.id}">`
-      + 'Acknowledge'
-      + '</button>'
-    )
-    : '';
+  const values = [
+    [
+      'Trigger',
+      incident.trigger_value,
+    ],
+    [
+      'Current',
+      incident.current_value,
+    ],
+    [
+      'Worst',
+      incident.worst_value,
+    ],
+  ];
+
+  const ackMeta = alertIncidentAckMeta(
+    incident
+  );
 
   return (
-    `<article class="event alerts-event ${
+    `<article class="event alerts-incident ${
       acknowledged
         ? 'is-acknowledged'
         : 'is-open'
     }">`
     + '<i class="event-dot" aria-hidden="true"></i>'
-    + '<div class="alerts-event-content">'
+    + '<div class="alerts-incident-content">'
     + (
-      `<p class="alerts-event-message">${
+      `<div class="alerts-incident-heading">`
+      + `<strong>${
         escapeHtml(
-          formatAlertMessage(
-            event.message
+          incident.rule_name
+          || `Rule ${incident.rule_id}`
+        )
+      }</strong>`
+      + `<span>${
+        escapeHtml(
+          alertIncidentScope(
+            incident
           )
         )
-      }</p>`
+      }</span>`
+      + '</div>'
     )
     + (
-      `<small class="alerts-event-time">${
+      `<div class="alerts-incident-condition">${
+        escapeHtml(
+          alertIncidentCondition(
+            incident
+          )
+        )
+      }</div>`
+    )
+    + '<div class="alerts-incident-values">'
+    + values.map(
+      ([label, value]) => (
+        '<div>'
+        + `<span>${label}</span>`
+        + `<strong>${
+          escapeHtml(
+            alertIncidentMetricValue(
+              incident.metric,
+              value,
+              incident.bot,
+            )
+          )
+        }</strong>`
+        + '</div>'
+      )
+    ).join('')
+    + '</div>'
+    + '<div class="alerts-incident-time-row">'
+    + (
+      `<span>Opened ${
         escapeHtml(
           formatAlertUtcDate(
-            event.triggered_at
+            incident.opened_at
           )
         )
-      }</small>`
+      }</span>`
+    )
+    + (
+      `<span>Last observed ${
+        escapeHtml(
+          formatAlertUtcDate(
+            incident.last_observed_at
+          )
+        )
+      }</span>`
+    )
+    + (
+      ackMeta
+        ? `<span>${
+          escapeHtml(
+            ackMeta
+          )
+        }</span>`
+        : ''
     )
     + '</div>'
-    + '<div class="alerts-event-actions">'
+    + '</div>'
+    + '<div class="alerts-incident-actions">'
     + status
-    + action
+    + alertIncidentAction(
+      incident
+    )
     + '</div>'
     + '</article>'
   );
 }
 
 
+function alertIncidentHistoryHtml(incident) {
+  const acknowledged = Boolean(
+    incident.is_acknowledged
+    || incident.acknowledged_at
+  );
+
+  const ackMeta = alertIncidentAckMeta(
+    incident
+  );
+
+  const values = (
+    `Trigger ${
+      alertIncidentMetricValue(
+        incident.metric,
+        incident.trigger_value,
+        incident.bot,
+      )
+    }`
+    + ` · Worst ${
+      alertIncidentMetricValue(
+        incident.metric,
+        incident.worst_value,
+        incident.bot,
+      )
+    }`
+  );
+
+  return (
+    `<article class="alerts-history-item ${
+      acknowledged
+        ? 'is-acknowledged'
+        : ''
+    }">`
+    + '<div class="alerts-history-main">'
+    + (
+      `<div class="alerts-history-title">`
+      + `<strong>${
+        escapeHtml(
+          incident.rule_name
+          || `Rule ${incident.rule_id}`
+        )
+      }</strong>`
+      + `<span>${
+        escapeHtml(
+          alertIncidentScope(
+            incident
+          )
+        )
+      }</span>`
+      + '</div>'
+    )
+    + (
+      `<div class="alerts-history-condition">${
+        escapeHtml(
+          alertIncidentCondition(
+            incident
+          )
+        )
+      }</div>`
+    )
+    + (
+      `<div class="alerts-history-values">${
+        escapeHtml(values)
+      }</div>`
+    )
+    + '<div class="alerts-history-times">'
+    + (
+      `<span>Opened ${
+        escapeHtml(
+          formatAlertUtcDate(
+            incident.opened_at
+          )
+        )
+      }</span>`
+    )
+    + (
+      `<span>Recovered ${
+        escapeHtml(
+          formatAlertUtcDate(
+            incident.recovered_at
+          )
+        )
+      }</span>`
+    )
+    + (
+      ackMeta
+        ? `<span>${
+          escapeHtml(
+            ackMeta
+          )
+        }</span>`
+        : '<span>Not acknowledged</span>'
+    )
+    + '</div>'
+    + '</div>'
+    + '<div class="alerts-history-actions">'
+    + (
+      '<span class="alerts-incident-status recovered">'
+      + 'Recovered'
+      + '</span>'
+    )
+    + alertIncidentAction(
+      incident
+    )
+    + '</div>'
+    + '</article>'
+  );
+}
 
 function renderAlerts() {
   const rulesTarget = $('#rulesList');
-  const eventsTarget = $('#alertEvents');
+  const incidentsTarget = $('#alertIncidents');
+  const historyTarget = $('#alertIncidentHistory');
 
   if (rulesTarget) {
     rulesTarget.innerHTML = state.rules.length
@@ -11780,15 +12090,15 @@ function renderAlerts() {
               '<label '
               + 'class="switch alerts-rule-toggle" '
               + 'title="Enable or disable rule">'
-              + (
-                `<input class="rule-toggle" `
-                + `type="checkbox" `
-                + `data-rule-id="${rule.id}" `
-                + `${rule.enabled ? 'checked' : ''}>`
-              )
-              + '<span></span>'
-              + '</label>'
             )
+            + (
+              `<input class="rule-toggle" `
+              + `type="checkbox" `
+              + `data-rule-id="${rule.id}" `
+              + `${rule.enabled ? 'checked' : ''}>`
+            )
+            + '<span></span>'
+            + '</label>'
             + (
               `<button class="text-button delete-rule" `
               + `data-rule-id="${rule.id}">`
@@ -11854,17 +12164,47 @@ function renderAlerts() {
       );
   }
 
-  if (eventsTarget) {
-    eventsTarget.innerHTML = (
-      state.alertEvents.length
-        ? state.alertEvents
-          .map(alertEventHtml)
+  if (incidentsTarget) {
+    incidentsTarget.innerHTML = (
+      state.alertIncidents.length
+        ? state.alertIncidents
+          .map(alertIncidentHtml)
           .join('')
         : (
           '<div class="empty-state">'
-          + 'No alert events.'
+          + 'No active incidents.'
           + '</div>'
         )
+    );
+  }
+
+  if (historyTarget) {
+    historyTarget.innerHTML = (
+      state.alertIncidentHistory.length
+        ? state.alertIncidentHistory
+          .map(alertIncidentHistoryHtml)
+          .join('')
+        : (
+          '<div class="empty-state">'
+          + 'No recovered incidents yet.'
+          + '</div>'
+        )
+    );
+  }
+
+  const activeCount = $('#activeIncidentCount');
+
+  if (activeCount) {
+    activeCount.textContent = (
+      `${state.alertIncidents.length} open`
+    );
+  }
+
+  const historyCount = $('#incidentHistoryCount');
+
+  if (historyCount) {
+    historyCount.textContent = (
+      `${state.alertIncidentHistory.length} recovered`
     );
   }
 
@@ -11882,6 +12222,7 @@ function renderAlerts() {
     );
   }
 }
+
 function renderSystem() {
   if (!state.health) return;
   const health = state.health;
@@ -11922,16 +12263,50 @@ function renderSystem() {
 async function loadCore() {
   try {
     const hours = Number($('#historyRange').value);
-    const [health, overviewData, botData, historyData, ruleData, eventData, syncData] = await Promise.all([
+    const [
+      health,
+      overviewData,
+      botData,
+      historyData,
+      ruleData,
+      eventData,
+      openIncidentData,
+      historyIncidentData,
+      syncData,
+    ] = await Promise.all([
       api('/api/health'),
       api(scopedPath('/api/overview')),
       api(scopedPath('/api/bots')),
       api(scopedPath('/api/portfolio/history', { hours })),
       api('/api/alerts/rules'),
-      api(scopedPath('/api/alerts/events', { unacknowledged_only: $('#unackedOnly').checked })),
+      api(scopedPath('/api/alerts/events', { limit: 100 })),
+      api(scopedPath('/api/alerts/incidents', {
+        state: 'open',
+        limit: 100,
+      })),
+      api(scopedPath('/api/alerts/incidents', {
+        state: 'history',
+        limit: 100,
+      })),
       api(scopedPath('/api/sync-runs', { limit: 20 })),
     ]);
-    state.health = health; state.overview = overviewData; state.bots = botData.items; state.botFilters = botData.filters || {}; state.history = historyData.items; state.rules = ruleData.items; state.alertEvents = eventData.items; state.syncRuns = syncData.items;
+
+    state.health = health;
+    state.overview = overviewData;
+    state.bots = botData.items;
+    state.botFilters = botData.filters || {};
+    state.history = historyData.items;
+    state.rules = ruleData.items;
+
+    // Legacy AlertEvent data remains exclusively for
+    // frozen Overview "Recent alerts".
+    state.alertEvents = eventData.items;
+
+    // Alerts tab uses durable incident lifecycle data.
+    state.alertIncidents = openIncidentData.items;
+    state.alertIncidentHistory = historyIncidentData.items;
+
+    state.syncRuns = syncData.items;
     populateAccountSelector(overviewData.accounts || []);
     populateFilterOptions(botData.filters);
     applyBotFilters(); renderOverview(); renderAlerts(); renderSystem();
@@ -13090,6 +13465,34 @@ async function acknowledgeEvent(id) {
   catch (error) { showToast(error.message, true); }
 }
 
+
+async function acknowledgeIncident(id) {
+  if (!state.adminUser) {
+    openAdminDialog();
+    return;
+  }
+
+  try {
+    await adminApi(
+      `/api/alerts/incidents/${id}/acknowledge`,
+      {
+        method: 'POST',
+      },
+    );
+
+    await loadCore();
+
+    showToast(
+      'Incident acknowledged.'
+    );
+  } catch (error) {
+    showToast(
+      error.message,
+      true,
+    );
+  }
+}
+
 async function toggleRule(id, enabled) {
   if (!state.adminUser) { openAdminDialog(); return; }
   try { await adminApi(`/api/alerts/rules/${id}`, { method:'PATCH', body:JSON.stringify({ enabled }) }); showToast(`Rule ${enabled ? 'enabled' : 'disabled'}.`); }
@@ -13634,6 +14037,20 @@ function bindEvents() {
     }
 
     const botButton = event.target.closest('[data-bot-id]'); if (botButton) openBot(Number(botButton.dataset.botId));
+
+    const incidentAck = event.target.closest('.ack-incident');
+
+    if (incidentAck) {
+      acknowledgeIncident(
+        Number(
+          incidentAck.dataset.incidentId
+        )
+      );
+
+      return;
+    }
+
+    // Legacy Overview alert acknowledgement remains intact.
     const ack = event.target.closest('.ack-event'); if (ack) acknowledgeEvent(Number(ack.dataset.eventId));
     const del = event.target.closest('.delete-rule'); if (del) deleteRule(Number(del.dataset.ruleId));
     const depositCurrency = event.target.closest('[data-deposit-currency]'); if (depositCurrency) selectDepositCurrency(depositCurrency.dataset.depositCurrency);
@@ -13641,7 +14058,6 @@ function bindEvents() {
     const depositCopy = event.target.closest('[data-copy-deposit]'); if (depositCopy) copyDepositValue(depositCopy.dataset.copyDeposit);
   });
   document.addEventListener('change', event => { if (event.target.matches('.rule-toggle')) toggleRule(Number(event.target.dataset.ruleId), event.target.checked); });
-  $('#unackedOnly').addEventListener('change', loadCore);
   $('#closeDialog').addEventListener('click', () => $('#botDialog').close());
   $('#botDialog').addEventListener('click', event => { if (event.target === $('#botDialog')) $('#botDialog').close(); });
   $('#botHistoryRange').addEventListener('change', () => state.currentBot && openBot(state.currentBot));
