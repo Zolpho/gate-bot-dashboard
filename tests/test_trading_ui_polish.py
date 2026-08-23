@@ -181,7 +181,7 @@ def test_trading_asset_versions_exact():
     html = _html()
 
     assert (
-        "./trading.css?v=20260823-trading-refine-v2"
+        "./trading.css?v=20260823-trading-refine-v3"
         in html
     )
 
@@ -329,6 +329,106 @@ def test_trading_refinement_markers_present_once():
     assert (
         css.count(
             "/* End 3J13 Trading final refinement v2 */"
+        )
+        == 1
+    )
+
+
+def test_trading_pair_and_account_have_balanced_widths():
+    css = _css()
+
+    assert (
+        "grid-template-columns:\n"
+        "    220px\n"
+        "    230px\n"
+        "    auto\n"
+        "    auto;"
+        in css
+    )
+
+    pair_start = css.index(
+        "#tab-trading\n"
+        ".trading-pair-search input {"
+    )
+
+    pair_end = css.index(
+        "}",
+        pair_start,
+    )
+
+    pair_rule = css[
+        pair_start:pair_end
+    ]
+
+    assert "font-size: .78rem;" in pair_rule
+    assert "font-weight: 560;" in pair_rule
+
+
+def test_global_account_selector_is_hidden_on_trading_only():
+    html = _html()
+
+    app = Path(
+        "frontend/app.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        'id="globalAccountSelector"'
+        in html
+    )
+
+    assert (
+        "target !== 'trading'"
+        in app
+    )
+
+    assert (
+        "globalAccountSelector?.classList.toggle("
+        in app
+    )
+
+    assert (
+        "globalAccountSelector?.setAttribute("
+        in app
+    )
+
+
+def test_hiding_global_selector_does_not_clear_scope_state():
+    app = Path(
+        "frontend/app.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    start = app.index(
+        "const globalAccountSelector = $("
+    )
+
+    end = app.index(
+        "$$('.nav-item').forEach",
+        start,
+    )
+
+    block = app[start:end]
+
+    assert "state.selectedAccount =" not in block
+    assert "accountSelector').value" not in block
+
+
+def test_trading_scope_width_refinement_markers_once():
+    css = _css()
+
+    assert (
+        css.count(
+            "/* 3J13 Trading scope/width refinement v3 */"
+        )
+        == 1
+    )
+
+    assert (
+        css.count(
+            "/* End 3J13 Trading scope/width refinement v3 */"
         )
         == 1
     )

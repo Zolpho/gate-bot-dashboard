@@ -9387,6 +9387,25 @@ function switchTab(tab, { updateHash = true } = {}) {
   }
 
   state.activeTab = target;
+
+  const globalAccountSelector = $(
+    '#globalAccountSelector'
+  );
+
+  const globalAccountVisible = (
+    target !== 'trading'
+  );
+
+  globalAccountSelector?.classList.toggle(
+    'hidden',
+    !globalAccountVisible,
+  );
+
+  globalAccountSelector?.setAttribute(
+    'aria-hidden',
+    String(!globalAccountVisible),
+  );
+
   $$('.nav-item').forEach(button => {
     button.classList.toggle('active', button.dataset.tab === target);
   });

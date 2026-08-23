@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./wallet-tab.css">
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
-  <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v2">
+  <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-trading-polish-v1">
 </head>
 <body>
@@ -58,7 +58,7 @@
           <p id="pageSubtitle">Native Gate.io bot performance and portfolio history</p>
         </div>
         <div class="top-actions">
-          <label class="account-selector">Account<select id="accountSelector" aria-label="Gate account"><option value="">All accounts</option></select></label>
+          <label class="account-selector" id="globalAccountSelector">Account<select id="accountSelector" aria-label="Gate account"><option value="">All accounts</option></select></label>
           <span class="mode-badge" id="modeBadge">—</span>
           <span class="admin-identity hidden" id="adminIdentity"></span>
           <button class="button secondary hidden" id="changePasswordButton">Change password</button>
@@ -2387,7 +2387,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-overview-polish-v1"
+    src="./app.js?v=20260823-trading-scope-v1"
     defer
   ></script>
   <script
