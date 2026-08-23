@@ -2358,3 +2358,170 @@ tbody tr:last-child td {
 }
 
 /* End 3J18 Treasury final form polish v1 */
+/* 3J18 Treasury final operational polish v1 */
+
+/* Source scope belongs to the action header. */
+
+#tab-wallet
+.treasury-user-transfer-scope {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 5px;
+
+  min-height: 24px;
+
+  padding: 3px 7px;
+
+  border:
+    1px solid var(--border-soft);
+
+  border-radius: 999px;
+
+  background:
+    rgba(255, 255, 255, .012);
+
+  color: var(--muted);
+
+  font-size: .62rem;
+  font-weight: 650;
+
+  letter-spacing: .025em;
+  white-space: nowrap;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-scope > strong {
+  color: var(--text);
+
+  font-size: .68rem;
+  font-weight: 700;
+
+  letter-spacing: 0;
+}
+
+
+/* The operator form is now exactly To / Asset / Amount. */
+
+#tab-wallet
+.treasury-user-transfer-form {
+  grid-template-columns:
+    minmax(170px, 1fr)
+    minmax(240px, 1.35fr)
+    minmax(130px, .72fr);
+}
+
+
+/* Confirmation is a divider, not another nested panel. */
+
+#tab-wallet
+.treasury-user-transfer-confirmation {
+  margin-top: 8px;
+
+  padding: 9px 0 0;
+
+  border: 0;
+  border-top:
+    1px solid var(--border-soft);
+
+  border-radius: 0;
+
+  background: transparent;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-confirmation-head {
+  margin-bottom: 5px;
+}
+
+
+#tab-wallet
+#treasuryUserTransferRequiredConfirmation {
+  display: block;
+
+  width: fit-content;
+  max-width: 100%;
+
+  margin: 0 0 6px;
+
+  padding: 4px 6px;
+
+  border-radius: 6px;
+
+  background:
+    rgba(255, 255, 255, .018);
+
+  color: var(--muted);
+
+  font-size: .64rem;
+  line-height: 1.3;
+
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-confirmation-row {
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  gap: 7px;
+}
+
+
+#tab-wallet
+#treasuryUserTransferConfirmation {
+  min-width: 0;
+}
+
+
+#tab-wallet
+.treasury-user-transfer-helper-note {
+  opacity: .76;
+}
+
+
+@media (max-width: 880px) {
+  #tab-wallet
+  .treasury-user-transfer-form {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  #tab-wallet
+  .treasury-user-transfer-form
+  > label:last-of-type {
+    grid-column: 1 / -1;
+  }
+}
+
+
+@media (max-width: 680px) {
+  #tab-wallet
+  .treasury-user-transfer-form {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  .treasury-user-transfer-form
+  > label:last-of-type {
+    grid-column: auto;
+  }
+
+  #tab-wallet
+  .treasury-user-transfer-confirmation-row {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  .treasury-user-transfer-scope {
+    width: fit-content;
+  }
+}
+
+/* End 3J18 Treasury final operational polish v1 */

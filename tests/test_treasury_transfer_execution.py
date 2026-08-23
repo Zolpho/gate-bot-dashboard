@@ -6,6 +6,7 @@ from app.accounts import GateAccountConfig
 from app.treasury_transfer import (
     build_subaccount_to_main_preflight,
     live_transfer_confirmation_text,
+    user_transfer_confirmation_text,
 )
 from app.treasury_transfer_reconcile import (
     interpret_transfer_order_status,
@@ -36,6 +37,22 @@ def test_live_confirmation_binds_transfer_intent() -> None:
     assert (
         value
         == "LIVE TRANSFER arnold 1 USDT TO zolnode"
+    )
+
+
+
+def test_user_transfer_confirmation_is_human_typable() -> None:
+    value = user_transfer_confirmation_text(
+        base_text="TRANSFER",
+        source_account_id="zolnode",
+        destination_account_id="arnold",
+        currency="eqty",
+        amount=Decimal("10000"),
+    )
+
+    assert (
+        value
+        == "TRANSFER 10000 EQTY FROM zolnode TO arnold"
     )
 
 

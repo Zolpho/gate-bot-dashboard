@@ -19,13 +19,13 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260823-treasury-form-v1"
+        "v=20260823-treasury-final-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260823-treasury-form-v1"
+        "v=20260823-treasury-final-v1"
         in HTML
     )
 
@@ -650,22 +650,31 @@ def test_final_confirmation_is_compact():
     )
 
 
-def test_static_from_is_not_styled_like_input():
-    marker = (
-        "/* 3J18 Treasury final form polish v1 */"
+def test_source_scope_is_in_transfer_header():
+    source_display = HTML.index(
+        'id="treasuryUserTransferSourceDisplay"'
     )
 
-    final_css = CSS[
-        CSS.index(marker):
-    ]
+    form = HTML.index(
+        'id="treasuryUserTransferForm"'
+    )
+
+    assert source_display < form
 
     assert (
-        ".treasury-user-transfer-static-field > strong"
-        in final_css
+        "treasury-user-transfer-scope"
+        in HTML
     )
 
-    assert "border: 0;" in final_css
-    assert "background: transparent;" in final_css
+    assert (
+        "treasury-user-transfer-static-field"
+        not in HTML
+    )
+
+    assert (
+        ".treasury-user-transfer-scope"
+        in CSS
+    )
 
 
 def test_review_capability_is_not_duplicated():
@@ -690,4 +699,95 @@ def test_review_capability_is_not_duplicated():
     assert (
         "USER TRANSFERS DISABLED"
         not in renderer
+    )
+
+def test_transfer_form_has_three_editable_fields():
+    form_start = HTML.index(
+        'id="treasuryUserTransferForm"'
+    )
+
+    form_end = HTML.index(
+        "</form>",
+        form_start,
+    )
+
+    form = HTML[
+        form_start:form_end
+    ]
+
+    assert "<span>From</span>" not in form
+
+    assert (
+        'id="treasuryUserTransferSource"'
+        in form
+    )
+
+    assert 'type="hidden"' in form
+
+    assert form.count("<label>") == 3
+
+    for label in (
+        "To",
+        "Asset",
+        "Amount",
+    ):
+        assert label in form
+
+
+def test_confirmation_phrase_is_above_input_row():
+    code = HTML.index(
+        'id="treasuryUserTransferRequiredConfirmation"'
+    )
+
+    row = HTML.index(
+        'class="treasury-user-transfer-confirmation-row"'
+    )
+
+    input_index = HTML.index(
+        'id="treasuryUserTransferConfirmation"',
+        code,
+    )
+
+    assert code < row < input_index
+
+
+def test_final_confirmation_is_flat():
+    marker = (
+        "/* 3J18 Treasury final operational polish v1 */"
+    )
+
+    final_css = CSS[
+        CSS.index(marker):
+    ]
+
+    start = final_css.index(
+        ".treasury-user-transfer-confirmation {"
+    )
+
+    end = final_css.index(
+        "}",
+        start,
+    )
+
+    block = final_css[
+        start:end
+    ]
+
+    assert "border: 0;" in block
+    assert "border-top:" in block
+    assert "background: transparent;" in block
+
+
+def test_user_transfer_credential_footer_is_removed():
+    assert (
+        "Transfers use the isolated Treasury credential "
+        "and are"
+        not in HTML
+    )
+
+
+def test_confirmation_helper_copy_is_short():
+    assert (
+        "Type the exact phrase shown below."
+        in HTML
     )

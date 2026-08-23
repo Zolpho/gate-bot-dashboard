@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css">
-  <link rel="stylesheet" href="./treasury.css?v=20260823-treasury-form-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260823-treasury-final-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -965,31 +965,32 @@
                 </p>
               </div>
 
-              <span
-                id="treasuryUserTransferState"
-                class="treasury-count treasury-capability-badge"
-              >Checking…</span>
+              <div class="treasury-action-badges">
+                <span
+                  class="treasury-user-transfer-scope"
+                >
+                  FROM
+                  <strong
+                    id="treasuryUserTransferSourceDisplay"
+                  >—</strong>
+                </span>
+
+                <span
+                  id="treasuryUserTransferState"
+                  class="treasury-count treasury-capability-badge"
+                >Checking…</span>
+              </div>
             </div>
 
             <form
               id="treasuryUserTransferForm"
               class="treasury-user-transfer-form"
             >
-              <div
-                class="treasury-user-transfer-static-field"
+              <input
+                id="treasuryUserTransferSource"
+                type="hidden"
+                value=""
               >
-                <span>From</span>
-
-                <strong
-                  id="treasuryUserTransferSourceDisplay"
-                >—</strong>
-
-                <input
-                  id="treasuryUserTransferSource"
-                  type="hidden"
-                  value=""
-                >
-              </div>
 
               <label>
                 To
@@ -1068,19 +1069,21 @@
                 <strong>Final confirmation</strong>
 
                 <span id="treasuryUserTransferConfirmationText">
-                  Type the exact confirmation before transferring.
+                  Type the exact phrase shown below.
                 </span>
               </div>
 
-              <div class="treasury-user-transfer-confirmation-row">
-                <code id="treasuryUserTransferRequiredConfirmation">—</code>
+              <code
+                id="treasuryUserTransferRequiredConfirmation"
+              >—</code>
 
+              <div class="treasury-user-transfer-confirmation-row">
                 <input
                   id="treasuryUserTransferConfirmation"
                   type="text"
                   autocomplete="off"
                   spellcheck="false"
-                  placeholder="Exact confirmation"
+                  placeholder="Type exact confirmation"
                 >
 
                 <button
@@ -1094,11 +1097,7 @@
               </div>
             </div>
 
-            <div class="treasury-withdrawal-safety-note">
-              Transfers use the isolated Treasury credential and are
-              authorized server-side.
-            </div>
-          </section>
+            </section>
 
           <section
             class="treasury-withdrawal-section"
@@ -2545,7 +2544,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-treasury-form-v1"
+    src="./app.js?v=20260823-treasury-final-v1"
     defer
   ></script>
   <script

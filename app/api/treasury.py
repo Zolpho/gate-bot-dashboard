@@ -41,6 +41,7 @@ from ..treasury_transfer import (
     build_subaccount_to_main_preflight,
     gate_client_order_id,
     live_transfer_confirmation_text,
+    user_transfer_confirmation_text,
 )
 from ..treasury_transfer_audit import (
     TreasuryTransferIdempotencyConflict,
@@ -1008,7 +1009,7 @@ async def preview_treasury_user_transfer(
     )
 
     required_confirmation = (
-        live_transfer_confirmation_text(
+        user_transfer_confirmation_text(
             base_text=(
                 settings
                 .treasury_user_transfer_confirmation_text
@@ -1191,7 +1192,7 @@ async def execute_treasury_user_transfer(
         )
 
     required_confirmation = (
-        live_transfer_confirmation_text(
+        user_transfer_confirmation_text(
             base_text=(
                 settings
                 .treasury_user_transfer_confirmation_text

@@ -80,6 +80,34 @@ def live_transfer_confirmation_text(
     )
 
 
+
+def user_transfer_confirmation_text(
+    *,
+    base_text: str,
+    source_account_id: str,
+    destination_account_id: str,
+    currency: str,
+    amount: Decimal,
+) -> str:
+    """
+    Human-typable exact confirmation for registered-user
+    transfers.
+
+    Keep this contract independent from generic Treasury live
+    transfers so Wallet wording cannot alter LIVE TRANSFER.
+    """
+
+    return (
+        f"{base_text.strip()} "
+        f"{decimal_text(amount)} "
+        f"{currency.strip().upper()} "
+        f"FROM "
+        f"{source_account_id.strip().lower()} "
+        f"TO "
+        f"{destination_account_id.strip().lower()}"
+    )
+
+
 def build_gate_subaccount_transfer_payload(
     *,
     source_account: GateAccountConfig,

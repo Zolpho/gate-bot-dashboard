@@ -304,7 +304,7 @@ async def test_preview_uses_fresh_gate_available_balance(
     assert result["gate_write_required"] is True
     assert result["gate_write_performed"] is False
     assert result["required_confirmation"] == (
-        "USER TRANSFER alice-account 2 USDT "
+        "TRANSFER 2 USDT FROM alice-account "
         "TO bob-account"
     )
 
@@ -513,8 +513,8 @@ async def test_execute_disabled_never_dispatches(
             currency="USDT",
             amount=Decimal("1"),
             confirmation=(
-                "USER TRANSFER alice-account "
-                "1 USDT TO bob-account"
+                "TRANSFER 1 USDT FROM alice-account "
+                "TO bob-account"
             ),
         )
     )
@@ -822,8 +822,8 @@ async def test_execute_enabled_dispatches_treasury_write_path(
             currency="USDT",
             amount=Decimal("1"),
             confirmation=(
-                "USER TRANSFER alice-account "
-                "1 USDT TO bob-account"
+                "TRANSFER 1 USDT FROM alice-account "
+                "TO bob-account"
             ),
         )
     )

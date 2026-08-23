@@ -87,7 +87,7 @@ class Settings(BaseSettings):
     # Keep independently disabled until live execution is ready.
     treasury_user_transfers_enabled: bool = False
     treasury_user_transfer_confirmation_text: str = (
-        "USER TRANSFER"
+        "TRANSFER"
     )
 
     # External withdrawals have their own independent
