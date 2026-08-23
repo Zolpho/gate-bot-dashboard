@@ -4,7 +4,7 @@ import hashlib
 import json
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from .db import session_scope, utcnow
@@ -259,14 +259,53 @@ def get_request(
         return _snapshot(row)
 
 
+def count_requests(
+    *,
+    account_ids: set[str] | None = None,
+) -> int:
+    """
+    Return the number of visible Bot Control requests.
+
+    This is a local audit-database read only. It performs
+    no Gate request and shares the same account filter as
+    list_requests().
+    """
+    if account_ids is not None and not account_ids:
+        return 0
+
+    with session_scope() as db:
+        statement = (
+            select(func.count())
+            .select_from(BotControlRequest)
+        )
+
+        if account_ids is not None:
+            statement = statement.where(
+                BotControlRequest.account_id.in_(
+                    sorted(account_ids)
+                )
+            )
+
+        return int(
+            db.scalar(statement)
+            or 0
+        )
+
+
 def list_requests(
     *,
     limit: int = 50,
+    offset: int = 0,
     account_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     limit = max(
         1,
         min(int(limit), 200),
+    )
+
+    offset = max(
+        0,
+        int(offset),
     )
 
     if account_ids is not None and not account_ids:
@@ -279,6 +318,7 @@ def list_requests(
                 BotControlRequest.created_at.desc(),
                 BotControlRequest.id.desc(),
             )
+            .offset(offset)
             .limit(limit)
         )
 

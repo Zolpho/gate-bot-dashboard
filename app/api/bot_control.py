@@ -24,6 +24,7 @@ from ..bot_control_export import (
 )
 from ..bot_control_audit import (
     IdempotencyConflict,
+    count_requests,
     find_matching_request,
     get_request,
     list_requests,
@@ -1956,11 +1957,17 @@ def list_bot_control_activity(
         Depends(require_user),
     ],
     limit: int = 50,
+    offset: int = 0,
     account_id: str | None = None,
 ):
     limit = max(
         1,
         min(int(limit), 200),
+    )
+
+    offset = max(
+        0,
+        int(offset),
     )
 
     if account_id:
@@ -1981,8 +1988,13 @@ def list_bot_control_activity(
             user.account_ids
         )
 
+    total = count_requests(
+        account_ids=visible_account_ids,
+    )
+
     records = list_requests(
         limit=limit,
+        offset=offset,
         account_ids=visible_account_ids,
     )
 
@@ -2074,6 +2086,14 @@ def list_bot_control_activity(
 
     return {
         "count": len(items),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_previous": offset > 0,
+        "has_next": (
+            offset + len(items)
+            < total
+        ),
         "items": items,
     }
 
