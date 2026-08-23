@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./wallet-tab.css">
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
-  <link rel="stylesheet" href="./trading.css?v=20260823-trading-polish-v1">
+  <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v2">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-trading-polish-v1">
 </head>
 <body>
@@ -169,16 +169,18 @@
               >—</span>
             </label>
 
-            <label class="trading-field">
+            <label class="trading-field trading-pair-field">
               <span>Spot pair</span>
-              <input
-                id="tradingPair"
-                type="text"
-                list="tradingPairOptions"
-                autocomplete="off"
-                spellcheck="false"
-                placeholder="EQTY_USDT"
-              >
+              <div class="trading-pair-search">
+                <input
+                  id="tradingPair"
+                  type="text"
+                  list="tradingPairOptions"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="Search pair"
+                >
+              </div>
               <datalist id="tradingPairOptions"></datalist>
             </label>
 
@@ -656,7 +658,7 @@
                 <span>Price</span>
                 <span>Amount</span>
                 <span>Total</span>
-                <span>Time</span>
+                <span>Time (UTC)</span>
               </div>
 
               <div
@@ -748,7 +750,7 @@
                 <table class="trading-orders-table trading-orders-table-recent">
                   <thead>
                     <tr>
-                      <th>Time</th>
+                      <th>Time (UTC)</th>
                       <th>Pair</th>
                       <th>Side</th>
                       <th>Price</th>
@@ -807,10 +809,11 @@
           <strong>GUARDED TRADING</strong>
           <span>
             Market data, balances and order history are read-only
-            views. New limit orders require the separate execution
-            arm and exact confirmation. Eligible managed open orders
-            may expose the separately controlled cancellation action
-            when its arm is enabled. Price-only order amendment is implemented in the guarded backend but remains separately disarmed. The browser Amend price action is capability-gated and remains unavailable while the separate amendment arm is disarmed.
+            views. New limit orders require the corresponding
+            execution capability and exact confirmation. Eligible
+            dashboard-managed open orders may expose cancellation
+            and price-amend actions when the corresponding capability
+            is enabled and the order passes its safety checks.
           </span>
         </div>
       </section>
@@ -2388,7 +2391,7 @@
     defer
   ></script>
   <script
-    src="./trading.js?v=20260823-trading-polish-v1"
+    src="./trading.js?v=20260823-trading-refine-v2"
     defer
   ></script>
   <script

@@ -204,46 +204,57 @@ def test_frontend_amendment_visibility_coexists_with_guarded_action():
     )
 
 
-def test_guarded_notice_describes_disarmed_amendment_action():
+def test_guarded_notice_describes_capability_gated_actions():
     html = Path(
         "frontend/index.html"
     ).read_text()
 
+    # HTML source is deliberately wrapped across lines;
+    # browsers collapse that whitespace when rendered.
+    html = " ".join(
+        html.split()
+    )
+
     assert (
-        "Price-only order amendment is implemented"
+        "Eligible dashboard-managed open orders"
         in html
     )
 
+    assert (
+        "cancellation"
+        in html
+    )
+
+    assert (
+        "price-amend actions"
+        in html
+    )
+
+    assert (
+        "corresponding capability"
+        in html
+    )
+
+    assert (
+        "order passes its safety checks"
+        in html
+    )
+
+    # The notice must not hard-code a transient
+    # runtime arm state. Live capabilities control
+    # whether the browser exposes each action.
     assert (
         "remains separately disarmed"
-        in html
-    )
-
-    # Stage 3J6B1 has a browser amendment
-    # operation, but the separate backend arm
-    # still controls whether it is actionable.
-    assert (
-        "browser Amend price action"
-        in html
-    )
-
-    assert (
-        "capability-gated"
-        in html
-    )
-
-    assert (
-        "remains unavailable"
-        in html
+        not in html
     )
 
     assert (
         "amendment arm is disarmed"
-        in html
+        not in html
     )
 
     assert (
-        "no browser amendment action is enabled yet"
+        "remains unavailable"
         not in html
     )
 

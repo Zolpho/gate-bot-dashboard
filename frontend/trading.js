@@ -1117,13 +1117,14 @@ function tradingFormatTradeTime(value) {
     return '—';
   }
 
-  return date.toLocaleTimeString(
-    [],
-    {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    },
+  const pad = part => (
+    String(part).padStart(2, '0')
+  );
+
+  return (
+    `${pad(date.getUTCHours())}:`
+    + `${pad(date.getUTCMinutes())}:`
+    + `${pad(date.getUTCSeconds())}`
   );
 }
 
@@ -1344,16 +1345,23 @@ function tradingOrderTime(
     return '—';
   }
 
-  return date.toLocaleString(
-    [],
-    {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    },
+  const pad = part => (
+    String(part).padStart(2, '0')
   );
+
+  const day = (
+    `${date.getUTCFullYear()}-`
+    + `${pad(date.getUTCMonth() + 1)}-`
+    + `${pad(date.getUTCDate())}`
+  );
+
+  const time = (
+    `${pad(date.getUTCHours())}:`
+    + `${pad(date.getUTCMinutes())}:`
+    + `${pad(date.getUTCSeconds())}`
+  );
+
+  return `${day} ${time} UTC`;
 }
 
 

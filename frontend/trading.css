@@ -855,3 +855,168 @@
 }
 
 /* End 3J13 Trading-specific polish v1 */
+
+/* 3J13 Trading final refinement v2 */
+
+
+/* -------------------------------------------------------
+ * SEARCHABLE SPOT PAIR
+ * ---------------------------------------------------- */
+
+#tab-trading
+.trading-toolbar {
+  grid-template-columns:
+    minmax(180px, 240px)
+    minmax(220px, 340px)
+    auto
+    auto;
+}
+
+#tab-trading
+.trading-account-field,
+#tab-trading
+.trading-pair-field {
+  min-width: 0;
+}
+
+#tab-trading
+.trading-pair-search {
+  position: relative;
+}
+
+/*
+ * Pure-CSS magnifying glass so the pair field reads
+ * as searchable autocomplete rather than a dropdown.
+ */
+#tab-trading
+.trading-pair-search::before {
+  content: "";
+
+  position: absolute;
+  z-index: 1;
+
+  left: 12px;
+  top: 50%;
+
+  width: 9px;
+  height: 9px;
+
+  border:
+    1.5px solid var(--muted);
+
+  border-radius: 50%;
+
+  transform:
+    translateY(-62%);
+
+  pointer-events: none;
+}
+
+#tab-trading
+.trading-pair-search::after {
+  content: "";
+
+  position: absolute;
+  z-index: 1;
+
+  left: 21px;
+  top: 50%;
+
+  width: 6px;
+  height: 1.5px;
+
+  border-radius: 2px;
+
+  background: var(--muted);
+
+  transform:
+    translateY(4px)
+    rotate(45deg);
+
+  transform-origin:
+    left center;
+
+  pointer-events: none;
+}
+
+#tab-trading
+.trading-pair-search input {
+  padding-left: 34px;
+}
+
+
+/* -------------------------------------------------------
+ * COMPACT ORDER-BOOK GROUP SELECTOR
+ * ---------------------------------------------------- */
+
+#tab-trading
+.trading-depth-selector {
+  gap: 5px;
+
+  font-size: .69rem;
+}
+
+#tab-trading
+.trading-depth-selector select {
+  width: auto;
+  min-width: 72px;
+  min-height: 31px;
+
+  padding:
+    5px 22px
+    5px 8px;
+
+  border-radius: 7px;
+
+  font-size: .70rem;
+}
+
+
+/* -------------------------------------------------------
+ * UTC TRADE TAPE
+ * ---------------------------------------------------- */
+
+#tab-trading
+.trading-trades-head,
+#tab-trading
+.trading-trade-row {
+  grid-template-columns:
+    minmax(0, 1.05fr)
+    minmax(0, .85fr)
+    minmax(0, .85fr)
+    72px;
+}
+
+#tab-trading
+.trading-trades-head
+span:last-child,
+#tab-trading
+.trading-trade-row
+span:last-child {
+  white-space: nowrap;
+}
+
+
+/* -------------------------------------------------------
+ * RESPONSIVE TOOLBAR
+ * ---------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  #tab-trading
+  .trading-toolbar {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+@media (max-width: 560px) {
+  #tab-trading
+  .trading-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* End 3J13 Trading final refinement v2 */
