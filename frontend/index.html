@@ -12,8 +12,8 @@
   <link rel="stylesheet" href="./wallet-tab.css">
   <link rel="stylesheet" href="./treasury.css?v=20260821-transfer-outcome-v1">
   <link rel="stylesheet" href="./bot-control.css">
-  <link rel="stylesheet" href="./trading.css?v=20260821-volume-book-v1">
-  <link rel="stylesheet" href="./trading-limit.css?v=20260822-ui-polish-v2">
+  <link rel="stylesheet" href="./trading.css?v=20260823-trading-polish-v1">
+  <link rel="stylesheet" href="./trading-limit.css?v=20260823-trading-polish-v1">
 </head>
 <body>
   <div class="app-shell">
@@ -156,12 +156,17 @@
           ></div>
 
           <div class="trading-toolbar">
-            <label class="trading-field">
+            <label class="trading-field trading-account-field">
               <span>Account</span>
               <select
                 id="tradingAccount"
                 aria-label="Trading Gate account"
               ></select>
+              <span
+                id="tradingAccountStatic"
+                class="trading-account-static hidden"
+                aria-live="polite"
+              >—</span>
             </label>
 
             <label class="trading-field">
@@ -184,10 +189,10 @@
                 id="tradingIntervals"
               >
                 <button type="button" class="trading-interval" data-trading-interval="1m">1m</button>
-                <button type="button" class="trading-interval active" data-trading-interval="5m">5m</button>
+                <button type="button" class="trading-interval" data-trading-interval="5m">5m</button>
                 <button type="button" class="trading-interval" data-trading-interval="15m">15m</button>
                 <button type="button" class="trading-interval" data-trading-interval="30m">30m</button>
-                <button type="button" class="trading-interval" data-trading-interval="1h">1h</button>
+                <button type="button" class="trading-interval active" data-trading-interval="1h">1h</button>
                 <button type="button" class="trading-interval" data-trading-interval="4h">4h</button>
                 <button type="button" class="trading-interval" data-trading-interval="1d">1d</button>
               </div>
@@ -2383,7 +2388,7 @@
     defer
   ></script>
   <script
-    src="./trading.js?v=20260822-account-orders-v1"
+    src="./trading.js?v=20260823-trading-polish-v1"
     defer
   ></script>
   <script

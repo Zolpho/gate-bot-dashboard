@@ -4,7 +4,7 @@ const tradingState = {
   catalog: null,
   accountId: '',
   pair: '',
-  interval: '5m',
+  interval: '1h',
   snapshot: null,
   trades: [],
   bookInterval: "0",
@@ -283,6 +283,61 @@ function tradingAuthorizedAccountIds() {
 }
 
 
+function tradingAccountControlLabel(account) {
+  const id = String(
+    account?.id || ''
+  ).trim();
+
+  const name = String(
+    account?.name || ''
+  ).trim();
+
+  if (!id) {
+    return name || '—';
+  }
+
+  if (
+    !name
+    || name.toLowerCase() === id.toLowerCase()
+  ) {
+    return id;
+  }
+
+  return `${name} (${id})`;
+}
+
+
+function tradingRenderAccountControl(accounts) {
+  const accountSelect = $('#tradingAccount');
+  const accountStatic = $('#tradingAccountStatic');
+
+  const singleAccount = (
+    Array.isArray(accounts)
+    && accounts.length === 1
+  );
+
+  accountSelect?.classList.toggle(
+    'hidden',
+    singleAccount,
+  );
+
+  accountStatic?.classList.toggle(
+    'hidden',
+    !singleAccount,
+  );
+
+  if (accountStatic) {
+    accountStatic.textContent = (
+      singleAccount
+        ? tradingAccountControlLabel(
+          accounts[0]
+        )
+        : ''
+    );
+  }
+}
+
+
 function tradingPopulateCatalog() {
   const catalog = tradingState.catalog;
 
@@ -298,11 +353,16 @@ function tradingPopulateCatalog() {
   accountSelect.innerHTML = accounts
     .map(account => (
       `<option value="${escapeHtml(account.id)}">`
-      + `${escapeHtml(account.name || account.id)}`
-      + ` (${escapeHtml(account.id)})`
+      + `${escapeHtml(
+        tradingAccountControlLabel(account)
+      )}`
       + '</option>'
     ))
     .join('');
+
+  tradingRenderAccountControl(
+    accounts
+  );
 
   const authorizedIds = new Set(
     accounts.map(account => account.id)
@@ -5362,6 +5422,15 @@ function resetTradingTab() {
   }
 
   $('#tradingAccount').innerHTML = '';
+  $('#tradingAccount').classList.remove(
+    'hidden'
+  );
+
+  $('#tradingAccountStatic').textContent = '';
+  $('#tradingAccountStatic').classList.add(
+    'hidden'
+  );
+
   $('#tradingPair').value = '';
   $('#tradingPairOptions').innerHTML = '';
 }

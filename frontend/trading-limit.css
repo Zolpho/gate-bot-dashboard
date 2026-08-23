@@ -928,3 +928,140 @@ button.trading-book-row.selected {
   outline: 2px solid var(--text);
   outline-offset: 2px;
 }
+
+/* 3J13 Trading order-surface polish v1 */
+
+
+/* Limit-order ticket */
+
+#tab-trading
+.trading-order-panel {
+  border-color:
+    var(--border-soft);
+}
+
+#tab-trading
+.trading-order-preview-badge {
+  padding:
+    5px 9px;
+
+  font-size: .67rem;
+  font-weight: 700;
+
+  letter-spacing: .055em;
+}
+
+#tab-trading
+.trading-order-side-tabs {
+  gap: 7px;
+}
+
+#tab-trading
+.trading-order-side {
+  min-height: 40px;
+
+  font-size: .84rem;
+  font-weight: 700;
+}
+
+#tab-trading
+.trading-order-fields {
+  gap: 10px;
+}
+
+#tab-trading
+.trading-order-field > span {
+  font-size: .68rem;
+  font-weight: 650;
+}
+
+#tab-trading
+.trading-order-input-wrap,
+#tab-trading
+.trading-order-value,
+#tab-trading
+.trading-order-field select {
+  min-height: 39px;
+
+  border-color:
+    var(--border-soft);
+}
+
+#tab-trading
+.trading-order-funds,
+#tab-trading
+.trading-order-hint {
+  font-size: .70rem;
+}
+
+
+/* Orders audit */
+
+#tab-trading
+.trading-orders-panel {
+  border-color:
+    var(--border-soft);
+}
+
+#tab-trading
+.trading-orders-section {
+  border-color:
+    var(--border-soft);
+}
+
+#tab-trading
+.trading-orders-section-head {
+  padding:
+    12px 14px;
+}
+
+#tab-trading
+.trading-orders-section-head strong {
+  font-size: .84rem;
+}
+
+#tab-trading
+.trading-orders-section-head small {
+  font-size: .69rem;
+}
+
+#tab-trading
+.trading-orders-count {
+  min-width: 28px;
+
+  font-size: .68rem;
+}
+
+#tab-trading
+.trading-orders-message {
+  padding:
+    10px 14px;
+
+  color: var(--muted);
+
+  font-size: .69rem;
+}
+
+#tab-trading
+.trading-orders-table {
+  font-size: .72rem;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#tab-trading
+.trading-orders-table th,
+#tab-trading
+.trading-orders-table td {
+  padding:
+    9px 10px;
+}
+
+#tab-trading
+.trading-orders-table th {
+  font-size: .64rem;
+  letter-spacing: .055em;
+}
+
+/* End 3J13 Trading order-surface polish v1 */

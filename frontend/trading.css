@@ -556,3 +556,302 @@
 .trading-market-side-view.hidden {
   display: none;
 }
+
+/* 3J13 Trading-specific polish v1 */
+
+
+/* Market header / controls */
+
+#tab-trading
+> .panel:first-child {
+  padding:
+    15px 17px;
+}
+
+#tab-trading
+.trading-market-header {
+  margin-bottom: 9px;
+}
+
+#tab-trading
+.trading-market-title {
+  gap: 11px;
+}
+
+#tab-trading
+.trading-market-title h2 {
+  font-size: .92rem;
+  font-weight: 720;
+}
+
+#tab-trading
+.trading-last-price {
+  font-size: 1.38rem;
+  font-weight: 740;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#tab-trading
+.trading-change {
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+#tab-trading
+.trading-live-indicator {
+  font-size: .70rem;
+}
+
+
+/* Trading toolbar */
+
+#tab-trading
+.trading-toolbar {
+  gap: 11px;
+
+  align-items: end;
+}
+
+#tab-trading
+.trading-field > span,
+#tab-trading
+.trading-label {
+  font-size: .69rem;
+  font-weight: 650;
+
+  letter-spacing: .018em;
+}
+
+#tab-trading
+.trading-account-static {
+  min-height: 38px;
+
+  display: flex;
+  align-items: center;
+
+  padding:
+    8px 12px;
+
+  border:
+    1px solid var(--border-soft);
+
+  border-radius:
+    var(--radius-sm);
+
+  background:
+    rgba(17, 30, 26, .68);
+
+  color: var(--text);
+
+  font-size: .84rem;
+  font-weight: 650;
+
+  box-shadow:
+    inset 0 1px 1px
+    rgba(0, 0, 0, .14);
+}
+
+#tab-trading
+.trading-intervals {
+  gap: 5px;
+}
+
+#tab-trading
+.trading-interval {
+  min-width: 38px;
+  min-height: 38px;
+
+  border-color:
+    var(--border-soft);
+
+  border-radius:
+    8px;
+
+  font-size: .73rem;
+  font-weight: 650;
+}
+
+#tab-trading
+.trading-interval.active {
+  box-shadow:
+    0 0 0 1px
+    rgba(23, 211, 154, .12);
+}
+
+
+/* Market statistics */
+
+#tab-trading
+.trading-metrics {
+  gap: 9px;
+
+  margin:
+    10px 0 14px;
+}
+
+#tab-trading
+.trading-metric {
+  padding:
+    12px 13px;
+
+  border-color:
+    var(--border-soft);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, .012),
+      transparent
+    ),
+    var(--surface);
+}
+
+#tab-trading
+.trading-metric span {
+  font-size: .68rem;
+  font-weight: 600;
+}
+
+#tab-trading
+.trading-metric strong {
+  margin-top: 5px;
+
+  font-size: .86rem;
+  font-weight: 700;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+/* Chart and market side panel */
+
+#tab-trading
+.trading-chart-panel,
+#tab-trading
+.trading-book-panel {
+  border-color:
+    var(--border-soft);
+}
+
+#tab-trading
+.trading-chart-panel
+.panel-header {
+  margin-bottom: 10px;
+}
+
+#tab-trading
+.trading-attribution {
+  margin-top: 8px;
+
+  font-size: .67rem;
+}
+
+#tab-trading
+.trading-book-tabs {
+  gap: 18px;
+}
+
+#tab-trading
+.trading-book-tab {
+  font-size: .82rem;
+  font-weight: 680;
+}
+
+#tab-trading
+.trading-book-head {
+  font-size: .66rem;
+}
+
+#tab-trading
+.trading-book-row {
+  font-size: .77rem;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+/* Balances */
+
+#tab-trading
+.trading-balances {
+  gap: 10px;
+}
+
+#tab-trading
+.trading-balance-card {
+  padding:
+    13px 14px;
+
+  border-color:
+    var(--border-soft);
+
+  background:
+    rgba(255, 255, 255, .012);
+}
+
+#tab-trading
+.trading-balance-card strong {
+  margin-top: 5px;
+
+  font-size: .88rem;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#tab-trading
+.trading-balance-detail {
+  margin-top: 4px;
+
+  font-size: .69rem;
+}
+
+
+/* Guard notice becomes supporting information */
+
+#tab-trading
+.trading-readonly-notice {
+  gap: 12px;
+
+  padding:
+    10px 13px;
+
+  border-color:
+    rgba(23, 211, 154, .23);
+
+  background:
+    rgba(23, 211, 154, .025);
+
+  font-size: .70rem;
+  line-height: 1.45;
+}
+
+#tab-trading
+.trading-readonly-notice strong {
+  flex: 0 0 auto;
+
+  font-size: .68rem;
+  letter-spacing: .045em;
+}
+
+
+/* Responsive account control */
+
+@media (max-width: 560px) {
+  #tab-trading
+  .trading-account-static {
+    width: 100%;
+  }
+
+  #tab-trading
+  .trading-readonly-notice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* End 3J13 Trading-specific polish v1 */
