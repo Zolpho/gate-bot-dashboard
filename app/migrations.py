@@ -632,6 +632,7 @@ def migrate_database(engine: Engine) -> None:
         return
 
     from .models import (
+        AlertIncident,
         Bot,
         BotArchive,
         BotControlAttentionReview,
@@ -913,6 +914,26 @@ def migrate_database(engine: Engine) -> None:
                 raw,
                 engine,
                 BotArchive.__table__,
+            )
+
+        if (
+            _table_exists(
+                raw,
+                "bots",
+            )
+            and _table_exists(
+                raw,
+                "alert_rules",
+            )
+            and not _table_exists(
+                raw,
+                "alert_incidents",
+            )
+        ):
+            _create_table(
+                raw,
+                engine,
+                AlertIncident.__table__,
             )
 
         if _table_exists(raw, "sync_runs"):

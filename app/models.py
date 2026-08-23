@@ -4,7 +4,18 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base, utcnow
@@ -103,6 +114,9 @@ class Bot(Base):
         back_populates="bot", cascade="all, delete-orphan"
     )
     alert_events: Mapped[list["AlertEvent"]] = relationship(back_populates="bot")
+    alert_incidents: Mapped[list["AlertIncident"]] = relationship(
+        back_populates="bot"
+    )
     archive: Mapped[Optional["BotArchive"]] = relationship(
         back_populates="bot",
         cascade="all, delete-orphan",
@@ -319,6 +333,157 @@ class AlertRule(Base):
 
     events: Mapped[list["AlertEvent"]] = relationship(
         back_populates="rule", cascade="all, delete-orphan"
+    )
+    incidents: Mapped[list["AlertIncident"]] = relationship(
+        back_populates="rule",
+        cascade="all, delete-orphan",
+    )
+
+
+class AlertIncident(Base):
+    """
+    Durable lifecycle record for one continuous rule
+    breach affecting one bot.
+
+    Stage 3J15B is persistence-only. The evaluator does
+    not create or update these rows yet.
+    """
+
+    __tablename__ = "alert_incidents"
+    __table_args__ = (
+        Index(
+            "uq_alert_incident_open_rule_bot",
+            "rule_id",
+            "bot_id",
+            unique=True,
+            sqlite_where=text(
+                "recovered_at IS NULL "
+                "AND bot_id IS NOT NULL"
+            ),
+        ),
+        Index(
+            "ix_alert_incident_rule_bot_opened",
+            "rule_id",
+            "bot_id",
+            "opened_at",
+        ),
+        Index(
+            "ix_alert_incident_recovered",
+            "recovered_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    rule_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "alert_rules.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    # Preserve incident history if a bot is later
+    # removed from the local dashboard database.
+    bot_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey(
+            "bots.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    # Snapshot enough rule identity at incident-open
+    # time that history remains intelligible even if
+    # the rule is later edited.
+    rule_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    metric: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    operator: Mapped[str] = mapped_column(
+        String(8),
+        nullable=False,
+    )
+
+    threshold_value: Mapped[Decimal] = mapped_column(
+        DECIMAL,
+        nullable=False,
+    )
+
+    # Lifecycle values.
+    trigger_value: Mapped[Optional[Decimal]] = mapped_column(
+        DECIMAL,
+    )
+
+    current_value: Mapped[Optional[Decimal]] = mapped_column(
+        DECIMAL,
+    )
+
+    worst_value: Mapped[Optional[Decimal]] = mapped_column(
+        DECIMAL,
+    )
+
+    opened_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    last_observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    recovered_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    acknowledged_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    acknowledged_by: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        default="",
+    )
+
+    # Cooldown will later throttle reminders /
+    # notifications rather than create duplicate
+    # incident rows.
+    last_notification_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    message: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+        nullable=False,
+    )
+
+    rule: Mapped[AlertRule] = relationship(
+        back_populates="incidents",
+    )
+
+    bot: Mapped[Optional[Bot]] = relationship(
+        back_populates="alert_incidents",
     )
 
 
