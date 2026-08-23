@@ -4917,17 +4917,46 @@ function setTreasuryUserTransferFormLocked(locked) {
 }
 
 
+function treasuryScopedUserTransferSource(
+  sources,
+) {
+  const sourceIds = sources.map(
+    item => String(item.account_id || '')
+  );
+
+  if (
+    state.selectedAccount
+    && sourceIds.includes(state.selectedAccount)
+  ) {
+    return state.selectedAccount;
+  }
+
+  if (sourceIds.length === 1) {
+    return sourceIds[0];
+  }
+
+  return '';
+}
+
+
 function renderTreasuryUserTransferParticipants() {
-  const sourceSelect = $('#treasuryUserTransferSource');
+  const sourceInput = $('#treasuryUserTransferSource');
+
+  const sourceDisplay = $(
+    '#treasuryUserTransferSourceDisplay'
+  );
+
   const destinationSelect = $(
     '#treasuryUserTransferDestination'
   );
+
   const currencySelect = $(
     '#treasuryUserTransferCurrency'
   );
 
   if (
-    !sourceSelect
+    !sourceInput
+    || !sourceDisplay
     || !destinationSelect
     || !currencySelect
   ) {
@@ -4935,46 +4964,30 @@ function renderTreasuryUserTransferParticipants() {
   }
 
   const sources = treasuryUserTransferSourceRows();
-  const previousSource = sourceSelect.value;
 
-  sourceSelect.innerHTML = sources.length
-    ? sources.map(item => (
-        `<option value="${escapeHtml(
-          item.account_id
-        )}">${escapeHtml(
-          treasuryUserTransferParticipantLabel(item)
-        )}</option>`
-      )).join('')
-    : (
-        '<option value="">'
-        + 'No authorized source accounts'
-        + '</option>'
-      );
-
-  const sourceIds = sources.map(
-    item => String(item.account_id || '')
+  const source = treasuryScopedUserTransferSource(
+    sources
   );
 
-  let source = '';
+  sourceInput.value = source;
 
-  if (
-    previousSource
-    && sourceIds.includes(previousSource)
-  ) {
-    source = previousSource;
+  const sourceItem = sources.find(
+    item => String(item.account_id || '') === source
+  );
 
-  } else if (
-    state.selectedAccount
-    && sourceIds.includes(state.selectedAccount)
-  ) {
-    source = state.selectedAccount;
-
+  if (sourceItem) {
+    sourceDisplay.textContent = String(
+      sourceItem.account_id || '—'
+    );
+  } else if (sources.length > 1) {
+    sourceDisplay.textContent = (
+      'Select an account scope'
+    );
   } else {
-    source = sourceIds[0] || '';
+    sourceDisplay.textContent = (
+      'No authorized source account'
+    );
   }
-
-  sourceSelect.value = source;
-  sourceSelect.disabled = sourceIds.length <= 1;
 
   const destinations = (
     treasuryUserTransferDestinationRows(source)
@@ -4994,7 +5007,11 @@ function renderTreasuryUserTransferParticipants() {
       )).join('')
     : (
         '<option value="">'
-        + 'No registered recipients'
+        + (
+          source
+            ? 'No registered recipients'
+            : 'No account-scoped source'
+        )
         + '</option>'
       );
 
@@ -5012,7 +5029,8 @@ function renderTreasuryUserTransferParticipants() {
   );
 
   destinationSelect.disabled = (
-    !destinationIds.length
+    !source
+    || !destinationIds.length
   );
 
   const balances = (
@@ -5027,21 +5045,25 @@ function renderTreasuryUserTransferParticipants() {
           item.currency || ''
         );
 
+        const displayAmount = (
+          `${fmtAssetQuantity(item.available)} `
+          + currency
+        ).trim();
+
         return (
           `<option value="${escapeHtml(currency)}">`
           + `${escapeHtml(currency)} · `
-          + `${escapeHtml(
-            treasuryAmount(
-              item.available,
-              currency
-            )
-          )} available`
+          + `${escapeHtml(displayAmount)}`
           + '</option>'
         );
       }).join('')
     : (
         '<option value="">'
-        + 'No available Gate spot assets'
+        + (
+          source
+            ? 'No transferable assets'
+            : 'No account-scoped source'
+        )
         + '</option>'
       );
 
@@ -5056,7 +5078,10 @@ function renderTreasuryUserTransferParticipants() {
       : currencies[0] || ''
   );
 
-  currencySelect.disabled = !currencies.length;
+  currencySelect.disabled = (
+    !source
+    || !currencies.length
+  );
 
   const stateElement = $('#treasuryUserTransferState');
 
@@ -5075,8 +5100,6 @@ function renderTreasuryUserTransferParticipants() {
 
   updateTreasuryUserTransferExecuteButton();
 }
-
-
 
 function treasuryUserTransferPathLabel(value) {
   const path = String(value || '').trim().toLowerCase();
@@ -5208,6 +5231,7 @@ function treasuryUserTransferOutcomeHtml(snapshot) {
 
 function renderTreasuryUserTransferPreview() {
   const container = $('#treasuryUserTransferPreview');
+
   const confirmationBlock = $(
     '#treasuryUserTransferConfirmationBlock'
   );
@@ -5233,14 +5257,14 @@ function renderTreasuryUserTransferPreview() {
   );
 
   const snapshot = state.treasuryUserTransferPreview;
-  const executionResult = snapshot?.executionResult || null;
+
+  const executionResult = (
+    snapshot?.executionResult || null
+  );
 
   if (!snapshot) {
-    container.innerHTML = (
-      '<div class="treasury-empty">'
-      + 'Select a registered recipient and run a review.'
-      + '</div>'
-    );
+    container.innerHTML = '';
+    container.classList.add('hidden');
 
     confirmationBlock.classList.add('hidden');
 
@@ -5260,6 +5284,8 @@ function renderTreasuryUserTransferPreview() {
 
     return;
   }
+
+  container.classList.remove('hidden');
 
   const response = snapshot.response || {};
   const preview = response.preview || {};
@@ -5295,41 +5321,67 @@ function renderTreasuryUserTransferPreview() {
     ? blockers.map(item => (
         item.message || item.type || 'Blocked'
       )).join(', ')
-    : 'NONE';
+    : '';
 
-  const pathLabel = treasuryUserTransferPathLabel(
-    preview.transfer_path
+  const currency = String(
+    preview.currency || ''
   );
 
-  const gateWriteClass = ready
-    ? 'warning'
-    : 'neutral';
+  const balanceBefore = (
+    `${fmtAssetQuantity(
+      preview.source_available_before
+    )} ${currency}`
+  ).trim();
 
-  const blockerClass = blockers.length
-    ? 'danger'
-    : 'success';
+  const balanceAfter = (
+    `${fmtAssetQuantity(
+      preview.source_available_after
+    )} ${currency}`
+  ).trim();
 
-  const implementationClass = executionImplemented
-    ? 'success'
-    : 'danger';
+  const transferHelper = liveEnabled
+    ? (
+        '<span '
+        + 'class="treasury-user-transfer-helper success">'
+        + 'USER TRANSFERS ENABLED'
+        + '</span>'
+      )
+    : (
+        '<span '
+        + 'class="treasury-user-transfer-helper warning">'
+        + 'USER TRANSFERS DISABLED'
+        + '</span>'
+      );
 
-  const armClass = liveEnabled
-    ? 'danger'
-    : 'safe';
+  const blockerHelper = blockers.length
+    ? (
+        '<span '
+        + 'class="treasury-user-transfer-helper warning">'
+        + `BLOCKED · ${escapeHtml(blockerText)}`
+        + '</span>'
+      )
+    : (
+        '<span '
+        + 'class="treasury-user-transfer-helper success">'
+        + 'NO BLOCKERS'
+        + '</span>'
+      );
 
   container.innerHTML = `
     ${treasuryUserTransferOutcomeHtml(snapshot)}
 
     <div class="treasury-user-transfer-preview-grid">
       <div class="treasury-user-transfer-card">
-        <span>Source account</span>
+        <span>From</span>
+
         <strong>${escapeHtml(
           preview.source_account_id || '—'
         )}</strong>
       </div>
 
       <div class="treasury-user-transfer-card">
-        <span>Recipient account</span>
+        <span>To</span>
+
         <strong>${escapeHtml(
           preview.destination_account_id || '—'
         )}</strong>
@@ -5337,13 +5389,15 @@ function renderTreasuryUserTransferPreview() {
 
       <div class="treasury-user-transfer-card">
         <span>Asset</span>
+
         <strong>${escapeHtml(
-          preview.currency || '—'
+          currency || '—'
         )}</strong>
       </div>
 
       <div class="treasury-user-transfer-card">
         <span>Amount</span>
+
         <strong class="treasury-user-transfer-number">
           ${escapeHtml(
             treasuryAmount(
@@ -5355,73 +5409,29 @@ function renderTreasuryUserTransferPreview() {
       </div>
 
       <div class="treasury-user-transfer-card">
-        <span>Available before</span>
+        <span>Balance before</span>
+
         <strong class="treasury-user-transfer-number">
-          ${escapeHtml(
-            treasuryAmount(
-              preview.source_available_before,
-              preview.currency
-            )
-          )}
+          ${escapeHtml(balanceBefore)}
         </strong>
       </div>
 
       <div class="treasury-user-transfer-card">
-        <span>Available after</span>
+        <span>Balance after</span>
+
         <strong class="treasury-user-transfer-number">
-          ${escapeHtml(
-            treasuryAmount(
-              preview.source_available_after,
-              preview.currency
-            )
-          )}
+          ${escapeHtml(balanceAfter)}
         </strong>
       </div>
+    </div>
 
-      <div class="treasury-user-transfer-card">
-        <span>Gate transfer path</span>
-        <strong>${escapeHtml(pathLabel)}</strong>
-      </div>
+    <div class="treasury-user-transfer-review-helpers">
+      ${transferHelper}
+      ${blockerHelper}
 
-      <div class="treasury-user-transfer-card">
-        <span>Gate write</span>
-        <strong>
-          <span class="treasury-user-transfer-chip ${gateWriteClass}">
-            ${ready
-              ? 'REQUIRED ON EXECUTION'
-              : 'NOT PERFORMED'}
-          </span>
-        </strong>
-      </div>
-
-      <div class="treasury-user-transfer-card">
-        <span>Operation blockers</span>
-        <strong>
-          <span class="treasury-user-transfer-chip ${blockerClass}">
-            ${escapeHtml(blockerText)}
-          </span>
-        </strong>
-      </div>
-
-      <div class="treasury-user-transfer-card">
-        <span>Execution</span>
-        <strong>
-          <span class="treasury-user-transfer-chip ${implementationClass}">
-            ${executionImplemented
-              ? 'IMPLEMENTED'
-              : 'NOT IMPLEMENTED'}
-          </span>
-        </strong>
-      </div>
-
-      <div class="treasury-user-transfer-card treasury-user-transfer-arm-card">
-        <span>Live transfer arm</span>
-        <strong>
-          <span class="treasury-user-transfer-chip ${armClass}">
-            ${liveEnabled ? 'ENABLED' : 'DISABLED'}
-          </span>
-        </strong>
-      </div>
+      <span class="treasury-user-transfer-helper-note">
+        Gate action happens only after final confirmation.
+      </span>
     </div>
   `;
 
@@ -5463,13 +5473,11 @@ function renderTreasuryUserTransferPreview() {
         'This transfer completed successfully. '
         + 'Use New transfer to create another request.'
       );
-
     } else if (executionResult) {
       confirmationText.textContent = (
         'This request requires reconciliation. '
         + 'Do not retry or create a replacement transfer.'
       );
-
     } else {
       confirmationText.textContent = liveEnabled
         ? (
@@ -5494,15 +5502,17 @@ function renderTreasuryUserTransferPreview() {
 
   if (executeButton) {
     if (executionResult?.kind === 'success') {
-      executeButton.textContent = 'Transfer completed ✓';
-      executeButton.disabled = true;
+      executeButton.textContent = (
+        'Transfer completed ✓'
+      );
 
+      executeButton.disabled = true;
     } else if (executionResult) {
       executeButton.textContent = (
         'Reconciliation required'
       );
-      executeButton.disabled = true;
 
+      executeButton.disabled = true;
     } else {
       executeButton.textContent = (
         state.treasuryUserTransferExecutionAttempted
@@ -5523,7 +5533,6 @@ function renderTreasuryUserTransferPreview() {
 
   updateTreasuryUserTransferExecuteButton();
 }
-
 
 function clearTreasuryUserTransferPreview() {
   state.treasuryUserTransferPreview = null;
@@ -5845,6 +5854,16 @@ async function executeTreasuryUserTransfer() {
         quiet: true,
       });
 
+      try {
+        await loadPrivateBalance({
+          force: true,
+          quiet: true,
+        });
+      } catch (_balanceRefreshError) {
+        // The transfer is already definitive.
+        // A balance-refresh failure must not change its outcome.
+      }
+
       setTreasuryUserTransferFormLocked(true);
       renderTreasuryUserTransferPreview();
 
@@ -5964,6 +5983,11 @@ async function executeTreasuryUserTransfer() {
 
       try {
         await loadTreasuryOverview({
+          quiet: true,
+        });
+
+        await loadPrivateBalance({
+          force: true,
           quiet: true,
         });
       } catch (_refreshError) {
@@ -12492,12 +12516,6 @@ async function loadCore() {
     populateFilterOptions(botData.filters);
     applyBotFilters(); renderOverview(); renderAlerts(); renderSystem();
     renderBotControlAccess();
-if (state.adminUser && state.activeTab === 'wallet') {
-  await Promise.all([
-    loadPrivateBalance({ quiet: true }),
-    loadDepositHistory({ quiet: true }),
-  ]);
-}
   } catch (error) {
     $('#connectionDot').className = 'offline'; $('#connectionText').textContent = 'API unavailable';
     showToast(error.message, true);

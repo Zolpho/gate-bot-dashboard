@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css">
-  <link rel="stylesheet" href="./treasury.css?v=20260823-treasury-status-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260823-treasury-action-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -963,10 +963,9 @@
               <div>
                 <h3>Transfer between registered users</h3>
                 <p>
-                  Transfer available Gate spot funds from one of your
-                  explicitly assigned accounts to another registered
-                  dashboard user. Source authorization is enforced
-                  server-side and is strictly account-scoped.
+                  Transfer Gate spot funds from this Wallet account to another
+                  registered dashboard user. Source authorization is
+                  enforced server-side.
                 </p>
               </div>
 
@@ -980,18 +979,21 @@
               id="treasuryUserTransferForm"
               class="treasury-user-transfer-form"
             >
-              <label>
-                From
+              <div
+                class="treasury-user-transfer-static-field"
+              >
+                <span>From</span>
 
-                <select
+                <strong
+                  id="treasuryUserTransferSourceDisplay"
+                >—</strong>
+
+                <input
                   id="treasuryUserTransferSource"
-                  required
+                  type="hidden"
+                  value=""
                 >
-                  <option value="">
-                    No source accounts loaded
-                  </option>
-                </select>
-              </label>
+              </div>
 
               <label>
                 To
@@ -1051,12 +1053,8 @@
 
             <div
               id="treasuryUserTransferPreview"
-              class="treasury-user-transfer-preview"
-            >
-              <div class="treasury-empty">
-                Select a registered recipient and run a review.
-              </div>
-            </div>
+              class="treasury-user-transfer-preview hidden"
+            ></div>
 
             <div
               id="treasuryUserTransferConfirmationBlock"
@@ -1089,9 +1087,8 @@
             </div>
 
             <div class="treasury-withdrawal-safety-note">
-              Execution uses a real Gate internal transfer through the
-              isolated Treasury credential. Source authorization is
-              enforced server-side.
+              Transfers use the isolated Treasury credential and are
+              authorized server-side.
             </div>
           </section>
 
@@ -2540,7 +2537,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-treasury-status-v1"
+    src="./app.js?v=20260823-treasury-action-v1"
     defer
   ></script>
   <script
