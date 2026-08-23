@@ -443,6 +443,8 @@ async function unlockAdmin(event) {
     state.adminUser = result.user;
 
     clearTreasurySession();
+    clearBotControlSession();
+    window.resetTradingTab?.();
 
     await loadBotControlCapabilities();
     formElement.reset();
@@ -1714,6 +1716,10 @@ async function loadBotControlAttention(
     renderBotControlAttention();
 
   } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
     if (errorBox) {
       errorBox.textContent = (
         botControlErrorMessage(
@@ -1756,6 +1762,26 @@ async function downloadBotControlAuditExport(
     return;
   }
 
+  const sessionEpoch = state.adminSessionEpoch;
+  const authorization = state.adminAuthorization;
+
+  const exportSessionCurrent = () => (
+    state.adminSessionEpoch === sessionEpoch
+    && state.adminAuthorization === authorization
+  );
+
+  const assertExportSession = () => {
+    if (!exportSessionCurrent()) {
+      throw new ApiError(
+        'Account session changed while the export was in progress.',
+        409,
+        {
+          stale_admin_session: true,
+        },
+      );
+    }
+  };
+
   const extension = (
     format === 'csv'
       ? 'csv'
@@ -1790,10 +1816,12 @@ async function downloadBotControlAuditExport(
         credentials: 'omit',
         headers: {
           Authorization:
-            state.adminAuthorization,
+            authorization,
         },
       },
     );
+
+    assertExportSession();
 
     if (!response.ok) {
       let payload = null;
@@ -1829,6 +1857,8 @@ async function downloadBotControlAuditExport(
     const blob = (
       await response.blob()
     );
+
+    assertExportSession();
 
     const url = (
       URL.createObjectURL(
@@ -1873,6 +1903,10 @@ async function downloadBotControlAuditExport(
     );
 
   } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
     showToast(
       botControlErrorMessage(
         error
@@ -1881,7 +1915,10 @@ async function downloadBotControlAuditExport(
     );
 
   } finally {
-    if (button) {
+    if (
+      button
+      && exportSessionCurrent()
+    ) {
       button.disabled = false;
       button.textContent = (
         originalText
@@ -2226,6 +2263,10 @@ async function loadBotControlActivity(
     });
 
   } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
     if (errorBox) {
       errorBox.textContent = (
         botControlErrorMessage(
@@ -3043,11 +3084,36 @@ function botControlErrorMessage(error) {
   );
 }
 
+function resetBotControlSessionForm() {
+  /*
+   * Normal Reset preserves the selected Bot Control account.
+   * An authenticated identity boundary must not.
+   */
+  resetSpotGridForm();
+
+  const account = $('#spotGridAccount');
+
+  if (account) {
+    account.innerHTML = '';
+    account.value = '';
+  }
+
+  const accountChip = $('#spotGridAccountChip');
+
+  if (accountChip) {
+    accountChip.textContent = '—';
+    accountChip.classList.add('hidden');
+  }
+}
+
+
 function clearBotControlSession() {
   state.botControlCapabilities = null;
+
   state.botControlPrepared = null;
   state.botControlDraft = null;
   state.botControlRequestId = '';
+
   state.botControlActivity = [];
   state.botControlActivityPagination = {
     limit: 10,
@@ -3056,10 +3122,74 @@ function clearBotControlSession() {
     hasPrevious: false,
     hasNext: false,
   };
+
+  state.botControlAttention = [];
+  state.botControlAttentionSummary = null;
+
   state.botControlRequestDetail = null;
 
-  $('#spotGridReview')?.classList.add('hidden');
-  $('#spotGridReviewEmpty')?.classList.remove('hidden');
+  state.botStopPrepared = null;
+  state.botStopRequestId = '';
+
+  resetBotControlSessionForm();
+
+  for (const selector of [
+    '#botControlActivityError',
+    '#botControlAttentionError',
+    '#botControlRequestError',
+    '#spotGridFormError',
+    '#spotGridConfirmError',
+    '#stopBotConfirmError',
+  ]) {
+    const element = $(selector);
+
+    if (element) {
+      element.textContent = '';
+      element.classList.add('hidden');
+    }
+  }
+
+  for (const selector of [
+    '#spotGridReviewStatus',
+    '#spotGridReviewMetrics',
+    '#spotGridValidationMessages',
+    '#spotGridPayloadPreview',
+    '#spotGridCreateResult',
+    '#botControlRequestSummary',
+    '#botControlRequestJson',
+    '#botControlResponseJson',
+    '#botControlReconciliationHistory',
+    '#botControlLockResolutionHistory',
+    '#stopBotConfirmSummary',
+    '#botStopValidationMessages',
+    '#stopBotReturnEstimate',
+  ]) {
+    const element = $(selector);
+
+    if (element) {
+      if (element.tagName === 'PRE') {
+        element.textContent = '';
+      } else {
+        element.innerHTML = '';
+      }
+    }
+  }
+
+  const spotConfirmation = $(
+    '#spotGridConfirmText'
+  );
+
+  if (spotConfirmation) {
+    spotConfirmation.value = '';
+  }
+
+  const stopConfirmation = $(
+    '#stopBotConfirmText'
+  );
+
+  if (stopConfirmation) {
+    stopConfirmation.value = '';
+  }
 
   const stopDialog = $('#stopBotConfirmDialog');
 
@@ -3073,13 +3203,28 @@ function clearBotControlSession() {
     requestDialog.close();
   }
 
-  const dialog = $('#spotGridConfirmDialog');
+  const confirmDialog = $('#spotGridConfirmDialog');
 
-  if (dialog?.open) {
-    dialog.close();
+  if (confirmDialog?.open) {
+    confirmDialog.close();
+  }
+
+  const jsonExport = $('#exportBotControlJson');
+
+  if (jsonExport) {
+    jsonExport.disabled = false;
+    jsonExport.textContent = 'Export JSON';
+  }
+
+  const csvExport = $('#exportBotControlCsv');
+
+  if (csvExport) {
+    csvExport.disabled = false;
+    csvExport.textContent = 'Export CSV';
   }
 
   renderBotControlActivity();
+  renderBotControlAttention();
   renderBotControlAccess();
 }
 
@@ -3098,6 +3243,10 @@ async function loadBotControlCapabilities() {
       '/api/auth/capabilities'
     );
   } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
     state.botControlCapabilities = null;
 
     showToast(

@@ -191,12 +191,12 @@ def test_trading_asset_versions_exact():
     )
 
     assert (
-        "./trading.js?v=20260823-trading-refine-v2"
+        "./trading.js?v=20260823-trading-session-isolation-v1"
         in html
     )
 
     assert (
-        "./trading-limit.js?v=20260822-recovery-v1"
+        "./trading-limit.js?v=20260823-trading-session-isolation-v1"
         in html
     )
 
@@ -531,4 +531,187 @@ def test_sticky_book_markers_present_once():
             "/* End 3J13 Trading sticky market-side panel v1 */"
         )
         == 1
+    )
+
+def test_trading_identity_reset_clears_private_runtime_state():
+    js = _js()
+
+    start = js.index(
+        "function resetTradingTab()"
+    )
+
+    end = js.index(
+        "\n\nfunction bindTradingEvents(",
+        start,
+    )
+
+    block = js[start:end]
+
+    for token in (
+        "tradingState.accountId = '';",
+        "tradingState.pair = '';",
+        "tradingState.snapshot = null;",
+        "tradingState.trades = [];",
+        "tradingState.loadingCatalog = false;",
+        "tradingState.loadingSnapshot = false;",
+        "tradingState.loadingOpenOrders = false;",
+        "tradingState.loadingRecentOrders = false;",
+        "tradingState.persistentCancelPending.clear();",
+        "tradingState.persistentCancelFrozen.clear();",
+        "tradingState.persistentAmendPending.clear();",
+        "tradingState.persistentAmendFrozen.clear();",
+        (
+            "tradingState."
+            "persistentAmendReconcilePending.clear();"
+        ),
+        "window.resetTradingLimitOrderSession?.();",
+    ):
+        assert token in block
+
+
+def test_trading_identity_reset_stops_refresh_timers():
+    js = _js()
+
+    start = js.index(
+        "function resetTradingTab()"
+    )
+
+    end = js.index(
+        "\n\nfunction bindTradingEvents(",
+        start,
+    )
+
+    block = js[start:end]
+
+    assert "clearInterval(" in block
+    assert "tradingState.refreshTimer = null;" in block
+    assert "tradingState.candleTimer = null;" in block
+
+
+def test_trading_limit_identity_reset_clears_ticket_memory_only():
+    limit = Path(
+        "frontend/trading-limit.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    start = limit.index(
+        "function resetTradingLimitOrderSession()"
+    )
+
+    end = limit.index(
+        "\n\nfunction renderTradingLimitOrderTicket(",
+        start,
+    )
+
+    block = limit[start:end]
+
+    for token in (
+        "tradingState.limitOrderPreview = null;",
+        "tradingState.limitOrderExecutionAttempt = null;",
+        "tradingState.limitOrderCancellationAttempt = null;",
+        "tradingState.limitOrderAmendmentAttempt = null;",
+        "tradingState.loadingLimitOrderExecution = false;",
+        "form.reset();",
+        "'#tradingLimitPrice'",
+        "'#tradingLimitAmount'",
+        "'#tradingLimitConfirmation'",
+        "'#tradingLimitCancelConfirmation'",
+        "renderTradingLimitOrderTicket();",
+        "renderTradingLimitExecution();",
+    ):
+        assert token in block
+
+
+def test_trading_identity_reset_preserves_recovery_checkpoint():
+    limit = Path(
+        "frontend/trading-limit.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    start = limit.index(
+        "function resetTradingLimitOrderSession()"
+    )
+
+    end = limit.index(
+        "\n\nfunction renderTradingLimitOrderTicket(",
+        start,
+    )
+
+    block = limit[start:end]
+
+    for forbidden in (
+        "sessionStorage",
+        "removeItem(",
+        "tradingLimitRecoveryCheckpointClear(",
+        "tradingLimitRecoveryClearKnownDefinitive(",
+    ):
+        assert forbidden not in block
+
+    assert (
+        "function tradingLimitRecoveryCheckpointForUser()"
+        in limit
+    )
+
+    assert "checkpoint.username" in limit
+    assert "Do not delete it here" in limit
+
+
+def test_trading_identity_reset_is_exported_to_core():
+    limit = Path(
+        "frontend/trading-limit.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        "window.resetTradingLimitOrderSession = ("
+        in limit
+    )
+
+
+def test_new_login_resets_trading_workspace():
+    app = Path(
+        "frontend/app.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    start = app.index(
+        "async function unlockAdmin("
+    )
+
+    end = app.index(
+        "\n\nasync function changeOwnPassword(",
+        start,
+    )
+
+    block = app[start:end]
+
+    assert "window.resetTradingTab?.();" in block
+
+    assert (
+        block.index(
+            "window.resetTradingTab?.();"
+        )
+        < block.index(
+            "await loadBotControlCapabilities();"
+        )
+    )
+
+
+def test_trading_script_versions_mark_session_isolation():
+    html = _html()
+
+    assert (
+        "./trading.js?"
+        "v=20260823-trading-session-isolation-v1"
+        in html
+    )
+
+    assert (
+        "./trading-limit.js?"
+        "v=20260823-trading-session-isolation-v1"
+        in html
     )

@@ -25,7 +25,7 @@ def test_treasury_assets_are_versioned():
 
     assert (
         "./app.js?"
-        "v=20260823-session-isolation-v1"
+        "v=20260823-cross-user-isolation-v2"
         in HTML
     )
 
@@ -1039,6 +1039,6 @@ def test_treasury_css_version_is_not_changed_by_session_fix():
 def test_app_version_marks_session_isolation_fix():
     assert (
         "./app.js?"
-        "v=20260823-session-isolation-v1"
+        "v=20260823-cross-user-isolation-v2"
         in HTML
     )

@@ -169,7 +169,7 @@ def test_bot_control_asset_versions_are_bumped():
 
     assert (
         "./app.js?"
-        "v=20260823-session-isolation-v1"
+        "v=20260823-cross-user-isolation-v2"
         in HTML
     )
 
@@ -436,3 +436,103 @@ def test_live_creation_state_is_horizontal_and_compact():
 
     assert "display: flex;" in section
     assert "align-items: center;" in section
+
+def test_bot_control_session_clear_discards_all_private_state():
+    start = APP.index(
+        "function clearBotControlSession()"
+    )
+
+    end = APP.index(
+        "\n\nasync function loadBotControlCapabilities(",
+        start,
+    )
+
+    block = APP[start:end]
+
+    for token in (
+        "state.botControlAttention = [];",
+        "state.botControlAttentionSummary = null;",
+        "state.botControlRequestDetail = null;",
+        "state.botStopPrepared = null;",
+        "state.botStopRequestId = '';",
+        "resetBotControlSessionForm();",
+        "renderBotControlAttention();",
+    ):
+        assert token in block
+
+
+def test_bot_control_identity_reset_clears_form_and_account():
+    start = APP.index(
+        "function resetBotControlSessionForm()"
+    )
+
+    end = APP.index(
+        "\n\nfunction clearBotControlSession()",
+        start,
+    )
+
+    block = APP[start:end]
+
+    assert "resetSpotGridForm();" in block
+    assert "account.innerHTML = '';" in block
+    assert "account.value = '';" in block
+    assert "accountChip.textContent = '—';" in block
+
+    for forbidden in (
+        "adminApi(",
+        "api(",
+        "fetch(",
+    ):
+        assert forbidden not in block
+
+
+def test_new_login_clears_bot_control_before_capability_load():
+    start = APP.index(
+        "async function unlockAdmin("
+    )
+
+    end = APP.index(
+        "\n\nasync function changeOwnPassword(",
+        start,
+    )
+
+    block = APP[start:end]
+
+    assert (
+        block.index(
+            "clearBotControlSession();"
+        )
+        < block.index(
+            "await loadBotControlCapabilities();"
+        )
+    )
+
+
+def test_bot_control_export_is_bound_to_originating_session():
+    start = APP.index(
+        "async function downloadBotControlAuditExport("
+    )
+
+    end = APP.index(
+        "\n\nfunction formatBotControlUtcDate(",
+        start,
+    )
+
+    block = APP[start:end]
+
+    for token in (
+        "const sessionEpoch = state.adminSessionEpoch;",
+        "const authorization = state.adminAuthorization;",
+        "state.adminSessionEpoch === sessionEpoch",
+        "state.adminAuthorization === authorization",
+        "if (staleAdminSessionError(error))",
+        "&& exportSessionCurrent()",
+    ):
+        assert token in block
+
+    assert (
+        block.count(
+            "assertExportSession();"
+        )
+        == 2
+    )

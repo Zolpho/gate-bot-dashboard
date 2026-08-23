@@ -267,6 +267,107 @@ function resetTradingLimitOrderTicket() {
   renderTradingLimitOrderTicket();
 }
 
+function resetTradingLimitOrderSession() {
+  /*
+   * Clear browser-memory/private UI only.
+   *
+   * Never remove or overwrite the durable recovery checkpoint.
+   */
+  tradingState.limitOrderSide = 'buy';
+  tradingState.limitOrderPercent = null;
+  tradingState.limitOrderPreview = null;
+
+  tradingState.loadingLimitOrderPreview = false;
+
+  tradingState.limitOrderExecutionCapabilities = null;
+  tradingState.loadingLimitOrderExecutionCapabilities = false;
+
+  tradingState.limitOrderExecutionAttempt = null;
+  tradingState.limitOrderCancellationAttempt = null;
+  tradingState.limitOrderAmendmentAttempt = null;
+
+  tradingState.loadingLimitOrderCancellation = false;
+  tradingState.loadingLimitOrderCancelStatus = false;
+  tradingState.loadingLimitOrderCancelReconcile = false;
+
+  tradingState.loadingLimitOrderExecution = false;
+  tradingState.loadingLimitOrderStatus = false;
+  tradingState.loadingLimitOrderReconcile = false;
+
+  const form = $('#tradingLimitOrderForm');
+
+  if (form) {
+    form.reset();
+  }
+
+  for (const selector of [
+    '#tradingLimitPrice',
+    '#tradingLimitAmount',
+    '#tradingLimitConfirmation',
+    '#tradingLimitCancelConfirmation',
+  ]) {
+    const element = $(selector);
+
+    if (element) {
+      element.value = '';
+    }
+  }
+
+  const preview = $(
+    '#tradingLimitOrderPreview'
+  );
+
+  if (preview) {
+    preview.innerHTML = '';
+    preview.classList.add(
+      'hidden'
+    );
+  }
+
+  const error = $(
+    '#tradingLimitOrderError'
+  );
+
+  if (error) {
+    error.textContent = '';
+    error.classList.add(
+      'hidden'
+    );
+  }
+
+  const executionResult = $(
+    '#tradingLimitExecutionResult'
+  );
+
+  if (executionResult) {
+    executionResult.innerHTML = '';
+    executionResult.classList.add(
+      'hidden'
+    );
+  }
+
+  const cancellationResult = $(
+    '#tradingLimitCancellationResult'
+  );
+
+  if (cancellationResult) {
+    cancellationResult.innerHTML = '';
+    cancellationResult.classList.add(
+      'hidden'
+    );
+  }
+
+  const hint = $('#tradingLimitHint');
+
+  if (hint) {
+    hint.textContent = (
+      'Click any bid or ask price to copy it here.'
+    );
+  }
+
+  renderTradingLimitOrderTicket();
+  renderTradingLimitExecution();
+}
 
 function renderTradingLimitOrderTicket() {
   const form = $('#tradingLimitOrderForm');
@@ -5722,6 +5823,11 @@ window.renderTradingLimitOrderTicket = (
 
 window.resetTradingLimitOrderTicket = (
   resetTradingLimitOrderTicket
+);
+
+
+window.resetTradingLimitOrderSession = (
+  resetTradingLimitOrderSession
 );
 
 

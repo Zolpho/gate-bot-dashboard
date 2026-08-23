@@ -5401,13 +5401,53 @@ async function activateTradingTab() {
 
 
 function resetTradingTab() {
+  /*
+   * Authenticated identity boundary.
+   *
+   * Do NOT delete the durable Trading recovery checkpoint.
+   * It is scoped to its originating username/account/pair.
+   */
   tradingState.catalog = null;
   tradingState.accountId = '';
   tradingState.pair = '';
   tradingState.snapshot = null;
+  tradingState.trades = [];
+
+  tradingState.loadingCatalog = false;
+  tradingState.loadingSnapshot = false;
+  tradingState.loadingCandles = false;
+  tradingState.loadingTrades = false;
+
+  tradingState.loadingOpenOrders = false;
+  tradingState.loadingRecentOrders = false;
 
   tradingState.limitOrderExecutionCapabilities = null;
   tradingState.loadingLimitOrderExecutionCapabilities = false;
+
+  tradingState.persistentCancelPending.clear();
+  tradingState.persistentCancelFrozen.clear();
+
+  tradingState.persistentAmendPending.clear();
+  tradingState.persistentAmendFrozen.clear();
+  tradingState.persistentAmendReconcilePending.clear();
+
+  if (tradingState.refreshTimer) {
+    clearInterval(
+      tradingState.refreshTimer
+    );
+
+    tradingState.refreshTimer = null;
+  }
+
+  if (tradingState.candleTimer) {
+    clearInterval(
+      tradingState.candleTimer
+    );
+
+    tradingState.candleTimer = null;
+  }
+
+  window.resetTradingLimitOrderSession?.();
 
   tradingResetPersistentOrders();
 
@@ -5429,20 +5469,40 @@ function resetTradingTab() {
     volumeValue.textContent = '—';
   }
 
-  $('#tradingAccount').innerHTML = '';
-  $('#tradingAccount').classList.remove(
-    'hidden'
+  const account = $('#tradingAccount');
+
+  if (account) {
+    account.innerHTML = '';
+    account.classList.remove(
+      'hidden'
+    );
+  }
+
+  const accountStatic = $(
+    '#tradingAccountStatic'
   );
 
-  $('#tradingAccountStatic').textContent = '';
-  $('#tradingAccountStatic').classList.add(
-    'hidden'
+  if (accountStatic) {
+    accountStatic.textContent = '';
+    accountStatic.classList.add(
+      'hidden'
+    );
+  }
+
+  const pair = $('#tradingPair');
+
+  if (pair) {
+    pair.value = '';
+  }
+
+  const pairOptions = $(
+    '#tradingPairOptions'
   );
 
-  $('#tradingPair').value = '';
-  $('#tradingPairOptions').innerHTML = '';
+  if (pairOptions) {
+    pairOptions.innerHTML = '';
+  }
 }
-
 
 function bindTradingEvents() {
   $('#tradingRecentOrders')?.addEventListener(
