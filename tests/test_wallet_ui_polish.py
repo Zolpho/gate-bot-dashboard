@@ -41,7 +41,7 @@ def test_wallet_balance_assets_are_versioned():
 
     assert (
         "./app.js?"
-        "v=20260823-wallet-summary-v1"
+        "v=20260823-wallet-bots-label-v1"
         in HTML
     )
 
@@ -130,3 +130,77 @@ def test_wallet_mobile_layout_is_preserved():
         "@media (max-width: 760px)"
         in DEPOSIT_CSS
     )
+
+def test_wallet_hides_internal_quant_terminology():
+    assert (
+        "Gate quant account"
+        not in HTML
+    )
+
+    assert (
+        "quant-account value"
+        not in HTML
+    )
+
+    assert (
+        "Gate bot funds"
+        in HTML
+    )
+
+    assert (
+        "Funds allocated to Gate bots are shown "
+        "separately and are not counted twice."
+        in HTML
+    )
+
+    assert (
+        "function formatPrivateAccountType(value)"
+        in APP
+    )
+
+    start = APP.index(
+        "function formatPrivateAccountType(value)"
+    )
+
+    end = APP.index(
+        "\nfunction renderPrivateBalance()",
+        start,
+    )
+
+    formatter = APP[start:end]
+
+    assert (
+        "=== 'quant'"
+        in formatter
+    )
+
+    assert (
+        "? 'bots'"
+        in formatter
+    )
+
+    renderer_start = APP.index(
+        "function renderPrivateBalance()"
+    )
+
+    renderer_end = APP.index(
+        "\nasync function loadPrivateBalance",
+        renderer_start,
+    )
+
+    renderer = APP[
+        renderer_start:renderer_end
+    ]
+
+    assert (
+        "formatPrivateAccountType("
+        "item.account_type"
+        ")"
+        in renderer
+    )
+
+
+def test_wallet_internal_quant_contract_is_preserved():
+    assert "data.quant_value" in APP
+    assert "#privateQuantValue" in APP
+    assert "#privateQuantNote" in APP

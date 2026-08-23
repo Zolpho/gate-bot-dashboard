@@ -669,6 +669,18 @@ function fmtAssetQuantity(value) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(Number(value));
 }
 
+
+function formatPrivateAccountType(value) {
+  const label = String(value)
+    .replaceAll('_', ' ');
+
+  return (
+    label.trim().toLowerCase() === 'quant'
+      ? 'bots'
+      : label
+  );
+}
+
 function renderPrivateBalance() {
   const data = state.privateBalance;
   if (!state.adminUser || !data) return;
@@ -704,7 +716,7 @@ function renderPrivateBalance() {
 
   const breakdown = data.account_breakdown || [];
   $('#privateAccountBreakdown').innerHTML = breakdown.length
-    ? breakdown.map(item => `<span class="private-account-chip"><span>${escapeHtml(String(item.account_type).replaceAll('_', ' '))}</span><strong>${fmtMoney(item.amount)}</strong></span>`).join('')
+    ? breakdown.map(item => `<span class="private-account-chip"><span>${escapeHtml(formatPrivateAccountType(item.account_type))}</span><strong>${fmtMoney(item.amount)}</strong></span>`).join('')
     : '<span class="private-account-chip">No Gate account-type breakdown returned</span>';
 
   const assets = data.assets || [];
