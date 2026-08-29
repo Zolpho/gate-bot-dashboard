@@ -346,7 +346,7 @@ def test_alerts_assets_are_versioned():
 
     assert (
         "./app.js?"
-        "v=20260829-withdraw-layout-v2"
+        "v=20260829-withdraw-recipients-v1"
         in HTML
     )
 

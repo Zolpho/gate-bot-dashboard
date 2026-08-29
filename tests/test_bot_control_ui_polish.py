@@ -169,7 +169,7 @@ def test_bot_control_asset_versions_are_bumped():
 
     assert (
         "./app.js?"
-        "v=20260829-withdraw-layout-v2"
+        "v=20260829-withdraw-recipients-v1"
         in HTML
     )
 

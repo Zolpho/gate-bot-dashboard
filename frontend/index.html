@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css">
-  <link rel="stylesheet" href="./treasury.css?v=20260829-withdraw-layout-v2">
+  <link rel="stylesheet" href="./treasury.css?v=20260829-withdraw-recipients-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -1139,9 +1139,22 @@
                   </span>
                 </div>
                 <span
-                  id="treasuryWithdrawalRouteOwner"
-                  class="treasury-withdrawal-route-owner"
-                >Select one account above</span>
+                  class="treasury-withdrawal-route-head-actions"
+                >
+                  <span
+                    id="treasuryWithdrawalRouteOwner"
+                    class="treasury-withdrawal-route-owner"
+                  >Select one account above</span>
+
+                  <button
+                    type="button"
+                    class="button secondary"
+                    id="manageTreasuryWithdrawalRecipients"
+                    disabled
+                  >
+                    Manage recipients
+                  </button>
+                </span>
               </div>
 
               <div class="treasury-withdrawal-route-grid">
@@ -2635,7 +2648,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260829-withdraw-layout-v2"
+    src="./app.js?v=20260829-withdraw-recipients-v1"
     defer
   ></script>
   <script
@@ -2657,6 +2670,115 @@
     Market and performance data may be delayed. For informational purposes only.
   </div>
 </footer>  
+
+  <dialog
+    id="treasuryWithdrawalRecipientDialog"
+    class="small-dialog treasury-withdrawal-recipient-dialog"
+  >
+    <div class="dialog-header">
+      <div>
+        <h2>Withdrawal recipients</h2>
+        <p id="treasuryWithdrawalRecipientManagerOwner">
+          Manage the local withdrawal address book.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeTreasuryWithdrawalRecipientDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <div class="dialog-content treasury-withdrawal-recipient-content">
+      <div class="treasury-recipient-safety-note">
+        <strong>Recipients are local address-book entries.</strong>
+        Saving an address does not approve a withdrawal destination.
+        Select an asset and network, prepare the destination, and obtain
+        administrator approval before it can be used.
+      </div>
+
+      <form
+        id="treasuryWithdrawalRecipientCreateForm"
+        class="form-grid treasury-recipient-create-form"
+      >
+        <label class="full">
+          Description
+          <input
+            id="treasuryWithdrawalRecipientDescription"
+            name="label"
+            type="text"
+            autocomplete="off"
+            maxlength="128"
+            placeholder="e.g. EQTY Treasury"
+          >
+        </label>
+
+        <label class="full">
+          Address
+          <input
+            id="treasuryWithdrawalRecipientAddress"
+            name="address"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="512"
+            placeholder="Withdrawal address"
+            required
+          >
+        </label>
+
+        <p class="full treasury-recipient-address-note">
+          Addresses cannot be edited in place. To change an address,
+          add a new recipient and archive the old one.
+        </p>
+
+        <div class="form-actions full">
+          <button
+            type="button"
+            class="button secondary"
+            id="cancelTreasuryWithdrawalRecipientManager"
+          >
+            Close
+          </button>
+
+          <button
+            type="submit"
+            class="button primary"
+            id="createTreasuryWithdrawalRecipient"
+          >
+            Add recipient
+          </button>
+        </div>
+      </form>
+
+      <div
+        id="treasuryWithdrawalRecipientManagerError"
+        class="form-error hidden"
+        role="alert"
+        aria-live="assertive"
+      ></div>
+
+      <div class="treasury-recipient-list-head">
+        <strong>Saved recipients</strong>
+
+        <span
+          id="treasuryWithdrawalRecipientManagerSummary"
+        >0 active · 0 archived</span>
+      </div>
+
+      <div
+        id="treasuryWithdrawalRecipientManagerList"
+        class="treasury-recipient-list"
+      >
+        <div class="treasury-recipient-empty">
+          Open this dialog to load saved recipients.
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <dialog
     id="treasuryWithdrawalRequestDialog"
     class="treasury-request-dialog"

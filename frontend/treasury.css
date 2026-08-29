@@ -2776,7 +2776,7 @@ tbody tr:last-child td {
 #tab-wallet
 #treasuryWithdrawalAction
 .treasury-withdrawal-route-owner {
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: .64rem;
 }
 
@@ -2884,7 +2884,7 @@ tbody tr:last-child td {
 .treasury-withdrawal-route-status {
   min-height: 18px;
   margin-top: 7px;
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: .66rem;
   line-height: 1.35;
 }
@@ -2893,14 +2893,14 @@ tbody tr:last-child td {
 #tab-wallet
 #treasuryWithdrawalAction
 .treasury-withdrawal-route-status.error {
-  color: var(--danger);
+  color: var(--negative);
 }
 
 
 #tab-wallet
 #treasuryWithdrawalAction
 .treasury-withdrawal-route-status.success {
-  color: var(--success);
+  color: var(--positive);
 }
 
 
@@ -2993,6 +2993,213 @@ tbody tr:last-child td {
   #tab-wallet
   #treasuryWithdrawalAction
   .treasury-withdrawal-route-actions .button {
+    flex: 1 1 0;
+  }
+}
+
+/* 3J26 Withdrawal recipient manager v1 */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+#manageTreasuryWithdrawalRecipients {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: .64rem;
+  white-space: nowrap;
+}
+
+
+.treasury-withdrawal-recipient-dialog[open] {
+  width: min(760px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+  overflow: auto;
+}
+
+
+.treasury-withdrawal-recipient-content {
+  padding: 18px;
+}
+
+
+.treasury-recipient-safety-note {
+  margin-bottom: 16px;
+  padding: 11px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .018);
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+
+
+.treasury-recipient-safety-note strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text);
+}
+
+
+.treasury-recipient-create-form {
+  margin: 0 0 14px;
+}
+
+
+.treasury-recipient-address-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: .68rem;
+  line-height: 1.45;
+}
+
+
+.treasury-recipient-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+
+.treasury-recipient-list-head > span {
+  color: var(--muted);
+  font-size: .68rem;
+}
+
+
+.treasury-recipient-list {
+  display: grid;
+  gap: 8px;
+}
+
+
+.treasury-recipient-empty {
+  padding: 14px;
+  border: 1px dashed var(--border-soft);
+  border-radius: 10px;
+  color: var(--muted);
+  text-align: center;
+  font-size: .72rem;
+}
+
+
+.treasury-recipient-card {
+  padding: 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+
+.treasury-recipient-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+
+.treasury-recipient-card-head > div {
+  min-width: 0;
+}
+
+
+.treasury-recipient-address-label,
+.treasury-recipient-description > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: .65rem;
+}
+
+
+.treasury-recipient-card code {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: .72rem;
+}
+
+
+.treasury-recipient-status {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font-size: .62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+
+.treasury-recipient-status.active {
+  color: var(--positive);
+}
+
+
+.treasury-recipient-status.archived {
+  color: var(--muted);
+}
+
+
+.treasury-recipient-description {
+  display: block;
+  margin-top: 10px;
+}
+
+
+.treasury-recipient-description input {
+  width: 100%;
+  margin: 0;
+}
+
+
+.treasury-recipient-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+
+.treasury-recipient-actions .button {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: .66rem;
+}
+
+
+@media (max-width: 620px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-head-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .treasury-recipient-card-head {
+    flex-direction: column;
+  }
+
+  .treasury-recipient-actions {
+    justify-content: stretch;
+  }
+
+  .treasury-recipient-actions .button {
     flex: 1 1 0;
   }
 }

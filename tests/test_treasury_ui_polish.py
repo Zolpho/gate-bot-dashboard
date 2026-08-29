@@ -19,13 +19,13 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-layout-v2"
+        "v=20260829-withdraw-recipients-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260829-withdraw-layout-v2"
+        "v=20260829-withdraw-recipients-v1"
         in HTML
     )
 
@@ -1022,7 +1022,7 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-layout-v2"
+        "v=20260829-withdraw-recipients-v1"
         in HTML
     )
 
@@ -1030,7 +1030,7 @@ def test_treasury_css_version_marks_withdraw_polish():
 def test_app_version_marks_withdraw_polish():
     assert (
         "./app.js?"
-        "v=20260829-withdraw-layout-v2"
+        "v=20260829-withdraw-recipients-v1"
         in HTML
     )
 
@@ -1658,3 +1658,271 @@ def test_withdraw_header_copy_mentions_choose_or_prepare_flow():
     )
 
     assert expected in normalized
+
+def test_withdraw_recipient_manager_dialog_is_account_scoped_and_explains_approval():
+    withdraw_start = HTML.index(
+        'id="treasuryWithdrawalAction"'
+    )
+
+    withdraw_end = HTML.index(
+        'id="treasuryRecords"',
+        withdraw_start,
+    )
+
+    withdraw = HTML[
+        withdraw_start:withdraw_end
+    ]
+
+    assert (
+        'id="manageTreasuryWithdrawalRecipients"'
+        in withdraw
+    )
+
+    assert (
+        'id="treasuryWithdrawalRecipientDialog"'
+        in HTML
+    )
+
+    dialog_start = HTML.index(
+        'id="treasuryWithdrawalRecipientDialog"'
+    )
+
+    dialog = " ".join(
+        HTML[
+            dialog_start:
+        ].split()
+    )
+
+    assert (
+        "Saving an address does not approve a withdrawal destination."
+        in dialog
+    )
+
+    assert (
+        "administrator approval before it can be used."
+        in dialog
+    )
+
+    bind = _stage4_js_function_block(
+        "bindEvents"
+    )
+
+    assert (
+        "'#manageTreasuryWithdrawalRecipients'"
+        in bind
+    )
+
+    assert (
+        "openTreasuryWithdrawalRecipientManager"
+        in bind
+    )
+
+
+def test_withdraw_recipient_manager_loads_all_statuses_for_selected_owner():
+    block = _stage4_js_function_block(
+        "loadTreasuryWithdrawalRecipientManager"
+    )
+
+    assert (
+        "treasuryWithdrawalPreparationOwner()"
+        in block
+    )
+
+    assert (
+        "'/api/treasury/withdrawals/recipients'"
+        in block
+    )
+
+    assert (
+        "owner_account_id: owner"
+        in block
+    )
+
+    assert (
+        "limit: 500"
+        in block
+    )
+
+    assert (
+        "status:"
+        not in block
+    )
+
+    assert (
+        "if (result.gate_write_performed)"
+        in block
+    )
+
+
+def test_withdraw_recipient_manager_create_sends_only_owner_address_and_description():
+    block = _stage4_js_function_block(
+        "createTreasuryWithdrawalRecipientFromManager"
+    )
+
+    for token in (
+        "method: 'POST'",
+        "owner_account_id: owner",
+        "address,",
+        "label,",
+        "if (result.gate_write_performed)",
+    ):
+        assert token in block
+
+    for forbidden in (
+        "currency:",
+        "chain:",
+        "memo:",
+        "destination_id:",
+        "GateClient",
+        "DELETE",
+    ):
+        assert forbidden not in block
+
+
+def test_withdraw_recipient_manager_rename_never_edits_address():
+    block = _stage4_js_function_block(
+        "mutateTreasuryWithdrawalRecipientFromManager"
+    )
+
+    assert (
+        "action === 'rename'"
+        in block
+    )
+
+    assert (
+        "method = 'PATCH';"
+        in block
+    )
+
+    assert (
+        "body = {\n"
+        "      label:"
+        in block
+    )
+
+    assert (
+        "address:"
+        not in block
+    )
+
+    assert (
+        "if (result.gate_write_performed)"
+        in block
+    )
+
+    dialog_start = HTML.index(
+        'id="treasuryWithdrawalRecipientDialog"'
+    )
+
+    dialog = " ".join(
+        HTML[
+            dialog_start:
+        ].split()
+    )
+
+    assert (
+        "Addresses cannot be edited in place."
+        in dialog
+    )
+
+
+def test_withdraw_recipient_manager_archive_restore_are_local_and_have_no_delete():
+    block = _stage4_js_function_block(
+        "mutateTreasuryWithdrawalRecipientFromManager"
+    )
+
+    for token in (
+        "action === 'archive'",
+        "action === 'restore'",
+        "method = 'POST';",
+        "reason: '',",
+        "if (result.gate_write_performed)",
+    ):
+        assert token in block
+
+    assert "DELETE" not in block
+
+    render = _stage4_js_function_block(
+        "renderTreasuryWithdrawalRecipientManager"
+    )
+
+    assert "'restore'" in render
+    assert "'archive'" in render
+    assert "Archived" in render
+    assert "Active" in render
+
+
+def test_withdraw_recipient_manager_refreshes_dropdown_and_closes_with_session():
+    create = _stage4_js_function_block(
+        "createTreasuryWithdrawalRecipientFromManager"
+    )
+
+    mutate = _stage4_js_function_block(
+        "mutateTreasuryWithdrawalRecipientFromManager"
+    )
+
+    for block in (
+        create,
+        mutate,
+    ):
+        assert (
+            "loadTreasuryWithdrawalRecipientManager({"
+            in block
+        )
+
+        assert (
+            "loadTreasuryOverview({"
+            in block
+        )
+
+    clear = _stage4_js_function_block(
+        "clearTreasurySession"
+    )
+
+    assert (
+        "'#treasuryWithdrawalRecipientDialog'"
+        in clear
+    )
+
+    assert (
+        "recipientDialog.close();"
+        in clear
+    )
+
+
+def test_withdraw_recipient_manager_css_is_compact_and_responsive():
+    marker = (
+        "/* 3J26 Withdrawal recipient manager v1 */"
+    )
+
+    assert marker in CSS
+
+    block = CSS[
+        CSS.index(marker):
+    ]
+
+    for token in (
+        ".treasury-withdrawal-recipient-dialog[open]",
+        ".treasury-recipient-safety-note",
+        ".treasury-recipient-card",
+        ".treasury-recipient-status.active",
+        ".treasury-recipient-status.archived",
+        ".treasury-recipient-actions",
+        "@media (max-width: 620px)",
+    ):
+        assert token in block
+
+def test_treasury_withdrawal_css_uses_defined_theme_tokens():
+    for invalid in (
+        "var(--text-muted)",
+        "var(--success)",
+        "var(--danger)",
+    ):
+        assert invalid not in CSS
+
+    for canonical in (
+        "var(--muted)",
+        "var(--positive)",
+        "var(--negative)",
+    ):
+        assert canonical in CSS

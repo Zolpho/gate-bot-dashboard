@@ -418,6 +418,14 @@ function clearTreasurySession() {
   if (withdrawalRequestDialog?.open) {
     withdrawalRequestDialog.close();
   }
+
+  const recipientDialog = $(
+    '#treasuryWithdrawalRecipientDialog'
+  );
+
+  if (recipientDialog?.open) {
+    recipientDialog.close();
+  }
 }
 
 
@@ -6503,6 +6511,640 @@ function clearTreasuryWithdrawalPreflight() {
 }
 
 
+function setTreasuryWithdrawalRecipientManagerError(
+  message = ''
+) {
+  const box = $(
+    '#treasuryWithdrawalRecipientManagerError'
+  );
+
+  if (!box) return;
+
+  const text = String(
+    message || ''
+  );
+
+  box.textContent = text;
+
+  box.classList.toggle(
+    'hidden',
+    !text
+  );
+}
+
+
+function renderTreasuryWithdrawalRecipientManager(
+  items = []
+) {
+  const list = $(
+    '#treasuryWithdrawalRecipientManagerList'
+  );
+
+  const summary = $(
+    '#treasuryWithdrawalRecipientManagerSummary'
+  );
+
+  if (!list) return;
+
+  const recipients = (
+    Array.isArray(items)
+      ? items
+      : []
+  );
+
+  const activeCount = recipients.filter(
+    item => String(
+      item.status || ''
+    ).toLowerCase() === 'active'
+  ).length;
+
+  const archivedCount = recipients.filter(
+    item => String(
+      item.status || ''
+    ).toLowerCase() === 'archived'
+  ).length;
+
+  if (summary) {
+    summary.textContent = (
+      `${activeCount} active · `
+      + `${archivedCount} archived`
+    );
+  }
+
+  if (!recipients.length) {
+    list.innerHTML = (
+      '<div class="treasury-recipient-empty">'
+      + 'No saved withdrawal recipients '
+      + 'for this account.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  list.innerHTML = recipients.map(
+    item => {
+      const recipientId = String(
+        item.recipient_id || ''
+      );
+
+      const address = String(
+        item.address || ''
+      );
+
+      const label = String(
+        item.label || ''
+      );
+
+      const status = String(
+        item.status || ''
+      ).toLowerCase();
+
+      const archived = (
+        status === 'archived'
+      );
+
+      const statusLabel = (
+        archived
+          ? 'Archived'
+          : 'Active'
+      );
+
+      const stateAction = (
+        archived
+          ? 'restore'
+          : 'archive'
+      );
+
+      const stateLabel = (
+        archived
+          ? 'Restore'
+          : 'Archive'
+      );
+
+      return (
+        '<article '
+        + 'class="treasury-recipient-card" '
+        + `data-treasury-recipient-row="${
+          escapeHtml(recipientId)
+        }">`
+        + '<div class="treasury-recipient-card-head">'
+        + '<div>'
+        + '<span class="treasury-recipient-address-label">'
+        + 'Address'
+        + '</span>'
+        + `<code>${
+          escapeHtml(address)
+        }</code>`
+        + '</div>'
+        + `<span class="treasury-recipient-status ${
+          archived
+            ? 'archived'
+            : 'active'
+        }">${
+          escapeHtml(statusLabel)
+        }</span>`
+        + '</div>'
+        + '<label class="treasury-recipient-description">'
+        + '<span>Description</span>'
+        + '<input '
+        + 'type="text" '
+        + 'maxlength="128" '
+        + 'autocomplete="off" '
+        + 'data-treasury-recipient-label '
+        + `value="${escapeHtml(label)}" `
+        + 'placeholder="Optional description">'
+        + '</label>'
+        + '<div class="treasury-recipient-actions">'
+        + '<button '
+        + 'type="button" '
+        + 'class="button secondary" '
+        + 'data-treasury-withdrawal-recipient-action="rename" '
+        + `data-treasury-withdrawal-recipient-id="${
+          escapeHtml(recipientId)
+        }">Save description</button>`
+        + '<button '
+        + 'type="button" '
+        + 'class="button secondary" '
+        + `data-treasury-withdrawal-recipient-action="${
+          stateAction
+        }" `
+        + `data-treasury-withdrawal-recipient-id="${
+          escapeHtml(recipientId)
+        }">${
+          stateLabel
+        }</button>`
+        + '</div>'
+        + '</article>'
+      );
+    }
+  ).join('');
+}
+
+
+async function loadTreasuryWithdrawalRecipientManager(
+  {
+    quiet = false,
+  } = {}
+) {
+  const owner = (
+    treasuryWithdrawalPreparationOwner()
+  );
+
+  const list = $(
+    '#treasuryWithdrawalRecipientManagerList'
+  );
+
+  if (!owner) {
+    renderTreasuryWithdrawalRecipientManager(
+      []
+    );
+
+    setTreasuryWithdrawalRecipientManagerError(
+      'Select one account before managing recipients.'
+    );
+
+    return;
+  }
+
+  if (list) {
+    list.innerHTML = (
+      '<div class="treasury-recipient-empty">'
+      + 'Loading saved recipients…'
+      + '</div>'
+    );
+  }
+
+  setTreasuryWithdrawalRecipientManagerError(
+    ''
+  );
+
+  try {
+    const result = await adminApi(
+      withParams(
+        '/api/treasury/withdrawals/recipients',
+        {
+          owner_account_id: owner,
+          limit: 500,
+        },
+      ),
+    );
+
+    if (result.gate_write_performed) {
+      throw new Error(
+        'Safety invariant failed: recipient '
+        + 'lookup reported a Gate write.'
+      );
+    }
+
+    if (
+      treasuryWithdrawalPreparationOwner()
+      !== owner
+    ) {
+      return;
+    }
+
+    renderTreasuryWithdrawalRecipientManager(
+      result.items || []
+    );
+
+  } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
+    const message = treasuryErrorMessage(
+      error
+    );
+
+    setTreasuryWithdrawalRecipientManagerError(
+      message
+    );
+
+    if (!quiet) {
+      showToast(
+        message,
+        true,
+      );
+    }
+  }
+}
+
+
+async function openTreasuryWithdrawalRecipientManager() {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    openAdminDialog();
+    return;
+  }
+
+  const owner = (
+    treasuryWithdrawalPreparationOwner()
+  );
+
+  if (!owner) {
+    showToast(
+      'Select one of your assigned accounts first.',
+      true,
+    );
+
+    return;
+  }
+
+  const ownerElement = $(
+    '#treasuryWithdrawalRecipientManagerOwner'
+  );
+
+  if (ownerElement) {
+    ownerElement.textContent = (
+      `Managing recipients for ${owner}`
+    );
+  }
+
+  const form = $(
+    '#treasuryWithdrawalRecipientCreateForm'
+  );
+
+  form?.reset();
+
+  setTreasuryWithdrawalRecipientManagerError(
+    ''
+  );
+
+  const dialog = $(
+    '#treasuryWithdrawalRecipientDialog'
+  );
+
+  if (
+    dialog
+    && !dialog.open
+  ) {
+    dialog.showModal();
+  }
+
+  await loadTreasuryWithdrawalRecipientManager();
+
+  setTimeout(
+    () => $(
+      '#treasuryWithdrawalRecipientDescription'
+    )?.focus(),
+    0,
+  );
+}
+
+
+function closeTreasuryWithdrawalRecipientManager() {
+  const dialog = $(
+    '#treasuryWithdrawalRecipientDialog'
+  );
+
+  if (dialog?.open) {
+    dialog.close();
+  }
+}
+
+
+async function createTreasuryWithdrawalRecipientFromManager(
+  event
+) {
+  event.preventDefault();
+
+  const owner = (
+    treasuryWithdrawalPreparationOwner()
+  );
+
+  if (!owner) {
+    return;
+  }
+
+  const formElement = event.currentTarget;
+
+  const form = new FormData(
+    formElement
+  );
+
+  const label = String(
+    form.get('label') || ''
+  ).trim();
+
+  const address = String(
+    form.get('address') || ''
+  ).trim();
+
+  const button = $(
+    '#createTreasuryWithdrawalRecipient'
+  );
+
+  if (!address) {
+    return;
+  }
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Saving…';
+  }
+
+  setTreasuryWithdrawalRecipientManagerError(
+    ''
+  );
+
+  let result;
+
+  try {
+    result = await adminApi(
+      '/api/treasury/withdrawals/recipients',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          owner_account_id: owner,
+          address,
+          label,
+        }),
+      },
+    );
+
+    if (result.gate_write_performed) {
+      throw new Error(
+        'Safety invariant failed: saving a '
+        + 'recipient reported a Gate write.'
+      );
+    }
+
+  } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
+    const message = treasuryErrorMessage(
+      error
+    );
+
+    setTreasuryWithdrawalRecipientManagerError(
+      message
+    );
+
+    showToast(
+      message,
+      true,
+    );
+
+    return;
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Add recipient';
+    }
+  }
+
+  if (
+    treasuryWithdrawalPreparationOwner()
+    !== owner
+  ) {
+    return;
+  }
+
+  formElement.reset();
+
+  showToast(
+    result.created
+      ? 'Withdrawal recipient saved.'
+      : 'Withdrawal recipient already exists.'
+  );
+
+  await loadTreasuryWithdrawalRecipientManager({
+    quiet: true,
+  });
+
+  await loadTreasuryOverview({
+    quiet: true,
+  });
+}
+
+
+async function mutateTreasuryWithdrawalRecipientFromManager(
+  button
+) {
+  const recipientId = String(
+    button?.dataset
+      ?.treasuryWithdrawalRecipientId
+    || ''
+  );
+
+  const action = String(
+    button?.dataset
+      ?.treasuryWithdrawalRecipientAction
+    || ''
+  );
+
+  if (
+    !recipientId
+    || !action
+  ) {
+    return;
+  }
+
+  const row = button.closest(
+    '[data-treasury-recipient-row]'
+  );
+
+  let path;
+  let method;
+  let body;
+  let progressText;
+  let successText;
+
+  if (action === 'rename') {
+    const input = row?.querySelector(
+      '[data-treasury-recipient-label]'
+    );
+
+    path = (
+      '/api/treasury/withdrawals/recipients/'
+      + encodeURIComponent(
+        recipientId
+      )
+    );
+
+    method = 'PATCH';
+
+    body = {
+      label: String(
+        input?.value || ''
+      ).trim(),
+    };
+
+    progressText = 'Saving…';
+    successText = (
+      'Recipient description saved.'
+    );
+
+  } else if (
+    action === 'archive'
+    || action === 'restore'
+  ) {
+    path = (
+      '/api/treasury/withdrawals/recipients/'
+      + encodeURIComponent(
+        recipientId
+      )
+      + `/${action}`
+    );
+
+    method = 'POST';
+
+    body = {
+      reason: '',
+    };
+
+    progressText = (
+      action === 'archive'
+        ? 'Archiving…'
+        : 'Restoring…'
+    );
+
+    successText = (
+      action === 'archive'
+        ? 'Withdrawal recipient archived.'
+        : 'Withdrawal recipient restored.'
+    );
+
+  } else {
+    return;
+  }
+
+  const originalText = (
+    button.textContent
+  );
+
+  button.disabled = true;
+  button.textContent = progressText;
+
+  setTreasuryWithdrawalRecipientManagerError(
+    ''
+  );
+
+  try {
+    const result = await adminApi(
+      path,
+      {
+        method,
+        body: JSON.stringify(
+          body
+        ),
+      },
+    );
+
+    if (result.gate_write_performed) {
+      throw new Error(
+        'Safety invariant failed: recipient '
+        + 'management reported a Gate write.'
+      );
+    }
+
+    showToast(
+      successText
+    );
+
+    await loadTreasuryWithdrawalRecipientManager({
+      quiet: true,
+    });
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+
+  } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
+    const message = treasuryErrorMessage(
+      error
+    );
+
+    setTreasuryWithdrawalRecipientManagerError(
+      message
+    );
+
+    showToast(
+      message,
+      true,
+    );
+
+  } finally {
+    if (
+      button
+      && document.body.contains(
+        button
+      )
+    ) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+
+function handleTreasuryWithdrawalRecipientManagerClick(
+  event
+) {
+  const button = event.target.closest(
+    '[data-treasury-withdrawal-recipient-action]'
+  );
+
+  if (!button) {
+    return;
+  }
+
+  mutateTreasuryWithdrawalRecipientFromManager(
+    button
+  );
+}
+
+
 function treasuryWithdrawalPreparationOwner() {
   return privateBalanceTargetAccount();
 }
@@ -6719,6 +7361,10 @@ function renderTreasuryWithdrawalRoutePreparation() {
 
   const resetButton = $(
     '#resetTreasuryWithdrawalRoute'
+  );
+
+  const manageRecipientsButton = $(
+    '#manageTreasuryWithdrawalRecipients'
   );
 
   if (
@@ -7036,6 +7682,13 @@ function renderTreasuryWithdrawalRoutePreparation() {
         state.treasuryWithdrawalRouteMessage
         && !state.treasuryWithdrawalRouteMessageError
       )
+    );
+  }
+
+  if (manageRecipientsButton) {
+    manageRecipientsButton.disabled = Boolean(
+      !owner
+      || state.treasuryWithdrawalRoutePreparing
     );
   }
 
@@ -15343,6 +15996,43 @@ function bindEvents() {
   $('#refreshTreasury')?.addEventListener(
     'click',
     () => loadTreasuryOverview(),
+  );
+
+  $('#manageTreasuryWithdrawalRecipients')?.addEventListener(
+    'click',
+    openTreasuryWithdrawalRecipientManager,
+  );
+
+  $('#closeTreasuryWithdrawalRecipientDialog')?.addEventListener(
+    'click',
+    closeTreasuryWithdrawalRecipientManager,
+  );
+
+  $('#cancelTreasuryWithdrawalRecipientManager')?.addEventListener(
+    'click',
+    closeTreasuryWithdrawalRecipientManager,
+  );
+
+  $('#treasuryWithdrawalRecipientDialog')?.addEventListener(
+    'click',
+    event => {
+      if (
+        event.target
+        === $('#treasuryWithdrawalRecipientDialog')
+      ) {
+        closeTreasuryWithdrawalRecipientManager();
+      }
+    },
+  );
+
+  $('#treasuryWithdrawalRecipientCreateForm')?.addEventListener(
+    'submit',
+    createTreasuryWithdrawalRecipientFromManager,
+  );
+
+  $('#treasuryWithdrawalRecipientManagerList')?.addEventListener(
+    'click',
+    handleTreasuryWithdrawalRecipientManagerClick,
   );
 
   $('#treasuryWithdrawalAsset')?.addEventListener(
