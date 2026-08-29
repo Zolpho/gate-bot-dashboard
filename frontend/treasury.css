@@ -4426,3 +4426,41 @@ input {
 
 
 /* End 3J39 Withdrawal clarity polish v1 */
+
+
+/* 3J39 Withdrawal route auto-match safety v1 */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-status.warning {
+  color:
+    rgba(247, 200, 102, .96);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+#treasuryWithdrawalDestination:disabled {
+  opacity: 1;
+
+  color: var(--text);
+
+  cursor: default;
+
+  -webkit-text-fill-color:
+    var(--text);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+#prepareTreasuryWithdrawalDestination:not(.hidden) {
+  border-color:
+    rgba(245, 183, 65, .24);
+
+  background:
+    rgba(245, 183, 65, .045);
+}
+
+
+/* End 3J39 Withdrawal route auto-match safety v1 */

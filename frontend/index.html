@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css">
-  <link rel="stylesheet" href="./treasury.css?v=20260829-withdraw-clarity-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260829-withdraw-route-ux-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -1007,7 +1007,7 @@
 
                   <div>
                     <strong>Amount &amp; safety</strong>
-                    <small>Review funding and run preflight</small>
+                    <small>Review amount, fee and run preflight</small>
                   </div>
                 </div>
 
@@ -1027,7 +1027,7 @@
             >
               <div class="treasury-withdrawal-route-head">
                 <div>
-                  <strong>Prepare destination</strong>
+                  <strong>Withdrawal destination</strong>
                   <span>
                     Asset → network → saved recipient
                   </span>
@@ -1115,11 +1115,11 @@
 
                   <button
                     type="button"
-                    class="button secondary"
+                    class="button secondary hidden"
                     id="prepareTreasuryWithdrawalDestination"
                     disabled
                   >
-                    Prepare destination
+                    Request destination approval
                   </button>
                 </div>
               </div>
@@ -1147,7 +1147,7 @@
               class="treasury-withdrawal-form"
             >
               <label class="treasury-withdrawal-destination-field">
-                Approved destination
+                Selected withdrawal destination
 
                 <select
                   id="treasuryWithdrawalDestination"
@@ -1168,12 +1168,9 @@
 
               <div
                 id="treasuryWithdrawalPreflightContext"
-                class="treasury-withdrawal-preflight-context"
+                class="treasury-withdrawal-preflight-context hidden"
                 aria-live="polite"
-              >
-                <span>Preflight uses:</span>
-                <strong>Select an approved destination</strong>
-              </div>
+              ></div>
 
               <div class="treasury-withdrawal-execution-row">
                 <label class="treasury-withdrawal-amount-field">
@@ -2709,7 +2706,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260829-withdraw-clarity-v1"
+    src="./app.js?v=20260829-withdraw-route-ux-v1"
     defer
   ></script>
   <script

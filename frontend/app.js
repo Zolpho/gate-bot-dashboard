@@ -8130,18 +8130,31 @@ function treasurySelectedWithdrawalRecipient() {
 }
 
 
-function updateTreasuryWithdrawalRoutePrepareButton() {
-  const button = $(
-    '#prepareTreasuryWithdrawalDestination'
-  );
+function treasuryWithdrawalAddressMatchKey(value) {
+  const address = String(
+    value || ''
+  ).trim();
 
-  if (!button) return;
+  /*
+   * EVM address identity is case-insensitive.
+   * Preserve exact identity for non-EVM addresses.
+   */
+  if (
+    /^0x[0-9a-f]{40}$/i.test(address)
+  ) {
+    return address.toLowerCase();
+  }
 
+  return address;
+}
+
+
+function treasuryWithdrawalVisibleRoute() {
   const owner = treasuryWithdrawalPreparationOwner();
 
-  const asset = String(
+  const currency = String(
     state.treasuryWithdrawalAsset || ''
-  );
+  ).toUpperCase();
 
   const network = (
     treasurySelectedWithdrawalNetwork()
@@ -8160,22 +8173,233 @@ function updateTreasuryWithdrawalRoutePrepareButton() {
     network?.requires_memo
   );
 
-  button.disabled = Boolean(
-    state.treasuryWithdrawalRoutePreparing
-    || !owner
-    || !asset
-    || !network
-    || !recipient
-    || (
-      requiresMemo
-      && !memo
+  const recipientId = String(
+    recipient?.recipient_id || ''
+  );
+
+  const address = String(
+    recipient?.address || ''
+  ).trim();
+
+  const chain = String(
+    network?.chain || ''
+  ).trim();
+
+  return {
+    owner,
+    currency,
+    chain,
+    recipientId,
+    address,
+    memo,
+    requiresMemo,
+    complete: Boolean(
+      owner
+      && currency
+      && network
+      && recipient
+      && recipientId
+      && address
+      && chain
+      && (
+        !requiresMemo
+        || memo
+      )
+    ),
+  };
+}
+
+
+function treasuryWithdrawalDestinationMatchesRoute(
+  destination,
+  route,
+) {
+  if (
+    !destination
+    || !route?.complete
+  ) {
+    return false;
+  }
+
+  const destinationRecipientId = String(
+    destination.recipient_id || ''
+  );
+
+  /*
+   * Current destinations carry recipient_id.
+   * Legacy approved rows may not, so immutable route identity
+   * remains a valid compatibility match for those rows.
+   */
+  const recipientMatches = (
+    destinationRecipientId
+      ? (
+          destinationRecipientId
+          === route.recipientId
+        )
+      : true
+  );
+
+  return Boolean(
+    String(
+      destination.status || ''
+    ).toLowerCase() === 'approved'
+
+    && String(
+      destination.owner_account_id || ''
+    ) === route.owner
+
+    && String(
+      destination.currency || ''
+    ).toUpperCase() === route.currency
+
+    && String(
+      destination.chain || ''
+    ).trim().toUpperCase()
+      === route.chain.toUpperCase()
+
+    && treasuryWithdrawalAddressMatchKey(
+      destination.address
+    ) === treasuryWithdrawalAddressMatchKey(
+      route.address
     )
+
+    && String(
+      destination.memo || ''
+    ).trim() === route.memo
+
+    && recipientMatches
+  );
+}
+
+
+function treasuryWithdrawalRouteResolution() {
+  const route = treasuryWithdrawalVisibleRoute();
+
+  if (!route.complete) {
+    return {
+      status: 'incomplete',
+      route,
+      matches: [],
+      destination: null,
+    };
+  }
+
+  const matches = (
+    treasuryApprovedWithdrawalDestinations()
+      .filter(
+        destination => (
+          treasuryWithdrawalDestinationMatchesRoute(
+            destination,
+            route,
+          )
+        )
+      )
+  );
+
+  return {
+    status: (
+      matches.length === 1
+        ? 'matched'
+        : (
+            matches.length === 0
+              ? 'missing'
+              : 'ambiguous'
+          )
+    ),
+    route,
+    matches,
+    destination: (
+      matches.length === 1
+        ? matches[0]
+        : null
+    ),
+  };
+}
+
+
+function syncTreasuryWithdrawalDestinationToRoute() {
+  const select = $(
+    '#treasuryWithdrawalDestination'
+  );
+
+  const resolution = (
+    treasuryWithdrawalRouteResolution()
+  );
+
+  if (select) {
+    select.value = String(
+      resolution.destination?.destination_id
+      || ''
+    );
+  }
+
+  return resolution;
+}
+
+
+function treasuryWithdrawalRouteReadyForPreflight() {
+  const resolution = (
+    treasuryWithdrawalRouteResolution()
+  );
+
+  const selected = (
+    treasurySelectedWithdrawalDestination()
+  );
+
+  return Boolean(
+    resolution.status === 'matched'
+    && resolution.destination
+    && selected
+    && String(
+      resolution.destination.destination_id
+      || ''
+    ) === String(
+      selected.destination_id || ''
+    )
+  );
+}
+
+
+function updateTreasuryWithdrawalRoutePrepareButton() {
+  const button = $(
+    '#prepareTreasuryWithdrawalDestination'
+  );
+
+  if (!button) return;
+
+  const resolution = (
+    treasuryWithdrawalRouteResolution()
+  );
+
+  const approvalAlreadyRequested = Boolean(
+    resolution.status === 'missing'
+    && state.treasuryWithdrawalRouteMessage
+    && !state.treasuryWithdrawalRouteMessageError
+  );
+
+  const showRequestAction = (
+    resolution.status === 'missing'
+  );
+
+  button.classList.toggle(
+    'hidden',
+    !showRequestAction,
+  );
+
+  button.disabled = Boolean(
+    !showRequestAction
+    || state.treasuryWithdrawalRoutePreparing
+    || approvalAlreadyRequested
   );
 
   button.textContent = (
     state.treasuryWithdrawalRoutePreparing
-      ? 'Preparing…'
-      : 'Prepare destination'
+      ? 'Requesting approval…'
+      : (
+          approvalAlreadyRequested
+            ? 'Approval requested'
+            : 'Request destination approval'
+        )
   );
 }
 
@@ -8488,6 +8712,13 @@ function renderTreasuryWithdrawalRoutePreparation() {
     );
   }
 
+  const routeResolution = (
+
+    syncTreasuryWithdrawalDestinationToRoute()
+
+  );
+
+
   if (status) {
     let message = String(
       state.treasuryWithdrawalRouteMessage
@@ -8513,6 +8744,29 @@ function renderTreasuryWithdrawalRoutePreparation() {
           + 'are saved for this account.'
         );
 
+      } else if (
+        routeResolution.status === 'matched'
+      ) {
+        message = (
+          'Approved destination matched automatically.'
+        );
+
+      } else if (
+        routeResolution.status === 'missing'
+      ) {
+        message = (
+          'No approved withdrawal destination matches '
+          + 'this route. Request approval before preflight.'
+        );
+
+      } else if (
+        routeResolution.status === 'ambiguous'
+      ) {
+        message = (
+          'Multiple approved destinations match this '
+          + 'route. Administrator review is required.'
+        );
+
       } else {
         message = (
           'Select an asset, network and saved '
@@ -8531,10 +8785,21 @@ function renderTreasuryWithdrawalRoutePreparation() {
     );
 
     status.classList.toggle(
+      'warning',
+      Boolean(
+        !state.treasuryWithdrawalRouteMessageError
+        && (
+          routeResolution.status === 'missing'
+          || routeResolution.status === 'ambiguous'
+        )
+      )
+    );
+
+    status.classList.toggle(
       'success',
       Boolean(
-        state.treasuryWithdrawalRouteMessage
-        && !state.treasuryWithdrawalRouteMessageError
+        !state.treasuryWithdrawalRouteMessageError
+        && routeResolution.status === 'matched'
       )
     );
   }
@@ -8553,7 +8818,7 @@ function renderTreasuryWithdrawalRoutePreparation() {
   }
 
   updateTreasuryWithdrawalRoutePrepareButton();
-  renderTreasuryWithdrawalFundingSummary();
+  renderTreasuryWithdrawalDestinations();
 }
 
 
@@ -8756,18 +9021,7 @@ function changeTreasuryWithdrawalMemo() {
   state.treasuryWithdrawalRouteMessage = '';
   state.treasuryWithdrawalRouteMessageError = false;
 
-  updateTreasuryWithdrawalRoutePrepareButton();
-
-  const status = $(
-    '#treasuryWithdrawalRouteStatus'
-  );
-
-  if (
-    status
-    && status.classList.contains('error')
-  ) {
-    renderTreasuryWithdrawalRoutePreparation();
-  }
+  renderTreasuryWithdrawalRoutePreparation();
 }
 
 
@@ -8840,6 +9094,46 @@ async function prepareTreasuryWithdrawalRecipientDestination() {
   );
 
   if (!recipientId) return;
+
+  const routeResolution = (
+    treasuryWithdrawalRouteResolution()
+  );
+
+  if (
+    routeResolution.status === 'matched'
+  ) {
+    syncTreasuryWithdrawalDestinationToRoute();
+
+    state.treasuryWithdrawalRouteMessage = (
+      'Approved destination matched automatically.'
+    );
+
+    state.treasuryWithdrawalRouteMessageError = false;
+
+    renderTreasuryWithdrawalRoutePreparation();
+    return;
+  }
+
+  if (
+    routeResolution.status !== 'missing'
+  ) {
+    state.treasuryWithdrawalRouteMessage = (
+      routeResolution.status === 'ambiguous'
+        ? (
+            'Multiple approved destinations match this '
+            + 'route. Administrator review is required.'
+          )
+        : (
+            'Complete the withdrawal route before '
+            + 'requesting destination approval.'
+          )
+    );
+
+    state.treasuryWithdrawalRouteMessageError = true;
+
+    renderTreasuryWithdrawalRoutePreparation();
+    return;
+  }
 
   state.treasuryWithdrawalRoutePreparing = true;
   state.treasuryWithdrawalRouteMessage = '';
@@ -8967,6 +9261,7 @@ function renderTreasuryWithdrawalDestinations() {
   const action = $('#treasuryWithdrawalAction');
   const unavailable = $('#treasuryWithdrawalUnavailable');
   const amount = $('#treasuryWithdrawalAmount');
+
   const preflightButton = $(
     '#treasuryWithdrawalPreflightButton'
   );
@@ -8999,16 +9294,6 @@ function renderTreasuryWithdrawalDestinations() {
     rows.length > 0
   );
 
-  if (amount) {
-    amount.disabled = !rows.length;
-  }
-
-  if (preflightButton) {
-    preflightButton.disabled = !rows.length;
-  }
-
-  const previous = select.value;
-
   if (!rows.length) {
     select.innerHTML = (
       '<option value="">'
@@ -9016,46 +9301,59 @@ function renderTreasuryWithdrawalDestinations() {
       + '</option>'
     );
 
-    select.disabled = true;
-
   } else {
-    select.disabled = false;
+    select.innerHTML = (
+      '<option value="">'
+      + 'Complete the route above'
+      + '</option>'
+      + rows.map(item => {
+        const destinationId = String(
+          item.destination_id || ''
+        );
 
-    select.innerHTML = rows.map(item => {
-      const destinationId = String(
-        item.destination_id || ''
-      );
+        const label = String(
+          item.label
+          || shortTreasuryGateId(item.address)
+          || destinationId
+        );
 
-      const label = String(
-        item.label
-        || shortTreasuryGateId(item.address)
-        || destinationId
-      );
+        const optionText = [
+          item.owner_account_id || '—',
+          item.currency || '—',
+          item.chain || '—',
+          label,
+        ].join(' · ');
 
-      const text = [
-        item.owner_account_id || '—',
-        item.currency || '—',
-        item.chain || '—',
-        label,
-      ].join(' · ');
-
-      return (
-        `<option value="${escapeHtml(destinationId)}">`
-        + `${escapeHtml(text)}`
-        + '</option>'
-      );
-    }).join('');
-
-    const availableIds = rows.map(
-      item => String(item.destination_id || '')
+        return (
+          `<option value="${escapeHtml(destinationId)}">`
+          + `${escapeHtml(optionText)}`
+          + '</option>'
+        );
+      }).join('')
     );
+  }
 
-    if (
-      previous
-      && availableIds.includes(previous)
-    ) {
-      select.value = previous;
-    }
+  /*
+   * The visible Asset / Network / Recipient / Memo route
+   * is authoritative. This selector remains only as a
+   * display surface for existing lifecycle/render code.
+   */
+  select.disabled = true;
+
+  const resolution = (
+    syncTreasuryWithdrawalDestinationToRoute()
+  );
+
+  const ready = (
+    resolution.status === 'matched'
+  );
+
+  if (amount) {
+    amount.disabled = !ready;
+  }
+
+  if (preflightButton) {
+    preflightButton.disabled = !ready;
   }
 
   const count = $('#treasuryWithdrawalDestinationCount');
@@ -9072,6 +9370,25 @@ function renderTreasuryWithdrawalDestinations() {
 }
 
 
+function treasuryWithdrawalDisplayNetworkName(
+  value,
+  fallback = '',
+) {
+  const name = String(
+    value
+    || fallback
+    || ''
+  ).trim();
+
+  if (!name) return '—';
+
+  return name.replace(
+    /([^\s])\(/g,
+    '$1 (',
+  );
+}
+
+
 function renderTreasuryWithdrawalDestinationSummary() {
   const element = $(
     '#treasuryWithdrawalDestinationSummary'
@@ -9083,38 +9400,43 @@ function renderTreasuryWithdrawalDestinationSummary() {
 
   if (!element) return;
 
+  if (context) {
+    context.innerHTML = '';
+    context.classList.add('hidden');
+  }
+
   const item = treasurySelectedWithdrawalDestination();
 
   if (!item) {
     element.innerHTML = (
       '<div class="treasury-empty">'
-      + 'Select an approved destination.'
+      + 'Complete the route above to match '
+      + 'an approved destination.'
       + '</div>'
     );
 
-    if (context) {
-      context.innerHTML = (
-        '<span>Preflight uses:</span>'
-        + '<strong>Select an approved destination</strong>'
-      );
-    }
-
     renderTreasuryWithdrawalFundingSummary();
-
     return;
   }
 
-  const address = String(item.address || '');
+  const address = String(
+    item.address || ''
+  );
 
-  const selectedOptionText = String(
-    $('#treasuryWithdrawalDestination')
-      ?.selectedOptions?.[0]?.textContent
-    || ''
-  ).trim();
+  const selectedNetwork = (
+    treasurySelectedWithdrawalNetwork()
+  );
+
+  const networkName = (
+    treasuryWithdrawalDisplayNetworkName(
+      selectedNetwork?.name,
+      item.chain,
+    )
+  );
 
   element.innerHTML = (
     '<div class="treasury-withdrawal-summary-field">'
-    + '<span>Economic owner</span>'
+    + '<span>Account</span>'
     + `<strong>${escapeHtml(
         item.owner_account_id || '—'
       )}</strong>`
@@ -9130,7 +9452,7 @@ function renderTreasuryWithdrawalDestinationSummary() {
     + '<div class="treasury-withdrawal-summary-field">'
     + '<span>Network</span>'
     + `<strong>${escapeHtml(
-        item.chain || '—'
+        networkName
       )}</strong>`
     + '</div>'
 
@@ -9151,21 +9473,6 @@ function renderTreasuryWithdrawalDestinationSummary() {
     + '</div>'
   );
 
-  if (context) {
-    context.innerHTML = (
-      '<span>Preflight uses:</span>'
-      + `<strong>${escapeHtml(
-          selectedOptionText
-          || [
-            item.owner_account_id,
-            item.currency,
-            item.chain,
-          ].filter(Boolean).join(' · ')
-          || 'Selected approved destination'
-        )}</strong>`
-    );
-  }
-
   renderTreasuryWithdrawalFundingSummary();
 }
 
@@ -9184,7 +9491,8 @@ function renderTreasuryWithdrawalFundingSummary() {
   if (!destination) {
     element.innerHTML = (
       '<div class="treasury-withdrawal-funding-summary-empty">'
-      + 'Select an approved destination to review funding.'
+      + 'Complete the route above to review '
+      + 'withdrawal details.'
       + '</div>'
     );
 
@@ -9217,10 +9525,10 @@ function renderTreasuryWithdrawalFundingSummary() {
   if (!capabilities) {
     element.innerHTML = (
       '<div class="treasury-withdrawal-funding-summary-empty">'
-      + '<strong>Funding snapshot</strong>'
+      + '<strong>Withdrawal details</strong>'
       + '<span>'
-      + 'Select this asset above to load live balance, '
-      + 'funding and network-fee data.'
+      + 'Select this asset above to load current '
+      + 'availability, fee and minimum.'
       + '</span>'
       + '</div>'
     );
@@ -9248,17 +9556,7 @@ function renderTreasuryWithdrawalFundingSummary() {
     || null
   );
 
-  const sourceAvailable = treasuryAmount(
-    availability.source_spot_available,
-    currency,
-  );
-
-  const mainHeld = treasuryAmount(
-    availability.owner_liquid_main_held,
-    currency,
-  );
-
-  const fundingAvailable = treasuryAmount(
+  const availableToWithdraw = treasuryAmount(
     availability.withdrawal_funding_available,
     currency,
   );
@@ -9268,24 +9566,19 @@ function renderTreasuryWithdrawalFundingSummary() {
     currency,
   );
 
-  let networkName = String(
-    network?.name
-    || chain
-    || '—'
+  const networkName = (
+    treasuryWithdrawalDisplayNetworkName(
+      network?.name,
+      chain,
+    )
   );
-
-  if (
-    networkName
-    && chain
-    && networkName !== chain
-  ) {
-    networkName = `${networkName} · ${chain}`;
-  }
 
   const fixedFee = (
     network?.fixed_fee === undefined
     || network?.fixed_fee === null
-    || String(network.fixed_fee).trim() === ''
+    || String(
+      network.fixed_fee
+    ).trim() === ''
       ? '—'
       : treasuryAmount(
           network.fixed_fee,
@@ -9308,65 +9601,41 @@ function renderTreasuryWithdrawalFundingSummary() {
         )
   );
 
-  const model = String(
-    availability.model || ''
-  );
-
-  const modelExplanation = (
-    model
-      === 'owner_subaccount_available_plus_owner_main_held'
-      ? (
-          'Funding available = owner spot balance '
-          + '+ liquid ownership already held in main custody.'
-        )
-      : (
-          'Funding available reflects spendable custody '
-          + 'after ownership liabilities.'
-        )
-  );
-
   element.innerHTML = (
     '<div class="treasury-withdrawal-funding-summary-head">'
-    + '<strong>Funding snapshot</strong>'
-    + '<span>Live read-only capability data</span>'
+    + '<strong>Withdrawal details</strong>'
     + '</div>'
 
     + '<div class="treasury-withdrawal-funding-summary-grid">'
 
-    + '<div>'
-    + '<span>Source spot</span>'
-    + `<strong>${escapeHtml(sourceAvailable)}</strong>`
-    + '</div>'
-
-    + '<div>'
-    + '<span>Already in main custody</span>'
-    + `<strong>${escapeHtml(mainHeld)}</strong>`
-    + '</div>'
-
     + '<div class="is-total">'
-    + '<span>Total funding available</span>'
-    + `<strong>${escapeHtml(fundingAvailable)}</strong>`
+    + '<span>Available to withdraw</span>'
+    + `<strong>${escapeHtml(
+        availableToWithdraw
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Withdrawal fee</span>'
+    + `<strong>${escapeHtml(
+        feeDisplay
+      )}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Minimum withdrawal</span>'
+    + `<strong>${escapeHtml(
+        minimum
+      )}</strong>`
     + '</div>'
 
     + '<div>'
     + '<span>Network</span>'
-    + `<strong>${escapeHtml(networkName)}</strong>`
+    + `<strong>${escapeHtml(
+        networkName
+      )}</strong>`
     + '</div>'
 
-    + '<div>'
-    + '<span>Gate fee</span>'
-    + `<strong>${escapeHtml(feeDisplay)}</strong>`
-    + '</div>'
-
-    + '<div>'
-    + '<span>Gate minimum</span>'
-    + `<strong>${escapeHtml(minimum)}</strong>`
-    + '</div>'
-
-    + '</div>'
-
-    + '<div class="treasury-withdrawal-funding-summary-note">'
-    + escapeHtml(modelExplanation)
     + '</div>'
   );
 }
@@ -9399,6 +9668,7 @@ function treasuryWithdrawalPreflightMatchesForm() {
 
 function renderTreasuryWithdrawalPreflight() {
   const element = $('#treasuryWithdrawalPreflight');
+
   const createButton = $(
     '#createTreasuryWithdrawalRequest'
   );
@@ -9423,10 +9693,6 @@ function renderTreasuryWithdrawalPreflight() {
   const response = snapshot.response || {};
   const preflight = response.preflight || {};
   const fee = preflight.fee || {};
-  const funding = preflight.funding || {};
-  const eligibility = (
-    preflight.gate_address_eligibility || {}
-  );
 
   const valid = Boolean(
     preflight.preflight_valid
@@ -9435,26 +9701,97 @@ function renderTreasuryWithdrawalPreflight() {
 
   const errors = (
     preflight.errors || []
-  ).map(value => String(value));
+  ).map(
+    value => String(value)
+  );
+
+  const destination = (
+    state.treasuryWithdrawalDestinations || []
+  ).find(
+    item => (
+      String(
+        item.destination_id || ''
+      ) === String(
+        snapshot.destinationId || ''
+      )
+    )
+  ) || null;
+
+  const capabilityKey = (
+    `${snapshot.owner}:${snapshot.currency}`
+  );
+
+  const capabilities = (
+    state.treasuryWithdrawalCapabilitiesKey
+      === capabilityKey
+      ? state.treasuryWithdrawalCapabilities
+      : null
+  );
+
+  const availability = (
+    capabilities?.availability || {}
+  );
+
+  const network = (
+    (capabilities?.chains || []).find(
+      item => (
+        String(
+          item.chain || ''
+        ).toUpperCase()
+        === String(
+          destination?.chain || ''
+        ).toUpperCase()
+      )
+    )
+    || null
+  );
+
+  const availableToWithdraw = (
+    capabilities
+      ? treasuryAmount(
+          availability.withdrawal_funding_available,
+          snapshot.currency,
+        )
+      : '—'
+  );
+
+  const networkName = (
+    treasuryWithdrawalDisplayNetworkName(
+      network?.name,
+      destination?.chain,
+    )
+  );
+
+  const destinationLabel = String(
+    destination?.label
+    || shortTreasuryGateId(
+      destination?.address
+    )
+    || snapshot.destinationId
+    || '—'
+  );
 
   element.innerHTML = (
     `<div class="treasury-withdrawal-preflight-head ${
       valid ? 'valid' : 'invalid'
     }">`
+
     + `<strong>${
         valid
           ? 'Preflight passed'
           : 'Preflight blocked'
       }</strong>`
+
     + `<span>${
         valid
-          ? 'No Gate write performed'
+          ? 'No withdrawal has been submitted yet.'
           : escapeHtml(
               errors.length
                 ? errors.join(', ')
                 : 'Safety checks did not pass'
             )
       }</span>`
+
     + '</div>'
 
     + '<div class="treasury-withdrawal-preflight-grid">'
@@ -9464,7 +9801,7 @@ function renderTreasuryWithdrawalPreflight() {
     + `<strong>${escapeHtml(
         treasuryAmount(
           snapshot.amount,
-          snapshot.currency
+          snapshot.currency,
         )
       )}</strong>`
     + '</div>'
@@ -9474,7 +9811,7 @@ function renderTreasuryWithdrawalPreflight() {
     + `<strong>${escapeHtml(
         treasuryAmount(
           fee.estimated_fee,
-          snapshot.currency
+          snapshot.currency,
         )
       )}</strong>`
     + '</div>'
@@ -9484,89 +9821,33 @@ function renderTreasuryWithdrawalPreflight() {
     + `<strong>${escapeHtml(
         treasuryAmount(
           fee.recipient_amount_estimate,
-          snapshot.currency
+          snapshot.currency,
         )
       )}</strong>`
     + '</div>'
 
     + '<div>'
-    + '<span>Already in main custody</span>'
+    + '<span>Available to withdraw</span>'
     + `<strong>${escapeHtml(
-        treasuryAmount(
-          funding.owner_main_held,
-          snapshot.currency
-        )
+        availableToWithdraw
       )}</strong>`
     + '</div>'
 
     + '<div>'
-    + '<span>Funding required</span>'
+    + '<span>Network</span>'
     + `<strong>${escapeHtml(
-        treasuryAmount(
-          funding.conservative_funding_required,
-          snapshot.currency
-        )
+        networkName
       )}</strong>`
     + '</div>'
 
     + '<div>'
-    + '<span>JIT funding</span>'
-    + `<strong>${
-        funding.jit_required ? 'Yes' : 'No'
-      }</strong>`
-    + '</div>'
-
-    + '<div>'
-    + '<span>Additional main funding</span>'
+    + '<span>Destination</span>'
     + `<strong>${escapeHtml(
-        treasuryAmount(
-          funding.minimum_jit_transfer,
-          snapshot.currency
-        )
-      )}</strong>`
-    + '</div>'
-
-    + '<div>'
-    + '<span>Address policy</span>'
-    + `<strong>${escapeHtml(
-        eligibility.address_policy || '—'
-      )}</strong>`
-    + '</div>'
-
-    + '<div>'
-    + '<span>Eligible via</span>'
-    + `<strong>${escapeHtml(
-        eligibility.eligible_via || '—'
+        destinationLabel
       )}</strong>`
     + '</div>'
 
     + '</div>'
-
-    + (
-      funding.jit_required
-        ? (
-            '<div class="treasury-withdrawal-funding-callout warning">'
-            + '<strong>Additional main custody funding required</strong>'
-            + '<span>'
-            + `Move at least ${escapeHtml(
-              treasuryAmount(
-                funding.minimum_jit_transfer,
-                snapshot.currency,
-              )
-            )} from the owner account into main custody `
-            + 'before the Gate withdrawal can proceed.'
-            + '</span>'
-            + '</div>'
-          )
-        : (
-            '<div class="treasury-withdrawal-funding-callout ready">'
-            + '<strong>Funding ready</strong>'
-            + '<span>'
-            + 'No JIT transfer is required before withdrawal.'
-            + '</span>'
-            + '</div>'
-          )
-    )
   );
 
   if (createButton) {
@@ -9744,7 +10025,14 @@ function generateTreasuryWithdrawalRequestId() {
 async function runTreasuryWithdrawalPreflight(event) {
   event?.preventDefault();
 
-  const destination = treasurySelectedWithdrawalDestination();
+  const resolution = (
+    treasuryWithdrawalRouteResolution()
+  );
+
+  const destination = (
+    treasurySelectedWithdrawalDestination()
+  );
+
   const amount = String(
     $('#treasuryWithdrawalAmount')?.value
     || ''
@@ -9755,7 +10043,36 @@ async function runTreasuryWithdrawalPreflight(event) {
 
   errorBox?.classList.add('hidden');
 
-  if (!destination || !amount) {
+  const routeMatchesDestination = Boolean(
+    resolution.status === 'matched'
+    && resolution.destination
+    && destination
+    && String(
+      resolution.destination.destination_id || ''
+    ) === String(
+      destination.destination_id || ''
+    )
+  );
+
+  if (!routeMatchesDestination) {
+    if (errorBox) {
+      errorBox.textContent = (
+        'Preflight is locked until the visible '
+        + 'withdrawal route matches exactly one '
+        + 'approved destination.'
+      );
+
+      errorBox.classList.remove('hidden');
+    }
+
+    if (button) {
+      button.disabled = true;
+    }
+
+    return;
+  }
+
+  if (!amount) {
     return;
   }
 
@@ -9820,7 +10137,10 @@ async function runTreasuryWithdrawalPreflight(event) {
     showToast(message, true);
 
   } finally {
-    button.disabled = false;
+    button.disabled = (
+      !treasuryWithdrawalRouteReadyForPreflight()
+    );
+
     button.textContent = 'Run safety preflight';
   }
 }

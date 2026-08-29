@@ -49,27 +49,41 @@ def test_funding_summary_is_inside_withdrawal_workspace():
 
 def test_stage_two_copy_mentions_funding():
     assert (
-        "Review funding and run preflight"
+        "Review amount, fee and run preflight"
         in HTML
+    )
+
+    assert (
+        "Review funding and run preflight"
+        not in HTML
     )
 
 
 def test_funding_renderer_uses_existing_capability_snapshot():
-    assert (
-        "function "
-        "renderTreasuryWithdrawalFundingSummary()"
-        in JS
+    start = JS.index(
+        "function renderTreasuryWithdrawalFundingSummary()"
     )
 
+    end = JS.index(
+        "\nfunction ",
+        start + 1,
+    )
+
+    renderer = JS[start:end]
+
     for field in (
-        "source_spot_available",
-        "owner_liquid_main_held",
         "withdrawal_funding_available",
         "gate_limits",
         "fixed_fee",
         "percent_fee",
     ):
-        assert field in JS
+        assert field in renderer
+
+    for internal_field in (
+        "source_spot_available",
+        "owner_liquid_main_held",
+    ):
+        assert internal_field not in renderer
 
 
 def test_funding_renderer_requires_matching_owner_asset_key():
@@ -90,57 +104,111 @@ def test_funding_renderer_requires_matching_owner_asset_key():
 
 
 def test_funding_summary_explains_balance_model():
-    assert (
-        "Funding available = owner spot balance "
-        in JS
+    start = JS.index(
+        "function renderTreasuryWithdrawalFundingSummary()"
     )
 
-    assert (
-        "+ liquid ownership already held in main custody."
-        in JS
+    end = JS.index(
+        "\nfunction ",
+        start + 1,
     )
+
+    renderer = JS[start:end]
+
+    for label in (
+        "Withdrawal details",
+        "Available to withdraw",
+        "Withdrawal fee",
+        "Minimum withdrawal",
+        "<span>Network</span>",
+    ):
+        assert label in renderer
+
+    for internal_copy in (
+        "Funding available = owner spot balance ",
+        "+ liquid ownership already held in main custody.",
+        "ownership liabilities",
+        "Live read-only capability data",
+    ):
+        assert internal_copy not in renderer
 
 
 def test_preflight_uses_operator_facing_labels():
-    expected = (
+    start = JS.index(
+        "function renderTreasuryWithdrawalPreflight()"
+    )
+
+    end = JS.index(
+        "\nfunction ",
+        start + 1,
+    )
+
+    renderer = JS[start:end]
+
+    for label in (
         "Withdrawal amount",
+        "Estimated fee",
         "Recipient receives (est.)",
+        "Available to withdraw",
+        "<span>Network</span>",
+        "<span>Destination</span>",
+    ):
+        assert label in renderer
+
+    for internal_label in (
         "Already in main custody",
         "Funding required",
         "JIT funding",
         "Additional main funding",
-    )
-
-    for label in expected:
-        assert label in JS
+        "Address policy",
+        "Eligible via",
+    ):
+        assert internal_label not in renderer
 
 
 def test_jit_required_has_plain_language_explanation():
-    assert (
-        "Additional main custody funding required"
-        in JS
+    start = JS.index(
+        "function renderTreasuryWithdrawalPreflight()"
     )
 
-    assert (
-        "from the owner account into main custody"
-        in JS
+    end = JS.index(
+        "\nfunction ",
+        start + 1,
     )
 
-    assert (
-        "before the Gate withdrawal can proceed."
-        in JS
-    )
+    renderer = JS[start:end]
+
+    for internal_copy in (
+        "Additional main custody funding required",
+        "from the owner account into main custody",
+        "minimum_jit_transfer",
+        "jit_required",
+    ):
+        assert internal_copy not in renderer
 
 
 def test_no_jit_has_plain_language_ready_message():
-    assert (
-        "Funding ready"
-        in JS
+    start = JS.index(
+        "function renderTreasuryWithdrawalPreflight()"
     )
+
+    end = JS.index(
+        "\nfunction ",
+        start + 1,
+    )
+
+    renderer = JS[start:end]
+
+    assert (
+        "No withdrawal has been submitted yet."
+        in renderer
+    )
+
+    assert "Funding ready" not in renderer
 
     assert (
         "No JIT transfer is required before withdrawal."
-        in JS
+        not in renderer
     )
 
 
@@ -165,13 +233,11 @@ def test_clarity_css_is_present_and_responsive():
 
 def test_asset_cache_keys_are_intentionally_unchanged_for_now():
     assert (
-        "./treasury.css?"
-        "v=20260829-withdraw-clarity-v1"
+        './treasury.css?v=20260829-withdraw-route-ux-v1'
         in HTML
     )
 
     assert (
-        "./app.js?"
-        "v=20260829-withdraw-clarity-v1"
+        './app.js?v=20260829-withdraw-route-ux-v1'
         in HTML
     )
