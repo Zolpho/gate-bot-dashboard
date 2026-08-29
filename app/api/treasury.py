@@ -93,6 +93,7 @@ from ..treasury_withdrawal_destinations import (
     TreasuryWithdrawalDestinationError,
     approve_destination,
     create_candidate_destination,
+    create_candidate_destination_from_recipient,
     get_destination,
     list_destination_events,
     list_destinations,
@@ -683,6 +684,31 @@ class TreasuryWithdrawalRecipientStateRequest(
     reason: str = Field(
         default="",
         max_length=1000,
+    )
+
+
+class TreasuryWithdrawalRecipientDestinationRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    currency: str = Field(
+        min_length=1,
+        max_length=20,
+        pattern=r"^[A-Za-z0-9_]+$",
+    )
+
+    chain: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9._-]+$",
+    )
+
+    memo: str = Field(
+        default="",
+        max_length=512,
     )
 
 
@@ -2515,6 +2541,104 @@ def restore_treasury_withdrawal_recipient(
         "withdrawals_enabled": False,
         "local_write_performed": bool(
             result["changed"]
+        ),
+        "gate_write_performed": False,
+        **result,
+    }
+
+
+@router.post(
+    "/withdrawals/recipients/"
+    "{recipient_id}/destinations"
+)
+def create_treasury_withdrawal_recipient_destination(
+    recipient_id: str,
+    request: TreasuryWithdrawalRecipientDestinationRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    recipient = (
+        _treasury_withdrawal_recipient_for_user(
+            recipient_id,
+            user,
+        )
+    )
+
+    recipient_status = str(
+        recipient.get("status")
+        or ""
+    ).strip().lower()
+
+    if recipient_status != "active":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal recipient is not active"
+                ),
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        )
+
+    try:
+        result = (
+            create_candidate_destination_from_recipient(
+                recipient_id=recipient_id,
+                currency=request.currency,
+                chain=request.chain,
+                memo=request.memo,
+                username=user.username,
+            )
+        )
+    except TreasuryWithdrawalDestinationError as exc:
+        message = str(exc)
+
+        if message == "Withdrawal recipient not found":
+            status_code = 404
+        elif message in {
+            "Withdrawal recipient is not active",
+            (
+                "Withdrawal recipient address identity "
+                "is inconsistent"
+            ),
+            (
+                "Multiple logically equivalent withdrawal "
+                "destinations require administrator review"
+            ),
+            (
+                "Matching withdrawal destination is "
+                "linked to a different recipient"
+            ),
+            (
+                "This exact withdrawal destination "
+                "was revoked and cannot be "
+                "recreated automatically"
+            ),
+        }:
+            status_code = 409
+        else:
+            status_code = 400
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "message": message,
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C2B_RECIPIENT_DESTINATION_BRIDGE"
+        ),
+        "withdrawals_enabled": False,
+        "local_write_performed": bool(
+            result.get("created")
+            or result.get("linked")
         ),
         "gate_write_performed": False,
         **result,

@@ -618,6 +618,48 @@ def _migrate_treasury_exact_decimals(
     )
 
 
+def _migrate_treasury_withdrawal_destination_recipient_bridge(
+    raw_connection: Any,
+    engine: Engine,
+    table: Any,
+) -> None:
+    table_name = (
+        "treasury_withdrawal_destinations"
+    )
+
+    if not _table_exists(
+        raw_connection,
+        table_name,
+    ):
+        return
+
+    columns = set(
+        _table_columns(
+            raw_connection,
+            table_name,
+        )
+    )
+
+    if "recipient_id" in columns:
+        return
+
+    logger.info(
+        "Migrating withdrawal destinations "
+        "to recipient-linked schema"
+    )
+
+    # recipient_id is intentionally nullable.
+    # Existing approved/revoked destination rows are
+    # historical route/security records and therefore
+    # remain unlinked until an explicit recipient bridge
+    # operation safely associates one.
+    _rebuild_table(
+        raw_connection,
+        engine,
+        table,
+    )
+
+
 def migrate_database(engine: Engine) -> None:
     """Apply the small built-in schema migration needed for multi-account support.
 
@@ -759,6 +801,11 @@ def migrate_database(engine: Engine) -> None:
                 engine,
                 TreasuryWithdrawalDestination.__table__,
             )
+        _migrate_treasury_withdrawal_destination_recipient_bridge(
+            raw,
+            engine,
+            TreasuryWithdrawalDestination.__table__,
+        )
 
         if not _table_exists(
             raw,

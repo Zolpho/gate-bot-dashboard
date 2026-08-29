@@ -97,6 +97,21 @@ def _address_key(value: str) -> str:
     )
 
 
+def recipient_address_identity(
+    value: str,
+) -> str:
+    """
+    Return the canonical address identity used by
+    the generic withdrawal-recipient address book.
+
+    Destination bridging must use this function rather
+    than independently reimplementing EVM normalization.
+    """
+    return _address_key(
+        value
+    )
+
+
 def _label(value: str) -> str:
     result = str(value or "").strip()
 

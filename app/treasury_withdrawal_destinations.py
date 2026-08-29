@@ -11,6 +11,10 @@ from .db import session_scope, utcnow
 from .models import (
     TreasuryWithdrawalDestination,
     TreasuryWithdrawalDestinationEvent,
+    TreasuryWithdrawalRecipient,
+)
+from .treasury_withdrawal_recipients import (
+    recipient_address_identity,
 )
 
 
@@ -149,6 +153,7 @@ def _snapshot(
     return {
         "destination_id": row.destination_id,
         "owner_account_id": row.owner_account_id,
+        "recipient_id": row.recipient_id,
         "currency": row.currency,
         "chain": row.chain,
         "address": row.address,
@@ -339,6 +344,276 @@ def create_candidate_destination(
             "created": True,
             "item": _snapshot(row),
             "event": _event_snapshot(event),
+        }
+
+
+def create_candidate_destination_from_recipient(
+    *,
+    recipient_id: str,
+    currency: str,
+    chain: str,
+    memo: str,
+    username: str,
+) -> dict[str, Any]:
+    selected_recipient_id = str(
+        recipient_id or ""
+    ).strip()
+
+    if not selected_recipient_id:
+        raise TreasuryWithdrawalDestinationError(
+            "Withdrawal recipient not found"
+        )
+
+    symbol = _currency(
+        currency
+    )
+
+    network = _chain(
+        chain
+    )
+
+    destination_memo = _memo(
+        memo
+    )
+
+    with session_scope() as db:
+        recipient = db.scalar(
+            select(
+                TreasuryWithdrawalRecipient
+            ).where(
+                TreasuryWithdrawalRecipient
+                .recipient_id
+                == selected_recipient_id
+            )
+        )
+
+        if recipient is None:
+            raise TreasuryWithdrawalDestinationError(
+                "Withdrawal recipient not found"
+            )
+
+        recipient_status = str(
+            recipient.status or ""
+        ).strip().lower()
+
+        if recipient_status != "active":
+            raise TreasuryWithdrawalDestinationError(
+                "Withdrawal recipient is not active"
+            )
+
+        owner = _owner(
+            recipient.owner_account_id
+        )
+
+        destination_address = _address(
+            recipient.address
+        )
+
+        expected_identity = str(
+            recipient.address_key or ""
+        ).strip()
+
+        actual_identity = (
+            recipient_address_identity(
+                destination_address
+            )
+        )
+
+        if (
+            not expected_identity
+            or expected_identity
+            != actual_identity
+        ):
+            raise TreasuryWithdrawalDestinationError(
+                "Withdrawal recipient address identity "
+                "is inconsistent"
+            )
+
+        # Route uniqueness remains:
+        # owner + currency + chain + address + memo.
+        #
+        # For EVM addresses, however, recipient identity is
+        # intentionally case-insensitive. Search all routes
+        # in the same security scope and compare them through
+        # the canonical recipient identity so a legacy route
+        # with different EVM casing is reused rather than
+        # duplicated.
+        scoped_rows = db.scalars(
+            select(
+                TreasuryWithdrawalDestination
+            ).where(
+                TreasuryWithdrawalDestination
+                .owner_account_id
+                == owner,
+                TreasuryWithdrawalDestination
+                .currency
+                == symbol,
+                TreasuryWithdrawalDestination
+                .chain
+                == network,
+                TreasuryWithdrawalDestination
+                .memo
+                == destination_memo,
+            )
+        ).all()
+
+        logical_matches = [
+            row
+            for row in scoped_rows
+            if recipient_address_identity(
+                row.address
+            )
+            == expected_identity
+        ]
+
+        if len(logical_matches) > 1:
+            raise TreasuryWithdrawalDestinationError(
+                "Multiple logically equivalent withdrawal "
+                "destinations require administrator review"
+            )
+
+        existing = (
+            logical_matches[0]
+            if logical_matches
+            else None
+        )
+
+        if existing is not None:
+            prior = str(
+                existing.status or ""
+            ).strip().lower()
+
+            if prior == "revoked":
+                raise TreasuryWithdrawalDestinationError(
+                    "This exact withdrawal destination "
+                    "was revoked and cannot be "
+                    "recreated automatically"
+                )
+
+            linked_recipient_id = str(
+                existing.recipient_id or ""
+            ).strip()
+
+            if (
+                linked_recipient_id
+                and linked_recipient_id
+                != selected_recipient_id
+            ):
+                raise TreasuryWithdrawalDestinationError(
+                    "Matching withdrawal destination is "
+                    "linked to a different recipient"
+                )
+
+            if linked_recipient_id:
+                return {
+                    "created": False,
+                    "linked": False,
+                    "item": _snapshot(
+                        existing
+                    ),
+                }
+
+            # Linking does not modify the immutable route
+            # identity or its security decision. Approved
+            # remains approved; candidate remains candidate.
+            existing.recipient_id = (
+                selected_recipient_id
+            )
+
+            existing.updated_at = utcnow()
+
+            event = _new_event(
+                destination=existing,
+                username=username,
+                action="recipient_linked",
+                from_status=prior,
+                to_status=prior,
+                reason=(
+                    "Existing withdrawal destination "
+                    "linked to recipient."
+                ),
+                metadata={
+                    "recipient_id": (
+                        selected_recipient_id
+                    ),
+                    "source": (
+                        "recipient_bridge"
+                    ),
+                },
+            )
+
+            db.add(event)
+            db.flush()
+
+            return {
+                "created": False,
+                "linked": True,
+                "item": _snapshot(
+                    existing
+                ),
+                "event": (
+                    _event_snapshot(
+                        event
+                    )
+                ),
+            }
+
+        row = TreasuryWithdrawalDestination(
+            destination_id=(
+                "wd_" + uuid4().hex
+            ),
+            owner_account_id=owner,
+            recipient_id=(
+                selected_recipient_id
+            ),
+            currency=symbol,
+            chain=network,
+            address=destination_address,
+            memo=destination_memo,
+            label=_label(
+                recipient.label
+            ),
+            status="candidate",
+            source="recipient",
+            verification_method="unverified",
+            created_by=username,
+        )
+
+        db.add(row)
+        db.flush()
+
+        event = _new_event(
+            destination=row,
+            username=username,
+            action="created",
+            from_status="",
+            to_status="candidate",
+            reason=(
+                "Withdrawal destination candidate "
+                "created from recipient."
+            ),
+            metadata={
+                "source": "recipient",
+                "recipient_id": (
+                    selected_recipient_id
+                ),
+            },
+        )
+
+        db.add(event)
+        db.flush()
+
+        return {
+            "created": True,
+            "linked": True,
+            "item": _snapshot(
+                row
+            ),
+            "event": (
+                _event_snapshot(
+                    event
+                )
+            ),
         }
 
 

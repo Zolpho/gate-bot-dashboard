@@ -3,11 +3,25 @@ from __future__ import annotations
 import base64
 from uuid import uuid4
 
+import pytest
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect
 
+from app.db import session_scope
 from app.main import app
 from app.migrations import migrate_database
+from app.models import (
+    TreasuryWithdrawalDestination,
+)
+from app.treasury_withdrawal_destinations import (
+    TreasuryWithdrawalDestinationError,
+    create_candidate_destination_from_recipient,
+    list_destination_events,
+)
+from app.treasury_withdrawal_recipients import (
+    create_recipient,
+)
 
 
 def _auth(
@@ -383,3 +397,391 @@ def test_destination_identity_is_chain_and_memo_scoped():
         }
 
         assert len(ids) == 3
+
+def test_destination_recipient_bridge_migrates_populated_legacy_sqlite(
+    tmp_path,
+) -> None:
+    path = (
+        tmp_path
+        / "destination-recipient-bridge.db"
+    )
+
+    engine = create_engine(
+        f"sqlite:///{path}"
+    )
+
+    destination_id = (
+        "wd_" + uuid4().hex
+    )
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE treasury_withdrawal_destinations (
+                id INTEGER NOT NULL PRIMARY KEY,
+                destination_id VARCHAR(128) NOT NULL,
+                owner_account_id VARCHAR(64) NOT NULL,
+                currency VARCHAR(32) NOT NULL,
+                chain VARCHAR(64) NOT NULL,
+                address TEXT NOT NULL,
+                memo TEXT NOT NULL,
+                label VARCHAR(128) NOT NULL,
+                status VARCHAR(32) NOT NULL,
+                source VARCHAR(64) NOT NULL,
+                verification_method VARCHAR(64) NOT NULL,
+                created_by VARCHAR(64) NOT NULL,
+                approved_by VARCHAR(64) NOT NULL,
+                approved_at DATETIME,
+                revoked_by VARCHAR(64) NOT NULL,
+                revoked_at DATETIME,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                UNIQUE (destination_id),
+                UNIQUE (
+                    owner_account_id,
+                    currency,
+                    chain,
+                    address,
+                    memo
+                )
+            )
+            """
+        )
+
+        connection.exec_driver_sql(
+            """
+            INSERT INTO treasury_withdrawal_destinations
+            (
+                id,
+                destination_id,
+                owner_account_id,
+                currency,
+                chain,
+                address,
+                memo,
+                label,
+                status,
+                source,
+                verification_method,
+                created_by,
+                approved_by,
+                approved_at,
+                revoked_by,
+                revoked_at,
+                created_at,
+                updated_at
+            )
+            VALUES
+            (
+                1,
+                ?,
+                'arnold',
+                'USDT',
+                'ETH',
+                ?,
+                '',
+                'Legacy wallet',
+                'approved',
+                'manual',
+                'manual_admin_approval',
+                'arnold',
+                'rootadmin',
+                '2026-08-01T00:00:00+00:00',
+                '',
+                NULL,
+                '2026-08-01T00:00:00+00:00',
+                '2026-08-01T00:00:00+00:00'
+            )
+            """,
+            (
+                destination_id,
+                (
+                    "0x"
+                    + uuid4().hex
+                    + uuid4().hex[:8]
+                ),
+            ),
+        )
+
+    migrate_database(
+        engine
+    )
+
+    columns = {
+        item["name"]
+        for item in inspect(
+            engine
+        ).get_columns(
+            "treasury_withdrawal_destinations"
+        )
+    }
+
+    assert "recipient_id" in columns
+
+    with engine.connect() as connection:
+        row = connection.exec_driver_sql(
+            """
+            SELECT
+                destination_id,
+                status,
+                recipient_id
+            FROM treasury_withdrawal_destinations
+            """
+        ).one()
+
+        assert row[0] == destination_id
+        assert row[1] == "approved"
+        assert row[2] is None
+
+    # Migration must be idempotent.
+    migrate_database(
+        engine
+    )
+
+    with engine.connect() as connection:
+        count = connection.exec_driver_sql(
+            """
+            SELECT COUNT(*)
+            FROM treasury_withdrawal_destinations
+            """
+        ).scalar_one()
+
+        assert count == 1
+
+
+def _mixed_case_evm_address() -> str:
+    payload = (
+        "a"
+        + uuid4().hex
+        + uuid4().hex[:7]
+    )
+
+    assert len(payload) == 40
+
+    result = []
+
+    upper = True
+
+    for char in payload:
+        if char in "abcdef":
+            result.append(
+                (
+                    char.upper()
+                    if upper
+                    else char
+                )
+            )
+            upper = not upper
+        else:
+            result.append(
+                char
+            )
+
+    return (
+        "0x"
+        + "".join(result)
+    )
+
+
+def test_recipient_bridge_links_case_variant_legacy_route_without_duplicate():
+    recipient_address = (
+        _mixed_case_evm_address()
+    )
+
+    recipient = create_recipient(
+        owner_account_id="arnold",
+        address=recipient_address,
+        label="Legacy EVM wallet",
+        username="arnold",
+    )["item"]
+
+    destination_id = (
+        "wd_" + uuid4().hex
+    )
+
+    legacy_address = (
+        recipient_address.lower()
+    )
+
+    with session_scope() as db:
+        db.add(
+            TreasuryWithdrawalDestination(
+                destination_id=destination_id,
+                owner_account_id="arnold",
+                recipient_id=None,
+                currency="USDT",
+                chain="ETH",
+                address=legacy_address,
+                memo="",
+                label="Legacy route",
+                status="approved",
+                source="manual",
+                verification_method=(
+                    "manual_admin_approval"
+                ),
+                created_by="arnold",
+                approved_by="rootadmin",
+            )
+        )
+
+    result = (
+        create_candidate_destination_from_recipient(
+            recipient_id=(
+                recipient["recipient_id"]
+            ),
+            currency="USDT",
+            chain="ETH",
+            memo="",
+            username="arnold",
+        )
+    )
+
+    assert result["created"] is False
+    assert result["linked"] is True
+
+    item = result["item"]
+
+    assert (
+        item["destination_id"]
+        == destination_id
+    )
+
+    assert item["status"] == "approved"
+
+    assert (
+        item["recipient_id"]
+        == recipient["recipient_id"]
+    )
+
+    # Existing immutable route address is retained.
+    assert (
+        item["address"]
+        == legacy_address
+    )
+
+    events = list_destination_events(
+        destination_id
+    )
+
+    assert [
+        event["action"]
+        for event in events
+    ] == [
+        "recipient_linked",
+    ]
+
+
+def test_recipient_bridge_fails_closed_on_multiple_logical_legacy_routes():
+    recipient_address = (
+        _mixed_case_evm_address()
+    )
+
+    recipient = create_recipient(
+        owner_account_id="arnold",
+        address=recipient_address,
+        label="Ambiguous legacy wallet",
+        username="arnold",
+    )["item"]
+
+    lower = (
+        recipient_address.lower()
+    )
+
+    upper = (
+        "0x"
+        + recipient_address[2:].upper()
+    )
+
+    assert lower != upper
+
+    with session_scope() as db:
+        for address in (
+            lower,
+            upper,
+        ):
+            db.add(
+                TreasuryWithdrawalDestination(
+                    destination_id=(
+                        "wd_" + uuid4().hex
+                    ),
+                    owner_account_id="arnold",
+                    recipient_id=None,
+                    currency="USDT",
+                    chain="ARBEVM",
+                    address=address,
+                    memo="",
+                    label="Legacy duplicate",
+                    status="candidate",
+                    source="manual",
+                    verification_method="unverified",
+                    created_by="arnold",
+                )
+            )
+
+    with pytest.raises(
+        TreasuryWithdrawalDestinationError,
+        match=(
+            "Multiple logically equivalent "
+            "withdrawal destinations"
+        ),
+    ):
+        create_candidate_destination_from_recipient(
+            recipient_id=(
+                recipient["recipient_id"]
+            ),
+            currency="USDT",
+            chain="ARBEVM",
+            memo="",
+            username="arnold",
+        )
+
+
+def test_recipient_bridge_preserves_revoked_destination_terminal_state():
+    recipient_address = (
+        _mixed_case_evm_address()
+    )
+
+    recipient = create_recipient(
+        owner_account_id="arnold",
+        address=recipient_address,
+        label="Revoked legacy wallet",
+        username="arnold",
+    )["item"]
+
+    with session_scope() as db:
+        db.add(
+            TreasuryWithdrawalDestination(
+                destination_id=(
+                    "wd_" + uuid4().hex
+                ),
+                owner_account_id="arnold",
+                recipient_id=None,
+                currency="USDT",
+                chain="ETH",
+                address=recipient_address,
+                memo="",
+                label="Revoked legacy route",
+                status="revoked",
+                source="manual",
+                verification_method="unverified",
+                created_by="arnold",
+                revoked_by="rootadmin",
+            )
+        )
+
+    with pytest.raises(
+        TreasuryWithdrawalDestinationError,
+        match=(
+            "was revoked and cannot be "
+            "recreated automatically"
+        ),
+    ):
+        create_candidate_destination_from_recipient(
+            recipient_id=(
+                recipient["recipient_id"]
+            ),
+            currency="USDT",
+            chain="ETH",
+            memo="",
+            username="arnold",
+        )

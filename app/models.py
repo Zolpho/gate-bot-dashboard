@@ -1213,6 +1213,10 @@ class TreasuryWithdrawalDestination(Base):
             "currency",
             "chain",
         ),
+        Index(
+            "ix_treasury_withdrawal_destination_recipient",
+            "recipient_id",
+        ),
     )
 
     id: Mapped[int] = mapped_column(
@@ -1228,6 +1232,10 @@ class TreasuryWithdrawalDestination(Base):
     owner_account_id: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
+    )
+    recipient_id: Mapped[Optional[str]] = mapped_column(
+        String(128),
+        nullable=True,
     )
 
     currency: Mapped[str] = mapped_column(
