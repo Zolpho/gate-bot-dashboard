@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css">
-  <link rel="stylesheet" href="./treasury.css?v=20260829-withdraw-no-jit-ready-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260829-withdraw-primary-card-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -953,153 +953,6 @@
           <div class="treasury-actions-grid">
 
           <section
-            class="treasury-withdrawal-section treasury-user-transfer-section"
-          >
-            <div class="treasury-section-header">
-              <div>
-                <h3>Transfer between registered users</h3>
-                <p>
-                  Transfer Gate spot funds from this Wallet account to another
-                  registered dashboard user. Source authorization is
-                  enforced server-side.
-                </p>
-              </div>
-
-              <div class="treasury-action-badges">
-                <span
-                  class="treasury-user-transfer-scope"
-                >
-                  FROM
-                  <strong
-                    id="treasuryUserTransferSourceDisplay"
-                  >—</strong>
-                </span>
-
-                <span
-                  id="treasuryUserTransferState"
-                  class="treasury-count treasury-capability-badge"
-                >Checking…</span>
-              </div>
-            </div>
-
-            <form
-              id="treasuryUserTransferForm"
-              class="treasury-user-transfer-form"
-            >
-              <input
-                id="treasuryUserTransferSource"
-                type="hidden"
-                value=""
-              >
-
-              <label>
-                To
-
-                <select
-                  id="treasuryUserTransferDestination"
-                  required
-                >
-                  <option value="">
-                    No recipients loaded
-                  </option>
-                </select>
-              </label>
-
-              <label>
-                Asset
-
-                <select
-                  id="treasuryUserTransferCurrency"
-                  required
-                >
-                  <option value="">
-                    No transferable assets
-                  </option>
-                </select>
-              </label>
-
-              <label>
-                Amount
-
-                <input
-                  id="treasuryUserTransferAmount"
-                  type="text"
-                  inputmode="decimal"
-                  autocomplete="off"
-                  placeholder="0.00"
-                  required
-                >
-              </label>
-
-              <div class="treasury-user-transfer-actions">
-                <button
-                  type="button"
-                  class="button secondary"
-                  id="treasuryUserTransferResetButton"
-                >
-                  Reset
-                </button>
-
-                <button
-                  type="submit"
-                  class="button secondary"
-                  id="treasuryUserTransferPreviewButton"
-                >
-                  Review transfer
-                </button>
-              </div>
-            </form>
-
-            <div
-              id="treasuryUserTransferError"
-              class="treasury-message error hidden"
-              role="alert"
-            ></div>
-
-            <div
-              id="treasuryUserTransferPreview"
-              class="treasury-user-transfer-preview hidden"
-            ></div>
-
-            <div
-              id="treasuryUserTransferConfirmationBlock"
-              class="treasury-user-transfer-confirmation hidden"
-            >
-              <div class="treasury-user-transfer-confirmation-head">
-                <strong>Final confirmation</strong>
-
-                <span id="treasuryUserTransferConfirmationText">
-                  Type the exact phrase shown below.
-                </span>
-              </div>
-
-              <code
-                id="treasuryUserTransferRequiredConfirmation"
-              >—</code>
-
-              <div class="treasury-user-transfer-confirmation-row">
-                <input
-                  id="treasuryUserTransferConfirmation"
-                  type="text"
-                  autocomplete="off"
-                  spellcheck="false"
-                  placeholder="Type exact confirmation"
-                >
-
-                <button
-                  type="button"
-                  class="button"
-                  id="executeTreasuryUserTransfer"
-                  disabled
-                >
-                  Transfer funds
-                </button>
-              </div>
-            </div>
-
-            </section>
-
-          <section
             class="treasury-withdrawal-section"
             id="treasuryWithdrawalAction"
           >
@@ -1135,6 +988,38 @@
                 </button>
               </div>
             </div>
+
+              <div
+                class="treasury-withdrawal-flow"
+                aria-label="Withdrawal workflow"
+              >
+                <div class="treasury-withdrawal-flow-item">
+                  <span class="treasury-withdrawal-flow-number">1</span>
+
+                  <div>
+                    <strong>Destination</strong>
+                    <small>Asset, network and recipient</small>
+                  </div>
+                </div>
+
+                <div class="treasury-withdrawal-flow-item">
+                  <span class="treasury-withdrawal-flow-number">2</span>
+
+                  <div>
+                    <strong>Amount &amp; safety</strong>
+                    <small>Review fee and run preflight</small>
+                  </div>
+                </div>
+
+                <div class="treasury-withdrawal-flow-item">
+                  <span class="treasury-withdrawal-flow-number">3</span>
+
+                  <div>
+                    <strong>Create request</strong>
+                    <small>Local audited request only</small>
+                  </div>
+                </div>
+              </div>
 
             <div
               class="treasury-withdrawal-route-builder"
@@ -1336,6 +1221,153 @@
               class="treasury-withdrawal-preflight hidden"
             ></div>
           </section>
+
+          <section
+            class="treasury-withdrawal-section treasury-user-transfer-section"
+          >
+            <div class="treasury-section-header">
+              <div>
+                <h3>Transfer between registered users</h3>
+                <p>
+                  Transfer Gate spot funds from this Wallet account to another
+                  registered dashboard user. Source authorization is
+                  enforced server-side.
+                </p>
+              </div>
+
+              <div class="treasury-action-badges">
+                <span
+                  class="treasury-user-transfer-scope"
+                >
+                  FROM
+                  <strong
+                    id="treasuryUserTransferSourceDisplay"
+                  >—</strong>
+                </span>
+
+                <span
+                  id="treasuryUserTransferState"
+                  class="treasury-count treasury-capability-badge"
+                >Checking…</span>
+              </div>
+            </div>
+
+            <form
+              id="treasuryUserTransferForm"
+              class="treasury-user-transfer-form"
+            >
+              <input
+                id="treasuryUserTransferSource"
+                type="hidden"
+                value=""
+              >
+
+              <label>
+                To
+
+                <select
+                  id="treasuryUserTransferDestination"
+                  required
+                >
+                  <option value="">
+                    No recipients loaded
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                Asset
+
+                <select
+                  id="treasuryUserTransferCurrency"
+                  required
+                >
+                  <option value="">
+                    No transferable assets
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                Amount
+
+                <input
+                  id="treasuryUserTransferAmount"
+                  type="text"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  placeholder="0.00"
+                  required
+                >
+              </label>
+
+              <div class="treasury-user-transfer-actions">
+                <button
+                  type="button"
+                  class="button secondary"
+                  id="treasuryUserTransferResetButton"
+                >
+                  Reset
+                </button>
+
+                <button
+                  type="submit"
+                  class="button secondary"
+                  id="treasuryUserTransferPreviewButton"
+                >
+                  Review transfer
+                </button>
+              </div>
+            </form>
+
+            <div
+              id="treasuryUserTransferError"
+              class="treasury-message error hidden"
+              role="alert"
+            ></div>
+
+            <div
+              id="treasuryUserTransferPreview"
+              class="treasury-user-transfer-preview hidden"
+            ></div>
+
+            <div
+              id="treasuryUserTransferConfirmationBlock"
+              class="treasury-user-transfer-confirmation hidden"
+            >
+              <div class="treasury-user-transfer-confirmation-head">
+                <strong>Final confirmation</strong>
+
+                <span id="treasuryUserTransferConfirmationText">
+                  Type the exact phrase shown below.
+                </span>
+              </div>
+
+              <code
+                id="treasuryUserTransferRequiredConfirmation"
+              >—</code>
+
+              <div class="treasury-user-transfer-confirmation-row">
+                <input
+                  id="treasuryUserTransferConfirmation"
+                  type="text"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="Type exact confirmation"
+                >
+
+                <button
+                  type="button"
+                  class="button"
+                  id="executeTreasuryUserTransfer"
+                  disabled
+                >
+                  Transfer funds
+                </button>
+              </div>
+            </div>
+
+            </section>
 
           </div>
 

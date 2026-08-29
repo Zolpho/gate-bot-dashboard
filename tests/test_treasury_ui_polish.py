@@ -19,7 +19,7 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-no-jit-ready-v1"
+        "v=20260829-withdraw-primary-card-v1"
         in HTML
     )
 
@@ -1022,7 +1022,7 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-no-jit-ready-v1"
+        "v=20260829-withdraw-primary-card-v1"
         in HTML
     )
 
