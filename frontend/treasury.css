@@ -3489,3 +3489,28 @@ label + .treasury-destination-confirmation,
     width: 100%;
   }
 }
+/* 3J28C Withdrawal preflight context v1 */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-context {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  margin-top: -1px;
+  color: var(--muted);
+  font-size: .69rem;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-context strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: .72rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}

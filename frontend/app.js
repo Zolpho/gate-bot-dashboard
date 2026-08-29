@@ -9076,6 +9076,10 @@ function renderTreasuryWithdrawalDestinationSummary() {
     '#treasuryWithdrawalDestinationSummary'
   );
 
+  const context = $(
+    '#treasuryWithdrawalPreflightContext'
+  );
+
   if (!element) return;
 
   const item = treasurySelectedWithdrawalDestination();
@@ -9087,10 +9091,23 @@ function renderTreasuryWithdrawalDestinationSummary() {
       + '</div>'
     );
 
+    if (context) {
+      context.innerHTML = (
+        '<span>Preflight uses:</span>'
+        + '<strong>Select an approved destination</strong>'
+      );
+    }
+
     return;
   }
 
   const address = String(item.address || '');
+
+  const selectedOptionText = String(
+    $('#treasuryWithdrawalDestination')
+      ?.selectedOptions?.[0]?.textContent
+    || ''
+  ).trim();
 
   element.innerHTML = (
     '<div class="treasury-withdrawal-summary-field">'
@@ -9130,6 +9147,21 @@ function renderTreasuryWithdrawalDestinationSummary() {
       )}</strong>`
     + '</div>'
   );
+
+  if (context) {
+    context.innerHTML = (
+      '<span>Preflight uses:</span>'
+      + `<strong>${escapeHtml(
+          selectedOptionText
+          || [
+            item.owner_account_id,
+            item.currency,
+            item.chain,
+          ].filter(Boolean).join(' · ')
+          || 'Selected approved destination'
+        )}</strong>`
+    );
+  }
 }
 
 

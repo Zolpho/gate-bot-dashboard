@@ -19,13 +19,13 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-preflight-invalidation-v1"
+        "v=20260829-withdraw-preflight-context-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260829-withdraw-preflight-invalidation-v1"
+        "v=20260829-withdraw-preflight-context-v1"
         in HTML
     )
 
@@ -1022,7 +1022,7 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-preflight-invalidation-v1"
+        "v=20260829-withdraw-preflight-context-v1"
         in HTML
     )
 
@@ -1030,7 +1030,7 @@ def test_treasury_css_version_marks_withdraw_polish():
 def test_app_version_marks_withdraw_polish():
     assert (
         "./app.js?"
-        "v=20260829-withdraw-preflight-invalidation-v1"
+        "v=20260829-withdraw-preflight-context-v1"
         in HTML
     )
 
@@ -2566,3 +2566,116 @@ def test_prepare_reset_clears_preflight_without_clearing_withdrawal_amount():
         "#treasuryWithdrawalAmount"
         not in block
     )
+
+def test_withdraw_preflight_context_sits_between_destination_and_amount():
+    withdraw_start = HTML.index(
+        'id="treasuryWithdrawalAction"'
+    )
+
+    records_start = HTML.index(
+        'id="treasuryRecords"',
+        withdraw_start,
+    )
+
+    block = HTML[
+        withdraw_start:records_start
+    ]
+
+    assert (
+        'id="treasuryWithdrawalPreflightContext"'
+        in block
+    )
+
+    assert (
+        'class="treasury-withdrawal-preflight-context"'
+        in block
+    )
+
+    assert (
+        'aria-live="polite"'
+        in block
+    )
+
+    assert (
+        block.index(
+            'id="treasuryWithdrawalDestinationSummary"'
+        )
+        < block.index(
+            'id="treasuryWithdrawalPreflightContext"'
+        )
+        < block.index(
+            'id="treasuryWithdrawalAmount"'
+        )
+    )
+
+
+def test_withdraw_preflight_context_uses_selected_approved_destination():
+    start = APP.index(
+        "function renderTreasuryWithdrawalDestinationSummary()"
+    )
+
+    end = APP.index(
+        "\nfunction ",
+        start + 1,
+    )
+
+    block = APP[
+        start:end
+    ]
+
+    for token in (
+        "'#treasuryWithdrawalPreflightContext'",
+        "'#treasuryWithdrawalDestination'",
+        "?.selectedOptions?.[0]?.textContent",
+        "'<span>Preflight uses:</span>'",
+        "selectedOptionText",
+        "item.owner_account_id",
+        "item.currency",
+        "item.chain",
+    ):
+        assert token in block
+
+    assert (
+        "treasuryWithdrawalAsset"
+        not in block
+    )
+
+    assert (
+        "treasuryWithdrawalNetwork"
+        not in block
+    )
+
+    assert (
+        "treasuryWithdrawalRecipient"
+        not in block
+    )
+
+
+def test_withdraw_preflight_context_is_compact_and_uses_theme_tokens():
+    marker = (
+        "/* 3J28C Withdrawal preflight context v1 */"
+    )
+
+    assert marker in CSS
+
+    block = CSS[
+        CSS.index(marker):
+    ]
+
+    for token in (
+        ".treasury-withdrawal-preflight-context",
+        "grid-column: 1 / -1;",
+        "display: flex;",
+        "flex-wrap: wrap;",
+        "color: var(--muted);",
+        "color: var(--text);",
+        "overflow-wrap: anywhere;",
+    ):
+        assert token in block
+
+    for forbidden in (
+        "var(--text-muted)",
+        "var(--success)",
+        "var(--danger)",
+    ):
+        assert forbidden not in block
