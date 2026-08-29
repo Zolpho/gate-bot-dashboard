@@ -136,6 +136,7 @@ from ..treasury_withdrawal_orphan_resolution import (
 from ..treasury_withdrawal_settlement import (
     TreasuryWithdrawalSettlementError,
     settle_withdrawal_from_gate,
+    withdrawal_settlement_action_policy,
     withdrawal_settlement_confirmation_text,
 )
 from ..treasury_withdrawal_submission import (
@@ -3899,6 +3900,15 @@ def treasury_withdrawal_request_detail(
                     .treasury_withdrawals_live_armed
                 )
 
+                settlement_policy = (
+                    withdrawal_settlement_action_policy(
+                        status=row["status"],
+                        withdrawals_live_armed=(
+                            withdrawals_live_armed
+                        ),
+                    )
+                )
+
                 settlement_preview = {
                     "available": True,
                     "required_confirmation": (
@@ -3908,7 +3918,19 @@ def treasury_withdrawal_request_detail(
                         withdrawals_live_armed
                     ),
                     "settlement_allowed": (
-                        not withdrawals_live_armed
+                        settlement_policy[
+                            "settlement_allowed"
+                        ]
+                    ),
+                    "idempotent_replay_only": (
+                        settlement_policy[
+                            "idempotent_replay_only"
+                        ]
+                    ),
+                    "idempotent_replay_allowed": (
+                        settlement_policy[
+                            "idempotent_replay_allowed"
+                        ]
                     ),
                     "owner_account_id": (
                         row.get(

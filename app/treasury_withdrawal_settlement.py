@@ -681,6 +681,51 @@ def apply_withdrawal_ownership_settlement(
 
 
 
+def withdrawal_settlement_action_policy(
+    *,
+    status: Any,
+    withdrawals_live_armed: bool,
+) -> dict[str, bool]:
+    """
+    Describe whether the settlement endpoint represents
+    a normal accounting action or only an idempotent
+    crash-recovery replay.
+
+    A fully settled withdrawal must never be advertised
+    as a new settlement action.
+    """
+
+    normalized = str(
+        status or ""
+    ).strip().lower()
+
+    pending = (
+        normalized
+        == "withdrawal_done_unsettled"
+    )
+
+    settled = (
+        normalized
+        == "withdrawal_settled"
+    )
+
+    fail_closed = not bool(
+        withdrawals_live_armed
+    )
+
+    return {
+        "settlement_allowed": bool(
+            pending
+            and fail_closed
+        ),
+        "idempotent_replay_only": settled,
+        "idempotent_replay_allowed": bool(
+            settled
+            and fail_closed
+        ),
+    }
+
+
 def withdrawal_settlement_confirmation_text(
     request: dict[str, Any],
 ) -> str:
