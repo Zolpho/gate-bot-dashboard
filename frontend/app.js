@@ -8553,6 +8553,7 @@ function renderTreasuryWithdrawalRoutePreparation() {
   }
 
   updateTreasuryWithdrawalRoutePrepareButton();
+  renderTreasuryWithdrawalFundingSummary();
 }
 
 
@@ -9098,6 +9099,8 @@ function renderTreasuryWithdrawalDestinationSummary() {
       );
     }
 
+    renderTreasuryWithdrawalFundingSummary();
+
     return;
   }
 
@@ -9162,6 +9165,210 @@ function renderTreasuryWithdrawalDestinationSummary() {
         )}</strong>`
     );
   }
+
+  renderTreasuryWithdrawalFundingSummary();
+}
+
+
+function renderTreasuryWithdrawalFundingSummary() {
+  const element = $(
+    '#treasuryWithdrawalFundingSummary'
+  );
+
+  if (!element) return;
+
+  const destination = (
+    treasurySelectedWithdrawalDestination()
+  );
+
+  if (!destination) {
+    element.innerHTML = (
+      '<div class="treasury-withdrawal-funding-summary-empty">'
+      + 'Select an approved destination to review funding.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  const owner = String(
+    destination.owner_account_id || ''
+  );
+
+  const currency = String(
+    destination.currency || ''
+  ).toUpperCase();
+
+  const chain = String(
+    destination.chain || ''
+  );
+
+  const capabilityKey = (
+    `${owner}:${currency}`
+  );
+
+  const capabilities = (
+    state.treasuryWithdrawalCapabilitiesKey
+      === capabilityKey
+      ? state.treasuryWithdrawalCapabilities
+      : null
+  );
+
+  if (!capabilities) {
+    element.innerHTML = (
+      '<div class="treasury-withdrawal-funding-summary-empty">'
+      + '<strong>Funding snapshot</strong>'
+      + '<span>'
+      + 'Select this asset above to load live balance, '
+      + 'funding and network-fee data.'
+      + '</span>'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  const availability = (
+    capabilities.availability || {}
+  );
+
+  const gateLimits = (
+    capabilities.gate_limits || {}
+  );
+
+  const network = (
+    (capabilities.chains || []).find(
+      item => (
+        String(
+          item.chain || ''
+        ).toUpperCase()
+        === chain.toUpperCase()
+      )
+    )
+    || null
+  );
+
+  const sourceAvailable = treasuryAmount(
+    availability.source_spot_available,
+    currency,
+  );
+
+  const mainHeld = treasuryAmount(
+    availability.owner_liquid_main_held,
+    currency,
+  );
+
+  const fundingAvailable = treasuryAmount(
+    availability.withdrawal_funding_available,
+    currency,
+  );
+
+  const minimum = treasuryAmount(
+    gateLimits.minimum,
+    currency,
+  );
+
+  let networkName = String(
+    network?.name
+    || chain
+    || '—'
+  );
+
+  if (
+    networkName
+    && chain
+    && networkName !== chain
+  ) {
+    networkName = `${networkName} · ${chain}`;
+  }
+
+  const fixedFee = (
+    network?.fixed_fee === undefined
+    || network?.fixed_fee === null
+    || String(network.fixed_fee).trim() === ''
+      ? '—'
+      : treasuryAmount(
+          network.fixed_fee,
+          currency,
+        )
+  );
+
+  const percentFee = String(
+    network?.percent_fee || ''
+  ).trim();
+
+  const feeDisplay = (
+    fixedFee === '—'
+      ? '—'
+      : (
+          percentFee
+          && percentFee !== '0%'
+            ? `${fixedFee} + ${percentFee}`
+            : fixedFee
+        )
+  );
+
+  const model = String(
+    availability.model || ''
+  );
+
+  const modelExplanation = (
+    model
+      === 'owner_subaccount_available_plus_owner_main_held'
+      ? (
+          'Funding available = owner spot balance '
+          + '+ liquid ownership already held in main custody.'
+        )
+      : (
+          'Funding available reflects spendable custody '
+          + 'after ownership liabilities.'
+        )
+  );
+
+  element.innerHTML = (
+    '<div class="treasury-withdrawal-funding-summary-head">'
+    + '<strong>Funding snapshot</strong>'
+    + '<span>Live read-only capability data</span>'
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-funding-summary-grid">'
+
+    + '<div>'
+    + '<span>Source spot</span>'
+    + `<strong>${escapeHtml(sourceAvailable)}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Already in main custody</span>'
+    + `<strong>${escapeHtml(mainHeld)}</strong>`
+    + '</div>'
+
+    + '<div class="is-total">'
+    + '<span>Total funding available</span>'
+    + `<strong>${escapeHtml(fundingAvailable)}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Network</span>'
+    + `<strong>${escapeHtml(networkName)}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Gate fee</span>'
+    + `<strong>${escapeHtml(feeDisplay)}</strong>`
+    + '</div>'
+
+    + '<div>'
+    + '<span>Gate minimum</span>'
+    + `<strong>${escapeHtml(minimum)}</strong>`
+    + '</div>'
+
+    + '</div>'
+
+    + '<div class="treasury-withdrawal-funding-summary-note">'
+    + escapeHtml(modelExplanation)
+    + '</div>'
+  );
 }
 
 
@@ -9253,7 +9460,7 @@ function renderTreasuryWithdrawalPreflight() {
     + '<div class="treasury-withdrawal-preflight-grid">'
 
     + '<div>'
-    + '<span>Requested</span>'
+    + '<span>Withdrawal amount</span>'
     + `<strong>${escapeHtml(
         treasuryAmount(
           snapshot.amount,
@@ -9273,7 +9480,7 @@ function renderTreasuryWithdrawalPreflight() {
     + '</div>'
 
     + '<div>'
-    + '<span>Recipient estimate</span>'
+    + '<span>Recipient receives (est.)</span>'
     + `<strong>${escapeHtml(
         treasuryAmount(
           fee.recipient_amount_estimate,
@@ -9283,7 +9490,7 @@ function renderTreasuryWithdrawalPreflight() {
     + '</div>'
 
     + '<div>'
-    + '<span>Main-held ownership</span>'
+    + '<span>Already in main custody</span>'
     + `<strong>${escapeHtml(
         treasuryAmount(
           funding.owner_main_held,
@@ -9293,7 +9500,7 @@ function renderTreasuryWithdrawalPreflight() {
     + '</div>'
 
     + '<div>'
-    + '<span>Conservative funding</span>'
+    + '<span>Funding required</span>'
     + `<strong>${escapeHtml(
         treasuryAmount(
           funding.conservative_funding_required,
@@ -9303,14 +9510,14 @@ function renderTreasuryWithdrawalPreflight() {
     + '</div>'
 
     + '<div>'
-    + '<span>JIT required</span>'
+    + '<span>JIT funding</span>'
     + `<strong>${
         funding.jit_required ? 'Yes' : 'No'
       }</strong>`
     + '</div>'
 
     + '<div>'
-    + '<span>Minimum JIT</span>'
+    + '<span>Additional main funding</span>'
     + `<strong>${escapeHtml(
         treasuryAmount(
           funding.minimum_jit_transfer,
@@ -9334,6 +9541,32 @@ function renderTreasuryWithdrawalPreflight() {
     + '</div>'
 
     + '</div>'
+
+    + (
+      funding.jit_required
+        ? (
+            '<div class="treasury-withdrawal-funding-callout warning">'
+            + '<strong>Additional main custody funding required</strong>'
+            + '<span>'
+            + `Move at least ${escapeHtml(
+              treasuryAmount(
+                funding.minimum_jit_transfer,
+                snapshot.currency,
+              )
+            )} from the owner account into main custody `
+            + 'before the Gate withdrawal can proceed.'
+            + '</span>'
+            + '</div>'
+          )
+        : (
+            '<div class="treasury-withdrawal-funding-callout ready">'
+            + '<strong>Funding ready</strong>'
+            + '<span>'
+            + 'No JIT transfer is required before withdrawal.'
+            + '</span>'
+            + '</div>'
+          )
+    )
   );
 
   if (createButton) {

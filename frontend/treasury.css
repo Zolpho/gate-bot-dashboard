@@ -4087,3 +4087,342 @@ input {
 
 
 /* End 3J39 Withdrawal primary workspace v1 */
+
+
+/* 3J39 Withdrawal clarity polish v1 */
+
+/*
+ * Readability / density only.
+ * Funding values come from the existing read-only
+ * withdrawal-capabilities and preflight responses.
+ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-flow-item {
+  padding: 9px 12px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-builder {
+  margin-top: 12px;
+
+  padding: 11px 12px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head {
+  margin-bottom: 8px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-form {
+  margin-top: 12px;
+
+  gap: 8px 14px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-summary {
+  padding: 9px 10px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-context {
+  min-height: 30px;
+
+  padding: 6px 8px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-execution-row {
+  gap: 9px;
+
+  padding: 11px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary {
+  display: grid;
+
+  gap: 8px;
+
+  min-width: 0;
+
+  padding: 9px 10px;
+
+  border:
+    1px solid rgba(255, 255, 255, .06);
+
+  border-radius: 9px;
+
+  background:
+    rgba(255, 255, 255, .012);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-head strong {
+  color: var(--text);
+
+  font-size: .7rem;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-head span {
+  color: var(--muted);
+
+  font-size: .58rem;
+
+  text-align: right;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 1px;
+
+  overflow: hidden;
+
+  border:
+    1px solid rgba(255, 255, 255, .045);
+
+  border-radius: 7px;
+
+  background:
+    rgba(255, 255, 255, .035);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-grid > div {
+  display: flex;
+  flex-direction: column;
+
+  gap: 2px;
+
+  min-width: 0;
+
+  padding: 7px 8px;
+
+  background:
+    rgba(7, 18, 15, .96);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-grid > div span {
+  color: var(--muted);
+
+  font-size: .56rem;
+
+  line-height: 1.2;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-grid > div strong {
+  overflow: hidden;
+
+  color: var(--text);
+
+  font-size: .66rem;
+  font-variant-numeric:
+    tabular-nums;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-grid
+> .is-total strong {
+  color: var(--accent);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-note {
+  color: var(--muted);
+
+  font-size: .56rem;
+  line-height: 1.35;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-empty {
+  display: flex;
+  flex-direction: column;
+
+  gap: 2px;
+
+  color: var(--muted);
+
+  font-size: .6rem;
+  line-height: 1.35;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-empty strong {
+  color: var(--text);
+
+  font-size: .68rem;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight {
+  margin-top: 10px;
+
+  padding: 10px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-callout {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  margin-top: 9px;
+
+  padding: 9px 10px;
+
+  border-radius: 8px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-callout strong {
+  flex: 0 0 auto;
+
+  font-size: .67rem;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-callout span {
+  max-width: 760px;
+
+  color: var(--muted);
+
+  font-size: .62rem;
+  line-height: 1.4;
+
+  text-align: right;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-callout.warning {
+  border:
+    1px solid rgba(245, 183, 65, .20);
+
+  background:
+    rgba(245, 183, 65, .045);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-callout.warning strong {
+  color:
+    rgba(247, 200, 102, .96);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-callout.ready {
+  border:
+    1px solid rgba(29, 211, 155, .18);
+
+  background:
+    rgba(29, 211, 155, .035);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-callout.ready strong {
+  color: var(--accent);
+}
+
+
+@media (max-width: 700px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-funding-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-funding-callout {
+    flex-direction: column;
+
+    gap: 4px;
+  }
+
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-funding-callout span {
+    text-align: left;
+  }
+}
+
+
+/* End 3J39 Withdrawal clarity polish v1 */
