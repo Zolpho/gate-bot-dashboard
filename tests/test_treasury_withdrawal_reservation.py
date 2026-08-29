@@ -134,10 +134,10 @@ def _preflight(
             "owner_main_held": "1",
             "owner_liquid_main_held": "1",
             "conservative_funding_required": (
-                "5.05"
+                "5"
             ),
             "jit_required": True,
-            "minimum_jit_transfer": "4.05",
+            "minimum_jit_transfer": "4",
         },
         "fee": {
             "estimated_fee": "0.05",
@@ -159,7 +159,11 @@ def _preflight(
     }
 
 
-def _create_request():
+def _create_request(
+    *,
+    conservative_funding_required: str = "5",
+    minimum_jit_transfer: str = "4",
+):
     request_id = (
         "wd-reserve-"
         + uuid4().hex
@@ -184,6 +188,19 @@ def _create_request():
     preflight = _preflight(
         destination_id=destination_id,
         address=address,
+    )
+
+    preflight["funding"][
+        "conservative_funding_required"
+    ] = conservative_funding_required
+
+    preflight["funding"][
+        "minimum_jit_transfer"
+    ] = minimum_jit_transfer
+
+    preflight["funding"]["jit_required"] = (
+        Decimal(minimum_jit_transfer)
+        > Decimal("0")
     )
 
     payload = {
@@ -211,12 +228,21 @@ def _create_request():
             amount=Decimal("5"),
             estimated_fee=Decimal("0.05"),
             conservative_funding_required=(
-                Decimal("5.05")
+                Decimal(
+                    conservative_funding_required
+                )
             ),
             minimum_jit_transfer=(
-                Decimal("4.05")
+                Decimal(
+                    minimum_jit_transfer
+                )
             ),
-            jit_required=True,
+            jit_required=(
+                Decimal(
+                    minimum_jit_transfer
+                )
+                > Decimal("0")
+            ),
             payload=payload,
             preflight=preflight,
             destination_snapshot=destination,
@@ -509,6 +535,114 @@ async def test_reserve_rejects_destination_snapshot_mismatch(
 
 
 @pytest.mark.asyncio
+async def test_reserve_rejects_legacy_funding_snapshot_before_lock(
+    monkeypatch,
+):
+    row, destination_id, address = (
+        _create_request(
+            conservative_funding_required="5.05",
+            minimum_jit_transfer="4.05",
+        )
+    )
+
+    calls = _install_preflight(
+        monkeypatch,
+        destination_id=destination_id,
+        address=address,
+        valid=True,
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as exc_info:
+        await (
+            treasury_api
+            .reserve_treasury_withdrawal_request(
+                row["request_id"],
+                TreasuryWithdrawalReservationRequest(
+                    confirmation=(
+                        withdrawal_reservation_confirmation_text(
+                            row["request_id"]
+                        )
+                    ),
+                ),
+                user=_user(),
+            )
+        )
+
+    assert calls["count"] == 1
+    assert exc_info.value.status_code == 409
+
+    detail = exc_info.value.detail
+
+    assert (
+        detail["reason"]
+        == "withdrawal_funding_snapshot_changed"
+    )
+
+    assert (
+        detail["stored_estimated_fee"]
+        == "0.05"
+    )
+
+    assert (
+        detail["fresh_estimated_fee"]
+        == "0.05"
+    )
+
+    assert (
+        detail[
+            "stored_conservative_funding_required"
+        ]
+        == "5.05"
+    )
+
+    assert (
+        detail[
+            "fresh_conservative_funding_required"
+        ]
+        == "5"
+    )
+
+    assert (
+        detail["gate_write_performed"]
+        is False
+    )
+
+    stored = get_withdrawal_request(
+        row["request_id"]
+    )
+
+    assert stored is not None
+    assert stored["status"] == "simulated"
+
+    # Immutable legacy authority remains historical.
+    assert (
+        stored[
+            "conservative_funding_required"
+        ]
+        == "5.05"
+    )
+
+    assert (
+        stored["minimum_jit_transfer"]
+        == "4.05"
+    )
+
+    assert (
+        get_withdrawal_lock_for_request(
+            row["request_id"]
+        )
+        is None
+    )
+
+    assert (
+        list_withdrawal_request_events(
+            row["request_id"]
+        )
+        == []
+    )
+
 async def test_confirm_valid_request_rechecks_and_keeps_lock(
     monkeypatch,
 ):

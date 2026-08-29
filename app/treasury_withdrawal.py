@@ -674,8 +674,21 @@ def build_withdrawal_preflight(
             >= minimum
         )
 
+    # Gate withdrawal `amount` is the gross custody
+    # debit. The withdrawal fee is deducted inside that
+    # amount before recipient delivery.
+    #
+    # This is independently supported by the production
+    # canary:
+    # - Gate account-book debit: 50 USDT
+    # - Gate withdrawal fee:    1.04 USDT
+    # - on-chain recipient:     48.96 USDT
+    #
+    # Keep the historical field name for API/database
+    # compatibility. Existing persisted snapshots remain
+    # immutable.
     conservative_funding_required = (
-        amount + estimated_fee
+        amount
         if (
             amount_positive
             and estimated_fee is not None

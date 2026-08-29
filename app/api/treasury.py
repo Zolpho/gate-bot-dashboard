@@ -4267,6 +4267,106 @@ async def reserve_treasury_withdrawal_request(
             },
         )
 
+    # Immutable funding authority must still match the
+    # fresh GET-only preflight before this request can
+    # acquire a custody lock.
+    #
+    # This rejects legacy simulations created under an
+    # older fee/funding semantic without rewriting their
+    # historical audit snapshots.
+    fee = preflight.get("fee")
+    funding = preflight.get("funding")
+
+    if (
+        not isinstance(fee, dict)
+        or not isinstance(funding, dict)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Fresh withdrawal preflight is "
+                    "missing fee/funding data."
+                ),
+                "reason": (
+                    "withdrawal_funding_snapshot_invalid"
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    fresh_fee = as_decimal(
+        fee.get("estimated_fee")
+    )
+
+    stored_fee = as_decimal(
+        row.get("estimated_fee")
+    )
+
+    fresh_required = as_decimal(
+        funding.get(
+            "conservative_funding_required"
+        )
+    )
+
+    stored_required = as_decimal(
+        row.get(
+            "conservative_funding_required"
+        )
+    )
+
+    if (
+        fresh_fee is None
+        or stored_fee is None
+        or fresh_required is None
+        or stored_required is None
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal funding snapshot "
+                    "could not be validated."
+                ),
+                "reason": (
+                    "withdrawal_funding_snapshot_invalid"
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    if (
+        fresh_fee != stored_fee
+        or fresh_required != stored_required
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Withdrawal fee or funding "
+                    "requirement no longer matches "
+                    "the immutable request snapshot. "
+                    "Create a fresh withdrawal request."
+                ),
+                "reason": (
+                    "withdrawal_funding_snapshot_changed"
+                ),
+                "stored_estimated_fee": (
+                    format(stored_fee, "f")
+                ),
+                "fresh_estimated_fee": (
+                    format(fresh_fee, "f")
+                ),
+                "stored_conservative_funding_required": (
+                    format(stored_required, "f")
+                ),
+                "fresh_conservative_funding_required": (
+                    format(fresh_required, "f")
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
     try:
         lock = acquire_withdrawal_lock(
             owner_account_id=(

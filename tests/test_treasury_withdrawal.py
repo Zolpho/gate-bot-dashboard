@@ -379,14 +379,14 @@ def test_withdrawal_preflight_ready_and_jit_calculated():
         result["funding"][
             "conservative_funding_required"
         ]
-        == "6"
+        == "5"
     )
 
     assert (
         result["funding"][
             "minimum_jit_transfer"
         ]
-        == "3"
+        == "2"
     )
 
     assert (
@@ -497,7 +497,7 @@ def test_withdrawal_preflight_rejects_disabled_chain():
     )
 
 
-def test_withdrawal_preflight_reserves_fee_for_funding():
+def test_withdrawal_preflight_uses_requested_amount_for_funding():
     capabilities = (
         build_withdrawal_capabilities(
             owner_account_id="arnold",
@@ -524,23 +524,49 @@ def test_withdrawal_preflight_reserves_fee_for_funding():
         amount=Decimal("1"),
     )
 
+    # Gate funding authority is the requested amount.
+    # The fee must not be added a second time.
     assert (
         result["funding"][
             "conservative_funding_required"
         ]
-        == "2"
+        == "1"
     )
 
     assert (
         result["checks"][
             "economic_balance_valid"
         ]
-        is False
+        is True
     )
 
     assert (
         result["checks"][
             "funding_balance_valid"
+        ]
+        is True
+    )
+
+    # The same request remains invalid for the correct
+    # independent reason: the fee consumes the entire
+    # requested amount, leaving nothing for the recipient.
+    assert (
+        result["fee"][
+            "recipient_amount_estimate"
+        ]
+        == "0"
+    )
+
+    assert (
+        result["checks"][
+            "recipient_amount_positive"
+        ]
+        is False
+    )
+
+    assert (
+        result["checks"][
+            "recipient_minimum_valid"
         ]
         is False
     )
