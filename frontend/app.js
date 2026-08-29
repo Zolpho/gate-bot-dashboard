@@ -10341,8 +10341,80 @@ function renderTreasuryWithdrawalExternalExecutionPreview(
     preview.application_barriers_open
   );
 
+  const liveWithdrawalsArmed = Boolean(
+    preview.live_withdrawals_armed
+  );
+
+  const ownerLiveEnabled = Boolean(
+    preview.owner_account_live_enabled
+  );
+
   const confirmation = String(
     preview.required_confirmation || ''
+  );
+
+  const executionStatusMessage = (
+    barriersOpen
+      ? (
+          'Application barriers are open. '
+          + 'Exact confirmation is still required.'
+        )
+      : (
+          !liveWithdrawalsArmed
+          && !ownerLiveEnabled
+            ? (
+                'Execution is blocked: live external '
+                + 'withdrawals are disarmed and this owner '
+                + 'is not allowlisted for live withdrawals.'
+              )
+            : (
+                !liveWithdrawalsArmed
+                  ? (
+                      'Execution is blocked: live external '
+                      + 'withdrawals are disarmed.'
+                    )
+                  : (
+                      !ownerLiveEnabled
+                        ? (
+                            'Execution is blocked: this owner '
+                            + 'is not allowlisted for live '
+                            + 'external withdrawals.'
+                          )
+                        : (
+                            'Execution is blocked by '
+                            + 'application policy.'
+                          )
+                    )
+              )
+        )
+  );
+
+  const executionControls = (
+    barriersOpen
+      ? (
+          '<label>'
+          + 'Exact money-moving confirmation'
+          + `<code>${escapeHtml(
+              confirmation || '—'
+            )}</code>`
+          + '<input '
+          + 'id="treasuryExternalWithdrawalConfirmation" '
+          + 'type="text" '
+          + 'autocomplete="off" '
+          + 'spellcheck="false">'
+          + '</label>'
+
+          + '<div class="treasury-withdrawal-actions">'
+          + '<button '
+          + 'type="button" '
+          + 'class="button" '
+          + 'id="executeTreasuryExternalWithdrawal" '
+          + 'disabled>'
+          + 'Execute external withdrawal'
+          + '</button>'
+          + '</div>'
+        )
+      : ''
   );
 
   element.innerHTML = (
@@ -10436,42 +10508,18 @@ function renderTreasuryWithdrawalExternalExecutionPreview(
     + 'snapshot before Gate submission.'
     + '</div>'
 
-    + '<label>'
-    + 'Exact money-moving confirmation'
-    + `<code>${escapeHtml(
-        confirmation || '—'
-      )}</code>`
-    + '<input '
-    + 'id="treasuryExternalWithdrawalConfirmation" '
-    + 'type="text" '
-    + 'autocomplete="off" '
-    + 'spellcheck="false">'
-    + '</label>'
-
-    + '<div class="treasury-withdrawal-actions">'
-    + '<button '
-    + 'type="button" '
-    + 'class="button" '
-    + 'id="executeTreasuryExternalWithdrawal" '
-    + 'disabled>'
-    + 'Execute external withdrawal'
-    + '</button>'
-    + '</div>'
+    + executionControls
 
     + '<div class="treasury-withdrawal-safety-note">'
-    + (
-        barriersOpen
-          ? (
-              'Application barriers are open. '
-              + 'Exact confirmation is still required.'
-            )
-          : (
-              'Execution remains blocked while live '
-              + 'external withdrawals are disarmed.'
-            )
+    + escapeHtml(
+        executionStatusMessage
       )
     + '</div>'
   );
+
+  if (!barriersOpen) {
+    return;
+  }
 
   const input = $(
     '#treasuryExternalWithdrawalConfirmation'
