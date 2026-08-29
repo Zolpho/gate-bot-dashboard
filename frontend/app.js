@@ -75,6 +75,9 @@ const state = {
   treasuryUserTransferPreview: null,
   treasuryUserTransferExecutionAttempted: false,
   treasuryWithdrawalDestinations: [],
+  treasuryWithdrawalDestinationReviewItems: [],
+  treasuryWithdrawalDestinationReviewOwner: '',
+  treasuryWithdrawalDestinationReviewLoading: false,
   treasuryWithdrawalRecipients: [],
   treasuryWithdrawalCapabilities: null,
   treasuryWithdrawalCapabilitiesKey: '',
@@ -340,6 +343,9 @@ function clearTreasurySession() {
   state.treasuryUserTransferExecutionAttempted = false;
 
   state.treasuryWithdrawalDestinations = [];
+  state.treasuryWithdrawalDestinationReviewItems = [];
+  state.treasuryWithdrawalDestinationReviewOwner = '';
+  state.treasuryWithdrawalDestinationReviewLoading = false;
   state.treasuryWithdrawalRecipients = [];
   state.treasuryWithdrawalCapabilities = null;
   state.treasuryWithdrawalCapabilitiesKey = '';
@@ -417,6 +423,14 @@ function clearTreasurySession() {
 
   if (withdrawalRequestDialog?.open) {
     withdrawalRequestDialog.close();
+  }
+
+  const destinationReviewDialog = $(
+    '#treasuryWithdrawalDestinationReviewDialog'
+  );
+
+  if (destinationReviewDialog?.open) {
+    destinationReviewDialog.close();
   }
 
   const recipientDialog = $(
@@ -6481,6 +6495,846 @@ function invalidateTreasuryUserTransferPreview() {
 }
 
 
+function treasuryWithdrawalDestinationDecisionConfirmation(
+  action,
+  destinationId
+) {
+  const verb = String(
+    action || ''
+  ).toUpperCase();
+
+  return (
+    `${verb} WITHDRAWAL DESTINATION `
+    + String(
+      destinationId || ''
+    )
+  );
+}
+
+
+function setTreasuryWithdrawalDestinationReviewError(
+  message = ''
+) {
+  const box = $(
+    '#treasuryWithdrawalDestinationReviewError'
+  );
+
+  if (!box) return;
+
+  const text = String(
+    message || ''
+  );
+
+  box.textContent = text;
+
+  box.classList.toggle(
+    'hidden',
+    !text
+  );
+}
+
+
+function renderTreasuryWithdrawalDestinationReview(
+  items = []
+) {
+  const list = $(
+    '#treasuryWithdrawalDestinationReviewList'
+  );
+
+  const summary = $(
+    '#treasuryWithdrawalDestinationReviewSummary'
+  );
+
+  if (!list) return;
+
+  const rows = (
+    Array.isArray(items)
+      ? items
+      : []
+  );
+
+  const awaitingReview = rows.filter(
+    item => {
+      const status = String(
+        item.status || ''
+      ).toLowerCase();
+
+      return (
+        status === 'candidate'
+        || status === 'pending_verification'
+      );
+    }
+  ).length;
+
+  const approved = rows.filter(
+    item => String(
+      item.status || ''
+    ).toLowerCase() === 'approved'
+  ).length;
+
+  const revoked = rows.filter(
+    item => String(
+      item.status || ''
+    ).toLowerCase() === 'revoked'
+  ).length;
+
+  if (summary) {
+    summary.textContent = (
+      `${awaitingReview} awaiting review · `
+      + `${approved} approved · `
+      + `${revoked} revoked`
+    );
+  }
+
+  if (!rows.length) {
+    list.innerHTML = (
+      '<div class="treasury-destination-review-empty">'
+      + 'No withdrawal destination routes '
+      + 'exist for this account.'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  list.innerHTML = rows.map(
+    item => {
+      const destinationId = String(
+        item.destination_id || ''
+      );
+
+      const status = String(
+        item.status || 'unknown'
+      ).toLowerCase();
+
+      const statusClass = (
+        status === 'pending_verification'
+          ? 'pending-verification'
+          : (
+              [
+                'candidate',
+                'approved',
+                'revoked',
+              ].includes(status)
+                ? status
+                : 'unknown'
+            )
+      );
+
+      const approvable = (
+        status === 'candidate'
+        || status === 'pending_verification'
+      );
+
+      const revocable = (
+        approvable
+        || status === 'approved'
+      );
+
+      const approvalConfirmation = (
+        treasuryWithdrawalDestinationDecisionConfirmation(
+          'approve',
+          destinationId,
+        )
+      );
+
+      const revocationConfirmation = (
+        treasuryWithdrawalDestinationDecisionConfirmation(
+          'revoke',
+          destinationId,
+        )
+      );
+
+      const decisionControls = (
+        approvable
+        || revocable
+      )
+        ? (
+            '<div class="treasury-destination-decision">'
+
+            + '<label>'
+            + '<span>Review reason</span>'
+            + '<textarea '
+            + 'rows="3" '
+            + 'minlength="20" '
+            + 'maxlength="1000" '
+            + 'data-treasury-destination-review-reason '
+            + 'placeholder="At least 20 characters documenting '
+            + 'the independent review."></textarea>'
+            + '</label>'
+
+            + (
+                approvable
+                  ? (
+                      '<div class="treasury-destination-confirmation">'
+                      + '<span>Approve confirmation</span>'
+                      + `<code>${
+                          escapeHtml(
+                            approvalConfirmation
+                          )
+                        }</code>`
+                      + '</div>'
+                    )
+                  : ''
+              )
+
+            + (
+                revocable
+                  ? (
+                      '<div class="treasury-destination-confirmation">'
+                      + '<span>Revoke confirmation</span>'
+                      + `<code>${
+                          escapeHtml(
+                            revocationConfirmation
+                          )
+                        }</code>`
+                      + '</div>'
+                    )
+                  : ''
+              )
+
+            + '<label>'
+            + '<span>Exact confirmation</span>'
+            + '<input '
+            + 'type="text" '
+            + 'autocomplete="off" '
+            + 'spellcheck="false" '
+            + 'data-treasury-destination-review-confirmation '
+            + 'placeholder="Type one exact phrase shown above">'
+            + '</label>'
+
+            + '<div class="treasury-destination-review-actions">'
+
+            + (
+                approvable
+                  ? (
+                      '<button '
+                      + 'type="button" '
+                      + 'class="button secondary" '
+                      + 'data-treasury-destination-review-action="approve" '
+                      + `data-treasury-destination-review-id="${
+                          escapeHtml(destinationId)
+                        }" `
+                      + 'disabled>'
+                      + 'Approve destination'
+                      + '</button>'
+                    )
+                  : ''
+              )
+
+            + (
+                revocable
+                  ? (
+                      '<button '
+                      + 'type="button" '
+                      + 'class="button secondary" '
+                      + 'data-treasury-destination-review-action="revoke" '
+                      + `data-treasury-destination-review-id="${
+                          escapeHtml(destinationId)
+                        }" `
+                      + 'disabled>'
+                      + 'Revoke destination'
+                      + '</button>'
+                    )
+                  : ''
+              )
+
+            + '</div>'
+            + '</div>'
+          )
+        : (
+            '<div class="treasury-destination-terminal">'
+            + 'Revoked destinations are terminal and '
+            + 'cannot be approved again.'
+            + '</div>'
+          );
+
+      return (
+        '<article '
+        + 'class="treasury-destination-review-card" '
+        + `data-treasury-destination-review-row="${
+            escapeHtml(destinationId)
+          }">`
+
+        + '<div class="treasury-destination-review-card-head">'
+        + '<div>'
+        + '<span>Destination ID</span>'
+        + `<code>${
+            escapeHtml(destinationId)
+          }</code>`
+        + '</div>'
+
+        + `<span class="treasury-destination-review-status ${
+            escapeHtml(statusClass)
+          }">${
+            escapeHtml(
+              status.replaceAll(
+                '_',
+                ' '
+              )
+            )
+          }</span>`
+        + '</div>'
+
+        + '<div class="treasury-destination-review-grid">'
+
+        + '<div>'
+        + '<span>Owner</span>'
+        + `<strong>${
+            escapeHtml(
+              item.owner_account_id || '—'
+            )
+          }</strong>`
+        + '</div>'
+
+        + '<div>'
+        + '<span>Asset</span>'
+        + `<strong>${
+            escapeHtml(
+              item.currency || '—'
+            )
+          }</strong>`
+        + '</div>'
+
+        + '<div>'
+        + '<span>Network</span>'
+        + `<strong>${
+            escapeHtml(
+              item.chain || '—'
+            )
+          }</strong>`
+        + '</div>'
+
+        + '<div>'
+        + '<span>Description</span>'
+        + `<strong>${
+            escapeHtml(
+              item.label || '—'
+            )
+          }</strong>`
+        + '</div>'
+
+        + '<div class="wide">'
+        + '<span>Address</span>'
+        + `<code>${
+            escapeHtml(
+              item.address || '—'
+            )
+          }</code>`
+        + '</div>'
+
+        + '<div>'
+        + '<span>Memo / tag</span>'
+        + `<strong>${
+            escapeHtml(
+              item.memo || 'None'
+            )
+          }</strong>`
+        + '</div>'
+
+        + '<div>'
+        + '<span>Source</span>'
+        + `<strong>${
+            escapeHtml(
+              item.source || '—'
+            )
+          }</strong>`
+        + '</div>'
+
+        + '<div>'
+        + '<span>Recipient</span>'
+        + `<strong>${
+            escapeHtml(
+              item.recipient_id
+              || 'Legacy / unlinked'
+            )
+          }</strong>`
+        + '</div>'
+
+        + '<div>'
+        + '<span>Dashboard verification</span>'
+        + `<strong>${
+            escapeHtml(
+              item.verification_method
+              || 'unverified'
+            )
+          }</strong>`
+        + '</div>'
+
+        + '</div>'
+
+        + decisionControls
+
+        + '</article>'
+      );
+    }
+  ).join('');
+}
+
+
+function updateTreasuryWithdrawalDestinationReviewActions(
+  row
+) {
+  if (!row) return;
+
+  const destinationId = String(
+    row.dataset
+      ?.treasuryDestinationReviewRow
+    || ''
+  );
+
+  const reason = String(
+    row.querySelector(
+      '[data-treasury-destination-review-reason]'
+    )?.value
+    || ''
+  ).trim();
+
+  const confirmation = String(
+    row.querySelector(
+      '[data-treasury-destination-review-confirmation]'
+    )?.value
+    || ''
+  );
+
+  row.querySelectorAll(
+    '[data-treasury-destination-review-action]'
+  ).forEach(
+    button => {
+      const action = String(
+        button.dataset
+          ?.treasuryDestinationReviewAction
+        || ''
+      );
+
+      const required = (
+        treasuryWithdrawalDestinationDecisionConfirmation(
+          action,
+          destinationId,
+        )
+      );
+
+      button.disabled = !(
+        state.adminUser?.role === 'super_admin'
+        && destinationId
+        && reason.length >= 20
+        && confirmation === required
+      );
+    }
+  );
+}
+
+
+async function loadTreasuryWithdrawalDestinationReview(
+  {
+    quiet = false,
+  } = {}
+) {
+  const owner = (
+    treasuryWithdrawalPreparationOwner()
+  );
+
+  const list = $(
+    '#treasuryWithdrawalDestinationReviewList'
+  );
+
+  if (
+    state.adminUser?.role !== 'super_admin'
+    || !owner
+  ) {
+    state.treasuryWithdrawalDestinationReviewItems = [];
+    state.treasuryWithdrawalDestinationReviewOwner = '';
+
+    renderTreasuryWithdrawalDestinationReview(
+      []
+    );
+
+    return;
+  }
+
+  state.treasuryWithdrawalDestinationReviewLoading = true;
+
+  if (list) {
+    list.innerHTML = (
+      '<div class="treasury-destination-review-empty">'
+      + 'Loading destination routes…'
+      + '</div>'
+    );
+  }
+
+  setTreasuryWithdrawalDestinationReviewError(
+    ''
+  );
+
+  try {
+    const result = await adminApi(
+      withParams(
+        '/api/treasury/withdrawals/destinations',
+        {
+          owner_account_id: owner,
+          limit: 500,
+        },
+      ),
+    );
+
+    if (result.gate_write_performed) {
+      throw new Error(
+        'Safety invariant failed: destination '
+        + 'review lookup reported a Gate write.'
+      );
+    }
+
+    if (
+      state.adminUser?.role !== 'super_admin'
+      || treasuryWithdrawalPreparationOwner()
+        !== owner
+    ) {
+      return;
+    }
+
+    state.treasuryWithdrawalDestinationReviewItems = (
+      result.items || []
+    );
+
+    state.treasuryWithdrawalDestinationReviewOwner = (
+      owner
+    );
+
+    renderTreasuryWithdrawalDestinationReview(
+      state.treasuryWithdrawalDestinationReviewItems
+    );
+
+  } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
+    const message = treasuryErrorMessage(
+      error
+    );
+
+    setTreasuryWithdrawalDestinationReviewError(
+      message
+    );
+
+    if (!quiet) {
+      showToast(
+        message,
+        true,
+      );
+    }
+
+  } finally {
+    if (
+      state.adminUser?.role === 'super_admin'
+      && treasuryWithdrawalPreparationOwner()
+        === owner
+    ) {
+      state.treasuryWithdrawalDestinationReviewLoading = false;
+    }
+  }
+}
+
+
+async function openTreasuryWithdrawalDestinationReview() {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    openAdminDialog();
+    return;
+  }
+
+  if (
+    state.adminUser.role !== 'super_admin'
+  ) {
+    showToast(
+      'Only a super administrator can approve '
+      + 'or revoke withdrawal destinations.',
+      true,
+    );
+
+    return;
+  }
+
+  const owner = (
+    treasuryWithdrawalPreparationOwner()
+  );
+
+  if (!owner) {
+    showToast(
+      'Select one account before reviewing destinations.',
+      true,
+    );
+
+    return;
+  }
+
+  const ownerElement = $(
+    '#treasuryWithdrawalDestinationReviewOwner'
+  );
+
+  if (ownerElement) {
+    ownerElement.textContent = (
+      `Reviewing destination routes for ${owner}`
+    );
+  }
+
+  setTreasuryWithdrawalDestinationReviewError(
+    ''
+  );
+
+  const dialog = $(
+    '#treasuryWithdrawalDestinationReviewDialog'
+  );
+
+  if (
+    dialog
+    && !dialog.open
+  ) {
+    dialog.showModal();
+  }
+
+  await loadTreasuryWithdrawalDestinationReview();
+}
+
+
+function closeTreasuryWithdrawalDestinationReview() {
+  const dialog = $(
+    '#treasuryWithdrawalDestinationReviewDialog'
+  );
+
+  if (dialog?.open) {
+    dialog.close();
+  }
+}
+
+
+function handleTreasuryWithdrawalDestinationReviewInput(
+  event
+) {
+  const row = event.target.closest(
+    '[data-treasury-destination-review-row]'
+  );
+
+  if (!row) return;
+
+  updateTreasuryWithdrawalDestinationReviewActions(
+    row
+  );
+}
+
+
+async function mutateTreasuryWithdrawalDestinationReview(
+  button
+) {
+  if (
+    state.adminUser?.role !== 'super_admin'
+  ) {
+    return;
+  }
+
+  const owner = (
+    treasuryWithdrawalPreparationOwner()
+  );
+
+  const destinationId = String(
+    button?.dataset
+      ?.treasuryDestinationReviewId
+    || ''
+  );
+
+  const action = String(
+    button?.dataset
+      ?.treasuryDestinationReviewAction
+    || ''
+  );
+
+  if (
+    !owner
+    || !destinationId
+    || ![
+      'approve',
+      'revoke',
+    ].includes(action)
+  ) {
+    return;
+  }
+
+  const row = button.closest(
+    '[data-treasury-destination-review-row]'
+  );
+
+  if (!row) return;
+
+  const reason = String(
+    row.querySelector(
+      '[data-treasury-destination-review-reason]'
+    )?.value
+    || ''
+  ).trim();
+
+  const confirmation = String(
+    row.querySelector(
+      '[data-treasury-destination-review-confirmation]'
+    )?.value
+    || ''
+  );
+
+  const required = (
+    treasuryWithdrawalDestinationDecisionConfirmation(
+      action,
+      destinationId,
+    )
+  );
+
+  if (
+    reason.length < 20
+    || confirmation !== required
+  ) {
+    return;
+  }
+
+  const originalText = (
+    button.textContent
+  );
+
+  button.disabled = true;
+
+  button.textContent = (
+    action === 'approve'
+      ? 'Approving…'
+      : 'Revoking…'
+  );
+
+  setTreasuryWithdrawalDestinationReviewError(
+    ''
+  );
+
+  try {
+    const result = await adminApi(
+      (
+        '/api/treasury/withdrawals/destinations/'
+        + encodeURIComponent(
+          destinationId
+        )
+        + `/${action}`
+      ),
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          confirmation,
+          reason,
+        }),
+      },
+    );
+
+    if (result.gate_write_performed) {
+      throw new Error(
+        'Safety invariant failed: destination '
+        + 'decision reported a Gate write.'
+      );
+    }
+
+    clearTreasuryWithdrawalPreflight();
+
+    showToast(
+      action === 'approve'
+        ? (
+            'Withdrawal destination approved locally. '
+            + 'Gate eligibility is still checked '
+            + 'separately by preflight.'
+          )
+        : (
+            'Withdrawal destination revoked.'
+          )
+    );
+
+    await loadTreasuryOverview({
+      quiet: true,
+    });
+
+    if (
+      state.adminUser?.role === 'super_admin'
+      && treasuryWithdrawalPreparationOwner()
+        === owner
+      && action === 'approve'
+      && String(
+        result.item?.status || ''
+      ).toLowerCase() === 'approved'
+    ) {
+      const select = $(
+        '#treasuryWithdrawalDestination'
+      );
+
+      const available = (
+        state.treasuryWithdrawalDestinations
+        || []
+      ).some(
+        item => String(
+          item.destination_id || ''
+        ) === destinationId
+      );
+
+      if (
+        select
+        && available
+      ) {
+        select.value = destinationId;
+
+        renderTreasuryWithdrawalDestinationSummary();
+      }
+    }
+
+  } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
+    const message = treasuryErrorMessage(
+      error
+    );
+
+    setTreasuryWithdrawalDestinationReviewError(
+      message
+    );
+
+    showToast(
+      message,
+      true,
+    );
+
+  } finally {
+    if (
+      button
+      && document.body.contains(
+        button
+      )
+    ) {
+      button.textContent = originalText;
+
+      updateTreasuryWithdrawalDestinationReviewActions(
+        row
+      );
+    }
+  }
+}
+
+
+function handleTreasuryWithdrawalDestinationReviewClick(
+  event
+) {
+  const button = event.target.closest(
+    '[data-treasury-destination-review-action]'
+  );
+
+  if (!button) return;
+
+  mutateTreasuryWithdrawalDestinationReview(
+    button
+  );
+}
+
 function treasuryApprovedWithdrawalDestinations() {
   return (
     state.treasuryWithdrawalDestinations || []
@@ -8026,8 +8880,15 @@ async function prepareTreasuryWithdrawalRecipientDestination() {
             + 'It is selected below.'
           )
         : (
-            'Destination prepared. An administrator '
-            + 'must approve it before withdrawal.'
+            state.adminUser?.role === 'super_admin'
+              ? (
+                  'Destination prepared. Open Review '
+                  + 'destinations to approve or revoke it.'
+                )
+              : (
+                  'Destination prepared. An administrator '
+                  + 'must approve it before withdrawal.'
+                )
           )
     );
 
@@ -8098,6 +8959,24 @@ function renderTreasuryWithdrawalDestinations() {
   const preflightButton = $(
     '#treasuryWithdrawalPreflightButton'
   );
+
+  const reviewButton = $(
+    '#reviewTreasuryWithdrawalDestinations'
+  );
+
+  const canReview = Boolean(
+    state.adminUser?.role === 'super_admin'
+    && treasuryWithdrawalPreparationOwner()
+  );
+
+  if (reviewButton) {
+    reviewButton.classList.toggle(
+      'hidden',
+      !canReview
+    );
+
+    reviewButton.disabled = !canReview;
+  }
 
   action?.classList.toggle(
     'has-no-destinations',
@@ -11640,6 +12519,23 @@ async function loadTreasuryOverview(
     privateBalanceTargetAccount()
   );
 
+  const withdrawalDestinationRequest = (
+    withdrawalRecipientOwner
+      ? adminApi(
+          withParams(
+            '/api/treasury/withdrawals/destinations',
+            {
+              owner_account_id: withdrawalRecipientOwner,
+              status: 'approved',
+              limit: 100,
+            },
+          ),
+        )
+      : Promise.resolve({
+          items: [],
+        })
+  );
+
   const withdrawalRecipientRequest = (
     withdrawalRecipientOwner
       ? adminApi(
@@ -11695,10 +12591,7 @@ async function loadTreasuryOverview(
       adminApi(
         '/api/treasury/ownership/ledger?limit=200'
       ),
-      adminApi(
-        '/api/treasury/withdrawals/'
-        + 'destinations?status=approved&limit=100'
-      ),
+      withdrawalDestinationRequest,
       withdrawalRecipientRequest,
       adminApi(
         '/api/treasury/withdrawals/'
@@ -11735,7 +12628,13 @@ async function loadTreasuryOverview(
     );
 
     state.treasuryWithdrawalDestinations = (
-      withdrawalDestinations.items || []
+      withdrawalRecipientOwner
+      && privateBalanceTargetAccount()
+        === withdrawalRecipientOwner
+        ? (
+            withdrawalDestinations.items || []
+          )
+        : []
     );
 
     state.treasuryWithdrawalRecipients = (
@@ -11763,6 +12662,36 @@ async function loadTreasuryOverview(
     renderTreasuryUserTransferPreview();
     renderTreasuryLocks();
     renderTreasuryTransfers();
+
+    const destinationReviewDialog = $(
+      '#treasuryWithdrawalDestinationReviewDialog'
+    );
+
+    if (
+      destinationReviewDialog?.open
+      && state.adminUser?.role === 'super_admin'
+    ) {
+      const reviewOwner = (
+        treasuryWithdrawalPreparationOwner()
+      );
+
+      const reviewOwnerElement = $(
+        '#treasuryWithdrawalDestinationReviewOwner'
+      );
+
+      if (
+        reviewOwner
+        && reviewOwnerElement
+      ) {
+        reviewOwnerElement.textContent = (
+          `Reviewing destination routes for ${reviewOwner}`
+        );
+      }
+
+      await loadTreasuryWithdrawalDestinationReview({
+        quiet: true,
+      });
+    }
 
   } catch (error) {
     if (staleAdminSessionError(error)) {
@@ -15996,6 +16925,38 @@ function bindEvents() {
   $('#refreshTreasury')?.addEventListener(
     'click',
     () => loadTreasuryOverview(),
+  );
+
+  $('#reviewTreasuryWithdrawalDestinations')?.addEventListener(
+    'click',
+    openTreasuryWithdrawalDestinationReview,
+  );
+
+  $('#closeTreasuryWithdrawalDestinationReviewDialog')?.addEventListener(
+    'click',
+    closeTreasuryWithdrawalDestinationReview,
+  );
+
+  $('#treasuryWithdrawalDestinationReviewDialog')?.addEventListener(
+    'click',
+    event => {
+      if (
+        event.target
+        === $('#treasuryWithdrawalDestinationReviewDialog')
+      ) {
+        closeTreasuryWithdrawalDestinationReview();
+      }
+    },
+  );
+
+  $('#treasuryWithdrawalDestinationReviewList')?.addEventListener(
+    'input',
+    handleTreasuryWithdrawalDestinationReviewInput,
+  );
+
+  $('#treasuryWithdrawalDestinationReviewList')?.addEventListener(
+    'click',
+    handleTreasuryWithdrawalDestinationReviewClick,
   );
 
   $('#manageTreasuryWithdrawalRecipients')?.addEventListener(

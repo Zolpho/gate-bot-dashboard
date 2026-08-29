@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css">
-  <link rel="stylesheet" href="./treasury.css?v=20260829-withdraw-recipients-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260829-withdraw-destination-review-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -1124,6 +1124,15 @@
                   id="treasuryWithdrawalDestinationCount"
                   class="treasury-count"
                 >0 approved destinations</span>
+
+                <button
+                  type="button"
+                  class="button secondary treasury-withdrawal-review-button hidden"
+                  id="reviewTreasuryWithdrawalDestinations"
+                  disabled
+                >
+                  Review destinations
+                </button>
               </div>
             </div>
 
@@ -2648,7 +2657,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260829-withdraw-recipients-v1"
+    src="./app.js?v=20260829-withdraw-destination-review-v1"
     defer
   ></script>
   <script
@@ -2670,6 +2679,70 @@
     Market and performance data may be delayed. For informational purposes only.
   </div>
 </footer>  
+
+
+  <dialog
+    id="treasuryWithdrawalDestinationReviewDialog"
+    class="treasury-request-dialog treasury-withdrawal-destination-review-dialog"
+  >
+    <div class="dialog-header">
+      <div>
+        <h2>Withdrawal destination review</h2>
+
+        <p id="treasuryWithdrawalDestinationReviewOwner">
+          Review routes for the selected account.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeTreasuryWithdrawalDestinationReviewDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <div
+      class="treasury-request-content treasury-withdrawal-destination-review-content"
+    >
+      <div class="treasury-destination-review-safety">
+        <strong>
+          Dashboard approval and Gate eligibility are separate.
+        </strong>
+
+        Approving a route here does not add the address to Gate,
+        does not bypass the Gate address-book policy, and does not
+        submit a withdrawal. Withdrawal preflight checks Gate
+        eligibility independently.
+      </div>
+
+      <div
+        id="treasuryWithdrawalDestinationReviewError"
+        class="form-error hidden"
+        role="alert"
+        aria-live="assertive"
+      ></div>
+
+      <div class="treasury-destination-review-list-head">
+        <strong>Destination routes</strong>
+
+        <span
+          id="treasuryWithdrawalDestinationReviewSummary"
+        >
+          0 awaiting review · 0 approved · 0 revoked
+        </span>
+      </div>
+
+      <div
+        id="treasuryWithdrawalDestinationReviewList"
+        class="treasury-destination-review-list"
+      >
+        <div class="treasury-destination-review-empty">
+          Open this dialog to load destination routes.
+        </div>
+      </div>
+    </div>
+  </dialog>
 
   <dialog
     id="treasuryWithdrawalRecipientDialog"

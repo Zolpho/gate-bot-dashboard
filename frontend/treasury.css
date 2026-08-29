@@ -3203,3 +3203,289 @@ tbody tr:last-child td {
     flex: 1 1 0;
   }
 }
+
+/* 3J27 Withdrawal destination review v1 */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-review-button {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: .64rem;
+  white-space: nowrap;
+}
+
+
+.treasury-withdrawal-destination-review-dialog[open] {
+  width: min(940px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+}
+
+
+.treasury-withdrawal-destination-review-content {
+  padding: 18px;
+}
+
+
+.treasury-destination-review-safety {
+  padding: 12px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .018);
+  color: var(--muted);
+  font-size: .73rem;
+  line-height: 1.5;
+}
+
+
+.treasury-destination-review-safety strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+
+.treasury-destination-review-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  margin-bottom: 9px;
+}
+
+
+.treasury-destination-review-list-head > span {
+  color: var(--muted);
+  font-size: .68rem;
+  text-align: right;
+}
+
+
+.treasury-destination-review-list {
+  display: grid;
+  gap: 10px;
+}
+
+
+.treasury-destination-review-empty {
+  padding: 16px;
+  border: 1px dashed var(--border-soft);
+  border-radius: 10px;
+  color: var(--muted);
+  text-align: center;
+  font-size: .73rem;
+}
+
+
+.treasury-destination-review-card {
+  padding: 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  background: var(--surface-2);
+}
+
+
+.treasury-destination-review-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+
+.treasury-destination-review-card-head > div {
+  min-width: 0;
+}
+
+
+.treasury-destination-review-card-head span,
+.treasury-destination-review-grid span,
+.treasury-destination-decision label > span,
+.treasury-destination-confirmation > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: .65rem;
+}
+
+
+.treasury-destination-review-card code {
+  overflow-wrap: anywhere;
+}
+
+
+.treasury-destination-review-status {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font-size: .61rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+
+.treasury-destination-review-status.candidate,
+.treasury-destination-review-status.pending-verification {
+  color: var(--warning);
+}
+
+
+.treasury-destination-review-status.approved {
+  color: var(--positive);
+}
+
+
+.treasury-destination-review-status.revoked {
+  color: var(--negative);
+}
+
+
+.treasury-destination-review-status.unknown {
+  color: var(--muted);
+}
+
+
+.treasury-destination-review-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+
+.treasury-destination-review-grid > div {
+  min-width: 0;
+}
+
+
+.treasury-destination-review-grid > .wide {
+  grid-column: span 2;
+}
+
+
+.treasury-destination-review-grid strong,
+.treasury-destination-review-grid code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+
+.treasury-destination-decision {
+  margin-top: 13px;
+  padding-top: 13px;
+  border-top: 1px solid var(--border-soft);
+}
+
+
+.treasury-destination-decision label {
+  display: block;
+}
+
+
+.treasury-destination-decision textarea,
+.treasury-destination-decision input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 5px;
+}
+
+
+.treasury-destination-decision textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+
+.treasury-destination-confirmation {
+  margin-top: 10px;
+}
+
+
+.treasury-destination-confirmation code {
+  display: block;
+  padding: 7px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .16);
+  font-size: .67rem;
+}
+
+
+.treasury-destination-decision
+label + .treasury-destination-confirmation,
+.treasury-destination-confirmation
++ .treasury-destination-confirmation,
+.treasury-destination-confirmation
++ label {
+  margin-top: 10px;
+}
+
+
+.treasury-destination-review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+
+.treasury-destination-review-actions .button {
+  min-height: 31px;
+  padding: 5px 9px;
+  font-size: .66rem;
+}
+
+
+.treasury-destination-terminal {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--muted);
+  font-size: .7rem;
+  line-height: 1.45;
+}
+
+
+@media (max-width: 760px) {
+  .treasury-destination-review-list-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .treasury-destination-review-list-head > span {
+    text-align: left;
+  }
+
+  .treasury-destination-review-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+@media (max-width: 520px) {
+  .treasury-destination-review-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .treasury-destination-review-grid > .wide {
+    grid-column: auto;
+  }
+
+  .treasury-destination-review-card-head {
+    flex-direction: column;
+  }
+
+  .treasury-destination-review-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .treasury-destination-review-actions .button {
+    width: 100%;
+  }
+}

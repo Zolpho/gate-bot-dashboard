@@ -19,13 +19,13 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-recipients-v1"
+        "v=20260829-withdraw-destination-review-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260829-withdraw-recipients-v1"
+        "v=20260829-withdraw-destination-review-v1"
         in HTML
     )
 
@@ -1022,7 +1022,7 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-recipients-v1"
+        "v=20260829-withdraw-destination-review-v1"
         in HTML
     )
 
@@ -1030,7 +1030,7 @@ def test_treasury_css_version_marks_withdraw_polish():
 def test_app_version_marks_withdraw_polish():
     assert (
         "./app.js?"
-        "v=20260829-withdraw-recipients-v1"
+        "v=20260829-withdraw-destination-review-v1"
         in HTML
     )
 
@@ -1926,3 +1926,493 @@ def test_treasury_withdrawal_css_uses_defined_theme_tokens():
         "var(--negative)",
     ):
         assert canonical in CSS
+
+def _stage5_js_function_block(name):
+    from pathlib import Path
+    import re
+
+    source = Path(
+        "frontend/app.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    pattern = re.compile(
+        r"(?m)^(?:async\s+)?function\s+"
+        + re.escape(name)
+        + r"\s*\("
+    )
+
+    matches = list(
+        pattern.finditer(source)
+    )
+
+    assert len(matches) == 1
+
+    match = matches[0]
+
+    parameter_opening = (
+        match.end() - 1
+    )
+
+    assert (
+        source[parameter_opening]
+        == "("
+    )
+
+    depth = 0
+    quote = None
+    escaped = False
+    line_comment = False
+    block_comment = False
+
+    index = parameter_opening
+
+    while index < len(source):
+        char = source[index]
+
+        next_char = (
+            source[index + 1]
+            if index + 1 < len(source)
+            else ""
+        )
+
+        if line_comment:
+            if char == "\n":
+                line_comment = False
+
+            index += 1
+            continue
+
+        if block_comment:
+            if (
+                char == "*"
+                and next_char == "/"
+            ):
+                block_comment = False
+                index += 2
+                continue
+
+            index += 1
+            continue
+
+        if quote is not None:
+            if escaped:
+                escaped = False
+
+            elif char == "\\":
+                escaped = True
+
+            elif char == quote:
+                quote = None
+
+            index += 1
+            continue
+
+        if char in (
+            "'",
+            '"',
+            "`",
+        ):
+            quote = char
+            index += 1
+            continue
+
+        if (
+            char == "/"
+            and next_char == "/"
+        ):
+            line_comment = True
+            index += 2
+            continue
+
+        if (
+            char == "/"
+            and next_char == "*"
+        ):
+            block_comment = True
+            index += 2
+            continue
+
+        if char == "(":
+            depth += 1
+
+        elif char == ")":
+            depth -= 1
+
+            if depth == 0:
+                index += 1
+                break
+
+        index += 1
+
+    body_opening = source.find(
+        "{",
+        index,
+    )
+
+    assert body_opening >= 0
+
+    depth = 0
+    quote = None
+    escaped = False
+    line_comment = False
+    block_comment = False
+
+    index = body_opening
+
+    while index < len(source):
+        char = source[index]
+
+        next_char = (
+            source[index + 1]
+            if index + 1 < len(source)
+            else ""
+        )
+
+        if line_comment:
+            if char == "\n":
+                line_comment = False
+
+            index += 1
+            continue
+
+        if block_comment:
+            if (
+                char == "*"
+                and next_char == "/"
+            ):
+                block_comment = False
+                index += 2
+                continue
+
+            index += 1
+            continue
+
+        if quote is not None:
+            if escaped:
+                escaped = False
+
+            elif char == "\\":
+                escaped = True
+
+            elif char == quote:
+                quote = None
+
+            index += 1
+            continue
+
+        if char in (
+            "'",
+            '"',
+            "`",
+        ):
+            quote = char
+            index += 1
+            continue
+
+        if (
+            char == "/"
+            and next_char == "/"
+        ):
+            line_comment = True
+            index += 2
+            continue
+
+        if (
+            char == "/"
+            and next_char == "*"
+        ):
+            block_comment = True
+            index += 2
+            continue
+
+        if char == "{":
+            depth += 1
+
+        elif char == "}":
+            depth -= 1
+
+            if depth == 0:
+                return source[
+                    match.start():
+                    index + 1
+                ]
+
+        index += 1
+
+    raise AssertionError(
+        f"Unable to extract JS function {name}"
+    )
+
+
+def test_withdraw_destination_review_is_super_admin_only_and_gate_distinct():
+    normalized_html = " ".join(
+        HTML.split()
+    )
+
+    assert (
+        'id="reviewTreasuryWithdrawalDestinations"'
+        in HTML
+    )
+
+    assert (
+        'id="treasuryWithdrawalDestinationReviewDialog"'
+        in HTML
+    )
+
+    assert (
+        "Dashboard approval and Gate eligibility are separate."
+        in normalized_html
+    )
+
+    assert (
+        "does not add the address to Gate"
+        in normalized_html
+    )
+
+    block = _stage5_js_function_block(
+        "openTreasuryWithdrawalDestinationReview"
+    )
+
+    normalized = " ".join(
+        block.split()
+    )
+
+    assert (
+        "state.adminUser.role !== 'super_admin'"
+        in normalized
+    )
+
+    render = _stage5_js_function_block(
+        "renderTreasuryWithdrawalDestinations"
+    )
+
+    assert (
+        "state.adminUser?.role === 'super_admin'"
+        in render
+    )
+
+    assert (
+        "'#reviewTreasuryWithdrawalDestinations'"
+        in render
+    )
+
+
+def test_withdraw_destination_review_load_is_selected_owner_scoped_and_read_only():
+    block = _stage5_js_function_block(
+        "loadTreasuryWithdrawalDestinationReview"
+    )
+
+    normalized = " ".join(
+        block.split()
+    )
+
+    for token in (
+        "treasuryWithdrawalPreparationOwner()",
+        "'/api/treasury/withdrawals/destinations'",
+        "owner_account_id: owner",
+        "limit: 500",
+        "if (result.gate_write_performed)",
+    ):
+        assert token in block
+
+    assert "status:" not in block
+
+    assert (
+        "treasuryWithdrawalPreparationOwner() !== owner"
+        in normalized
+    )
+
+
+def test_withdraw_destination_review_requires_reason_and_exact_confirmation():
+    required = _stage5_js_function_block(
+        "treasuryWithdrawalDestinationDecisionConfirmation"
+    )
+
+    assert (
+        "WITHDRAWAL DESTINATION"
+        in required
+    )
+
+    update = _stage5_js_function_block(
+        "updateTreasuryWithdrawalDestinationReviewActions"
+    )
+
+    normalized_update = " ".join(
+        update.split()
+    )
+
+    assert (
+        "reason.length >= 20"
+        in normalized_update
+    )
+
+    assert (
+        "confirmation === required"
+        in normalized_update
+    )
+
+    mutate = _stage5_js_function_block(
+        "mutateTreasuryWithdrawalDestinationReview"
+    )
+
+    normalized_mutate = " ".join(
+        mutate.split()
+    )
+
+    assert (
+        "reason.length < 20"
+        in normalized_mutate
+    )
+
+    assert (
+        "confirmation !== required"
+        in normalized_mutate
+    )
+
+
+def test_withdraw_destination_review_mutation_is_local_approve_revoke_only():
+    block = _stage5_js_function_block(
+        "mutateTreasuryWithdrawalDestinationReview"
+    )
+
+    for token in (
+        "'approve'",
+        "'revoke'",
+        "method: 'POST'",
+        "confirmation,",
+        "reason,",
+        "if (result.gate_write_performed)",
+        "clearTreasuryWithdrawalPreflight();",
+        "loadTreasuryOverview({",
+    ):
+        assert token in block
+
+    for forbidden in (
+        "address:",
+        "currency:",
+        "chain:",
+        "memo:",
+        "/execute",
+        "GateClient",
+        "DELETE",
+    ):
+        assert forbidden not in block
+
+
+def test_withdraw_destination_review_renders_full_security_states():
+    block = _stage5_js_function_block(
+        "renderTreasuryWithdrawalDestinationReview"
+    )
+
+    for token in (
+        "'candidate'",
+        "'pending_verification'",
+        "'approved'",
+        "'revoked'",
+        "Approve confirmation",
+        "Revoke confirmation",
+        "Dashboard verification",
+        "Legacy / unlinked",
+        "Revoked destinations are terminal",
+    ):
+        assert token in block
+
+
+def test_withdraw_approved_destinations_are_selected_account_scoped():
+    block = _stage5_js_function_block(
+        "loadTreasuryOverview"
+    )
+
+    normalized = " ".join(
+        block.split()
+    )
+
+    for token in (
+        "const withdrawalDestinationRequest",
+        "'/api/treasury/withdrawals/destinations'",
+        "owner_account_id: withdrawalRecipientOwner",
+        "status: 'approved'",
+        "withdrawalDestinationRequest,",
+        "privateBalanceTargetAccount()",
+    ):
+        assert token in block
+
+    assert (
+        "privateBalanceTargetAccount() === withdrawalRecipientOwner"
+        in normalized
+    )
+
+    assert (
+        "destinations?status=approved&limit=100"
+        not in block
+    )
+
+
+def test_withdraw_destination_review_follows_selected_account_when_dialog_is_open():
+    block = _stage5_js_function_block(
+        "loadTreasuryOverview"
+    )
+
+    normalized = " ".join(
+        block.split()
+    )
+
+    assert (
+        "'#treasuryWithdrawalDestinationReviewDialog'"
+        in block
+    )
+
+    assert (
+        "destinationReviewDialog?.open"
+        in block
+    )
+
+    assert (
+        "Reviewing destination routes for ${reviewOwner}"
+        in block
+    )
+
+    assert (
+        "await loadTreasuryWithdrawalDestinationReview({ quiet: true, });"
+        in normalized
+    )
+
+
+def test_withdraw_destination_review_closes_with_treasury_session_and_is_responsive():
+    clear = _stage5_js_function_block(
+        "clearTreasurySession"
+    )
+
+    assert (
+        "'#treasuryWithdrawalDestinationReviewDialog'"
+        in clear
+    )
+
+    assert (
+        "destinationReviewDialog.close();"
+        in clear
+    )
+
+    marker = (
+        "/* 3J27 Withdrawal destination review v1 */"
+    )
+
+    assert marker in CSS
+
+    block = CSS[
+        CSS.index(marker):
+    ]
+
+    for token in (
+        ".treasury-withdrawal-destination-review-dialog[open]",
+        ".treasury-destination-review-card",
+        ".treasury-destination-review-status.candidate",
+        ".treasury-destination-review-status.approved",
+        ".treasury-destination-review-status.revoked",
+        ".treasury-destination-review-actions",
+        "@media (max-width: 760px)",
+        "@media (max-width: 520px)",
+    ):
+        assert token in block
