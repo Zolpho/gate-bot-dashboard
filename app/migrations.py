@@ -644,6 +644,8 @@ def migrate_database(engine: Engine) -> None:
         TreasuryTransferOperationLock,
         TreasuryTransferReconciliation,
         TreasuryTransferRequest,
+        TreasuryWithdrawalRecipient,
+        TreasuryWithdrawalRecipientEvent,
         TreasuryWithdrawalDestination,
         TreasuryWithdrawalDestinationEvent,
         TreasuryWithdrawalOperationLock,
@@ -730,6 +732,24 @@ def migrate_database(engine: Engine) -> None:
                 TreasuryTransferLockResolution.__table__,
             )
 
+        if not _table_exists(
+            raw,
+            "treasury_withdrawal_recipients",
+        ):
+            _create_table(
+                raw,
+                engine,
+                TreasuryWithdrawalRecipient.__table__,
+            )
+        if not _table_exists(
+            raw,
+            "treasury_withdrawal_recipient_events",
+        ):
+            _create_table(
+                raw,
+                engine,
+                TreasuryWithdrawalRecipientEvent.__table__,
+            )
         if not _table_exists(
             raw,
             "treasury_withdrawal_destinations",

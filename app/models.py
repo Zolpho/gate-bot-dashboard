@@ -994,6 +994,195 @@ class TreasuryTransferLockResolution(Base):
     )
 
 
+class TreasuryWithdrawalRecipient(Base):
+    """
+    User-managed external withdrawal address-book entry.
+
+    This is intentionally NOT a withdrawal route.
+    Currency, chain and memo remain security-scoped
+    TreasuryWithdrawalDestination data.
+    """
+
+    __tablename__ = "treasury_withdrawal_recipients"
+    __table_args__ = (
+        UniqueConstraint(
+            "recipient_id",
+            name=(
+                "uq_treasury_withdrawal_recipient_id"
+            ),
+        ),
+        UniqueConstraint(
+            "owner_account_id",
+            "address_key",
+            name=(
+                "uq_treasury_withdrawal_recipient_"
+                "owner_address_key"
+            ),
+        ),
+        Index(
+            "ix_treasury_withdrawal_recipient_"
+            "owner_status_created",
+            "owner_account_id",
+            "status",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    recipient_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    owner_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    # Preserve the user-entered address exactly apart from
+    # surrounding whitespace. Different address families
+    # have different case/canonicalization rules.
+    address: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    # Stable identity used only for duplicate prevention:
+    # EVM addresses are case-insensitive; other formats are
+    # compared exactly.
+    address_key: Mapped[str] = mapped_column(
+        String(600),
+        nullable=False,
+    )
+
+    label: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="active",
+    )
+
+    created_by: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    archived_by: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    archived_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+        nullable=False,
+    )
+
+
+class TreasuryWithdrawalRecipientEvent(Base):
+    """
+    Append-only audit for user-managed withdrawal
+    recipient metadata.
+
+    Address identity is never edited in place. A changed
+    address becomes a different recipient. Label changes,
+    archive and restore operations are audited here.
+    """
+
+    __tablename__ = (
+        "treasury_withdrawal_recipient_events"
+    )
+    __table_args__ = (
+        Index(
+            "ix_treasury_withdrawal_recipient_event_"
+            "recipient_created",
+            "recipient_id",
+            "created_at",
+        ),
+        Index(
+            "ix_treasury_withdrawal_recipient_event_"
+            "owner_created",
+            "owner_account_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    recipient_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    owner_account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    from_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="",
+    )
+
+    to_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    reason: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    metadata_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+
 class TreasuryWithdrawalDestination(Base):
     __tablename__ = "treasury_withdrawal_destinations"
     __table_args__ = (
