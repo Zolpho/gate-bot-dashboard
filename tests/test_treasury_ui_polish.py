@@ -19,13 +19,13 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-destination-review-v1"
+        "v=20260829-withdraw-preflight-invalidation-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260829-withdraw-destination-review-v1"
+        "v=20260829-withdraw-preflight-invalidation-v1"
         in HTML
     )
 
@@ -1022,7 +1022,7 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-destination-review-v1"
+        "v=20260829-withdraw-preflight-invalidation-v1"
         in HTML
     )
 
@@ -1030,7 +1030,7 @@ def test_treasury_css_version_marks_withdraw_polish():
 def test_app_version_marks_withdraw_polish():
     assert (
         "./app.js?"
-        "v=20260829-withdraw-destination-review-v1"
+        "v=20260829-withdraw-preflight-invalidation-v1"
         in HTML
     )
 
@@ -2416,3 +2416,153 @@ def test_withdraw_destination_review_closes_with_treasury_session_and_is_respons
         "@media (max-width: 520px)",
     ):
         assert token in block
+
+def test_withdraw_preflight_is_invalidated_by_every_prepare_dependency():
+    source = APP
+
+    expected_functions = (
+        "resetTreasuryWithdrawalRoutePreparation",
+        "changeTreasuryWithdrawalAsset",
+        "changeTreasuryWithdrawalNetwork",
+        "changeTreasuryWithdrawalRecipient",
+        "changeTreasuryWithdrawalMemo",
+    )
+
+    for name in expected_functions:
+        marker = (
+            f"function {name}("
+        )
+
+        assert marker in source
+
+        start = source.index(
+            marker
+        )
+
+        next_function = source.find(
+            "\nfunction ",
+            start + len(marker),
+        )
+
+        next_async = source.find(
+            "\nasync function ",
+            start + len(marker),
+        )
+
+        boundaries = [
+            value
+            for value in (
+                next_function,
+                next_async,
+            )
+            if value >= 0
+        ]
+
+        end = (
+            min(boundaries)
+            if boundaries
+            else len(source)
+        )
+
+        block = source[
+            start:end
+        ]
+
+        assert (
+            "clearTreasuryWithdrawalPreflight();"
+            in block
+        )
+
+
+def test_withdraw_preflight_existing_destination_amount_and_account_invalidation_remains():
+    source = APP
+
+    assert (
+        "$('#treasuryWithdrawalDestination')?.addEventListener("
+        in source
+    )
+
+    assert (
+        "$('#treasuryWithdrawalAmount')?.addEventListener("
+        in source
+    )
+
+    assert (
+        "'change',\n"
+        "    invalidateTreasuryWithdrawalPreflight,"
+        in source
+    )
+
+    assert (
+        "'input',\n"
+        "    invalidateTreasuryWithdrawalPreflight,"
+        in source
+    )
+
+    start = source.index(
+        "function clearTreasurySession()"
+    )
+
+    end = source.index(
+        "\nfunction ",
+        start + 1,
+    )
+
+    clear_block = source[
+        start:end
+    ]
+
+    assert (
+        "state.treasuryWithdrawalPreflight = null;"
+        in clear_block
+    )
+
+    assert (
+        "renderTreasuryWithdrawalPreflight();"
+        in clear_block
+    )
+
+    account_start = source.index(
+        "async function changeSelectedAccount("
+    )
+
+    account_end = source.index(
+        "\nasync function ",
+        account_start + 1,
+    )
+
+    account_block = source[
+        account_start:account_end
+    ]
+
+    assert (
+        "clearTreasurySession();"
+        in account_block
+    )
+
+
+def test_prepare_reset_clears_preflight_without_clearing_withdrawal_amount():
+    source = APP
+
+    start = source.index(
+        "function resetTreasuryWithdrawalRoutePreparation()"
+    )
+
+    end = source.index(
+        "\nfunction ",
+        start + 1,
+    )
+
+    block = source[
+        start:end
+    ]
+
+    assert (
+        "clearTreasuryWithdrawalPreflight();"
+        in block
+    )
+
+    assert (
+        "#treasuryWithdrawalAmount"
+        not in block
+    )
