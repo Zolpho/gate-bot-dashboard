@@ -6717,6 +6717,10 @@ function renderTreasuryWithdrawalRoutePreparation() {
     '#treasuryWithdrawalRouteStatus'
   );
 
+  const resetButton = $(
+    '#resetTreasuryWithdrawalRoute'
+  );
+
   if (
     !assetSelect
     || !networkSelect
@@ -7035,6 +7039,12 @@ function renderTreasuryWithdrawalRoutePreparation() {
     );
   }
 
+  if (resetButton) {
+    resetButton.disabled = Boolean(
+      state.treasuryWithdrawalRoutePreparing
+    );
+  }
+
   updateTreasuryWithdrawalRoutePrepareButton();
 }
 
@@ -7138,6 +7148,36 @@ async function loadTreasuryWithdrawalCapabilities() {
 
     renderTreasuryWithdrawalRoutePreparation();
   }
+}
+
+
+function resetTreasuryWithdrawalRoutePreparation() {
+  if (state.treasuryWithdrawalRoutePreparing) {
+    return;
+  }
+
+  state.treasuryWithdrawalCapabilities = null;
+  state.treasuryWithdrawalCapabilitiesKey = '';
+  state.treasuryWithdrawalCapabilitiesRequestKey = '';
+  state.treasuryWithdrawalCapabilitiesLoading = false;
+  state.treasuryWithdrawalAsset = '';
+  state.treasuryWithdrawalNetwork = '';
+  state.treasuryWithdrawalRecipient = '';
+  state.treasuryWithdrawalRouteMessage = '';
+  state.treasuryWithdrawalRouteMessageError = false;
+  state.treasuryWithdrawalRoutePreparing = false;
+
+  const memo = $(
+    '#treasuryWithdrawalRecipientMemo'
+  );
+
+  if (memo) {
+    memo.value = '';
+  }
+
+  renderTreasuryWithdrawalRoutePreparation();
+
+  $('#treasuryWithdrawalAsset')?.focus();
 }
 
 
@@ -15323,6 +15363,11 @@ function bindEvents() {
   $('#treasuryWithdrawalRecipientMemo')?.addEventListener(
     'input',
     changeTreasuryWithdrawalMemo,
+  );
+
+  $('#resetTreasuryWithdrawalRoute')?.addEventListener(
+    'click',
+    resetTreasuryWithdrawalRoutePreparation,
   );
 
   $('#prepareTreasuryWithdrawalDestination')?.addEventListener(

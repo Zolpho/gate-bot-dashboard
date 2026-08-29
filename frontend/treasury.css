@@ -2786,13 +2786,51 @@ tbody tr:last-child td {
 .treasury-withdrawal-route-grid {
   display: grid;
   grid-template-columns:
-    minmax(110px, .75fr)
-    minmax(130px, 1fr)
-    minmax(150px, 1.25fr)
-    minmax(130px, .9fr)
-    auto;
+    minmax(120px, .8fr)
+    minmax(150px, 1fr)
+    minmax(220px, 1.45fr);
   align-items: end;
   gap: 7px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-asset {
+  grid-column: 1;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-network {
+  grid-column: 2;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-recipient {
+  grid-column: 3;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-memo {
+  grid-column: 1 / 3;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-actions {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
 }
 
 
@@ -2827,10 +2865,17 @@ tbody tr:last-child td {
 
 #tab-wallet
 #treasuryWithdrawalAction
-#prepareTreasuryWithdrawalDestination {
+.treasury-withdrawal-route-actions .button {
   min-height: 34px;
   padding: 7px 10px;
   white-space: nowrap;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+#prepareTreasuryWithdrawalDestination {
+  flex: 1 1 auto;
 }
 
 
@@ -2869,8 +2914,32 @@ tbody tr:last-child td {
 
   #tab-wallet
   #treasuryWithdrawalAction
-  #prepareTreasuryWithdrawalDestination {
-    width: 100%;
+  .treasury-withdrawal-route-asset {
+    grid-column: 1;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-network {
+    grid-column: 2;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-recipient {
+    grid-column: 1 / 3;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-memo {
+    grid-column: 1;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-actions {
+    grid-column: 2;
   }
 }
 
@@ -2895,5 +2964,35 @@ tbody tr:last-child td {
   #treasuryWithdrawalAction
   .treasury-withdrawal-route-grid {
     grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-asset,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-network,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-recipient,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-memo,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-actions {
+    grid-column: 1;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-actions {
+    width: 100%;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-actions .button {
+    flex: 1 1 0;
   }
 }

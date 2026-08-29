@@ -19,13 +19,13 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-flow-v1"
+        "v=20260829-withdraw-layout-v2"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260829-withdraw-flow-v1"
+        "v=20260829-withdraw-layout-v2"
         in HTML
     )
 
@@ -1022,7 +1022,7 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-flow-v1"
+        "v=20260829-withdraw-layout-v2"
         in HTML
     )
 
@@ -1030,7 +1030,7 @@ def test_treasury_css_version_marks_withdraw_polish():
 def test_app_version_marks_withdraw_polish():
     assert (
         "./app.js?"
-        "v=20260829-withdraw-flow-v1"
+        "v=20260829-withdraw-layout-v2"
         in HTML
     )
 
@@ -1456,3 +1456,205 @@ def test_withdraw_flow_css_marks_asset_network_recipient_preparation():
         ".treasury-withdrawal-route-status.success",
     ):
         assert token in CSS
+
+def test_withdraw_prepare_destination_uses_three_plus_two_layout():
+    for token in (
+        'class="treasury-withdrawal-route-asset"',
+        'class="treasury-withdrawal-route-network"',
+        'class="treasury-withdrawal-route-recipient"',
+        'class="treasury-withdrawal-route-actions"',
+    ):
+        assert token in HTML
+
+    marker = (
+        "/* 3J25 Withdraw asset/network/recipient "
+        "preparation v1 */"
+    )
+
+    block = CSS[
+        CSS.index(marker):
+    ]
+
+    assert (
+        "grid-template-columns:\n"
+        "    minmax(120px, .8fr)\n"
+        "    minmax(150px, 1fr)\n"
+        "    minmax(220px, 1.45fr);"
+        in block
+    )
+
+    assert (
+        ".treasury-withdrawal-route-memo {\n"
+        "  grid-column: 1 / 3;"
+        in block
+    )
+
+    assert (
+        ".treasury-withdrawal-route-actions {\n"
+        "  grid-column: 3;"
+        in block
+    )
+
+
+def test_withdraw_prepare_destination_has_scoped_reset_control():
+    start = HTML.index(
+        'id="treasuryWithdrawalAction"'
+    )
+
+    end = HTML.index(
+        'id="treasuryRecords"',
+        start,
+    )
+
+    block = HTML[
+        start:end
+    ]
+
+    assert (
+        block.count(
+            'id="resetTreasuryWithdrawalRoute"'
+        )
+        == 1
+    )
+
+    assert (
+        block.index(
+            'id="resetTreasuryWithdrawalRoute"'
+        )
+        <
+        block.index(
+            'id="prepareTreasuryWithdrawalDestination"'
+        )
+    )
+
+    reset = _stage4_js_function_block(
+        "resetTreasuryWithdrawalRoutePreparation"
+    )
+
+    for token in (
+        "state.treasuryWithdrawalCapabilities = null;",
+        "state.treasuryWithdrawalCapabilitiesKey = '';",
+        "state.treasuryWithdrawalCapabilitiesRequestKey = '';",
+        "state.treasuryWithdrawalCapabilitiesLoading = false;",
+        "state.treasuryWithdrawalAsset = '';",
+        "state.treasuryWithdrawalNetwork = '';",
+        "state.treasuryWithdrawalRecipient = '';",
+        "state.treasuryWithdrawalRouteMessage = '';",
+        "state.treasuryWithdrawalRouteMessageError = false;",
+        "state.treasuryWithdrawalRoutePreparing = false;",
+        "memo.value = '';",
+        "renderTreasuryWithdrawalRoutePreparation();",
+    ):
+        assert token in reset
+
+    for forbidden in (
+        "treasuryWithdrawalDestinations",
+        "treasuryWithdrawalRequests",
+        "treasuryWithdrawalPreflight",
+        "treasuryWithdrawalRequestDetail",
+        "treasuryWithdrawalRequiredConfirmation",
+        "treasuryWithdrawalAmount",
+        "treasuryWithdrawalDestination",
+        "adminApi(",
+        "method:",
+    ):
+        assert forbidden not in reset
+
+
+def test_withdraw_prepare_reset_is_bound_and_blocked_during_route_post():
+    bind = _stage4_js_function_block(
+        "bindEvents"
+    )
+
+    assert (
+        "'#resetTreasuryWithdrawalRoute'"
+        in bind
+    )
+
+    assert (
+        "resetTreasuryWithdrawalRoutePreparation"
+        in bind
+    )
+
+    reset = _stage4_js_function_block(
+        "resetTreasuryWithdrawalRoutePreparation"
+    )
+
+    assert (
+        "if (state.treasuryWithdrawalRoutePreparing)"
+        in reset
+    )
+
+    render = _stage4_js_function_block(
+        "renderTreasuryWithdrawalRoutePreparation"
+    )
+
+    assert (
+        "'#resetTreasuryWithdrawalRoute'"
+        in render
+    )
+
+    assert (
+        "resetButton.disabled = Boolean("
+        in render
+    )
+
+
+def test_withdraw_prepare_destination_resets_layout_responsively():
+    marker = (
+        "/* 3J25 Withdraw asset/network/recipient "
+        "preparation v1 */"
+    )
+
+    block = CSS[
+        CSS.index(marker):
+    ]
+
+    assert "@media (max-width: 980px)" in block
+    assert "@media (max-width: 620px)" in block
+
+    assert (
+        ".treasury-withdrawal-route-recipient {\n"
+        "    grid-column: 1 / 3;"
+        in block
+    )
+
+    assert (
+        ".treasury-withdrawal-route-actions {\n"
+        "    grid-column: 2;"
+        in block
+    )
+
+    assert (
+        ".treasury-withdrawal-route-actions {\n"
+        "    grid-column: 1;"
+        in block
+    )
+
+
+def test_withdraw_header_copy_mentions_choose_or_prepare_flow():
+    start = HTML.index(
+        'id="treasuryWithdrawalAction"'
+    )
+
+    end = HTML.index(
+        'id="treasuryRecords"',
+        start,
+    )
+
+    block = HTML[
+        start:end
+    ]
+
+    normalized = " ".join(
+        block.split()
+    )
+
+    expected = (
+        "Choose an approved destination or prepare one from "
+        "a saved recipient, then enter the amount. "
+        "Preflight performs Gate reads only; creating the "
+        "request does not submit a withdrawal to Gate."
+    )
+
+    assert expected in normalized
