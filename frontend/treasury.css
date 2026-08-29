@@ -4464,3 +4464,45 @@ input {
 
 
 /* End 3J39 Withdrawal route auto-match safety v1 */
+
+
+/* 3J39 Withdrawal visual polish v1 */
+
+/*
+ * The Asset / Network / Recipient route is authoritative.
+ * #treasuryWithdrawalDestination remains in the DOM as an
+ * internal compatibility value for existing lifecycle code,
+ * while the matched destination summary is user-facing.
+ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-field {
+  display: block;
+  margin: 0;
+  color: var(--muted);
+  font-size: .62rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+#treasuryWithdrawalDestination {
+  display: none;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-summary {
+  margin-top: 0;
+  min-height: 0;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-execution-row {
+  align-self: start;
+}
+
+/* End 3J39 Withdrawal visual polish v1 */

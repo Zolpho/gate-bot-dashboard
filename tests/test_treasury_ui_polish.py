@@ -18,12 +18,12 @@ CSS = (
 
 def test_treasury_assets_are_versioned():
     assert (
-        './treasury.css?v=20260829-withdraw-route-ux-v1'
+        './treasury.css?v=20260829-withdraw-visual-polish-v1'
         in HTML
     )
 
     assert (
-        './app.js?v=20260829-withdraw-route-ux-v1'
+        './app.js?v=20260829-withdraw-visual-polish-v1'
         in HTML
     )
 
@@ -1019,14 +1019,14 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
-        './treasury.css?v=20260829-withdraw-route-ux-v1'
+        './treasury.css?v=20260829-withdraw-visual-polish-v1'
         in HTML
     )
 
 
 def test_app_version_marks_withdraw_polish():
     assert (
-        './app.js?v=20260829-withdraw-route-ux-v1'
+        './app.js?v=20260829-withdraw-visual-polish-v1'
         in HTML
     )
 
@@ -1632,28 +1632,31 @@ def test_withdraw_header_copy_mentions_choose_or_prepare_flow():
     start = HTML.index(
         'id="treasuryWithdrawalAction"'
     )
-
     end = HTML.index(
         'id="treasuryRecords"',
         start,
     )
-
     block = HTML[
         start:end
     ]
-
     normalized = " ".join(
         block.split()
     )
 
     expected = (
-        "Choose an approved destination or prepare one from "
-        "a saved recipient, then enter the amount. "
-        "Preflight performs Gate reads only; creating the "
-        "request does not submit a withdrawal to Gate."
+        "Choose an asset, network and saved recipient. "
+        "Approved routes match automatically; preflight "
+        "performs Gate reads only and does not submit "
+        "a withdrawal to Gate."
     )
 
     assert expected in normalized
+
+    assert (
+        "Choose an approved destination or prepare one "
+        "from a saved recipient"
+        not in normalized
+    )
 
 def test_withdraw_recipient_manager_dialog_is_account_scoped_and_explains_approval():
     withdraw_start = HTML.index(

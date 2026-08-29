@@ -8498,13 +8498,7 @@ function renderTreasuryWithdrawalRoutePreparation() {
 
       return (
         `<option value="${escapeHtml(currency)}">`
-        + `${escapeHtml(currency)} · ${
-          escapeHtml(
-            fmtAssetQuantity(
-              item.available || 0
-            )
-          )
-        } available`
+        + escapeHtml(currency)
         + '</option>'
       );
     }).join('')
@@ -8580,8 +8574,11 @@ function renderTreasuryWithdrawalRoutePreparation() {
           item.chain || ''
         );
 
-        const name = String(
-          item.name || chain
+        const name = (
+          treasuryWithdrawalDisplayNetworkName(
+            item.name,
+            chain,
+          )
         );
 
         const readiness = (
@@ -9318,9 +9315,7 @@ function renderTreasuryWithdrawalDestinations() {
         );
 
         const optionText = [
-          item.owner_account_id || '—',
           item.currency || '—',
-          item.chain || '—',
           label,
         ].join(' · ');
 

@@ -64,15 +64,17 @@ def test_route_builder_uses_agreed_user_wording():
         "<strong>Withdrawal destination</strong>"
         in HTML
     )
-
     assert (
         "Request destination approval"
         in HTML
     )
-
+    assert (
+        "Matched withdrawal destination"
+        in HTML
+    )
     assert (
         "Selected withdrawal destination"
-        in HTML
+        not in HTML
     )
 
 
