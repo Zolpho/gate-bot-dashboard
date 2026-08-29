@@ -98,6 +98,16 @@ from ..treasury_withdrawal_destinations import (
     list_destinations,
     revoke_destination,
 )
+from ..treasury_withdrawal_recipients import (
+    TreasuryWithdrawalRecipientError,
+    archive_recipient,
+    create_recipient,
+    get_recipient,
+    list_recipient_events,
+    list_recipients,
+    rename_recipient,
+    restore_recipient,
+)
 from ..treasury_withdrawal_execution import (
     TreasuryWithdrawalExecutionError,
     withdrawal_execution_confirmation_text,
@@ -624,6 +634,56 @@ def _available_balance_for_currency(
                 return Decimal("0")
 
     return Decimal("0")
+
+
+class TreasuryWithdrawalRecipientCreateRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    owner_account_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$",
+    )
+
+    address: str = Field(
+        min_length=1,
+        max_length=512,
+    )
+
+    label: str = Field(
+        default="",
+        max_length=128,
+    )
+
+
+class TreasuryWithdrawalRecipientRenameRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    label: str = Field(
+        default="",
+        max_length=128,
+    )
+
+
+class TreasuryWithdrawalRecipientStateRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    reason: str = Field(
+        default="",
+        max_length=1000,
+    )
 
 
 class TreasuryWithdrawalDestinationCandidateRequest(
@@ -2114,6 +2174,350 @@ async def treasury_balance(
         "spot_accounts": spot.raw,
         "transfers_enabled": False,
         "withdrawals_enabled": False,
+    }
+
+
+def _treasury_withdrawal_recipient_for_user(
+    recipient_id: str,
+    user: DashboardUser,
+) -> dict:
+    """
+    Resolve an opaque recipient ID without disclosing another
+    user's address-book entries.
+
+    Explicit owner selection uses normal account-access errors,
+    but opaque recipient lookups fail as 404 when unauthorized.
+    """
+    row = get_recipient(
+        recipient_id
+    )
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Withdrawal recipient not found"
+            ),
+        )
+
+    owner = str(
+        row.get(
+            "owner_account_id"
+        )
+        or ""
+    ).strip().lower()
+
+    if (
+        not owner
+        or not user.can_manage(owner)
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Withdrawal recipient not found"
+            ),
+        )
+
+    return row
+
+
+@router.post(
+    "/withdrawals/recipients"
+)
+def create_treasury_withdrawal_recipient(
+    request: TreasuryWithdrawalRecipientCreateRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    owner = require_account_access(
+        user,
+        request.owner_account_id,
+    )
+
+    try:
+        result = create_recipient(
+            owner_account_id=owner,
+            address=request.address,
+            label=request.label,
+            username=user.username,
+        )
+    except TreasuryWithdrawalRecipientError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(exc),
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C2A_RECIPIENT_ADDRESS_BOOK"
+        ),
+        "withdrawals_enabled": False,
+        "local_write_performed": bool(
+            result["created"]
+        ),
+        "gate_write_performed": False,
+        **result,
+    }
+
+
+@router.get(
+    "/withdrawals/recipients"
+)
+def treasury_withdrawal_recipients(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    owner_account_id: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=64,
+    ),
+    status: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=32,
+    ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=500,
+    ),
+):
+    if owner_account_id:
+        selected_owner = (
+            require_account_access(
+                user,
+                owner_account_id,
+            )
+        )
+
+        owner_ids: set[str] | None = {
+            selected_owner
+        }
+    else:
+        owner_ids = (
+            None
+            if user.is_super_admin
+            else set(user.account_ids)
+        )
+
+    try:
+        items = list_recipients(
+            owner_account_ids=owner_ids,
+            status=status,
+            limit=limit,
+        )
+    except TreasuryWithdrawalRecipientError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C2A_RECIPIENT_ADDRESS_BOOK"
+        ),
+        "withdrawals_enabled": False,
+        "gate_write_performed": False,
+        "items": items,
+    }
+
+
+@router.get(
+    "/withdrawals/recipients/{recipient_id}"
+)
+def treasury_withdrawal_recipient_detail(
+    recipient_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    row = (
+        _treasury_withdrawal_recipient_for_user(
+            recipient_id,
+            user,
+        )
+    )
+
+    return {
+        "phase": (
+            "T2C2A_RECIPIENT_ADDRESS_BOOK"
+        ),
+        "withdrawals_enabled": False,
+        "gate_write_performed": False,
+        "item": row,
+        "events": list_recipient_events(
+            recipient_id
+        ),
+    }
+
+
+@router.patch(
+    "/withdrawals/recipients/{recipient_id}"
+)
+def rename_treasury_withdrawal_recipient(
+    recipient_id: str,
+    request: TreasuryWithdrawalRecipientRenameRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    # Authorize before invoking the mutating service.
+    _treasury_withdrawal_recipient_for_user(
+        recipient_id,
+        user,
+    )
+
+    try:
+        result = rename_recipient(
+            recipient_id=recipient_id,
+            label=request.label,
+            username=user.username,
+        )
+    except TreasuryWithdrawalRecipientError as exc:
+        status_code = (
+            404
+            if str(exc)
+            == "Withdrawal recipient not found"
+            else 400
+        )
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "message": str(exc),
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C2A_RECIPIENT_ADDRESS_BOOK"
+        ),
+        "withdrawals_enabled": False,
+        "local_write_performed": bool(
+            result["changed"]
+        ),
+        "gate_write_performed": False,
+        **result,
+    }
+
+
+@router.post(
+    "/withdrawals/recipients/{recipient_id}/archive"
+)
+def archive_treasury_withdrawal_recipient(
+    recipient_id: str,
+    request: TreasuryWithdrawalRecipientStateRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    _treasury_withdrawal_recipient_for_user(
+        recipient_id,
+        user,
+    )
+
+    try:
+        result = archive_recipient(
+            recipient_id=recipient_id,
+            username=user.username,
+            reason=request.reason,
+        )
+    except TreasuryWithdrawalRecipientError as exc:
+        message = str(exc)
+
+        status_code = (
+            404
+            if message
+            == "Withdrawal recipient not found"
+            else 409
+        )
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "message": message,
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C2A_RECIPIENT_ADDRESS_BOOK"
+        ),
+        "withdrawals_enabled": False,
+        "local_write_performed": bool(
+            result["changed"]
+        ),
+        "gate_write_performed": False,
+        **result,
+    }
+
+
+@router.post(
+    "/withdrawals/recipients/{recipient_id}/restore"
+)
+def restore_treasury_withdrawal_recipient(
+    recipient_id: str,
+    request: TreasuryWithdrawalRecipientStateRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    _treasury_withdrawal_recipient_for_user(
+        recipient_id,
+        user,
+    )
+
+    try:
+        result = restore_recipient(
+            recipient_id=recipient_id,
+            username=user.username,
+            reason=request.reason,
+        )
+    except TreasuryWithdrawalRecipientError as exc:
+        message = str(exc)
+
+        status_code = (
+            404
+            if message
+            == "Withdrawal recipient not found"
+            else 409
+        )
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "message": message,
+                "local_write_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    return {
+        "phase": (
+            "T2C2A_RECIPIENT_ADDRESS_BOOK"
+        ),
+        "withdrawals_enabled": False,
+        "local_write_performed": bool(
+            result["changed"]
+        ),
+        "gate_write_performed": False,
+        **result,
     }
 
 

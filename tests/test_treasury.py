@@ -315,6 +315,36 @@ def test_treasury_t2c3b_allows_only_expected_mutation_routes() -> None:
         (
             (
                 "/api/treasury/withdrawals/"
+                "recipients"
+            ),
+            frozenset({"POST"}),
+        ),
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "recipients/{recipient_id}"
+            ),
+            frozenset({"PATCH"}),
+        ),
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "recipients/"
+                "{recipient_id}/archive"
+            ),
+            frozenset({"POST"}),
+        ),
+        (
+            (
+                "/api/treasury/withdrawals/"
+                "recipients/"
+                "{recipient_id}/restore"
+            ),
+            frozenset({"POST"}),
+        ),
+        (
+            (
+                "/api/treasury/withdrawals/"
                 "destinations"
             ),
             frozenset({"POST"}),
