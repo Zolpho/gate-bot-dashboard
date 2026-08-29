@@ -204,17 +204,41 @@ def test_overview_uses_active_incidents():
     assert "eventHtml(event)" not in overview
     assert "ack-event" not in overview
 
+def _alerts_js_function_block(name: str) -> str:
+    import re
+
+    pattern = re.compile(
+        rf"(?m)^(?:async\s+)?function\s+"
+        rf"{re.escape(name)}\s*\("
+    )
+
+    match = pattern.search(APP)
+
+    assert match is not None, name
+
+    next_pattern = re.compile(
+        r"(?m)^(?:async\s+)?function\s+"
+        r"[A-Za-z_$][A-Za-z0-9_$]*\s*\("
+    )
+
+    following = next_pattern.search(
+        APP,
+        match.end(),
+    )
+
+    end = (
+        following.start()
+        if following is not None
+        else len(APP)
+    )
+
+    return APP[
+        match.start():end
+    ]
+
+
 def test_load_core_uses_incidents_not_legacy_events():
-    start = APP.index(
-        "async function loadCore()"
-    )
-
-    end = APP.index(
-        "\nasync function syncNow()",
-        start,
-    )
-
-    loader = APP[start:end]
+    loader = _alerts_js_function_block("loadCore")
 
     assert (
         "api(scopedPath('/api/alerts/incidents'"
@@ -322,7 +346,7 @@ def test_alerts_assets_are_versioned():
 
     assert (
         "./app.js?"
-        "v=20260823-withdraw-polish-v1"
+        "v=20260829-withdraw-flow-v1"
         in HTML
     )
 

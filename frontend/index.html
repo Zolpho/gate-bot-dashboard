@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css">
-  <link rel="stylesheet" href="./treasury.css?v=20260823-withdraw-polish-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260829-withdraw-flow-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -1127,12 +1127,99 @@
             </div>
 
             <div
+              class="treasury-withdrawal-route-builder"
+              id="treasuryWithdrawalRouteBuilder"
+            >
+              <div class="treasury-withdrawal-route-head">
+                <div>
+                  <strong>Prepare destination</strong>
+                  <span>
+                    Asset → network → saved recipient
+                  </span>
+                </div>
+                <span
+                  id="treasuryWithdrawalRouteOwner"
+                  class="treasury-withdrawal-route-owner"
+                >Select one account above</span>
+              </div>
+
+              <div class="treasury-withdrawal-route-grid">
+                <label>
+                  Asset
+                  <select
+                    id="treasuryWithdrawalAsset"
+                    disabled
+                  >
+                    <option value="">Select asset</option>
+                  </select>
+                </label>
+
+                <label>
+                  Network
+                  <select
+                    id="treasuryWithdrawalNetwork"
+                    disabled
+                  >
+                    <option value="">
+                      Select asset first
+                    </option>
+                  </select>
+                </label>
+
+                <label>
+                  Recipient
+                  <select
+                    id="treasuryWithdrawalRecipient"
+                    disabled
+                  >
+                    <option value="">
+                      No active recipients saved
+                    </option>
+                  </select>
+                </label>
+
+                <label
+                  id="treasuryWithdrawalRecipientMemoField"
+                  class="treasury-withdrawal-route-memo"
+                >
+                  <span
+                    id="treasuryWithdrawalRecipientMemoLabel"
+                  >Memo / tag · optional</span>
+                  <input
+                    id="treasuryWithdrawalRecipientMemo"
+                    type="text"
+                    autocomplete="off"
+                    maxlength="512"
+                    placeholder="Optional"
+                  >
+                </label>
+
+                <button
+                  type="button"
+                  class="button secondary"
+                  id="prepareTreasuryWithdrawalDestination"
+                  disabled
+                >
+                  Prepare destination
+                </button>
+              </div>
+
+              <div
+                id="treasuryWithdrawalRouteStatus"
+                class="treasury-withdrawal-route-status"
+              >
+                Select one account to prepare a withdrawal
+                destination.
+              </div>
+            </div>
+
+            <div
               id="treasuryWithdrawalUnavailable"
               class="treasury-withdrawal-unavailable hidden"
             >
-              No approved withdrawal destinations are configured.
-              Preparation is unavailable until a destination is
-              approved server-side.
+              No approved withdrawal destinations are ready yet.
+              Prepare one from a saved recipient above; an
+              administrator must approve a new route before withdrawal.
             </div>
 
             <form
@@ -2535,7 +2622,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260823-withdraw-polish-v1"
+    src="./app.js?v=20260829-withdraw-flow-v1"
     defer
   ></script>
   <script

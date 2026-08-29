@@ -19,13 +19,13 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260823-withdraw-polish-v1"
+        "v=20260829-withdraw-flow-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260823-withdraw-polish-v1"
+        "v=20260829-withdraw-flow-v1"
         in HTML
     )
 
@@ -444,16 +444,7 @@ def test_transfer_review_balances_use_compact_quantity_formatting():
 
 
 def test_periodic_core_refresh_does_not_reload_wallet_data():
-    start = APP.index(
-        "async function loadCore()"
-    )
-
-    end = APP.index(
-        "\nasync function syncNow()",
-        start,
-    )
-
-    load_core = APP[start:end]
+    load_core = _stage4_js_function_block("loadCore")
 
     assert "loadPrivateBalance(" not in load_core
     assert "loadDepositHistory(" not in load_core
@@ -1031,7 +1022,7 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
         "./treasury.css?"
-        "v=20260823-withdraw-polish-v1"
+        "v=20260829-withdraw-flow-v1"
         in HTML
     )
 
@@ -1039,7 +1030,7 @@ def test_treasury_css_version_marks_withdraw_polish():
 def test_app_version_marks_withdraw_polish():
     assert (
         "./app.js?"
-        "v=20260823-withdraw-polish-v1"
+        "v=20260829-withdraw-flow-v1"
         in HTML
     )
 
@@ -1190,3 +1181,278 @@ def test_withdraw_polish_preserves_operational_controls():
             )
             == 1
         )
+
+def _stage4_js_function_block(name: str) -> str:
+    import re
+
+    pattern = re.compile(
+        rf"(?m)^(?:async\s+)?function\s+"
+        rf"{re.escape(name)}\s*\("
+    )
+
+    match = pattern.search(APP)
+
+    assert match is not None, name
+
+    next_pattern = re.compile(
+        r"(?m)^(?:async\s+)?function\s+"
+        r"[A-Za-z_$][A-Za-z0-9_$]*\s*\("
+    )
+
+    next_match = next_pattern.search(
+        APP,
+        match.end(),
+    )
+
+    end = (
+        next_match.start()
+        if next_match is not None
+        else len(APP)
+    )
+
+    return APP[
+        match.start():end
+    ]
+
+
+def test_withdraw_asset_network_recipient_builder_precedes_legacy_destination():
+    withdraw_start = HTML.index(
+        'id="treasuryWithdrawalAction"'
+    )
+
+    records_start = HTML.index(
+        'id="treasuryRecords"',
+        withdraw_start,
+    )
+
+    block = HTML[
+        withdraw_start:records_start
+    ]
+
+    ids = (
+        "treasuryWithdrawalAsset",
+        "treasuryWithdrawalNetwork",
+        "treasuryWithdrawalRecipient",
+        "treasuryWithdrawalRecipientMemo",
+        "prepareTreasuryWithdrawalDestination",
+        "treasuryWithdrawalDestination",
+        "treasuryWithdrawalAmount",
+    )
+
+    positions = {}
+
+    for element_id in ids:
+        token = (
+            f'id="{element_id}"'
+        )
+
+        assert block.count(
+            token
+        ) == 1
+
+        positions[
+            element_id
+        ] = block.index(
+            token
+        )
+
+    assert (
+        positions[
+            "treasuryWithdrawalAsset"
+        ]
+        <
+        positions[
+            "treasuryWithdrawalNetwork"
+        ]
+        <
+        positions[
+            "treasuryWithdrawalRecipient"
+        ]
+        <
+        positions[
+            "treasuryWithdrawalRecipientMemo"
+        ]
+        <
+        positions[
+            "prepareTreasuryWithdrawalDestination"
+        ]
+        <
+        positions[
+            "treasuryWithdrawalDestination"
+        ]
+        <
+        positions[
+            "treasuryWithdrawalAmount"
+        ]
+    )
+
+
+def test_withdraw_preparation_state_is_account_scoped_and_cleared():
+    for token in (
+        "treasuryWithdrawalRecipients: []",
+        "treasuryWithdrawalCapabilities: null",
+        "treasuryWithdrawalAsset: ''",
+        "treasuryWithdrawalNetwork: ''",
+        "treasuryWithdrawalRecipient: ''",
+    ):
+        assert token in APP
+
+    block = _stage4_js_function_block(
+        "clearTreasurySession"
+    )
+
+    for token in (
+        "state.treasuryWithdrawalRecipients = [];",
+        "state.treasuryWithdrawalCapabilities = null;",
+        "state.treasuryWithdrawalAsset = '';",
+        "state.treasuryWithdrawalNetwork = '';",
+        "state.treasuryWithdrawalRecipient = '';",
+    ):
+        assert token in block
+
+
+def test_withdraw_recipient_list_is_loaded_for_selected_owner_only():
+    block = _stage4_js_function_block(
+        "loadTreasuryOverview"
+    )
+
+    assert (
+        "'/api/treasury/withdrawals/recipients'"
+        in block
+    )
+
+    assert (
+        "owner_account_id: withdrawalRecipientOwner"
+        in block
+    )
+
+    assert (
+        "status: 'active'"
+        in block
+    )
+
+    assert (
+        "privateBalanceTargetAccount()"
+        in block
+    )
+
+
+def test_withdraw_capabilities_are_loaded_read_only_after_asset_selection():
+    block = _stage4_js_function_block(
+        "loadTreasuryWithdrawalCapabilities"
+    )
+
+    assert (
+        "/api/treasury/withdrawals/capabilities/"
+        in block
+    )
+
+    assert (
+        "owner_account_id: owner"
+        in block
+    )
+
+    assert (
+        "if (response.gate_write_performed)"
+        in block
+    )
+
+    asset_block = _stage4_js_function_block(
+        "changeTreasuryWithdrawalAsset"
+    )
+
+    assert (
+        "void loadTreasuryWithdrawalCapabilities();"
+        in asset_block
+    )
+
+
+def test_withdraw_recipient_route_post_never_sends_address_or_owner():
+    block = _stage4_js_function_block(
+        "prepareTreasuryWithdrawalRecipientDestination"
+    )
+
+    assert (
+        "/destinations"
+        in block
+    )
+
+    assert (
+        "method: 'POST'"
+        in block
+    )
+
+    assert (
+        "body: JSON.stringify({"
+        in block
+    )
+
+    for token in (
+        "currency,",
+        "chain: String(",
+        "memo,",
+    ):
+        assert token in block
+
+    assert (
+        "owner_account_id:"
+        not in block
+    )
+
+    assert (
+        "address:"
+        not in block
+    )
+
+    assert (
+        "if (result.gate_write_performed)"
+        in block
+    )
+
+    assert (
+        "must approve it before withdrawal"
+        in block
+    )
+
+
+def test_wallet_account_switch_refreshes_all_account_scoped_wallet_state():
+    block = _stage4_js_function_block(
+        "changeSelectedAccount"
+    )
+
+    for token in (
+        "clearPrivateBalance();",
+        "clearDepositHistory();",
+        "clearTreasurySession();",
+        "await loadCore();",
+        "state.activeTab === 'wallet'",
+        "loadPrivateBalance({",
+        "loadDepositHistory({",
+        "loadTreasuryOverview({",
+    ):
+        assert token in block
+
+    bind_block = _stage4_js_function_block(
+        "bindEvents"
+    )
+
+    assert (
+        "changeSelectedAccount,"
+        in bind_block
+    )
+
+
+def test_withdraw_flow_css_marks_asset_network_recipient_preparation():
+    assert (
+        "/* 3J25 Withdraw asset/network/recipient preparation v1 */"
+        in CSS
+    )
+
+    for token in (
+        ".treasury-withdrawal-route-builder",
+        ".treasury-withdrawal-route-grid",
+        "#prepareTreasuryWithdrawalDestination",
+        ".treasury-withdrawal-route-status.error",
+        ".treasury-withdrawal-route-status.success",
+    ):
+        assert token in CSS

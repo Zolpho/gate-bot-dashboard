@@ -41,7 +41,7 @@ def test_wallet_balance_assets_are_versioned():
 
     assert (
         "./app.js?"
-        "v=20260823-withdraw-polish-v1"
+        "v=20260829-withdraw-flow-v1"
         in HTML
     )
 

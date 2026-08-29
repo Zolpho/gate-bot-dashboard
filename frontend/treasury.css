@@ -2727,3 +2727,173 @@ tbody tr:last-child td {
 }
 
 /* End 3J19 Withdraw approved-destination polish v1 */
+
+/* 3J25 Withdraw asset/network/recipient preparation v1 */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-builder {
+  margin-top: 10px;
+  padding: 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background:
+    rgba(255, 255, 255, .012);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head strong {
+  font-size: .76rem;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head span,
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-owner {
+  color: var(--text-muted);
+  font-size: .64rem;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(110px, .75fr)
+    minmax(130px, 1fr)
+    minmax(150px, 1.25fr)
+    minmax(130px, .9fr)
+    auto;
+  align-items: end;
+  gap: 7px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid label {
+  min-width: 0;
+  margin: 0;
+  font-size: .65rem;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid select,
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid input {
+  width: 100%;
+  min-width: 0;
+  margin-top: 4px;
+  min-height: 34px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-memo.is-required > span::after {
+  content: " *";
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+#prepareTreasuryWithdrawalDestination {
+  min-height: 34px;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-status {
+  min-height: 18px;
+  margin-top: 7px;
+  color: var(--text-muted);
+  font-size: .66rem;
+  line-height: 1.35;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-status.error {
+  color: var(--danger);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-status.success {
+  color: var(--success);
+}
+
+
+@media (max-width: 980px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  #prepareTreasuryWithdrawalDestination {
+    width: 100%;
+  }
+}
+
+
+@media (max-width: 620px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-head > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-route-grid {
+    grid-template-columns: 1fr;
+  }
+}
