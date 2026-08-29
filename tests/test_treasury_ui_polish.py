@@ -19,13 +19,13 @@ CSS = (
 def test_treasury_assets_are_versioned():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-preflight-context-v1"
+        "v=20260829-withdraw-no-jit-ready-v1"
         in HTML
     )
 
     assert (
         "./app.js?"
-        "v=20260829-withdraw-preflight-context-v1"
+        "v=20260829-withdraw-no-jit-ready-v1"
         in HTML
     )
 
@@ -1022,7 +1022,7 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
         "./treasury.css?"
-        "v=20260829-withdraw-preflight-context-v1"
+        "v=20260829-withdraw-no-jit-ready-v1"
         in HTML
     )
 
@@ -1030,7 +1030,7 @@ def test_treasury_css_version_marks_withdraw_polish():
 def test_app_version_marks_withdraw_polish():
     assert (
         "./app.js?"
-        "v=20260829-withdraw-preflight-context-v1"
+        "v=20260829-withdraw-no-jit-ready-v1"
         in HTML
     )
 
@@ -2679,3 +2679,104 @@ def test_withdraw_preflight_context_is_compact_and_uses_theme_tokens():
         "var(--danger)",
     ):
         assert forbidden not in block
+
+
+def test_withdraw_no_jit_readiness_does_not_require_live_transfer_arm():
+    start = APP.index(
+        "function renderTreasuryWithdrawalJitExecutionPreview("
+    )
+    end = APP.index(
+        "\nfunction renderTreasuryWithdrawalExternalExecutionPreview(",
+        start,
+    )
+    body = APP[start:end]
+
+    assert (
+        "plan.jit_required === false"
+        in body
+    )
+
+    assert (
+        "noJit\n"
+        "    || preview.application_barriers_open"
+        in body
+    )
+
+    assert body.count("'Not required'") == 3
+
+    assert (
+        "'Withdrawal readiness'"
+        in body
+    )
+
+    assert (
+        "'Exact readiness confirmation'"
+        in body
+    )
+
+    assert (
+        "'Exact money-moving confirmation'"
+        in body
+    )
+
+    assert (
+        "'Mark withdrawal ready'"
+        in body
+    )
+
+    assert (
+        "'Execute JIT transfer'"
+        in body
+    )
+
+    assert (
+        "'No internal transfer will be submitted. '"
+        in body
+    )
+
+
+def test_withdraw_no_jit_action_can_mark_ready_while_transfer_arm_disarmed():
+    start = APP.index(
+        "async function executeCurrentTreasuryWithdrawalJit()"
+    )
+    end = APP.index(
+        "\nasync function reconcileCurrentTreasuryWithdrawalJit()",
+        start,
+    )
+    body = APP[start:end]
+
+    assert (
+        "preview?.jit_plan?.jit_required === false"
+        in body
+    )
+
+    assert (
+        "noJit\n"
+        "      || preview.application_barriers_open"
+        in body
+    )
+
+    assert (
+        "'Marking ready…'"
+        in body
+    )
+
+    assert (
+        "'Executing JIT…'"
+        in body
+    )
+
+    assert (
+        "/jit/execute"
+        in body
+    )
+
+    assert (
+        "'Withdrawal marked ready. '"
+        in body
+    )
+
+    assert (
+        "result.gate_write_performed"
+        in body
+    )

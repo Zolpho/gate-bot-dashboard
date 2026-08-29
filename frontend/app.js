@@ -9991,8 +9991,13 @@ function renderTreasuryWithdrawalJitExecutionPreview(
 
   const plan = preview.jit_plan || {};
 
+  const noJit = (
+    plan.jit_required === false
+  );
+
   const barriersOpen = Boolean(
-    preview.application_barriers_open
+    noJit
+    || preview.application_barriers_open
   );
 
   const confirmation = String(
@@ -10002,10 +10007,24 @@ function renderTreasuryWithdrawalJitExecutionPreview(
   element.innerHTML = (
     '<div class="treasury-section-header">'
     + '<div>'
-    + '<h3>JIT execution</h3>'
+    + `<h3>${
+        noJit
+          ? 'Withdrawal readiness'
+          : 'JIT execution'
+      }</h3>`
     + '<p>'
-    + 'The transfer amount is recalculated by a fresh '
-    + 'Gate preflight immediately before execution.'
+    + (
+        noJit
+          ? (
+              'No internal Treasury transfer is required. '
+              + 'A fresh Gate GET-only preflight is performed '
+              + 'before the withdrawal is marked ready.'
+            )
+          : (
+              'The transfer amount is recalculated by a fresh '
+              + 'Gate preflight immediately before execution.'
+            )
+      )
     + '</p>'
     + '</div>'
     + '</div>'
@@ -10053,40 +10072,66 @@ function renderTreasuryWithdrawalJitExecutionPreview(
     + '<div>'
     + '<span>Live transfer arm</span>'
     + `<strong>${
-        preview.live_transfers_armed
-          ? 'ARMED'
-          : 'DISABLED'
+        noJit
+          ? 'Not required'
+          : (
+              preview.live_transfers_armed
+                ? 'ARMED'
+                : 'DISABLED'
+            )
       }</strong>`
     + '</div>'
 
     + '<div>'
     + '<span>Source allowlist</span>'
     + `<strong>${
-        preview.source_account_live_enabled
-          ? 'Allowed'
-          : 'Blocked'
+        noJit
+          ? 'Not required'
+          : (
+              preview.source_account_live_enabled
+                ? 'Allowed'
+                : 'Blocked'
+            )
       }</strong>`
     + '</div>'
 
     + '<div>'
     + '<span>Application barriers</span>'
     + `<strong>${
-        barriersOpen
-          ? 'Open'
-          : 'Blocked'
+        noJit
+          ? 'Not required'
+          : (
+              barriersOpen
+                ? 'Open'
+                : 'Blocked'
+            )
       }</strong>`
     + '</div>'
 
     + '</div>'
 
     + '<div class="treasury-withdrawal-safety-note">'
-    + 'The amount above is not execution authority. '
-    + 'The server recomputes the JIT plan before '
-    + 'crossing the transfer boundary.'
+    + (
+        noJit
+          ? (
+              'The server will recheck current ownership and '
+              + 'funding before the local readiness transition. '
+              + 'No internal transfer is submitted.'
+            )
+          : (
+              'The amount above is not execution authority. '
+              + 'The server recomputes the JIT plan before '
+              + 'crossing the transfer boundary.'
+            )
+      )
     + '</div>'
 
     + '<label>'
-    + 'Exact money-moving confirmation'
+    + (
+        noJit
+          ? 'Exact readiness confirmation'
+          : 'Exact money-moving confirmation'
+      )
     + `<code>${escapeHtml(
         confirmation || '—'
       )}</code>`
@@ -10103,20 +10148,31 @@ function renderTreasuryWithdrawalJitExecutionPreview(
     + 'class="button" '
     + 'id="executeTreasuryWithdrawalJit" '
     + 'disabled>'
-    + 'Execute JIT transfer'
+    + (
+        noJit
+          ? 'Mark withdrawal ready'
+          : 'Execute JIT transfer'
+      )
     + '</button>'
     + '</div>'
 
     + '<div class="treasury-withdrawal-safety-note">'
     + (
-        barriersOpen
+        noJit
           ? (
-              'Application barriers are open. Execution '
-              + 'still requires the exact confirmation.'
+              'No internal transfer will be submitted. '
+              + 'Exact readiness confirmation is still required.'
             )
           : (
-              'Execution remains blocked while the live '
-              + 'Treasury transfer arm is disabled.'
+              barriersOpen
+                ? (
+                    'Application barriers are open. Execution '
+                    + 'still requires the exact confirmation.'
+                  )
+                : (
+                    'Execution remains blocked while the live '
+                    + 'Treasury transfer arm is disabled.'
+                  )
             )
       )
     + '</div>'
@@ -11367,10 +11423,17 @@ async function executeCurrentTreasuryWithdrawalJit() {
     || {}
   );
 
+  const noJit = (
+    preview?.jit_plan?.jit_required === false
+  );
+
   if (
     String(item.status || '').toLowerCase()
     !== 'jit_prepared'
-    || !preview.application_barriers_open
+    || !(
+      noJit
+      || preview.application_barriers_open
+    )
   ) {
     return;
   }
@@ -11403,7 +11466,11 @@ async function executeCurrentTreasuryWithdrawalJit() {
 
   if (button) {
     button.disabled = true;
-    button.textContent = 'Executing JIT…';
+    button.textContent = (
+      noJit
+        ? 'Marking ready…'
+        : 'Executing JIT…'
+    );
   }
 
   try {
@@ -11422,7 +11489,14 @@ async function executeCurrentTreasuryWithdrawalJit() {
     showToast(
       result.gate_write_performed
         ? 'JIT transfer submitted. Verify definitive state.'
-        : 'JIT stage completed without a Gate write.'
+        : (
+            noJit
+              ? (
+                  'Withdrawal marked ready. '
+                  + 'No Gate write performed.'
+                )
+              : 'JIT stage completed without a Gate write.'
+          )
     );
 
   } catch (error) {
