@@ -233,7 +233,7 @@ def test_clarity_css_is_present_and_responsive():
 
 def test_asset_cache_keys_are_intentionally_unchanged_for_now():
     assert (
-        './treasury.css?v=20260829-withdraw-visual-polish-v1'
+        './treasury.css?v=20260830-withdraw-full-width-v1'
         in HTML
     )
 

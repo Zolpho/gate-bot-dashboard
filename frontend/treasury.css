@@ -4506,3 +4506,85 @@ input {
 }
 
 /* End 3J39 Withdrawal visual polish v1 */
+
+/* 3J39 Withdrawal full-width execution layout v1 */
+
+/*
+ * Layout only.
+ *
+ * Destination matching, preflight behavior, request lifecycle,
+ * accounting and Gate write behavior are unchanged.
+ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-form {
+  grid-template-columns: 1fr;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-field,
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-summary,
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-context,
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-execution-row {
+  grid-column: 1;
+  grid-row: auto;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-execution-row {
+  grid-template-columns:
+    minmax(150px, .55fr)
+    minmax(320px, 1.35fr)
+    minmax(220px, .8fr);
+  align-items: stretch;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-actions {
+  align-self: stretch;
+  justify-content: center;
+}
+
+@media (max-width: 960px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-execution-row {
+    grid-template-columns:
+      minmax(160px, .65fr)
+      minmax(260px, 1.35fr);
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+  }
+}
+
+@media (max-width: 700px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-execution-row {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-actions {
+    grid-column: auto;
+    flex-direction: column;
+  }
+}
+
+/* End 3J39 Withdrawal full-width execution layout v1 */
