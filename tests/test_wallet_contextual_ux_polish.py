@@ -449,16 +449,21 @@ def test_critical_ids_remain_unique():
             f'id="{element_id}"'
         ) == 1
 
-def test_j18_changed_assets_share_cache_key():
-    cache_key = "20260830-wallet-ux-j19-v2"
+def test_j20_cache_keys_follow_changed_wallet_assets():
+    current_key = "20260830-wallet-ux-j20-v1"
+    unchanged_key = "20260830-wallet-ux-j19-v2"
 
     for asset in (
         "app.js",
-        "wallet-tab.css",
         "deposit.css",
         "treasury.css",
     ):
         assert (
-            f"./{asset}?v={cache_key}"
+            f"./{asset}?v={current_key}"
             in HTML
         )
+
+    assert (
+        f"./wallet-tab.css?v={unchanged_key}"
+        in HTML
+    )

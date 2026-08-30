@@ -217,7 +217,7 @@ def test_passed_rerun_label_requires_current_valid_snapshot():
     )
 
     assert (
-        "Preflight passed · Run again"
+        "Run preflight again"
         in block
     )
 

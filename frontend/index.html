@@ -8,10 +8,10 @@
   <link rel="stylesheet" href="./styles.css?v=20260823-account-selector-wide-v1">
   <link rel="stylesheet" href="./alerts.css?v=20260823-overview-incidents-v1">
   <link rel="stylesheet" href="./private-balance.css?v=20260823-wallet-card-depth-v1">
-  <link rel="stylesheet" href="./deposit.css?v=20260830-wallet-ux-j19-v2">
+  <link rel="stylesheet" href="./deposit.css?v=20260830-wallet-ux-j20-v1">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css?v=20260830-wallet-ux-j19-v2">
-  <link rel="stylesheet" href="./treasury.css?v=20260830-wallet-ux-j19-v2">
+  <link rel="stylesheet" href="./treasury.css?v=20260830-wallet-ux-j20-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -900,10 +900,10 @@
                     <div class="panel-header private-balance-header">
                       <div>
                         <div class="private-balance-title-row">
-                          <h2>My subaccount balance</h2>
+                          <h2>My Wallet account balance</h2>
                           <span class="private-badge">Private account data</span>
                         </div>
-                        <p id="privateBalanceSubtitle">Sign in to view your Gate subaccount balances.</p>
+                        <p id="privateBalanceSubtitle">Sign in to view your Gate Wallet account balance.</p>
                       </div>
                       <div class="private-balance-actions">
 
@@ -1101,7 +1101,7 @@
     <div class="dialog-header deposit-dialog-header">
       <div>
         <h2 id="depositWorkflowTitle">Deposit funds</h2>
-        <p id="depositAccountLabel">Select a coin and network for your assigned Gate subaccount.</p>
+        <p id="depositAccountLabel">Select a coin and network for this Wallet account.</p>
       </div>
       <button
           type="button"
@@ -1174,9 +1174,48 @@
         <div class="deposit-step-content">
           <h3>Deposit details</h3>
           <div id="depositDetails" class="deposit-details hidden">
-            <div class="deposit-qr-card">
-              <img id="depositQr" alt="Deposit address QR code" width="220" height="220">
-              <small>QR contains the address only.</small>
+                        <div class="deposit-qr-card">
+              <div class="deposit-qr-card-head">
+                <strong>Scan deposit address</strong>
+                <span>Address only</span>
+              </div>
+
+              <div class="deposit-qr-surface">
+                <img
+                  id="depositQr"
+                  alt="Deposit address QR code"
+                  width="220"
+                  height="220"
+                >
+              </div>
+
+              <div class="deposit-qr-actions">
+                <button
+                  type="button"
+                  class="button secondary"
+                  data-copy-deposit="address"
+                >
+                  Copy address
+                </button>
+
+                <button
+                  type="button"
+                  class="button secondary"
+                  data-deposit-qr-toggle
+                  aria-expanded="false"
+                >
+                  View larger
+                </button>
+              </div>
+
+              <small>QR encodes the deposit address only.</small>
+
+              <small
+                class="deposit-qr-safety"
+                id="depositQrSafety"
+              >
+                Use only the selected asset and network.
+              </small>
             </div>
             <div class="deposit-address-fields">
               <div class="deposit-selected-summary">
@@ -2930,7 +2969,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260830-wallet-ux-j19-v2"
+    src="./app.js?v=20260830-wallet-ux-j20-v1"
     defer
   ></script>
   <script

@@ -230,16 +230,21 @@ def test_j19s_decorative_withdrawal_flow_is_hidden():
     assert "display: none;" in block
 
 
-def test_j19s_cache_key_is_not_bumped_yet():
-    key = "20260830-wallet-ux-j19-v2"
+def test_j20_cache_keys_follow_changed_wallet_assets():
+    current_key = "20260830-wallet-ux-j20-v1"
+    unchanged_key = "20260830-wallet-ux-j19-v2"
 
     for asset in (
         "app.js",
-        "wallet-tab.css",
         "deposit.css",
         "treasury.css",
     ):
         assert (
-            f"./{asset}?v={key}"
+            f"./{asset}?v={current_key}"
             in HTML
         )
+
+    assert (
+        f"./wallet-tab.css?v={unchanged_key}"
+        in HTML
+    )

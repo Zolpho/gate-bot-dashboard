@@ -993,17 +993,52 @@ function setDepositLoading(loading) {
 function clearDepositDetails() {
   state.depositChain = '';
   state.depositDetails = null;
+
   $('#depositDetails')?.classList.add('hidden');
   $('#depositDetailsPlaceholder')?.classList.remove('hidden');
+
   if ($('#depositDetailsPlaceholder')) {
     $('#depositDetailsPlaceholder').textContent =
       'Choose a network to reveal the Gate deposit address.';
   }
-  if ($('#depositQr')) $('#depositQr').removeAttribute('src');
-  if ($('#depositAddress')) $('#depositAddress').textContent = '—';
-  if ($('#depositMemo')) $('#depositMemo').textContent = '—';
+
+  if ($('#depositQr')) {
+    $('#depositQr').removeAttribute('src');
+  }
+
+  const qrCard = $('#depositQr')?.closest(
+    '.deposit-qr-card'
+  );
+
+  qrCard?.classList.remove('is-expanded');
+
+  const qrToggle = document.querySelector(
+    '[data-deposit-qr-toggle]'
+  );
+
+  if (qrToggle) {
+    qrToggle.textContent = 'View larger';
+    qrToggle.setAttribute('aria-expanded', 'false');
+  }
+
+  if ($('#depositQrSafety')) {
+    $('#depositQrSafety').textContent =
+      'Use only the selected asset and network.';
+  }
+
+  if ($('#depositAddress')) {
+    $('#depositAddress').textContent = '—';
+  }
+
+  if ($('#depositMemo')) {
+    $('#depositMemo').textContent = '—';
+  }
+
   $('#depositMemoBlock')?.classList.add('hidden');
-  $('#depositDetailsStep')?.classList.add('deposit-step-disabled');
+
+  $('#depositDetailsStep')?.classList.add(
+    'deposit-step-disabled'
+  );
 }
 
 function clearDepositState({ keepCatalog = true } = {}) {
@@ -1125,32 +1160,100 @@ function renderDepositNetworks() {
   const container = $('#depositNetworkList');
   const networks = state.depositNetworks || [];
 
-  container.innerHTML = networks.length
-    ? networks.map(network => `
-      <button
-        type="button"
-        class="deposit-option ${state.depositChain === network.chain ? 'active' : ''}"
-        data-deposit-chain="${escapeHtml(network.chain)}"
-        ${network.deposit_enabled ? '' : 'disabled'}
-      >
-        <span class="deposit-option-main">
-          <i class="deposit-coin-mark">${depositAssetMark(network.chain)}</i>
-          <span>
-            <strong>${escapeHtml(network.name || network.chain)}</strong>
-            <small>
-              ${escapeHtml(network.chain)}
-              ${network.contract_address
-                ? ` · contract ${escapeHtml(network.contract_address)}`
-                : ''}
-            </small>
-          </span>
+  if (!container) return;
+
+  const availableNetworks = networks.filter(
+    network => network.deposit_enabled
+  );
+
+  const unavailableNetworks = networks.filter(
+    network => !network.deposit_enabled
+  );
+
+  const renderNetwork = network => `
+    <button
+      type="button"
+      class="deposit-option ${
+        state.depositChain === network.chain
+          ? 'active'
+          : ''
+      }"
+      data-deposit-chain="${escapeHtml(network.chain)}"
+      ${network.deposit_enabled ? '' : 'disabled'}
+    >
+      <span class="deposit-option-main">
+        <i class="deposit-coin-mark">${
+          depositAssetMark(network.chain)
+        }</i>
+
+        <span>
+          <strong>${
+            escapeHtml(
+              network.name || network.chain
+            )
+          }</strong>
+
+          <small>
+            ${escapeHtml(network.chain)}
+            ${
+              network.contract_address
+                ? ` · contract ${
+                    escapeHtml(
+                      network.contract_address
+                    )
+                  }`
+                : ''
+            }
+          </small>
         </span>
-        <span class="deposit-option-status ${network.deposit_enabled ? 'available' : ''}">
-          ${network.deposit_enabled ? 'Available' : 'Deposits disabled'}
-        </span>
-      </button>
-    `).join('')
-    : '<div class="deposit-empty">Gate returned no deposit networks for this currency.</div>';
+      </span>
+
+      <span class="deposit-option-status ${
+        network.deposit_enabled
+          ? 'available'
+          : ''
+      }">
+        ${
+          network.deposit_enabled
+            ? 'Available'
+            : 'Deposits disabled'
+        }
+      </span>
+    </button>
+  `;
+
+  if (!networks.length) {
+    container.innerHTML =
+      '<div class="deposit-empty">'
+      + 'Gate returned no deposit networks for this currency.'
+      + '</div>';
+
+  } else {
+    const availableHtml = availableNetworks.length
+      ? availableNetworks.map(renderNetwork).join('')
+      : (
+          '<div class="deposit-empty">'
+          + 'No deposit network is currently available.'
+          + '</div>'
+        );
+
+    const unavailableHtml = unavailableNetworks.length
+      ? (
+          '<details class="deposit-unavailable-networks">'
+          + '<summary>'
+          + `Unavailable networks (${unavailableNetworks.length})`
+          + '</summary>'
+          + '<div class="deposit-unavailable-list">'
+          + unavailableNetworks.map(renderNetwork).join('')
+          + '</div>'
+          + '</details>'
+        )
+      : '';
+
+    container.innerHTML =
+      availableHtml
+      + unavailableHtml;
+  }
 
   $('#depositNetworkStep').classList.toggle(
     'deposit-step-disabled',
@@ -1193,7 +1296,7 @@ async function openDepositDialog() {
   });
 
   $('#depositAccountLabel').textContent = (
-    `Deposit to ${accountId}. `
+    `Wallet account: ${accountId}. `
     + 'Choose an asset and network to reveal the Gate address.'
   );
 
@@ -1317,24 +1420,64 @@ async function selectDepositNetwork(chain) {
 function renderDepositDetails() {
   const result = state.depositDetails;
   const network = result?.network;
+
   if (!result || !network) return;
 
-  $('#depositSelectedAsset').textContent = result.currency;
-  $('#depositSelectedNetwork').textContent =
+  const networkName =
     network.name || network.chain;
-  $('#depositAddress').textContent = network.address || '—';
-  $('#depositQr').src = network.qr_svg_data_uri || '';
+
+  const accountId = depositTargetAccount();
+
+  $('#depositSelectedAsset').textContent =
+    result.currency;
+
+  $('#depositSelectedNetwork').textContent =
+    networkName;
+
+  $('#depositAddress').textContent =
+    network.address || '—';
+
+  $('#depositAddress')?.setAttribute(
+    'title',
+    network.address || '',
+  );
+
+  $('#depositQr').src =
+    network.qr_svg_data_uri || '';
+
   $('#depositContract').textContent =
-    network.contract_address || 'Native asset / not provided';
-  $('#depositMinimum').textContent = result.minimum_deposit_amount
-    ? `${result.minimum_deposit_amount} ${result.currency}`
-    : 'Not provided';
+    network.contract_address
+    || 'Native asset / not provided';
+
+  $('#depositMinimum').textContent =
+    result.minimum_deposit_amount
+      ? `${result.minimum_deposit_amount} ${result.currency}`
+      : 'Not provided';
+
   $('#depositConfirmations').textContent =
-    network.min_confirmations ?? 'Not provided';
-  $('#depositWarning').textContent = result.warning || '';
+    network.min_confirmations
+    ?? 'Not provided';
+
+  $('#depositWarning').textContent =
+    result.warning || '';
+
+  if ($('#depositQrSafety')) {
+    $('#depositQrSafety').textContent = (
+      `Use only ${result.currency} on ${networkName}`
+      + (
+        accountId
+          ? ` for Wallet account ${accountId}.`
+          : '.'
+      )
+    );
+  }
 
   const memo = network.payment_id;
-  $('#depositMemoBlock').classList.toggle('hidden', !memo);
+
+  $('#depositMemoBlock').classList.toggle(
+    'hidden',
+    !memo,
+  );
 
   if (memo) {
     $('#depositMemo').textContent = memo;
@@ -1355,19 +1498,72 @@ async function copyDepositValue(kind) {
 
   try {
     await navigator.clipboard.writeText(value);
+
   } catch {
     const textarea = document.createElement('textarea');
+
     textarea.value = value;
     textarea.style.position = 'fixed';
     textarea.style.opacity = '0';
+
     document.body.appendChild(textarea);
     textarea.select();
     document.execCommand('copy');
     textarea.remove();
   }
 
+  const buttons = [
+    ...document.querySelectorAll(
+      `[data-copy-deposit="${kind}"]`
+    ),
+  ];
+
+  buttons.forEach(button => {
+    if (!button.dataset.copyDefaultLabel) {
+      button.dataset.copyDefaultLabel =
+        button.textContent.trim() || 'Copy';
+    }
+
+    button.textContent = 'Copied ✓';
+    button.classList.add('is-copied');
+  });
+
+  window.setTimeout(
+    () => {
+      buttons.forEach(button => {
+        button.textContent =
+          button.dataset.copyDefaultLabel || 'Copy';
+
+        button.classList.remove('is-copied');
+      });
+    },
+    1600,
+  );
+
   showToast(
     `${kind === 'memo' ? 'Memo / tag' : 'Address'} copied.`,
+  );
+}
+
+
+function toggleDepositQrSize(button) {
+  const card = $('#depositQr')?.closest(
+    '.deposit-qr-card'
+  );
+
+  if (!card || !button) return;
+
+  const expanded =
+    card.classList.toggle('is-expanded');
+
+  button.textContent =
+    expanded
+      ? 'Show smaller'
+      : 'View larger';
+
+  button.setAttribute(
+    'aria-expanded',
+    String(expanded),
   );
 }
 
@@ -5619,9 +5815,9 @@ function treasuryUserTransferPathLabel(value) {
   const path = String(value || '').trim().toLowerCase();
 
   const labels = {
-    subaccount_to_subaccount: 'Subaccount → Subaccount',
-    subaccount_to_main: 'Subaccount → Main',
-    main_to_subaccount: 'Main → Subaccount',
+    subaccount_to_subaccount: 'Wallet account → Wallet account',
+    subaccount_to_main: 'Wallet account → Main',
+    main_to_subaccount: 'Main → Wallet account',
   };
 
   return labels[path] || path || '—';
@@ -8848,17 +9044,23 @@ function renderTreasuryWithdrawalRoutePreparation() {
 
         const label = String(
           item.label
-          || shortTreasuryGateId(address)
           || 'Saved recipient'
         );
 
+        const shortAddress = (
+          shortTreasuryGateId(address)
+        );
+
+        const display = (
+          shortAddress
+            ? `${label} — ${shortAddress}`
+            : label
+        );
+
         return (
-          `<option value="${escapeHtml(recipientId)}">`
-          + escapeHtml(
-            `${label} · ${
-              shortTreasuryGateId(address)
-            }`
-          )
+          `<option value="${escapeHtml(recipientId)}" `
+          + `title="${escapeHtml(address)}">`
+          + escapeHtml(display)
           + '</option>'
         );
       }).join('')
@@ -10187,7 +10389,7 @@ async function runTreasuryWithdrawalPreflight(event) {
 
     button.textContent = (
       preflightStillValid
-        ? 'Preflight passed · Run again'
+        ? 'Run preflight again'
         : 'Run safety preflight'
     );
   }
@@ -18272,6 +18474,12 @@ function bindEvents() {
     const depositCurrency = event.target.closest('[data-deposit-currency]'); if (depositCurrency) selectDepositCurrency(depositCurrency.dataset.depositCurrency);
     const depositChain = event.target.closest('[data-deposit-chain]'); if (depositChain) selectDepositNetwork(depositChain.dataset.depositChain);
     const depositCopy = event.target.closest('[data-copy-deposit]'); if (depositCopy) copyDepositValue(depositCopy.dataset.copyDeposit);
+    const depositQrToggle = event.target.closest(
+      '[data-deposit-qr-toggle]'
+    );
+    if (depositQrToggle) {
+      toggleDepositQrSize(depositQrToggle);
+    }
   });
   document.addEventListener('change', event => { if (event.target.matches('.rule-toggle')) toggleRule(Number(event.target.dataset.ruleId), event.target.checked); });
   $('#closeDialog').addEventListener('click', () => $('#botDialog').close());

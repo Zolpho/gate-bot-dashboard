@@ -4919,3 +4919,107 @@ input {
 }
 
 /* End Wallet Withdrawal flattening J19S */
+
+
+/* Wallet action hierarchy J20C2 */
+
+/*
+ * Final transfer confirmation:
+ * Reset stays available but no longer competes visually
+ * with the money-moving Transfer funds action.
+ */
+#tab-wallet .treasury-user-transfer-confirmation-row {
+  grid-template-columns:
+    minmax(260px, 1fr)
+    auto
+    auto;
+  align-items: stretch;
+}
+
+#tab-wallet #treasuryUserTransferReviewResetButton {
+  width: auto;
+  min-width: 92px;
+  padding-inline: 12px;
+  border-color: var(--border-soft);
+  background: transparent;
+  color: var(--muted);
+}
+
+#tab-wallet
+  #treasuryUserTransferReviewResetButton:not(:disabled):hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, .03);
+}
+
+#tab-wallet #executeTreasuryUserTransfer:not(:disabled) {
+  border-color: rgba(29, 211, 155, .40);
+  background: rgba(29, 211, 155, .12);
+}
+
+/*
+ * After a valid read-only preflight, creating the request
+ * becomes the clear next action. Rerunning preflight remains
+ * available as a smaller secondary control.
+ */
+#tab-wallet
+  #treasuryWithdrawalAction.has-valid-preflight
+  #createTreasuryWithdrawalRequest {
+  order: 1;
+  min-height: 42px;
+  border-color: rgba(29, 211, 155, .52);
+  background: rgba(29, 211, 155, .16);
+  color: var(--text);
+  font-weight: 700;
+}
+
+#tab-wallet
+  #treasuryWithdrawalAction.has-valid-preflight
+  #treasuryWithdrawalPreflightButton {
+  order: 2;
+  width: auto;
+  min-height: 29px;
+  align-self: center;
+  padding: 4px 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 500;
+}
+
+#tab-wallet
+  #treasuryWithdrawalAction.has-valid-preflight
+  #treasuryWithdrawalPreflightButton:not(:disabled):hover {
+  border-color: var(--border-soft);
+  background: rgba(255, 255, 255, .025);
+  color: var(--text);
+}
+
+@media (max-width: 760px) {
+  #tab-wallet .treasury-user-transfer-confirmation-row {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet #treasuryUserTransferReviewResetButton,
+  #tab-wallet #executeTreasuryUserTransfer {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #tab-wallet
+    #treasuryWithdrawalAction.has-valid-preflight
+    #treasuryWithdrawalPreflightButton {
+    width: 100%;
+  }
+}
+
+/* End Wallet action hierarchy J20C2 */
+
+/* Wallet withdrawal recipient presentation J20C3 */
+
+#tab-wallet #treasuryWithdrawalRecipient {
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+/* End Wallet withdrawal recipient presentation J20C3 */

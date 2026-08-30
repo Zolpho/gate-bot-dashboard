@@ -558,3 +558,143 @@
 }
 
 /* End Wallet Deposit structural correction J19 */
+
+
+/* Wallet Deposit refinement J20C1 */
+
+.wallet-deposit-workflow .deposit-qr-card {
+  align-items: stretch;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .014);
+}
+
+.wallet-deposit-workflow .deposit-qr-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.wallet-deposit-workflow .deposit-qr-card-head strong {
+  font-size: .76rem;
+}
+
+.wallet-deposit-workflow .deposit-qr-card-head span {
+  color: var(--muted);
+  font-size: .62rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.wallet-deposit-workflow .deposit-qr-surface {
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.wallet-deposit-workflow .deposit-qr-surface img {
+  width: 150px;
+  height: 150px;
+  max-width: 100%;
+}
+
+.wallet-deposit-workflow .deposit-qr-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.wallet-deposit-workflow .deposit-qr-actions .button {
+  min-width: 0;
+  width: 100%;
+  min-height: 33px;
+  padding: 6px 8px;
+  font-size: .67rem;
+}
+
+.wallet-deposit-workflow .deposit-qr-card > small {
+  color: var(--muted);
+  font-size: .64rem;
+  line-height: 1.35;
+}
+
+.wallet-deposit-workflow .deposit-qr-card
+  > .deposit-qr-safety {
+  color: var(--warning);
+}
+
+.wallet-deposit-workflow .deposit-qr-card.is-expanded {
+  grid-column: 1 / -1;
+  width: min(360px, 100%);
+  max-width: 100%;
+}
+
+.wallet-deposit-workflow
+  .deposit-qr-card.is-expanded
+  .deposit-qr-surface img {
+  width: 280px;
+  height: 280px;
+}
+
+.wallet-deposit-workflow .deposit-unavailable-networks {
+  border-top: 1px solid var(--border);
+}
+
+.wallet-deposit-workflow
+  .deposit-unavailable-networks
+  > summary {
+  padding: 9px 10px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .7rem;
+}
+
+.wallet-deposit-workflow
+  .deposit-unavailable-networks[open]
+  > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.wallet-deposit-workflow
+  .deposit-unavailable-list
+  .deposit-option:disabled {
+  opacity: .38;
+}
+
+.wallet-deposit-workflow .deposit-copy-row code {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+
+.wallet-deposit-workflow
+  [data-copy-deposit].is-copied {
+  border-color: rgba(29, 211, 155, .45);
+  color: var(--accent);
+}
+
+@media (max-width: 760px) {
+  .wallet-deposit-workflow .deposit-qr-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .wallet-deposit-workflow
+    .deposit-qr-card.is-expanded
+    .deposit-qr-surface img {
+    width: min(260px, 100%);
+    height: auto;
+    aspect-ratio: 1;
+  }
+}
+
+/* End Wallet Deposit refinement J20C1 */

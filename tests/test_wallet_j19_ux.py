@@ -236,14 +236,21 @@ def test_j19_does_not_change_withdrawal_api_contract():
         assert endpoint in APP
 
 
-def test_j19_cache_key_is_bumped_for_wallet_assets():
+def test_j20_cache_keys_follow_changed_wallet_assets():
+    current_key = "20260830-wallet-ux-j20-v1"
+    unchanged_key = "20260830-wallet-ux-j19-v2"
+
     for asset in (
         "app.js",
-        "wallet-tab.css",
         "deposit.css",
         "treasury.css",
     ):
         assert (
-            f"./{asset}?v=20260830-wallet-ux-j19-v2"
+            f"./{asset}?v={current_key}"
             in HTML
         )
+
+    assert (
+        f"./wallet-tab.css?v={unchanged_key}"
+        in HTML
+    )
