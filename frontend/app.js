@@ -13768,6 +13768,27 @@ async function releaseCurrentTreasuryLock() {
 }
 
 
+function resetPageScroll() {
+  window.scrollTo({
+    top: 0,
+    left: 0,
+    behavior: 'auto',
+  });
+}
+
+
+function configurePageScrollRestoration() {
+  if ('scrollRestoration' in window.history) {
+    window.history.scrollRestoration = 'manual';
+  }
+
+  window.addEventListener(
+    'pageshow',
+    resetPageScroll,
+  );
+}
+
+
 function switchTab(tab, { updateHash = true } = {}) {
   const titles = {
     overview: ['Overview', 'Native Gate.io bot performance and portfolio history'],
@@ -13841,11 +13862,7 @@ function switchTab(tab, { updateHash = true } = {}) {
   $('#pageSubtitle').textContent = titles[target][1];
 
   if (tabChanged) {
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: 'auto',
-    });
+    resetPageScroll();
   }
 
 
@@ -18260,9 +18277,11 @@ document.addEventListener('click', event => {
 });
 
 
+configurePageScrollRestoration();
 bindEvents();
 renderAdminState();
 switchTab(window.location.hash.slice(1) || 'overview', { updateHash: false });
+resetPageScroll();
 loadCore();
 setInterval(loadCore, 60000);
 

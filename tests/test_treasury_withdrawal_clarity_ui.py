@@ -238,6 +238,6 @@ def test_asset_cache_keys_are_intentionally_unchanged_for_now():
     )
 
     assert (
-        './app.js?v=20260830-global-tab-scroll-v1'
+        './app.js?v=20260830-reload-scroll-v1'
         in HTML
     )
