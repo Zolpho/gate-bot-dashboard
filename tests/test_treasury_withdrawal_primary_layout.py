@@ -185,13 +185,13 @@ def test_amount_safety_workspace_is_two_column_desktop():
 
 def test_app_cache_key_tracks_j21_behavior_change():
     assert (
-        './app.js?v=20260830-wallet-ux-j21-v1'
+        './app.js?v=20260830-wallet-ux-j21-v2'
         in HTML
     )
 
 
 def test_treasury_css_cache_key_is_bumped_for_redesign():
     assert (
-        './treasury.css?v=20260830-wallet-ux-j21-v1'
+        './treasury.css?v=20260830-wallet-ux-j21-v2'
         in HTML
     )

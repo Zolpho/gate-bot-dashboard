@@ -238,11 +238,11 @@ def test_clarity_css_is_present_and_responsive():
 
 def test_j21_cache_keys_mark_current_wallet_assets():
     assert (
-        './treasury.css?v=20260830-wallet-ux-j21-v1'
+        './treasury.css?v=20260830-wallet-ux-j21-v2'
         in HTML
     )
 
     assert (
-        './app.js?v=20260830-wallet-ux-j21-v1'
+        './app.js?v=20260830-wallet-ux-j21-v2'
         in HTML
     )

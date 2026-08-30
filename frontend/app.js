@@ -1140,13 +1140,27 @@ function renderDepositCurrencies() {
         )
   );
 
+  const hideIdleHelper = Boolean(
+    !query
+    && state.depositCurrency
+  );
+
+  container.classList.toggle(
+    'hidden',
+    hideIdleHelper,
+  );
+
   const count = $('#depositCurrencyCount');
 
   if (count) {
     if (!query) {
       count.textContent = (
         `${state.depositCatalog.length} Gate currencies available`
-        + ' · choose a quick asset or search'
+        + (
+          state.depositCurrency
+            ? ' · search to change asset'
+            : ' · choose a quick asset or search'
+        )
       );
     } else {
       const suffix = (
@@ -6011,6 +6025,15 @@ function renderTreasuryUserTransferPreview() {
   );
 
   const snapshot = state.treasuryUserTransferPreview;
+
+  const formResetButton = $(
+    '#treasuryUserTransferResetButton'
+  );
+
+  formResetButton?.classList.toggle(
+    'hidden',
+    Boolean(snapshot),
+  );
 
   const executionResult = (
     snapshot?.executionResult || null

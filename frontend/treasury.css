@@ -5254,3 +5254,49 @@ input {
 }
 
 /* End Wallet final verification polish J21E */
+
+
+/* Wallet Treasury finishing polish J21O1 */
+
+/*
+ * After review exists, the upper form Reset is hidden by
+ * renderTreasuryUserTransferPreview(). The final-confirmation
+ * Reset remains the single visible reset action.
+ */
+
+/*
+ * A valid preflight keeps Create withdrawal request primary,
+ * while Run preflight again remains clearly actionable.
+ */
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+#treasuryWithdrawalPreflightButton {
+  width: auto;
+  min-height: 31px;
+  align-self: center;
+  padding: 5px 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .018);
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 600;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+#treasuryWithdrawalPreflightButton:not(:disabled):hover {
+  border-color: rgba(29, 211, 155, .28);
+  background: rgba(29, 211, 155, .045);
+  color: var(--text);
+}
+
+@media (max-width: 760px) {
+  #tab-wallet
+  #treasuryWithdrawalAction.has-valid-preflight
+  #treasuryWithdrawalPreflightButton {
+    width: 100%;
+  }
+}
+
+/* End Wallet Treasury finishing polish J21O1 */

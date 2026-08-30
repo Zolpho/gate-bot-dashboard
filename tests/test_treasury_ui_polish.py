@@ -18,12 +18,12 @@ CSS = (
 
 def test_treasury_assets_are_versioned():
     assert (
-        './treasury.css?v=20260830-wallet-ux-j21-v1'
+        './treasury.css?v=20260830-wallet-ux-j21-v2'
         in HTML
     )
 
     assert (
-        './app.js?v=20260830-wallet-ux-j21-v1'
+        './app.js?v=20260830-wallet-ux-j21-v2'
         in HTML
     )
 
@@ -1177,14 +1177,14 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
-        './treasury.css?v=20260830-wallet-ux-j21-v1'
+        './treasury.css?v=20260830-wallet-ux-j21-v2'
         in HTML
     )
 
 
 def test_app_version_marks_withdraw_polish():
     assert (
-        './app.js?v=20260830-wallet-ux-j21-v1'
+        './app.js?v=20260830-wallet-ux-j21-v2'
         in HTML
     )
 

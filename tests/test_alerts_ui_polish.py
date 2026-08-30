@@ -345,7 +345,7 @@ def test_alerts_assets_are_versioned():
     )
 
     assert (
-        './app.js?v=20260830-wallet-ux-j21-v1'
+        './app.js?v=20260830-wallet-ux-j21-v2'
         in HTML
     )
 

@@ -231,7 +231,7 @@ def test_j19s_decorative_withdrawal_flow_is_hidden():
 
 
 def test_j21_cache_keys_follow_changed_wallet_assets():
-    current_key = "20260830-wallet-ux-j21-v1"
+    current_key = "20260830-wallet-ux-j21-v2"
     unchanged_key = "20260830-wallet-ux-j19-v2"
 
     for asset in (
