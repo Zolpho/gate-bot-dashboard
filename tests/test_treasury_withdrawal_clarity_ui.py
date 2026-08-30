@@ -238,6 +238,6 @@ def test_asset_cache_keys_are_intentionally_unchanged_for_now():
     )
 
     assert (
-        './app.js?v=20260830-withdraw-destination-label-v1'
+        './app.js?v=20260830-bot-control-history-wording-v1'
         in HTML
     )

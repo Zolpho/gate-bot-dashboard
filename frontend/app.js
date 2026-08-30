@@ -2356,6 +2356,7 @@ function reconciliationLabel(value) {
 
 function renderBotControlReconciliationHistory(
   rows,
+  action = '',
 ) {
   const element = $(
     '#botControlReconciliationHistory'
@@ -2384,6 +2385,31 @@ function renderBotControlReconciliationHistory(
       || 'manual_review'
     );
 
+    const outcome = String(
+      row.outcome || ''
+    ).toLowerCase();
+
+    const historicalStopStillRunning = Boolean(
+      String(
+        action || ''
+      ).toLowerCase() === 'bot_stop'
+      && outcome === 'observed_running'
+    );
+
+    const summary = (
+      historicalStopStillRunning
+        ? (
+            'Gate currently reports the strategy as '
+            + 'running. This historical Stop request '
+            + 'will not be retried automatically. '
+            + 'Create a new Stop request only if you '
+            + 'still want to stop the strategy.'
+          )
+        : String(
+            row.summary || '—'
+          )
+    );
+
     return (
       '<div class="bot-control-reconciliation-card">'
       + '<div class="bot-control-reconciliation-head">'
@@ -2394,7 +2420,7 @@ function renderBotControlReconciliationHistory(
           row.confidence || 'inconclusive'
         )}</span>`
       + '</div>'
-      + `<p>${escapeHtml(row.summary || '—')}</p>`
+      + `<p>${escapeHtml(summary)}</p>`
       + '<div class="bot-control-reconciliation-meta">'
       + `Gate status: ${escapeHtml(row.gate_status || '—')}`
       + ' · '
@@ -2464,6 +2490,43 @@ function renderBotControlRequestDetail(
     && detail.gate_status_code !== undefined
       ? String(detail.gate_status_code)
       : '—'
+  );
+
+  const reconciliations = (
+    detail.reconciliations || []
+  );
+
+  const latestReconciliation = (
+    reconciliations[0] || null
+  );
+
+  const stopRequest = (
+    String(
+      detail.action || ''
+    ).toLowerCase() === 'bot_stop'
+  );
+
+  const historicalLockConflict = Boolean(
+    stopRequest
+    && requestStatus === 'blocked'
+    && String(
+      detail.error || ''
+    ).toLowerCase().includes(
+      'already locked by another bot control operation'
+    )
+  );
+
+  const latestOutcome = String(
+    latestReconciliation?.outcome || ''
+  ).toLowerCase();
+
+  const latestGateStatus = String(
+    latestReconciliation?.gate_status || ''
+  ).toLowerCase();
+
+  const currentlyObservedRunning = Boolean(
+    latestOutcome === 'observed_running'
+    || latestGateStatus === 'running'
   );
 
   $('#botControlRequestSummary').innerHTML = `
@@ -2582,8 +2645,19 @@ function renderBotControlRequestDetail(
   const errorBox = $('#botControlRequestError');
 
   if (detail.error) {
-    errorBox.textContent = detail.error;
+    errorBox.textContent = (
+      historicalLockConflict
+        ? (
+            'Original outcome: This Stop request was '
+            + 'blocked because another Bot Control '
+            + 'operation held the strategy lock. '
+            + 'The Stop operation did not reach Gate.'
+          )
+        : detail.error
+    );
+
     errorBox.classList.remove('hidden');
+
   } else {
     errorBox.textContent = '';
     errorBox.classList.add('hidden');
@@ -2600,6 +2674,43 @@ function renderBotControlRequestDetail(
       + 'query Gate, because the original write '
       + 'was never sent.'
     );
+  } else if (
+    historicalLockConflict
+    && !lock
+  ) {
+    notice.textContent = (
+      'Current state: The conflicting lock is no '
+      + 'longer active. '
+      + (
+        currentlyObservedRunning
+          ? (
+              'Gate currently reports the strategy '
+              + 'as running. This historical Stop '
+              + 'request will not be retried '
+              + 'automatically. Create a new Stop '
+              + 'request only if you still want to '
+              + 'stop the strategy.'
+            )
+          : latestReconciliation
+            ? (
+                `Latest reconciliation: ${
+                  reconciliationLabel(
+                    latestOutcome
+                    || latestGateStatus
+                    || 'unknown'
+                  )
+                }. This historical Stop request `
+                + 'will not be retried automatically. '
+                + 'Review the reconciliation before '
+                + 'creating another Stop request.'
+              )
+            : (
+                'Reconcile with Gate before deciding '
+                + 'whether a new Stop request is needed.'
+              )
+      )
+    );
+
   } else if (
     detail.status === 'rejected'
   ) {
@@ -2632,7 +2743,9 @@ function renderBotControlRequestDetail(
 
   renderBotControlReconciliationHistory(
     detail.reconciliations
-    || []
+    || [],
+    detail.action
+    || '',
   );
 }
 
