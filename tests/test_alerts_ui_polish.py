@@ -345,7 +345,7 @@ def test_alerts_assets_are_versioned():
     )
 
     assert (
-        './app.js?v=20260830-bot-control-history-wording-v1'
+        './app.js?v=20260830-global-tab-scroll-v1'
         in HTML
     )
 

@@ -13804,6 +13804,9 @@ function switchTab(tab, { updateHash = true } = {}) {
     target = 'overview';
   }
 
+  const previousTab = state.activeTab;
+  const tabChanged = previousTab !== target;
+
   state.activeTab = target;
 
   renderSidebarSyncScope();
@@ -13836,6 +13839,15 @@ function switchTab(tab, { updateHash = true } = {}) {
 
   $('#pageTitle').textContent = titles[target][0];
   $('#pageSubtitle').textContent = titles[target][1];
+
+  if (tabChanged) {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'auto',
+    });
+  }
+
 
   if (updateHash && window.location.hash !== `#${target}`) {
     history.replaceState(null, '', `#${target}`);
