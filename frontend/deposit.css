@@ -68,25 +68,75 @@
   margin-bottom: 10px;
 }
 
+.deposit-favorites-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 9px;
+  min-width: 0;
+}
+
+.deposit-favorites-label {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .deposit-favorites {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  margin: 0 0 10px;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
 }
 
 .deposit-favorite {
+  position: relative;
+  min-height: 29px;
+  padding: 4px 9px 4px 18px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 6px 10px;
-  background: var(--surface-2);
+  background: transparent;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: .01em;
+  cursor: pointer;
+}
+
+.deposit-favorite::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .45;
+  transform: translateY(-50%);
+}
+
+.deposit-favorite:hover {
+  border-color: rgba(29, 211, 155, .36);
+  background: rgba(29, 211, 155, .04);
   color: var(--text);
 }
 
-.deposit-favorite:hover,
 .deposit-favorite.active {
-  border-color: var(--accent);
+  border-color: rgba(29, 211, 155, .58);
+  background: rgba(29, 211, 155, .10);
   color: var(--accent);
+}
+
+.deposit-favorite.active::before {
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(29, 211, 155, .08);
 }
 
 .deposit-option-list {
@@ -698,3 +748,191 @@
 }
 
 /* End Wallet Deposit refinement J20C1 */
+
+
+/* Wallet quick assets J21B */
+
+.wallet-deposit-workflow .deposit-favorites-row {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.wallet-deposit-workflow .deposit-favorites {
+  width: auto;
+  flex: 0 1 auto;
+}
+
+@media (max-width: 640px) {
+  .wallet-deposit-workflow .deposit-favorites-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .wallet-deposit-workflow .deposit-favorite {
+    min-height: 28px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+}
+
+/* End Wallet quick assets J21B */
+
+
+/* Wallet large QR dialog J21C */
+
+.deposit-qr-dialog {
+  width: min(680px, calc(100vw - 28px));
+  max-width: 680px;
+  max-height: min(820px, calc(100vh - 28px));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.deposit-qr-dialog::backdrop {
+  background: rgba(4, 8, 10, .78);
+  backdrop-filter: blur(3px);
+}
+
+.deposit-qr-dialog-shell {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+}
+
+.deposit-qr-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.deposit-qr-dialog-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.deposit-qr-dialog-head p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.deposit-qr-dialog-head form {
+  margin: 0;
+}
+
+.deposit-qr-dialog-body {
+  display: grid;
+  grid-template-columns:
+    minmax(300px, 340px)
+    minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 18px;
+  overflow: auto;
+}
+
+.deposit-qr-dialog-surface {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.deposit-qr-dialog-surface img {
+  display: block;
+  width: min(320px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.deposit-qr-dialog-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 9px;
+}
+
+.deposit-qr-dialog-label {
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.deposit-qr-dialog-details code {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: .72rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.deposit-qr-dialog-details .button {
+  width: fit-content;
+  min-height: 34px;
+}
+
+.deposit-qr-dialog-safety {
+  margin: 2px 0 0;
+  color: var(--warning);
+  font-size: .68rem;
+  line-height: 1.45;
+}
+
+.deposit-qr-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 11px 18px 15px;
+  border-top: 1px solid var(--border-soft);
+}
+
+@media (max-width: 640px) {
+  .deposit-qr-dialog {
+    width: calc(100vw - 18px);
+    max-height: calc(100vh - 18px);
+  }
+
+  .deposit-qr-dialog-body {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .deposit-qr-dialog-surface {
+    width: min(340px, 100%);
+    justify-self: center;
+  }
+
+  .deposit-qr-dialog-details .button {
+    width: 100%;
+  }
+}
+
+/* End Wallet large QR dialog J21C */

@@ -5023,3 +5023,234 @@ input {
 }
 
 /* End Wallet withdrawal recipient presentation J20C3 */
+
+/* Wallet final verification polish J21E */
+
+/*
+ * Transfer final confirmation:
+ * make the exact required phrase read as a deliberate
+ * verification token without competing with Transfer funds.
+ */
+#tab-wallet
+#treasuryUserTransferRequiredConfirmation {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 8px;
+  padding: 7px 10px;
+  border: 1px solid rgba(29, 211, 155, .24);
+  border-radius: 8px;
+  background: rgba(29, 211, 155, .045);
+  color: var(--text);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: .73rem;
+  font-weight: 650;
+  line-height: 1.45;
+  letter-spacing: .01em;
+  overflow-wrap: anywhere;
+}
+
+#tab-wallet
+.treasury-user-transfer-confirmation-head {
+  margin-bottom: 6px;
+}
+
+#tab-wallet
+.treasury-user-transfer-confirmation-head > strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+#tab-wallet
+.treasury-user-transfer-confirmation-head > span {
+  opacity: .82;
+}
+
+#tab-wallet
+#treasuryUserTransferConfirmation {
+  border-color: var(--border);
+  background: rgba(255, 255, 255, .018);
+}
+
+#tab-wallet
+#treasuryUserTransferConfirmation:focus {
+  border-color: rgba(29, 211, 155, .45);
+}
+
+
+/*
+ * Matched Withdrawal destination:
+ * keep this compact, but make it read as a verified route
+ * rather than another generic field group.
+ */
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-summary {
+  position: relative;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgba(29, 211, 155, .16);
+  border-left: 2px solid rgba(29, 211, 155, .48);
+  border-radius: 9px;
+  background: rgba(29, 211, 155, .025);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-summary-field {
+  min-width: 0;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-summary-field span {
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: .61rem;
+  font-weight: 650;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-summary-field strong {
+  display: block;
+  min-width: 0;
+  color: var(--text);
+  font-size: .73rem;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-summary-field:first-child strong {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+
+
+/*
+ * Successful Withdrawal preflight:
+ * tighten the status bar and make the recipient outcome
+ * the visual endpoint of the three-value summary.
+ */
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight {
+  margin-top: 8px;
+  padding: 8px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-head {
+  justify-content: flex-start;
+  padding: 7px 9px;
+  gap: 7px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-head.valid strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-head.valid strong::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--positive);
+  box-shadow: 0 0 0 3px rgba(29, 211, 155, .08);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-head > span {
+  margin-left: auto;
+  opacity: .82;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid > div {
+  padding: 8px 10px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid
+> .is-primary.is-recipient {
+  background: rgba(29, 211, 155, .04);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid
+> .is-primary.is-recipient span {
+  color: rgba(29, 211, 155, .72);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid
+> .is-primary.is-recipient strong {
+  color: var(--positive);
+  font-size: .86rem;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  #tab-wallet
+  #treasuryUserTransferRequiredConfirmation {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-preflight-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-preflight-head > span {
+    margin-left: 0;
+    text-align: left;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-summary-field strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* End Wallet final verification polish J21E */

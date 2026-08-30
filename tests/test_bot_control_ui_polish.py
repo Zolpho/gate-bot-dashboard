@@ -209,7 +209,7 @@ def test_bot_control_asset_versions_are_bumped():
     )
 
     assert (
-        './app.js?v=20260830-wallet-ux-j20-v1'
+        './app.js?v=20260830-wallet-ux-j21-v1'
         in HTML
     )
 

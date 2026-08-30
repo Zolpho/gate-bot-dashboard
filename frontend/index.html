@@ -8,10 +8,10 @@
   <link rel="stylesheet" href="./styles.css?v=20260823-account-selector-wide-v1">
   <link rel="stylesheet" href="./alerts.css?v=20260823-overview-incidents-v1">
   <link rel="stylesheet" href="./private-balance.css?v=20260823-wallet-card-depth-v1">
-  <link rel="stylesheet" href="./deposit.css?v=20260830-wallet-ux-j20-v1">
+  <link rel="stylesheet" href="./deposit.css?v=20260830-wallet-ux-j21-v1">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css?v=20260830-wallet-ux-j19-v2">
-  <link rel="stylesheet" href="./treasury.css?v=20260830-wallet-ux-j20-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260830-wallet-ux-j21-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -1153,7 +1153,16 @@
             <span class="sr-only">Search coin</span>
             <input id="depositCurrencySearch" type="search" autocomplete="off" placeholder="Search coin name or symbol">
           </label>
-          <div id="depositFavorites" class="deposit-favorites"></div>
+          <div class="deposit-favorites-row">
+              <span class="deposit-favorites-label">
+                Quick assets
+              </span>
+
+              <div
+                id="depositFavorites"
+                class="deposit-favorites"
+              ></div>
+            </div>
           <div id="depositCurrencyList" class="deposit-option-list" role="listbox" aria-label="Deposit currencies"></div>
           <p id="depositCurrencyCount" class="deposit-hint"></p>
         </div>
@@ -1202,7 +1211,9 @@
                   type="button"
                   class="button secondary"
                   data-deposit-qr-toggle
-                  aria-expanded="false"
+
+                  aria-haspopup="dialog"
+                  aria-controls="depositQrDialog"
                 >
                   View larger
                 </button>
@@ -2969,7 +2980,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260830-wallet-ux-j20-v1"
+    src="./app.js?v=20260830-wallet-ux-j21-v1"
     defer
   ></script>
   <script
@@ -2992,6 +3003,80 @@
   </div>
 </footer>  
 
+
+  <dialog
+    id="depositQrDialog"
+    class="deposit-qr-dialog"
+    aria-labelledby="depositQrDialogTitle"
+  >
+    <div class="deposit-qr-dialog-shell">
+      <div class="deposit-qr-dialog-head">
+        <div>
+          <h2 id="depositQrDialogTitle">Deposit QR</h2>
+
+          <p id="depositQrDialogContext">
+            Selected asset and network
+          </p>
+        </div>
+
+        <form method="dialog">
+          <button
+            type="submit"
+            class="icon-button"
+            aria-label="Close large deposit QR"
+          >
+            ×
+          </button>
+        </form>
+      </div>
+
+      <div class="deposit-qr-dialog-body">
+        <div class="deposit-qr-dialog-surface">
+          <img
+            id="depositQrDialogImage"
+            alt="Large deposit address QR code"
+            width="320"
+            height="320"
+          >
+        </div>
+
+        <div class="deposit-qr-dialog-details">
+          <span class="deposit-qr-dialog-label">
+            Deposit address
+          </span>
+
+          <code id="depositQrDialogAddress">—</code>
+
+          <button
+            type="button"
+            class="button secondary"
+            data-copy-deposit="address"
+          >
+            Copy address
+          </button>
+
+          <p
+            id="depositQrDialogSafety"
+            class="deposit-qr-dialog-safety"
+          >
+            Use only the selected asset and network.
+          </p>
+        </div>
+      </div>
+
+      <form
+        method="dialog"
+        class="deposit-qr-dialog-footer"
+      >
+        <button
+          type="submit"
+          class="button secondary"
+        >
+          Close
+        </button>
+      </form>
+    </div>
+  </dialog>
 
   <dialog
     id="treasuryWithdrawalDestinationReviewDialog"

@@ -1006,19 +1006,28 @@ function clearDepositDetails() {
     $('#depositQr').removeAttribute('src');
   }
 
-  const qrCard = $('#depositQr')?.closest(
-    '.deposit-qr-card'
-  );
+  const qrDialog = $('#depositQrDialog');
 
-  qrCard?.classList.remove('is-expanded');
+  if (qrDialog?.open) {
+    qrDialog.close();
+  }
 
-  const qrToggle = document.querySelector(
-    '[data-deposit-qr-toggle]'
-  );
+  if ($('#depositQrDialogImage')) {
+    $('#depositQrDialogImage').removeAttribute('src');
+  }
 
-  if (qrToggle) {
-    qrToggle.textContent = 'View larger';
-    qrToggle.setAttribute('aria-expanded', 'false');
+  if ($('#depositQrDialogAddress')) {
+    $('#depositQrDialogAddress').textContent = '—';
+  }
+
+  if ($('#depositQrDialogContext')) {
+    $('#depositQrDialogContext').textContent =
+      'Selected asset and network';
+  }
+
+  if ($('#depositQrDialogSafety')) {
+    $('#depositQrDialogSafety').textContent =
+      'Use only the selected asset and network.';
   }
 
   if ($('#depositQrSafety')) {
@@ -1547,24 +1556,59 @@ async function copyDepositValue(kind) {
 
 
 function toggleDepositQrSize(button) {
-  const card = $('#depositQr')?.closest(
-    '.deposit-qr-card'
+  const result = state.depositDetails;
+  const network = result?.network;
+
+  if (
+    !result
+    || !network
+    || !network.qr_svg_data_uri
+    || !network.address
+  ) {
+    return;
+  }
+
+  const dialog = $('#depositQrDialog');
+
+  if (!dialog) return;
+
+  const networkName = (
+    network.name || network.chain || 'Selected network'
   );
 
-  if (!card || !button) return;
+  const accountId = depositTargetAccount();
 
-  const expanded =
-    card.classList.toggle('is-expanded');
+  if ($('#depositQrDialogImage')) {
+    $('#depositQrDialogImage').src =
+      network.qr_svg_data_uri;
+  }
 
-  button.textContent =
-    expanded
-      ? 'Show smaller'
-      : 'View larger';
+  if ($('#depositQrDialogAddress')) {
+    $('#depositQrDialogAddress').textContent =
+      network.address;
+  }
 
-  button.setAttribute(
-    'aria-expanded',
-    String(expanded),
-  );
+  if ($('#depositQrDialogContext')) {
+    $('#depositQrDialogContext').textContent =
+      `${result.currency} · ${networkName}`;
+  }
+
+  if ($('#depositQrDialogSafety')) {
+    $('#depositQrDialogSafety').textContent = (
+      `Use only ${result.currency} on ${networkName}`
+      + (
+        accountId
+          ? ` for Wallet account ${accountId}.`
+          : '.'
+      )
+    );
+  }
+
+  if (!dialog.open) {
+    dialog.showModal();
+  }
+
+  button?.blur();
 }
 
 function depositHistoryTargetAccount() {

@@ -449,8 +449,8 @@ def test_critical_ids_remain_unique():
             f'id="{element_id}"'
         ) == 1
 
-def test_j20_cache_keys_follow_changed_wallet_assets():
-    current_key = "20260830-wallet-ux-j20-v1"
+def test_j21_cache_keys_follow_changed_wallet_assets():
+    current_key = "20260830-wallet-ux-j21-v1"
     unchanged_key = "20260830-wallet-ux-j19-v2"
 
     for asset in (
