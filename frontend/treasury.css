@@ -4588,3 +4588,70 @@ input {
 }
 
 /* End 3J39 Withdrawal full-width execution layout v1 */
+
+
+/* 3J39 Withdrawal preflight success hierarchy v1 */
+
+/*
+ * Presentation only after a valid preflight.
+ * Existing route, preflight and request safety logic is unchanged.
+ */
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+#treasuryWithdrawalPreflightButton {
+  border-color: var(--border-soft);
+  background: transparent;
+  color: var(--muted);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+#treasuryWithdrawalPreflightButton:not(:disabled):hover {
+  background:
+    rgba(255, 255, 255, .035);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+#createTreasuryWithdrawalRequest:not(:disabled) {
+  border-color:
+    rgba(29, 211, 155, .48);
+  background:
+    rgba(29, 211, 155, .14);
+  color: var(--text);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid
+> .is-primary strong {
+  font-size: .82rem;
+  font-weight: 650;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid
+> .is-primary.is-recipient strong {
+  color: var(--positive);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid
+> .is-secondary {
+  background:
+    rgba(8, 19, 16, .86);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid
+> .is-secondary strong {
+  font-size: .70rem;
+  font-weight: 550;
+  color: var(--muted);
+}
+
+/* End 3J39 Withdrawal preflight success hierarchy v1 */

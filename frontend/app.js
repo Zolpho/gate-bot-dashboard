@@ -7362,6 +7362,14 @@ function clearTreasuryWithdrawalPreflight() {
   state.treasuryWithdrawalPreflight = null;
 
   renderTreasuryWithdrawalPreflight();
+
+  const button = $(
+    '#treasuryWithdrawalPreflightButton'
+  );
+
+  if (button) {
+    button.textContent = 'Run safety preflight';
+  }
 }
 
 
@@ -9663,6 +9671,7 @@ function treasuryWithdrawalPreflightMatchesForm() {
 
 function renderTreasuryWithdrawalPreflight() {
   const element = $('#treasuryWithdrawalPreflight');
+  const action = $('#treasuryWithdrawalAction');
 
   const createButton = $(
     '#createTreasuryWithdrawalRequest'
@@ -9675,6 +9684,10 @@ function renderTreasuryWithdrawalPreflight() {
   if (!snapshot) {
     element.innerHTML = '';
     element.classList.add('hidden');
+
+    action?.classList.remove(
+      'has-valid-preflight'
+    );
 
     if (createButton) {
       createButton.disabled = true;
@@ -9692,6 +9705,11 @@ function renderTreasuryWithdrawalPreflight() {
   const valid = Boolean(
     preflight.preflight_valid
     && treasuryWithdrawalPreflightMatchesForm()
+  );
+
+  action?.classList.toggle(
+    'has-valid-preflight',
+    valid,
   );
 
   const errors = (
@@ -9791,7 +9809,7 @@ function renderTreasuryWithdrawalPreflight() {
 
     + '<div class="treasury-withdrawal-preflight-grid">'
 
-    + '<div>'
+    + '<div class="is-primary">'
     + '<span>Withdrawal amount</span>'
     + `<strong>${escapeHtml(
         treasuryAmount(
@@ -9801,7 +9819,7 @@ function renderTreasuryWithdrawalPreflight() {
       )}</strong>`
     + '</div>'
 
-    + '<div>'
+    + '<div class="is-primary">'
     + '<span>Estimated fee</span>'
     + `<strong>${escapeHtml(
         treasuryAmount(
@@ -9811,7 +9829,7 @@ function renderTreasuryWithdrawalPreflight() {
       )}</strong>`
     + '</div>'
 
-    + '<div>'
+    + '<div class="is-primary is-recipient">'
     + '<span>Recipient receives (est.)</span>'
     + `<strong>${escapeHtml(
         treasuryAmount(
@@ -9821,21 +9839,21 @@ function renderTreasuryWithdrawalPreflight() {
       )}</strong>`
     + '</div>'
 
-    + '<div>'
+    + '<div class="is-secondary">'
     + '<span>Available to withdraw</span>'
     + `<strong>${escapeHtml(
         availableToWithdraw
       )}</strong>`
     + '</div>'
 
-    + '<div>'
+    + '<div class="is-secondary">'
     + '<span>Network</span>'
     + `<strong>${escapeHtml(
         networkName
       )}</strong>`
     + '</div>'
 
-    + '<div>'
+    + '<div class="is-secondary">'
     + '<span>Destination</span>'
     + `<strong>${escapeHtml(
         destinationLabel
@@ -10136,7 +10154,19 @@ async function runTreasuryWithdrawalPreflight(event) {
       !treasuryWithdrawalRouteReadyForPreflight()
     );
 
-    button.textContent = 'Run safety preflight';
+    const preflightStillValid = Boolean(
+      state.treasuryWithdrawalPreflight
+        ?.response
+        ?.preflight
+        ?.preflight_valid
+      && treasuryWithdrawalPreflightMatchesForm()
+    );
+
+    button.textContent = (
+      preflightStillValid
+        ? 'Preflight passed · Run again'
+        : 'Run safety preflight'
+    );
   }
 }
 

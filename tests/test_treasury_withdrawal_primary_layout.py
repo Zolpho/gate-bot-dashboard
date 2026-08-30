@@ -185,13 +185,13 @@ def test_amount_safety_workspace_is_two_column_desktop():
 
 def test_behavior_script_cache_key_is_unchanged():
     assert (
-        './app.js?v=20260829-withdraw-visual-polish-v1'
+        './app.js?v=20260830-withdraw-preflight-hierarchy-v1'
         in HTML
     )
 
 
 def test_treasury_css_cache_key_is_bumped_for_redesign():
     assert (
-        './treasury.css?v=20260830-withdraw-full-width-v1'
+        './treasury.css?v=20260830-withdraw-preflight-hierarchy-v1'
         in HTML
     )
