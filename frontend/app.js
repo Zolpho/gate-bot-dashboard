@@ -9775,8 +9775,25 @@ function renderTreasuryWithdrawalPreflight() {
     )
   );
 
+  const destinationRecipientId = String(
+    destination?.recipient_id || ''
+  );
+
+  const destinationRecipient = (
+    destinationRecipientId
+      ? (
+          state.treasuryWithdrawalRecipients || []
+        ).find(
+          item => String(
+            item.recipient_id || ''
+          ) === destinationRecipientId
+        )
+      : null
+  ) || null;
+
   const destinationLabel = String(
-    destination?.label
+    destinationRecipient?.label
+    || destination?.label
     || shortTreasuryGateId(
       destination?.address
     )

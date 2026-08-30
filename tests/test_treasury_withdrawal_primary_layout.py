@@ -185,7 +185,7 @@ def test_amount_safety_workspace_is_two_column_desktop():
 
 def test_behavior_script_cache_key_is_unchanged():
     assert (
-        './app.js?v=20260830-withdraw-preflight-hierarchy-v1'
+        './app.js?v=20260830-withdraw-destination-label-v1'
         in HTML
     )
 

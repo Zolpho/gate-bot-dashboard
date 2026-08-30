@@ -168,7 +168,7 @@ def test_bot_control_asset_versions_are_bumped():
     )
 
     assert (
-        './app.js?v=20260830-withdraw-preflight-hierarchy-v1'
+        './app.js?v=20260830-withdraw-destination-label-v1'
         in HTML
     )
 
