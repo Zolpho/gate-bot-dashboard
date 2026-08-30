@@ -21,8 +21,49 @@ CSS = Path(
 
 
 def test_global_account_scope_is_hidden_on_bot_control():
-    assert "target !== 'trading'" in APP
-    assert "target !== 'bot-control'" in APP
+    marker = "function switchTab("
+
+    start = APP.index(marker)
+
+    next_function = APP.find(
+        "\nfunction ",
+        start + len(marker),
+    )
+
+    switch_tab = (
+        APP[start:]
+        if next_function < 0
+        else APP[start:next_function]
+    )
+
+    visibility_start = switch_tab.index(
+        "const globalAccountVisible"
+    )
+
+    visibility_end = switch_tab.index(
+        "globalAccountSelector?.classList.toggle"
+    )
+
+    visibility = switch_tab[
+        visibility_start:visibility_end
+    ]
+
+    assert "'bot-control'" in visibility
+    assert "'trading'" in visibility
+    assert ".includes(target)" in visibility
+
+    toggle = switch_tab[
+        visibility_end:
+    ]
+
+    assert (
+        "globalAccountSelector?.classList.toggle"
+        in toggle
+    )
+    assert (
+        "'hidden'"
+        in toggle
+    )
 
 
 def test_single_bot_control_account_has_static_surface():
@@ -168,7 +209,7 @@ def test_bot_control_asset_versions_are_bumped():
     )
 
     assert (
-        './app.js?v=20260830-wallet-ux-j18-v1'
+        './app.js?v=20260830-wallet-ux-j19-v1'
         in HTML
     )
 

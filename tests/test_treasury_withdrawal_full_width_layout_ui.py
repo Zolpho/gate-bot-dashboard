@@ -104,7 +104,7 @@ def test_layout_patch_contains_no_behavior_selectors():
 
 def test_css_cache_key_is_bumped_for_full_width_layout():
     expected = (
-        './treasury.css?v=20260830-wallet-ux-j18-v1'
+        './treasury.css?v=20260830-wallet-ux-j19-v1'
     )
 
     assert INDEX.count(expected) == 1

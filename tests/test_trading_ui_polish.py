@@ -364,7 +364,7 @@ def test_trading_pair_and_account_have_balanced_widths():
     assert "font-weight: 560;" in pair_rule
 
 
-def test_global_account_selector_is_hidden_on_trading_only():
+def test_global_account_selector_is_hidden_on_scoped_pages():
     html = _html()
 
     app = Path(
@@ -378,20 +378,52 @@ def test_global_account_selector_is_hidden_on_trading_only():
         in html
     )
 
-    assert (
-        "target !== 'trading'"
-        in app
+    marker = "function switchTab("
+
+    start = app.index(marker)
+
+    next_function = app.find(
+        "\nfunction ",
+        start + len(marker),
     )
 
-    assert (
-        "globalAccountSelector?.classList.toggle("
-        in app
+    switch_tab = (
+        app[start:]
+        if next_function < 0
+        else app[start:next_function]
     )
 
-    assert (
-        "globalAccountSelector?.setAttribute("
-        in app
+    visibility_start = switch_tab.index(
+        "const globalAccountVisible"
     )
+
+    visibility_end = switch_tab.index(
+        "globalAccountSelector?.classList.toggle"
+    )
+
+    visibility = switch_tab[
+        visibility_start:visibility_end
+    ]
+
+    for scoped_page in (
+        "'wallet'",
+        "'trading'",
+        "'bot-control'",
+    ):
+        assert scoped_page in visibility
+
+    assert ".includes(target)" in visibility
+
+    toggle = switch_tab[
+        visibility_end:
+    ]
+
+    assert (
+        "globalAccountSelector?.classList.toggle"
+        in toggle
+    )
+
+    assert "'hidden'" in toggle
 
 
 def test_hiding_global_selector_does_not_clear_scope_state():

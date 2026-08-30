@@ -4807,3 +4807,36 @@ input {
 }
 
 /* End Wallet Treasury compaction J18 */
+
+/* Wallet Transfer review Reset J19 */
+
+#tab-wallet
+.treasury-user-transfer-confirmation-row {
+  grid-template-columns:
+    minmax(210px, .95fr)
+    minmax(210px, 1.2fr)
+    auto
+    auto;
+}
+
+#tab-wallet
+#treasuryUserTransferReviewResetButton {
+  min-width: 82px;
+}
+
+@media (max-width: 1180px) {
+  #tab-wallet
+  .treasury-user-transfer-confirmation-row {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  #treasuryUserTransferReviewResetButton,
+  #tab-wallet
+  #executeTreasuryUserTransfer {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* End Wallet Transfer review Reset J19 */

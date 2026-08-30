@@ -5416,6 +5416,7 @@ function setTreasuryUserTransferFormLocked(locked) {
     '#treasuryUserTransferCurrency',
     '#treasuryUserTransferAmount',
     '#treasuryUserTransferResetButton',
+    '#treasuryUserTransferReviewResetButton',
     '#treasuryUserTransferPreviewButton',
   ].forEach(selector => {
     const element = $(selector);
@@ -14089,8 +14090,11 @@ function switchTab(tab, { updateHash = true } = {}) {
   );
 
   const globalAccountVisible = (
-    target !== 'trading'
-    && target !== 'bot-control'
+    ![
+      'wallet',
+      'trading',
+      'bot-control',
+    ].includes(target)
   );
 
   globalAccountSelector?.classList.toggle(
@@ -18646,6 +18650,24 @@ function bindTreasuryUserTransferEvents() {
       resetTreasuryUserTransferForm,
     );
   }
+
+  const reviewReset = $(
+    '#treasuryUserTransferReviewResetButton'
+  );
+
+  if (
+    reviewReset
+    && reviewReset.dataset.userTransferEventsBound
+      !== 'true'
+  ) {
+    reviewReset.dataset.userTransferEventsBound = 'true';
+
+    reviewReset.addEventListener(
+      'click',
+      resetTreasuryUserTransferForm,
+    );
+  }
+
 
   const confirmation = $(
     '#treasuryUserTransferConfirmation'

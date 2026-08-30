@@ -475,3 +475,86 @@
 }
 
 /* End Wallet inline Deposit workflow J18 */
+
+/* Wallet Deposit structural correction J19 */
+
+/*
+ * The original modal used a 38px step-number column.
+ * Inline Wallet mode hides that number, so inline steps
+ * must explicitly collapse back to one full-width column.
+ */
+.wallet-deposit-workflow {
+  max-height: none;
+  overflow: visible;
+}
+
+.wallet-deposit-workflow .deposit-dialog-content {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.wallet-deposit-workflow .deposit-step {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+/*
+ * Inline Deposit is progressive:
+ * Asset first, then Network, then Address.
+ * Existing JavaScript already removes this class when
+ * each next stage becomes available.
+ */
+.wallet-deposit-workflow
+  .deposit-step.deposit-step-disabled {
+  display: none;
+  opacity: 1;
+}
+
+.wallet-deposit-workflow .deposit-step-content,
+.wallet-deposit-workflow .deposit-search,
+.wallet-deposit-workflow .deposit-favorites,
+.wallet-deposit-workflow .deposit-option-list {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.wallet-deposit-workflow .deposit-search input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.wallet-deposit-workflow .deposit-favorites {
+  align-items: center;
+}
+
+.wallet-deposit-workflow .deposit-option-list {
+  overflow-x: hidden;
+}
+
+@media (max-width: 720px) {
+  .wallet-deposit-workflow .deposit-flow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .wallet-deposit-workflow
+    .deposit-flow-item
+    + .deposit-flow-item {
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+
+  .wallet-deposit-workflow .deposit-flow-item {
+    padding: 8px;
+  }
+
+  .wallet-deposit-workflow .deposit-flow-item small {
+    display: none;
+  }
+}
+
+/* End Wallet Deposit structural correction J19 */
