@@ -244,6 +244,6 @@ def test_j19_cache_key_is_bumped_for_wallet_assets():
         "treasury.css",
     ):
         assert (
-            f"./{asset}?v=20260830-wallet-ux-j19-v1"
+            f"./{asset}?v=20260830-wallet-ux-j19-v2"
             in HTML
         )

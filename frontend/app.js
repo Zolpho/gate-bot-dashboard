@@ -897,7 +897,11 @@ function renderPrivateBalance() {
     : `${fmtMoney(eqty.value_usdt)} · ${fmtMoney(eqty.price_usdt, 8)} per EQTY`;
 
   $('#privateQuantValue').textContent = fmtMoney(quantValue);
-  $('#privateQuantNote').textContent = `${bot.running_bots || 0} running · tracked ${fmtMoney(bot.current_value)} current / ${fmtMoney(bot.initial_capital)} initial`;
+  $('#privateQuantNote').textContent = (
+    `Tracked bots: ${bot.running_bots || 0} running · `
+    + `${fmtMoney(bot.current_value)} current / `
+    + `${fmtMoney(bot.initial_capital)} initial`
+  );
 
   $('#privateOtherValue').textContent = fmtMoney(summary.other_value || 0);
   $('#privateOtherNote').textContent = `${summary.other_count || 0} non-zero token${Number(summary.other_count || 0) === 1 ? '' : 's'}`;
@@ -9583,69 +9587,27 @@ function renderTreasuryWithdrawalDestinationSummary() {
   const element = $(
     '#treasuryWithdrawalDestinationSummary'
   );
-
   const context = $(
     '#treasuryWithdrawalPreflightContext'
   );
-
   if (!element) return;
-
   if (context) {
     context.innerHTML = '';
     context.classList.add('hidden');
   }
-
   const item = treasurySelectedWithdrawalDestination();
-
   if (!item) {
     element.innerHTML = '';
     element.classList.add('hidden');
-
     renderTreasuryWithdrawalFundingSummary();
-
     return;
   }
-
   element.classList.remove('hidden');
-
   const address = String(
     item.address || ''
   );
-
-  const selectedNetwork = (
-    treasurySelectedWithdrawalNetwork()
-  );
-
-  const networkName = (
-    treasuryWithdrawalDisplayNetworkName(
-      selectedNetwork?.name,
-      item.chain,
-    )
-  );
-
   element.innerHTML = (
     '<div class="treasury-withdrawal-summary-field">'
-    + '<span>Account</span>'
-    + `<strong>${escapeHtml(
-        item.owner_account_id || '—'
-      )}</strong>`
-    + '</div>'
-
-    + '<div class="treasury-withdrawal-summary-field">'
-    + '<span>Asset</span>'
-    + `<strong>${escapeHtml(
-        item.currency || '—'
-      )}</strong>`
-    + '</div>'
-
-    + '<div class="treasury-withdrawal-summary-field">'
-    + '<span>Network</span>'
-    + `<strong>${escapeHtml(
-        networkName
-      )}</strong>`
-    + '</div>'
-
-    + '<div class="treasury-withdrawal-summary-field">'
     + '<span>Address</span>'
     + `<strong title="${escapeHtml(address)}">${
         escapeHtml(
@@ -9653,7 +9615,6 @@ function renderTreasuryWithdrawalDestinationSummary() {
         )
       }</strong>`
     + '</div>'
-
     + '<div class="treasury-withdrawal-summary-field">'
     + '<span>Memo / tag</span>'
     + `<strong>${escapeHtml(
@@ -9661,10 +9622,8 @@ function renderTreasuryWithdrawalDestinationSummary() {
       )}</strong>`
     + '</div>'
   );
-
   renderTreasuryWithdrawalFundingSummary();
 }
-
 
 function renderTreasuryWithdrawalFundingSummary() {
   const element = $(
@@ -9755,12 +9714,6 @@ function renderTreasuryWithdrawalFundingSummary() {
     currency,
   );
 
-  const networkName = (
-    treasuryWithdrawalDisplayNetworkName(
-      network?.name,
-      chain,
-    )
-  );
 
   const fixedFee = (
     network?.fixed_fee === undefined
@@ -9818,12 +9771,6 @@ function renderTreasuryWithdrawalFundingSummary() {
       )}</strong>`
     + '</div>'
 
-    + '<div>'
-    + '<span>Network</span>'
-    + `<strong>${escapeHtml(
-        networkName
-      )}</strong>`
-    + '</div>'
 
     + '</div>'
   );
@@ -9858,146 +9805,48 @@ function treasuryWithdrawalPreflightMatchesForm() {
 function renderTreasuryWithdrawalPreflight() {
   const element = $('#treasuryWithdrawalPreflight');
   const action = $('#treasuryWithdrawalAction');
-
   const createButton = $(
     '#createTreasuryWithdrawalRequest'
   );
-
   if (!element) return;
-
   const snapshot = state.treasuryWithdrawalPreflight;
-
   if (!snapshot) {
     element.innerHTML = '';
     element.classList.add('hidden');
-
     action?.classList.remove(
       'has-valid-preflight'
     );
-
     if (createButton) {
       createButton.disabled = true;
     }
-
     return;
   }
-
   element.classList.remove('hidden');
-
   const response = snapshot.response || {};
   const preflight = response.preflight || {};
   const fee = preflight.fee || {};
-
   const valid = Boolean(
     preflight.preflight_valid
     && treasuryWithdrawalPreflightMatchesForm()
   );
-
   action?.classList.toggle(
     'has-valid-preflight',
     valid,
   );
-
   const errors = (
     preflight.errors || []
   ).map(
     value => String(value)
   );
-
-  const destination = (
-    state.treasuryWithdrawalDestinations || []
-  ).find(
-    item => (
-      String(
-        item.destination_id || ''
-      ) === String(
-        snapshot.destinationId || ''
-      )
-    )
-  ) || null;
-
-  const capabilityKey = (
-    `${snapshot.owner}:${snapshot.currency}`
-  );
-
-  const capabilities = (
-    state.treasuryWithdrawalCapabilitiesKey
-      === capabilityKey
-      ? state.treasuryWithdrawalCapabilities
-      : null
-  );
-
-  const availability = (
-    capabilities?.availability || {}
-  );
-
-  const network = (
-    (capabilities?.chains || []).find(
-      item => (
-        String(
-          item.chain || ''
-        ).toUpperCase()
-        === String(
-          destination?.chain || ''
-        ).toUpperCase()
-      )
-    )
-    || null
-  );
-
-  const availableToWithdraw = (
-    capabilities
-      ? treasuryAmount(
-          availability.withdrawal_funding_available,
-          snapshot.currency,
-        )
-      : '—'
-  );
-
-  const networkName = (
-    treasuryWithdrawalDisplayNetworkName(
-      network?.name,
-      destination?.chain,
-    )
-  );
-
-  const destinationRecipientId = String(
-    destination?.recipient_id || ''
-  );
-
-  const destinationRecipient = (
-    destinationRecipientId
-      ? (
-          state.treasuryWithdrawalRecipients || []
-        ).find(
-          item => String(
-            item.recipient_id || ''
-          ) === destinationRecipientId
-        )
-      : null
-  ) || null;
-
-  const destinationLabel = String(
-    destinationRecipient?.label
-    || destination?.label
-    || shortTreasuryGateId(
-      destination?.address
-    )
-    || snapshot.destinationId
-    || '—'
-  );
-
   element.innerHTML = (
     `<div class="treasury-withdrawal-preflight-head ${
       valid ? 'valid' : 'invalid'
     }">`
-
     + `<strong>${
         valid
           ? 'Preflight passed'
           : 'Preflight blocked'
       }</strong>`
-
     + `<span>${
         valid
           ? 'No withdrawal has been submitted yet.'
@@ -10007,11 +9856,8 @@ function renderTreasuryWithdrawalPreflight() {
                 : 'Safety checks did not pass'
             )
       }</span>`
-
     + '</div>'
-
     + '<div class="treasury-withdrawal-preflight-grid">'
-
     + '<div class="is-primary">'
     + '<span>Withdrawal amount</span>'
     + `<strong>${escapeHtml(
@@ -10021,7 +9867,6 @@ function renderTreasuryWithdrawalPreflight() {
         )
       )}</strong>`
     + '</div>'
-
     + '<div class="is-primary">'
     + '<span>Estimated fee</span>'
     + `<strong>${escapeHtml(
@@ -10031,7 +9876,6 @@ function renderTreasuryWithdrawalPreflight() {
         )
       )}</strong>`
     + '</div>'
-
     + '<div class="is-primary is-recipient">'
     + '<span>Recipient receives (est.)</span>'
     + `<strong>${escapeHtml(
@@ -10041,36 +9885,12 @@ function renderTreasuryWithdrawalPreflight() {
         )
       )}</strong>`
     + '</div>'
-
-    + '<div class="is-secondary">'
-    + '<span>Available to withdraw</span>'
-    + `<strong>${escapeHtml(
-        availableToWithdraw
-      )}</strong>`
-    + '</div>'
-
-    + '<div class="is-secondary">'
-    + '<span>Network</span>'
-    + `<strong>${escapeHtml(
-        networkName
-      )}</strong>`
-    + '</div>'
-
-    + '<div class="is-secondary">'
-    + '<span>Destination</span>'
-    + `<strong>${escapeHtml(
-        destinationLabel
-      )}</strong>`
-    + '</div>'
-
     + '</div>'
   );
-
   if (createButton) {
     createButton.disabled = !valid;
   }
 }
-
 
 function treasuryWithdrawalRequestStatusClass(value) {
   const status = String(

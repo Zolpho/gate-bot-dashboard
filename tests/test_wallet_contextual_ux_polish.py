@@ -450,7 +450,7 @@ def test_critical_ids_remain_unique():
         ) == 1
 
 def test_j18_changed_assets_share_cache_key():
-    cache_key = "20260830-wallet-ux-j19-v1"
+    cache_key = "20260830-wallet-ux-j19-v2"
 
     for asset in (
         "app.js",

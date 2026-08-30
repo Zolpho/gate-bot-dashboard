@@ -58,135 +58,79 @@ def destination_lookup(block):
     return block[start:end]
 
 
-def test_preflight_destination_label_uses_exact_recipient_link():
+def test_current_destination_match_uses_exact_recipient_link():
     block = function(
-        "renderTreasuryWithdrawalPreflight"
+        "treasuryWithdrawalDestinationMatchesRoute"
     )
 
-    assert (
-        "const destinationRecipientId = String("
-        in block
-    )
-
-    assert (
-        "destination?.recipient_id || ''"
-        in block
-    )
-
-    lookup = destination_lookup(block)
-
-    assert (
-        "state.treasuryWithdrawalRecipients || []"
-        in lookup
-    )
-
-    assert (
-        "item.recipient_id || ''"
-        in lookup
-    )
-
-    assert (
-        "=== destinationRecipientId"
-        in lookup
-    )
+    for token in (
+        "const destinationRecipientId = String(",
+        "destination.recipient_id || ''",
+        "destinationRecipientId",
+        "=== route.recipientId",
+        "&& recipientMatches",
+    ):
+        assert token in block
 
 
-def test_recipient_lookup_does_not_infer_by_address():
+def test_selected_recipient_lookup_does_not_infer_by_address():
     block = function(
-        "renderTreasuryWithdrawalPreflight"
+        "treasurySelectedWithdrawalRecipient"
     )
 
-    lookup = destination_lookup(block)
+    for token in (
+        "state.treasuryWithdrawalRecipient",
+        "treasuryWithdrawalActiveRecipients()",
+        "item.recipient_id || ''",
+        "=== recipientId",
+    ):
+        assert token in block
 
-    assert (
-        "item.address"
-        not in lookup
-    )
-
-    assert (
-        "destination?.address"
-        not in lookup
-    )
-
-    assert (
-        "AddressMatch"
-        not in lookup
-    )
-
-    assert (
-        "addressMatch"
-        not in lookup
-    )
+    for forbidden in (
+        "item.address",
+        "destination?.address",
+        "AddressMatch",
+        "addressMatch",
+        "treasuryWithdrawalAddressMatchKey",
+    ):
+        assert forbidden not in block
 
 
-def test_current_recipient_label_precedes_destination_label():
+def test_visible_route_carries_current_selected_recipient_id():
     block = function(
-        "renderTreasuryWithdrawalPreflight"
+        "treasuryWithdrawalVisibleRoute"
     )
 
-    label_start = block.index(
-        "const destinationLabel ="
-    )
-
-    label_end = block.index(
-        "element.innerHTML",
-        label_start,
-    )
-
-    label_block = block[
-        label_start:
-        label_end
-    ]
-
-    assert (
-        label_block.index(
-            "destinationRecipient?.label"
-        )
-        <
-        label_block.index(
-            "destination?.label"
-        )
-    )
+    for token in (
+        "treasurySelectedWithdrawalRecipient()",
+        "recipient?.recipient_id || ''",
+        "recipientId,",
+        "&& recipient",
+        "&& recipientId",
+    ):
+        assert token in block
 
 
-def test_legacy_destination_fallback_remains_available():
+def test_legacy_unlinked_destination_route_fallback_remains_available():
     block = function(
-        "renderTreasuryWithdrawalPreflight"
+        "treasuryWithdrawalDestinationMatchesRoute"
     )
 
-    label_start = block.index(
-        "const destinationLabel ="
-    )
-
-    label_end = block.index(
-        "element.innerHTML",
-        label_start,
-    )
-
-    label_block = block[
-        label_start:
-        label_end
-    ]
-
-    assert (
-        "destination?.label"
-        in label_block
-    )
-
-    assert (
-        "shortTreasuryGateId("
-        in label_block
-    )
-
-    assert (
-        "destination?.address"
-        in label_block
-    )
-
-    assert (
-        "snapshot.destinationId"
-        in label_block
-    )
+    for token in (
+        "const destinationRecipientId = String(",
+        "destination.recipient_id || ''",
+        "const recipientMatches = (",
+        "destinationRecipientId",
+        "=== route.recipientId",
+        ": true",
+        "destination.owner_account_id || ''",
+        "destination.currency || ''",
+        "destination.chain || ''",
+        "treasuryWithdrawalAddressMatchKey(",
+        "destination.memo || ''",
+        "&& recipientMatches",
+    ):
+        assert token in block
 
 
 def test_preflight_validity_contract_is_unchanged():
@@ -209,17 +153,25 @@ def test_preflight_validity_contract_is_unchanged():
     )
 
 
-def test_preflight_still_renders_destination_field():
-    block = function(
+def test_preflight_does_not_repeat_destination_but_form_match_pins_it():
+    preflight = function(
         "renderTreasuryWithdrawalPreflight"
     )
 
-    assert (
-        "<span>Destination</span>"
-        in block
+    assert "<span>Destination</span>" not in preflight
+    assert "destinationLabel" not in preflight
+
+    matcher = function(
+        "treasuryWithdrawalPreflightMatchesForm"
     )
 
-    assert (
-        "destinationLabel"
-        in block
-    )
+    for token in (
+        "state.treasuryWithdrawalPreflight",
+        "treasurySelectedWithdrawalDestination()",
+        "snapshot.destinationId",
+        "destination.destination_id || ''",
+        "snapshot.owner",
+        "snapshot.currency",
+        "snapshot.amount",
+    ):
+        assert token in matcher

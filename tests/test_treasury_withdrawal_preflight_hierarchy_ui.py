@@ -151,26 +151,48 @@ def test_preflight_economics_have_three_primary_cells():
         )
 
 
-def test_context_has_three_secondary_cells():
+def test_preflight_has_three_primary_outcome_cells_and_no_secondary_cells():
     block = function(
         "renderTreasuryWithdrawalPreflight"
     )
 
     assert (
         block.count(
-            'class="is-secondary"'
+            'class="is-primary">'
         )
-        == 3
+        == 2
+    )
+
+    assert (
+        block.count(
+            'class="is-primary is-recipient">'
+        )
+        == 1
+    )
+
+    assert (
+        'class="is-secondary"'
+        not in block
     )
 
     for label in (
+        "Withdrawal amount",
+        "Estimated fee",
+        "Recipient receives (est.)",
+    ):
+        assert (
+            f"<span>{label}</span>"
+            in block
+        )
+
+    for repeated in (
         "Available to withdraw",
         "Network",
         "Destination",
     ):
         assert (
-            f"<span>{label}</span>"
-            in block
+            f"<span>{repeated}</span>"
+            not in block
         )
 
 

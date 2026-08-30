@@ -4840,3 +4840,82 @@ input {
 }
 
 /* End Wallet Transfer review Reset J19 */
+
+/* Wallet Withdrawal flattening J19S */
+
+/*
+ * The route controls already communicate the three preparation
+ * stages. Removing the decorative numbered strip saves height
+ * without changing route, preflight or execution state.
+ */
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-flow {
+  display: none;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-builder {
+  margin-top: 10px;
+}
+
+/*
+ * After route preparation, repeat only delivery-specific values.
+ * Asset/network remain visible in the route selectors above.
+ */
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-summary {
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 7px;
+  padding: 8px 9px;
+}
+
+/*
+ * Funding = liquidity constraints.
+ * Network is intentionally not repeated here.
+ */
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-grid {
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+
+/*
+ * Preflight = transaction outcome only:
+ * gross amount, estimated fee, estimated recipient amount.
+ */
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight {
+  margin-top: 8px;
+  padding: 9px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid {
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 760px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-destination-summary,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-funding-summary-grid,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-preflight-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* End Wallet Withdrawal flattening J19S */

@@ -103,67 +103,72 @@ def test_funding_renderer_requires_matching_owner_asset_key():
     )
 
 
-def test_funding_summary_explains_balance_model():
+def test_funding_summary_explains_withdrawal_constraints():
     start = JS.index(
         "function renderTreasuryWithdrawalFundingSummary()"
     )
-
     end = JS.index(
         "\nfunction ",
         start + 1,
     )
-
-    renderer = JS[start:end]
+    renderer = JS[
+        start:end
+    ]
 
     for label in (
         "Withdrawal details",
         "Available to withdraw",
         "Withdrawal fee",
         "Minimum withdrawal",
-        "<span>Network</span>",
     ):
         assert label in renderer
 
-    for internal_copy in (
-        "Funding available = owner spot balance ",
-        "+ liquid ownership already held in main custody.",
-        "ownership liabilities",
-        "Live read-only capability data",
+    assert "<span>Network</span>" not in renderer
+
+    for semantic_source in (
+        "availability.withdrawal_funding_available",
+        "gateLimits.minimum",
+        "network?.fixed_fee",
+        "network?.percent_fee",
     ):
-        assert internal_copy not in renderer
+        assert semantic_source in renderer
 
 
-def test_preflight_uses_operator_facing_labels():
+def test_preflight_uses_transaction_outcome_labels():
     start = JS.index(
         "function renderTreasuryWithdrawalPreflight()"
     )
-
     end = JS.index(
         "\nfunction ",
         start + 1,
     )
-
-    renderer = JS[start:end]
+    renderer = JS[
+        start:end
+    ]
 
     for label in (
         "Withdrawal amount",
         "Estimated fee",
         "Recipient receives (est.)",
-        "Available to withdraw",
-        "<span>Network</span>",
-        "<span>Destination</span>",
     ):
         assert label in renderer
 
-    for internal_label in (
-        "Already in main custody",
-        "Funding required",
-        "JIT funding",
-        "Additional main funding",
-        "Address policy",
-        "Eligible via",
+    for repeated in (
+        "Available to withdraw",
+        "<span>Network</span>",
+        "<span>Destination</span>",
+        'class="is-secondary"',
     ):
-        assert internal_label not in renderer
+        assert repeated not in renderer
+
+    for safety_anchor in (
+        "preflight.preflight_valid",
+        "treasuryWithdrawalPreflightMatchesForm()",
+        "createButton.disabled = !valid",
+        "Preflight passed",
+        "Preflight blocked",
+    ):
+        assert safety_anchor in renderer
 
 
 def test_jit_required_has_plain_language_explanation():
@@ -233,11 +238,11 @@ def test_clarity_css_is_present_and_responsive():
 
 def test_asset_cache_keys_are_intentionally_unchanged_for_now():
     assert (
-        './treasury.css?v=20260830-wallet-ux-j19-v1'
+        './treasury.css?v=20260830-wallet-ux-j19-v2'
         in HTML
     )
 
     assert (
-        './app.js?v=20260830-wallet-ux-j19-v1'
+        './app.js?v=20260830-wallet-ux-j19-v2'
         in HTML
     )

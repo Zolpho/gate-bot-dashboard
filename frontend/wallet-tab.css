@@ -168,3 +168,13 @@
 }
 
 /* End Wallet contextual UX polish J18 */
+
+/* Wallet subnav collision fix J19S */
+
+#tab-wallet .wallet-subnav {
+  position: static;
+  top: auto;
+  z-index: auto;
+}
+
+/* End Wallet subnav collision fix J19S */

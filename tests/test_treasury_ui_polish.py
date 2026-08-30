@@ -18,12 +18,12 @@ CSS = (
 
 def test_treasury_assets_are_versioned():
     assert (
-        './treasury.css?v=20260830-wallet-ux-j19-v1'
+        './treasury.css?v=20260830-wallet-ux-j19-v2'
         in HTML
     )
 
     assert (
-        './app.js?v=20260830-wallet-ux-j19-v1'
+        './app.js?v=20260830-wallet-ux-j19-v2'
         in HTML
     )
 
@@ -1177,14 +1177,14 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
-        './treasury.css?v=20260830-wallet-ux-j19-v1'
+        './treasury.css?v=20260830-wallet-ux-j19-v2'
         in HTML
     )
 
 
 def test_app_version_marks_withdraw_polish():
     assert (
-        './app.js?v=20260830-wallet-ux-j19-v1'
+        './app.js?v=20260830-wallet-ux-j19-v2'
         in HTML
     )
 
@@ -2817,16 +2817,14 @@ def test_withdraw_preflight_context_sits_between_destination_and_amount():
     assert "hidden" in context_tag
 
 
-def test_withdraw_preflight_context_uses_selected_approved_destination():
+def test_withdraw_destination_summary_uses_selected_approved_destination():
     start = APP.index(
         "function renderTreasuryWithdrawalDestinationSummary()"
     )
-
     end = APP.index(
         "\nfunction ",
         start + 1,
     )
-
     block = APP[
         start:end
     ]
@@ -2835,21 +2833,22 @@ def test_withdraw_preflight_context_uses_selected_approved_destination():
         "'#treasuryWithdrawalPreflightContext'",
         "context.innerHTML = '';",
         "context.classList.add('hidden');",
-        "item.owner_account_id",
-        "item.currency",
-        "item.chain",
+        "treasurySelectedWithdrawalDestination()",
         "item.address",
         "item.memo",
+        "renderTreasuryWithdrawalFundingSummary();",
     ):
         assert token in block
 
-    for obsolete in (
-        "'#treasuryWithdrawalDestination'",
-        "?.selectedOptions?.[0]?.textContent",
-        "'<span>Preflight uses:</span>'",
-        "selectedOptionText",
+    for repeated in (
+        "item.owner_account_id",
+        "item.currency",
+        "item.chain",
+        "<span>Account</span>",
+        "<span>Asset</span>",
+        "<span>Network</span>",
     ):
-        assert obsolete not in block
+        assert repeated not in block
 
 
 def test_withdraw_preflight_context_is_compact_and_uses_theme_tokens():

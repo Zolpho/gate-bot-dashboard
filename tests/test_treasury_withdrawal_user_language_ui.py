@@ -79,14 +79,22 @@ def test_redundant_preflight_context_is_hidden():
     assert "Preflight uses:" not in HTML
 
 
-def test_destination_summary_uses_account_language():
+def test_destination_summary_uses_delivery_language_only():
     block = js_function(
         "renderTreasuryWithdrawalDestinationSummary"
     )
 
-    assert "<span>Account</span>" in block
-    assert "Economic owner" not in block
-    assert "Preflight uses" not in block
+    assert "<span>Address</span>" in block
+    assert "<span>Memo / tag</span>" in block
+
+    for repeated in (
+        "<span>Account</span>",
+        "<span>Asset</span>",
+        "<span>Network</span>",
+        "Economic owner",
+        "Preflight uses",
+    ):
+        assert repeated not in block
 
 
 def test_network_name_helper_adds_parenthesis_spacing():
@@ -98,7 +106,7 @@ def test_network_name_helper_adds_parenthesis_spacing():
     assert "'$1 ('" in block
 
 
-def test_withdrawal_details_show_user_economics():
+def test_withdrawal_details_show_user_economic_constraints():
     block = js_function(
         "renderTreasuryWithdrawalFundingSummary"
     )
@@ -108,10 +116,11 @@ def test_withdrawal_details_show_user_economics():
         "Available to withdraw",
         "Withdrawal fee",
         "Minimum withdrawal",
-        "<span>Network</span>",
         "withdrawal_funding_available",
     ):
         assert token in block
+
+    assert "<span>Network</span>" not in block
 
 
 def test_withdrawal_details_hide_internal_custody_model():
@@ -130,7 +139,7 @@ def test_withdrawal_details_hide_internal_custody_model():
         assert token not in block
 
 
-def test_preflight_shows_only_user_level_fields():
+def test_preflight_shows_only_transaction_outcome_fields():
     block = js_function(
         "renderTreasuryWithdrawalPreflight"
     )
@@ -139,11 +148,26 @@ def test_preflight_shows_only_user_level_fields():
         "Withdrawal amount",
         "Estimated fee",
         "Recipient receives (est.)",
+    ):
+        assert token in block
+
+    for repeated in (
         "Available to withdraw",
         "<span>Network</span>",
         "<span>Destination</span>",
+        'class="is-secondary"',
     ):
-        assert token in block
+        assert repeated not in block
+
+    for internal_label in (
+        "Already in main custody",
+        "Funding required",
+        "JIT funding",
+        "Additional main funding",
+        "Address policy",
+        "Eligible via",
+    ):
+        assert internal_label not in block
 
 
 def test_preflight_hides_jit_and_address_policy_internals():
