@@ -993,7 +993,7 @@ function clearDepositDetails() {
   $('#depositDetailsPlaceholder')?.classList.remove('hidden');
   if ($('#depositDetailsPlaceholder')) {
     $('#depositDetailsPlaceholder').textContent =
-      'Select a network to reveal the address and QR code.';
+      'Choose a network to reveal the Gate deposit address.';
   }
   if ($('#depositQr')) $('#depositQr').removeAttribute('src');
   if ($('#depositAddress')) $('#depositAddress').textContent = '—';
@@ -1041,6 +1041,7 @@ function renderDepositFavorites() {
 
 function renderDepositCurrencies() {
   const container = $('#depositCurrencyList');
+
   if (!container) return;
 
   const query = String(
@@ -1053,36 +1054,65 @@ function renderDepositCurrencies() {
     || String(item.name || '').toLowerCase().includes(query)
   ));
 
-  const visible = filtered.slice(0, 300);
+  const visible = (
+    query
+      ? filtered.slice(0, 100)
+      : []
+  );
 
-  container.innerHTML = visible.length
-    ? visible.map(item => `
-      <button
-        type="button"
-        class="deposit-option ${state.depositCurrency === item.currency ? 'active' : ''}"
-        data-deposit-currency="${escapeHtml(item.currency)}"
-        ${item.deposit_available ? '' : 'disabled'}
-      >
-        <span class="deposit-option-main">
-          <i class="deposit-coin-mark">${depositAssetMark(item.currency)}</i>
-          <span>
-            <strong>${escapeHtml(item.currency)}</strong>
-            <small>${escapeHtml(item.name || item.currency)}</small>
-          </span>
-        </span>
-        <span class="deposit-option-status ${item.deposit_available ? 'available' : ''}">
-          ${item.deposit_available ? 'Deposit available' : 'Unavailable'}
-        </span>
-      </button>
-    `).join('')
-    : '<div class="deposit-empty">No matching Gate currencies.</div>';
+  container.innerHTML = (
+    query
+      ? (
+          visible.length
+            ? visible.map(item => `
+              <button
+                type="button"
+                class="deposit-option ${state.depositCurrency === item.currency ? 'active' : ''}"
+                data-deposit-currency="${escapeHtml(item.currency)}"
+                ${item.deposit_available ? '' : 'disabled'}
+              >
+                <span class="deposit-option-main">
+                  <i class="deposit-coin-mark">${depositAssetMark(item.currency)}</i>
+                  <span>
+                    <strong>${escapeHtml(item.currency)}</strong>
+                    <small>${escapeHtml(item.name || item.currency)}</small>
+                  </span>
+                </span>
+                <span class="deposit-option-status ${item.deposit_available ? 'available' : ''}">
+                  ${item.deposit_available ? 'Deposit available' : 'Unavailable'}
+                </span>
+              </button>
+            `).join('')
+            : '<div class="deposit-empty">No matching Gate currencies.</div>'
+        )
+      : (
+          '<div class="deposit-empty deposit-search-empty">'
+          + 'Use a quick asset above or search by coin name or symbol.'
+          + '</div>'
+        )
+  );
 
-  const suffix = filtered.length > visible.length
-    ? ` · showing first ${visible.length}; refine the search`
-    : '';
+  const count = $('#depositCurrencyCount');
 
-  $('#depositCurrencyCount').textContent =
-    `${filtered.length} matching currenc${filtered.length === 1 ? 'y' : 'ies'}${suffix}`;
+  if (count) {
+    if (!query) {
+      count.textContent = (
+        `${state.depositCatalog.length} Gate currencies available`
+        + ' · choose a quick asset or search'
+      );
+    } else {
+      const suffix = (
+        filtered.length > visible.length
+          ? ` · showing first ${visible.length}; refine the search`
+          : ''
+      );
+
+      count.textContent = (
+        `${filtered.length} matching currenc${filtered.length === 1 ? 'y' : 'ies'}`
+        + suffix
+      );
+    }
+  }
 
   renderDepositFavorites();
 }
@@ -1145,30 +1175,66 @@ async function openDepositDialog() {
   }
 
   const accountId = depositTargetAccount();
+
   if (!accountId) {
-    showToast('Select one of your assigned accounts first.', true);
+    showToast(
+      'Select one of your assigned accounts first.',
+      true,
+    );
     return;
   }
 
-  clearDepositState({ keepCatalog: true });
-  $('#depositAccountLabel').textContent =
-    `Deposit to ${accountId}. Addresses are loaded from Gate only after you select a network.`;
+  clearDepositState({
+    keepCatalog: true,
+  });
 
-  const dialog = $('#depositDialog');
-  if (!dialog.open) dialog.showModal();
+  $('#depositAccountLabel').textContent = (
+    `Deposit to ${accountId}. `
+    + 'Choose an asset and network to reveal the Gate address.'
+  );
+
+  const workflow = $('#depositDialog');
+
+  workflow?.classList.remove(
+    'hidden',
+  );
+
+  workflow?.setAttribute(
+    'aria-hidden',
+    'false',
+  );
 
   try {
     await loadDepositCatalog();
     renderDepositCurrencies();
-    setTimeout(() => $('#depositCurrencySearch')?.focus(), 0);
+
+    setTimeout(
+      () => $('#depositCurrencySearch')?.focus(),
+      0,
+    );
   } catch (error) {
-    setDepositError(error.message || 'Unable to load Gate currencies.');
+    setDepositError(
+      error.message
+      || 'Unable to load Gate currencies.',
+    );
   }
 }
 
 function closeDepositDialog() {
-  clearDepositState({ keepCatalog: true });
-  if ($('#depositDialog')?.open) $('#depositDialog').close();
+  clearDepositState({
+    keepCatalog: true,
+  });
+
+  const workflow = $('#depositDialog');
+
+  workflow?.classList.add(
+    'hidden',
+  );
+
+  workflow?.setAttribute(
+    'aria-hidden',
+    'true',
+  );
 }
 
 async function selectDepositCurrency(symbol) {
@@ -1237,7 +1303,7 @@ async function selectDepositNetwork(chain) {
     renderDepositDetails();
   } catch (error) {
     $('#depositDetailsPlaceholder').textContent =
-      'Select a network to reveal the address and QR code.';
+      'Choose a network to reveal the Gate deposit address.';
     setDepositError(
       error.message || 'Unable to load the Gate deposit address.',
     );
@@ -5531,8 +5597,8 @@ function renderTreasuryUserTransferParticipants() {
   if (stateElement) {
     stateElement.textContent = (
       state.treasuryUserTransfersEnabled
-        ? 'USER TRANSFERS ENABLED'
-        : 'USER TRANSFERS DISABLED'
+        ? 'REQUEST FLOW ENABLED'
+        : 'REQUEST FLOW DISABLED'
     );
 
     setTreasuryCapabilityBadge(
@@ -9378,6 +9444,7 @@ function renderTreasuryWithdrawalDestinations() {
   const rows = treasuryApprovedWithdrawalDestinations();
 
   const action = $('#treasuryWithdrawalAction');
+  const form = $('#treasuryWithdrawalForm');
   const unavailable = $('#treasuryWithdrawalUnavailable');
   const amount = $('#treasuryWithdrawalAmount');
 
@@ -9465,6 +9532,11 @@ function renderTreasuryWithdrawalDestinations() {
     resolution.status === 'matched'
   );
 
+  form?.classList.toggle(
+    'hidden',
+    !ready,
+  );
+
   if (amount) {
     amount.disabled = !ready;
   }
@@ -9525,16 +9597,15 @@ function renderTreasuryWithdrawalDestinationSummary() {
   const item = treasurySelectedWithdrawalDestination();
 
   if (!item) {
-    element.innerHTML = (
-      '<div class="treasury-empty">'
-      + 'Complete the route above to match '
-      + 'an approved destination.'
-      + '</div>'
-    );
+    element.innerHTML = '';
+    element.classList.add('hidden');
 
     renderTreasuryWithdrawalFundingSummary();
+
     return;
   }
+
+  element.classList.remove('hidden');
 
   const address = String(
     item.address || ''
@@ -13811,7 +13882,28 @@ function normalizeWalletView(view) {
 }
 
 
+function renderWalletAccountContext() {
+  const element = $('#walletAccountContext');
+
+  if (!element) return;
+
+  const accountId = privateBalanceTargetAccount();
+
+  element.textContent = (
+    accountId
+      ? `Wallet account · ${accountId}`
+      : 'Wallet account · select one account'
+  );
+
+  element.classList.toggle(
+    'needs-selection',
+    !accountId,
+  );
+}
+
+
 function renderWalletView(view) {
+  renderWalletAccountContext();
   const target = normalizeWalletView(view);
 
   state.walletView = target;
@@ -13873,6 +13965,7 @@ async function loadWalletViewData(
     quiet = true,
   } = {},
 ) {
+  renderWalletAccountContext();
   if (
     !state.adminUser
     || !state.adminAuthorization

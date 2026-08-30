@@ -138,3 +138,33 @@
 }
 
 /* End Wallet contextual sub-navigation v1 */
+
+
+/* Wallet contextual UX polish J18 */
+
+#tab-wallet .wallet-subnav {
+  top: 8px;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 4px;
+}
+
+#tab-wallet .wallet-subnav-button {
+  min-height: 36px;
+  padding: 6px 12px;
+}
+
+#tab-wallet .wallet-account-context {
+  display: flex;
+  justify-content: flex-end;
+  margin: -2px 2px 10px;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 600;
+}
+
+#tab-wallet .wallet-account-context.needs-selection {
+  color: var(--warning);
+}
+
+/* End Wallet contextual UX polish J18 */

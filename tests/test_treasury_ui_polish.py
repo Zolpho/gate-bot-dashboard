@@ -18,12 +18,12 @@ CSS = (
 
 def test_treasury_assets_are_versioned():
     assert (
-        './treasury.css?v=20260830-withdraw-preflight-hierarchy-v1'
+        './treasury.css?v=20260830-wallet-ux-j18-v1'
         in HTML
     )
 
     assert (
-        './app.js?v=20260830-wallet-subnav-v1'
+        './app.js?v=20260830-wallet-ux-j18-v1'
         in HTML
     )
 
@@ -88,8 +88,8 @@ def test_treasury_capability_colors_are_semantic():
 
 def test_treasury_status_copy_is_explicit():
     for token in (
-        "USER TRANSFERS ENABLED",
-        "USER TRANSFERS DISABLED",
+        "REQUEST FLOW ENABLED",
+        "REQUEST FLOW DISABLED",
         "WITHDRAWAL ARM ENABLED",
         "WITHDRAWAL ARM DISABLED",
     ):
@@ -1177,14 +1177,14 @@ def test_logged_out_treasury_uses_canonical_session_reset():
 
 def test_treasury_css_version_marks_withdraw_polish():
     assert (
-        './treasury.css?v=20260830-withdraw-preflight-hierarchy-v1'
+        './treasury.css?v=20260830-wallet-ux-j18-v1'
         in HTML
     )
 
 
 def test_app_version_marks_withdraw_polish():
     assert (
-        './app.js?v=20260830-wallet-subnav-v1'
+        './app.js?v=20260830-wallet-ux-j18-v1'
         in HTML
     )
 

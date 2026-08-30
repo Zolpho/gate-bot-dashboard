@@ -8,10 +8,10 @@
   <link rel="stylesheet" href="./styles.css?v=20260823-account-selector-wide-v1">
   <link rel="stylesheet" href="./alerts.css?v=20260823-overview-incidents-v1">
   <link rel="stylesheet" href="./private-balance.css?v=20260823-wallet-card-depth-v1">
-  <link rel="stylesheet" href="./deposit.css">
+  <link rel="stylesheet" href="./deposit.css?v=20260830-wallet-ux-j18-v1">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
-  <link rel="stylesheet" href="./wallet-tab.css?v=20260830-wallet-subnav-v1">
-  <link rel="stylesheet" href="./treasury.css?v=20260830-withdraw-preflight-hierarchy-v1">
+  <link rel="stylesheet" href="./wallet-tab.css?v=20260830-wallet-ux-j18-v1">
+  <link rel="stylesheet" href="./treasury.css?v=20260830-wallet-ux-j18-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
@@ -880,8 +880,15 @@
             Withdrawals
           </button>
         </nav>
+        <div
+          id="walletAccountContext"
+          class="wallet-account-context"
+          aria-live="polite"
+        >
+          Wallet account · —
+        </div>
 
-        <section
+<section
           class="wallet-workspace"
           id="walletBalanceWorkspace"
           data-wallet-workspace="balance"
@@ -1084,7 +1091,133 @@
               </button>
             </div>
 
-            <details
+                      <section
+            id="depositDialog"
+            class="deposit-dialog wallet-deposit-workflow hidden"
+            aria-labelledby="depositWorkflowTitle"
+            aria-hidden="true"
+          >
+
+    <div class="dialog-header deposit-dialog-header">
+      <div>
+        <h2 id="depositWorkflowTitle">Deposit funds</h2>
+        <p id="depositAccountLabel">Select a coin and network for your assigned Gate subaccount.</p>
+      </div>
+      <button
+          type="button"
+          class="button secondary deposit-close-button"
+          id="closeDepositDialog"
+        >
+          Close
+        </button>
+    </div>
+
+        <div
+      class="deposit-flow"
+      aria-label="Deposit workflow"
+    >
+      <div class="deposit-flow-item">
+        <span>1</span>
+        <div>
+          <strong>Asset</strong>
+          <small>Choose a coin</small>
+        </div>
+      </div>
+
+      <div class="deposit-flow-item">
+        <span>2</span>
+        <div>
+          <strong>Network</strong>
+          <small>Choose the Gate network</small>
+        </div>
+      </div>
+
+      <div class="deposit-flow-item">
+        <span>3</span>
+        <div>
+          <strong>Address</strong>
+          <small>Copy address and memo</small>
+        </div>
+      </div>
+    </div>
+
+<div class="deposit-dialog-content">
+      <div id="depositError" class="form-error hidden" role="alert" aria-live="assertive"></div>
+      <div id="depositLoading" class="deposit-loading hidden">Loading Gate deposit information…</div>
+
+      <section class="deposit-step">
+        <div class="deposit-step-number">1</div>
+        <div class="deposit-step-content">
+          <h3>Select coin</h3>
+          <label class="deposit-search">
+            <span class="sr-only">Search coin</span>
+            <input id="depositCurrencySearch" type="search" autocomplete="off" placeholder="Search coin name or symbol">
+          </label>
+          <div id="depositFavorites" class="deposit-favorites"></div>
+          <div id="depositCurrencyList" class="deposit-option-list" role="listbox" aria-label="Deposit currencies"></div>
+          <p id="depositCurrencyCount" class="deposit-hint"></p>
+        </div>
+      </section>
+
+      <section class="deposit-step deposit-step-disabled" id="depositNetworkStep">
+        <div class="deposit-step-number">2</div>
+        <div class="deposit-step-content">
+          <h3>Select network</h3>
+          <div id="depositNetworkList" class="deposit-option-list compact" role="listbox" aria-label="Deposit networks">
+            <div class="deposit-empty">Select a coin first.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="deposit-step deposit-step-disabled" id="depositDetailsStep">
+        <div class="deposit-step-number">3</div>
+        <div class="deposit-step-content">
+          <h3>Deposit details</h3>
+          <div id="depositDetails" class="deposit-details hidden">
+            <div class="deposit-qr-card">
+              <img id="depositQr" alt="Deposit address QR code" width="220" height="220">
+              <small>QR contains the address only.</small>
+            </div>
+            <div class="deposit-address-fields">
+              <div class="deposit-selected-summary">
+                <strong id="depositSelectedAsset">—</strong>
+                <span id="depositSelectedNetwork">—</span>
+              </div>
+
+              <label>Address</label>
+              <div class="deposit-copy-row">
+                <code id="depositAddress">—</code>
+                <button type="button" class="button secondary" data-copy-deposit="address">Copy</button>
+              </div>
+
+              <div id="depositMemoBlock" class="hidden">
+                <label id="depositMemoLabel">Memo / tag</label>
+                <div class="deposit-copy-row">
+                  <code id="depositMemo">—</code>
+                  <button type="button" class="button secondary" data-copy-deposit="memo">Copy</button>
+                </div>
+                <p class="deposit-memo-warning">The memo or tag is mandatory when shown.</p>
+              </div>
+
+              <dl class="deposit-definition-list">
+                <dt>Contract</dt><dd id="depositContract">—</dd>
+                <dt>Minimum deposit</dt><dd id="depositMinimum">—</dd>
+                <dt>Confirmations</dt><dd id="depositConfirmations">—</dd>
+              </dl>
+
+              <p id="depositWarning" class="deposit-warning"></p>
+            </div>
+          </div>
+          <div id="depositDetailsPlaceholder" class="deposit-empty">
+            Select a network to reveal the address and QR code.
+          </div>
+        </div>
+      </section>
+    </div>
+
+          </section>
+
+<details
               class="treasury-records wallet-records"
               id="walletDepositRecords"
             >
@@ -1138,12 +1271,11 @@
           <div class="panel-header treasury-header">
             <div>
               <div class="treasury-title-row">
-                <h2>Treasury operations</h2>
+                <h2>Treasury</h2>
                               </div>
 
               <p>
-                Account-scoped Treasury controls, safety state and
-                audit history.
+                Account-scoped controls, safety and audit.
               </p>
             </div>
 
@@ -1365,7 +1497,7 @@
 
                           <form
                             id="treasuryWithdrawalForm"
-                            class="treasury-withdrawal-form"
+                            class="treasury-withdrawal-form hidden"
                           >
                             <label class="treasury-withdrawal-destination-field">Matched withdrawal destination<select
                                 id="treasuryWithdrawalDestination"
@@ -1379,9 +1511,9 @@
 
                             <div
                               id="treasuryWithdrawalDestinationSummary"
-                              class="treasury-withdrawal-destination-summary"
+                              class="treasury-withdrawal-destination-summary hidden"
                             >
-                              Select an approved destination.
+
                             </div>
 
                             <div
@@ -1511,7 +1643,7 @@
             </details>
 
             <div class="treasury-footnote">
-                        This dashboard does not arm Treasury or change Gate API permissions. The current withdrawal UI performs read-only preflight and local audited request creation only. JIT transfer, external submission and ownership settlement remain unavailable from the browser.
+                        Live Gate withdrawal execution is currently disarmed. Preflight is read-only and request creation is audited locally.
                       </div>
           </section>
 
@@ -2782,89 +2914,7 @@
     </form>
   </dialog>
 
-  <dialog id="depositDialog" class="deposit-dialog">
-    <div class="dialog-header deposit-dialog-header">
-      <div>
-        <h2>Onchain deposit</h2>
-        <p id="depositAccountLabel">Select a coin and network for your assigned Gate subaccount.</p>
-      </div>
-      <button type="button" class="icon-button" id="closeDepositDialog" aria-label="Close">×</button>
-    </div>
 
-    <div class="deposit-dialog-content">
-      <div id="depositError" class="form-error hidden" role="alert" aria-live="assertive"></div>
-      <div id="depositLoading" class="deposit-loading hidden">Loading Gate deposit information…</div>
-
-      <section class="deposit-step">
-        <div class="deposit-step-number">1</div>
-        <div class="deposit-step-content">
-          <h3>Select coin</h3>
-          <label class="deposit-search">
-            <span class="sr-only">Search coin</span>
-            <input id="depositCurrencySearch" type="search" autocomplete="off" placeholder="Search coin name or symbol">
-          </label>
-          <div id="depositFavorites" class="deposit-favorites"></div>
-          <div id="depositCurrencyList" class="deposit-option-list" role="listbox" aria-label="Deposit currencies"></div>
-          <p id="depositCurrencyCount" class="deposit-hint"></p>
-        </div>
-      </section>
-
-      <section class="deposit-step deposit-step-disabled" id="depositNetworkStep">
-        <div class="deposit-step-number">2</div>
-        <div class="deposit-step-content">
-          <h3>Select network</h3>
-          <div id="depositNetworkList" class="deposit-option-list compact" role="listbox" aria-label="Deposit networks">
-            <div class="deposit-empty">Select a coin first.</div>
-          </div>
-        </div>
-      </section>
-
-      <section class="deposit-step deposit-step-disabled" id="depositDetailsStep">
-        <div class="deposit-step-number">3</div>
-        <div class="deposit-step-content">
-          <h3>Deposit details</h3>
-          <div id="depositDetails" class="deposit-details hidden">
-            <div class="deposit-qr-card">
-              <img id="depositQr" alt="Deposit address QR code" width="220" height="220">
-              <small>QR contains the address only.</small>
-            </div>
-            <div class="deposit-address-fields">
-              <div class="deposit-selected-summary">
-                <strong id="depositSelectedAsset">—</strong>
-                <span id="depositSelectedNetwork">—</span>
-              </div>
-
-              <label>Address</label>
-              <div class="deposit-copy-row">
-                <code id="depositAddress">—</code>
-                <button type="button" class="button secondary" data-copy-deposit="address">Copy</button>
-              </div>
-
-              <div id="depositMemoBlock" class="hidden">
-                <label id="depositMemoLabel">Memo / tag</label>
-                <div class="deposit-copy-row">
-                  <code id="depositMemo">—</code>
-                  <button type="button" class="button secondary" data-copy-deposit="memo">Copy</button>
-                </div>
-                <p class="deposit-memo-warning">The memo or tag is mandatory when shown.</p>
-              </div>
-
-              <dl class="deposit-definition-list">
-                <dt>Contract</dt><dd id="depositContract">—</dd>
-                <dt>Minimum deposit</dt><dd id="depositMinimum">—</dd>
-                <dt>Confirmations</dt><dd id="depositConfirmations">—</dd>
-              </dl>
-
-              <p id="depositWarning" class="deposit-warning"></p>
-            </div>
-          </div>
-          <div id="depositDetailsPlaceholder" class="deposit-empty">
-            Select a network to reveal the address and QR code.
-          </div>
-        </div>
-      </section>
-    </div>
-  </dialog>
 
   <script src="./config.js"></script>
   <script
@@ -2872,7 +2922,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260830-wallet-subnav-v1"
+    src="./app.js?v=20260830-wallet-ux-j18-v1"
     defer
   ></script>
   <script

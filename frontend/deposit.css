@@ -311,3 +311,167 @@
     flex: 1;
   }
 }
+
+
+/* Wallet inline Deposit workflow J18 */
+
+.wallet-deposit-workflow {
+  width: 100%;
+  max-width: none;
+  margin: 10px 0 16px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.wallet-deposit-workflow.hidden {
+  display: none;
+}
+
+.wallet-deposit-workflow .deposit-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 14px 11px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wallet-deposit-workflow .deposit-dialog-header h2 {
+  margin: 0 0 3px;
+  font-size: 1rem;
+}
+
+.wallet-deposit-workflow .deposit-dialog-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .76rem;
+}
+
+.wallet-deposit-workflow .deposit-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--border);
+}
+
+.wallet-deposit-workflow .deposit-flow-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px 12px;
+}
+
+.wallet-deposit-workflow
+.deposit-flow-item
++ .deposit-flow-item {
+  border-left: 1px solid var(--border);
+}
+
+.wallet-deposit-workflow .deposit-flow-item > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: .7rem;
+  font-weight: 700;
+}
+
+.wallet-deposit-workflow .deposit-flow-item strong,
+.wallet-deposit-workflow .deposit-flow-item small {
+  display: block;
+}
+
+.wallet-deposit-workflow .deposit-flow-item strong {
+  font-size: .76rem;
+}
+
+.wallet-deposit-workflow .deposit-flow-item small {
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: .67rem;
+}
+
+.wallet-deposit-workflow .deposit-dialog-content {
+  max-height: none;
+  overflow: visible;
+  padding: 0 14px 14px;
+}
+
+.wallet-deposit-workflow .deposit-step {
+  padding: 12px 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.wallet-deposit-workflow .deposit-step:last-child {
+  border-bottom: 0;
+}
+
+.wallet-deposit-workflow .deposit-step-number {
+  display: none;
+}
+
+.wallet-deposit-workflow .deposit-step-content h3 {
+  margin: 0 0 8px;
+  font-size: .83rem;
+}
+
+.wallet-deposit-workflow .deposit-option-list {
+  max-height: 250px;
+  margin-top: 8px;
+  border-radius: 10px;
+}
+
+.wallet-deposit-workflow .deposit-option-list.compact {
+  max-height: 220px;
+}
+
+.wallet-deposit-workflow .deposit-option {
+  min-height: 48px;
+  padding: 8px 10px;
+}
+
+.wallet-deposit-workflow .deposit-search-empty {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wallet-deposit-workflow .deposit-details {
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.wallet-deposit-workflow .deposit-qr-card img {
+  width: 150px;
+  height: 150px;
+}
+
+@media (max-width: 760px) {
+  .wallet-deposit-workflow .deposit-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .wallet-deposit-workflow
+  .deposit-flow-item
+  + .deposit-flow-item {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .wallet-deposit-workflow .deposit-details {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* End Wallet inline Deposit workflow J18 */
