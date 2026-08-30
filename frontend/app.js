@@ -38,6 +38,7 @@ const state = {
   currentRawKey: 'metrics',
   selectedAccount: '',
   activeTab: 'overview',
+  walletView: 'balance',
   adminAuthorization: '',
   adminUser: null,
   adminSessionEpoch: 0,
@@ -13789,6 +13790,164 @@ function configurePageScrollRestoration() {
 }
 
 
+const WALLET_VIEWS = new Set([
+  'balance',
+  'deposits',
+  'transfers',
+  'withdrawals',
+]);
+
+
+function normalizeWalletView(view) {
+  const candidate = String(view || '')
+    .trim()
+    .toLowerCase();
+
+  return (
+    WALLET_VIEWS.has(candidate)
+      ? candidate
+      : 'balance'
+  );
+}
+
+
+function renderWalletView(view) {
+  const target = normalizeWalletView(view);
+
+  state.walletView = target;
+
+  $$('.wallet-subnav-button').forEach(button => {
+    const active = (
+      button.dataset.walletView === target
+    );
+
+    button.classList.toggle(
+      'active',
+      active,
+    );
+
+    button.setAttribute(
+      'aria-selected',
+      String(active),
+    );
+
+    button.tabIndex = (
+      active
+        ? 0
+        : -1
+    );
+  });
+
+  $$('[data-wallet-workspace]').forEach(
+    workspace => {
+      const active = (
+        workspace.dataset.walletWorkspace
+        === target
+      );
+
+      workspace.hidden = !active;
+
+      workspace.setAttribute(
+        'aria-hidden',
+        String(!active),
+      );
+    },
+  );
+
+  const treasuryPanel = $('#treasuryPanel');
+
+  if (treasuryPanel) {
+    const treasuryVisible = (
+      target === 'transfers'
+      || target === 'withdrawals'
+    );
+
+    treasuryPanel.hidden = !treasuryVisible;
+  }
+}
+
+
+async function loadWalletViewData(
+  view,
+  {
+    quiet = true,
+  } = {},
+) {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    return;
+  }
+
+  const target = normalizeWalletView(view);
+
+  if (target === 'balance') {
+    await Promise.all([
+      loadPrivateBalance({
+        quiet,
+      }),
+      loadTreasuryOverview({
+        quiet,
+      }),
+    ]);
+
+    return;
+  }
+
+  if (target === 'deposits') {
+    await loadDepositHistory({
+      quiet,
+    });
+
+    return;
+  }
+
+  await loadTreasuryOverview({
+    quiet,
+  });
+}
+
+
+function switchWalletView(
+  view,
+  {
+    resetScroll = true,
+    load = true,
+  } = {},
+) {
+  const target = normalizeWalletView(view);
+
+  const changed = (
+    state.walletView !== target
+  );
+
+  renderWalletView(target);
+
+  if (
+    changed
+    && resetScroll
+    && state.activeTab === 'wallet'
+  ) {
+    resetPageScroll();
+  }
+
+  if (
+    load
+    && state.activeTab === 'wallet'
+    && state.adminUser
+    && state.adminAuthorization
+  ) {
+    void loadWalletViewData(
+      target,
+      {
+        quiet: true,
+      },
+    );
+  }
+}
+
+
 function switchTab(tab, { updateHash = true } = {}) {
   const titles = {
     overview: ['Overview', 'Native Gate.io bot performance and portfolio history'],
@@ -13875,11 +14034,22 @@ function switchTab(tab, { updateHash = true } = {}) {
     && state.adminUser
     && state.adminAuthorization
   ) {
-    void Promise.all([
-      loadPrivateBalance({ quiet: true }),
-      loadDepositHistory({ quiet: true }),
-      loadTreasuryOverview({ quiet: true }),
-    ]);
+    const walletView = (
+      tabChanged
+        ? 'balance'
+        : (
+            state.walletView
+            || 'balance'
+          )
+    );
+
+    switchWalletView(
+      walletView,
+      {
+        resetScroll: false,
+        load: true,
+      },
+    );
   }
 
   if (
@@ -17546,6 +17716,15 @@ async function inspectEndpoint(endpoint) {
 function bindEvents() {
   $$('.nav-item').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
   $$('[data-jump]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.jump)));
+
+  $$('[data-wallet-view]').forEach(button => {
+    button.addEventListener(
+      'click',
+      () => switchWalletView(
+        button.dataset.walletView,
+      ),
+    );
+  });
   $('#syncButton').addEventListener('click', syncNow);
 
 

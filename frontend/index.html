@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./private-balance.css?v=20260823-wallet-card-depth-v1">
   <link rel="stylesheet" href="./deposit.css">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
-  <link rel="stylesheet" href="./wallet-tab.css">
+  <link rel="stylesheet" href="./wallet-tab.css?v=20260830-wallet-subnav-v1">
   <link rel="stylesheet" href="./treasury.css?v=20260830-withdraw-preflight-hierarchy-v1">
   <link rel="stylesheet" href="./bot-control.css?v=20260823-bot-control-final-v3">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
@@ -819,103 +819,321 @@
         </div>
       </section>
 
-      <section class="tab-panel wallet-tab-panel" id="tab-wallet" aria-labelledby="walletNavItem">
-        <article class="panel private-balance-panel hidden" id="privateBalancePanel">
-          <div class="panel-header private-balance-header">
-            <div>
-              <div class="private-balance-title-row">
-                <h2>My subaccount balance</h2>
-                <span class="private-badge">Private account data</span>
+            <section
+        class="tab-panel wallet-tab-panel"
+        id="tab-wallet"
+        aria-labelledby="walletNavItem"
+      >
+        <nav
+          class="wallet-subnav"
+          aria-label="Wallet sections"
+          role="tablist"
+        >
+          <button
+            type="button"
+            class="wallet-subnav-button active"
+            id="walletBalanceTab"
+            role="tab"
+            data-wallet-view="balance"
+            aria-controls="walletBalanceWorkspace"
+            aria-selected="true"
+          >
+            Balance
+          </button>
+
+          <button
+            type="button"
+            class="wallet-subnav-button"
+            id="walletDepositsTab"
+            role="tab"
+            data-wallet-view="deposits"
+            aria-controls="walletDepositsWorkspace"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            Deposits
+          </button>
+
+          <button
+            type="button"
+            class="wallet-subnav-button"
+            id="walletTransfersTab"
+            role="tab"
+            data-wallet-view="transfers"
+            aria-controls="walletTransfersWorkspace"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            Transfers
+          </button>
+
+          <button
+            type="button"
+            class="wallet-subnav-button"
+            id="walletWithdrawalsTab"
+            role="tab"
+            data-wallet-view="withdrawals"
+            aria-controls="walletWithdrawalsWorkspace"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            Withdrawals
+          </button>
+        </nav>
+
+        <section
+          class="wallet-workspace"
+          id="walletBalanceWorkspace"
+          data-wallet-workspace="balance"
+          role="tabpanel"
+          aria-labelledby="walletBalanceTab"
+          aria-hidden="false"
+        >
+          <article class="panel private-balance-panel hidden" id="privateBalancePanel">
+                    <div class="panel-header private-balance-header">
+                      <div>
+                        <div class="private-balance-title-row">
+                          <h2>My subaccount balance</h2>
+                          <span class="private-badge">Private account data</span>
+                        </div>
+                        <p id="privateBalanceSubtitle">Sign in to view your Gate subaccount balances.</p>
+                      </div>
+                      <div class="private-balance-actions">
+
+                        <button class="button secondary" id="refreshPrivateBalance">Refresh balance</button>
+                      </div>
+                    </div>
+
+                    <div id="privateBalanceLoading" class="private-balance-message hidden">Loading private Gate balances…</div>
+                    <div id="privateBalanceError" class="private-balance-message error hidden" role="alert"></div>
+                    <div id="privateBalanceSelect" class="private-balance-message hidden">Select one of your assigned accounts above to view its private balance.</div>
+
+                    <div id="privateBalanceContent" class="hidden">
+                      <div class="private-balance-grid">
+                        <section class="private-balance-card">
+                          <span>Total account value</span>
+                          <strong id="privateTotalValue">—</strong>
+                          <small id="privateTotalNote">Gate wallet estimate</small>
+                        </section>
+                        <section class="private-balance-card">
+                          <span>Spot USDT</span>
+                          <strong id="privateUsdtTotal">—</strong>
+                          <small id="privateUsdtNote">—</small>
+                        </section>
+                        <section class="private-balance-card">
+                          <span>Spot EQTY</span>
+                          <strong id="privateEqtyTotal">—</strong>
+                          <small id="privateEqtyNote">—</small>
+                        </section>
+                        <section class="private-balance-card">
+                          <span>Funds in Gate bots</span>
+                          <strong id="privateQuantValue">—</strong>
+                          <small id="privateQuantNote">Gate bot funds</small>
+                        </section>
+                        <section class="private-balance-card">
+                          <span>Other spot tokens</span>
+                          <strong id="privateOtherValue">—</strong>
+                          <small id="privateOtherNote">—</small>
+                        </section>
+                      </div>
+
+                      <div class="private-balance-meta">
+                        <span id="privateBalanceUpdated">—</span>
+                        <span id="privateBalanceCoverage">—</span>
+                      </div>
+
+                      <div id="privateAccountBreakdown" class="private-account-breakdown"></div>
+
+                      <details class="private-assets-details">
+                        <summary>View spot asset details</summary>
+                        <div class="table-scroll">
+                          <table class="private-assets-table">
+                            <thead><tr><th>Asset</th><th>Available</th><th>Locked</th><th>Total</th><th>Price USDT</th><th>Value USDT</th></tr></thead>
+                            <tbody id="privateAssetsBody"></tbody>
+                          </table>
+                        </div>
+                        <p class="private-balance-footnote">Token quantities are spot-account balances. Funds allocated to Gate bots are shown separately and are not counted twice.</p>
+                      </details>
+
+                    </div>
+                  </article>
+
+          <details
+            class="treasury-records wallet-records"
+            id="walletBalanceRecords"
+          >
+            <summary class="treasury-records-summary">
+              <div>
+                <strong>Records &amp; audit</strong>
+                <small>Custody and economic ownership</small>
               </div>
-              <p id="privateBalanceSubtitle">Sign in to view your Gate subaccount balances.</p>
+
+              <span class="treasury-records-review">
+                Review accounting
+              </span>
+            </summary>
+
+            <div class="treasury-records-content">
+              <section class="treasury-ownership-section">
+                          <div class="treasury-section-header">
+                            <div>
+                              <h3 id="treasuryOwnershipTitle">Main-held economic ownership</h3>
+                              <p id="treasuryOwnershipSubtitle">
+                                Funds physically held by the Gate main
+                                account but economically owned by a
+                                dashboard account.
+                              </p>
+                            </div>
+
+                            <span
+                              id="treasuryOwnershipBalanceCount"
+                              class="treasury-count"
+                            >0 balances</span>
+                          </div>
+
+                          <div class="table-scroll">
+                            <table class="treasury-ownership-table">
+                              <thead>
+                                <tr>
+                                  <th>Economic owner</th>
+                                  <th>Custody account</th>
+                                  <th>Asset</th>
+                                  <th id="treasuryOwnershipAmountHeader">Main-held amount</th>
+                                </tr>
+                              </thead>
+
+                              <tbody id="treasuryOwnershipBalanceBody">
+                                <tr>
+                                  <td colspan="4" class="empty-state">
+                                    No main-held ownership balances.
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div class="treasury-ownership-ledger-header">
+                            <div>
+                              <h3>Ownership ledger</h3>
+                              <p>
+                                Append-only accounting history. Credits
+                                and future debits preserve the economic
+                                owner independently from physical custody.
+                              </p>
+                            </div>
+
+                            <span
+                              id="treasuryOwnershipLedgerCount"
+                              class="treasury-count"
+                            >0 entries</span>
+                          </div>
+
+                          <div class="table-scroll">
+                            <table class="treasury-ownership-table">
+                              <thead>
+                                <tr>
+                                  <th>Time</th>
+                                  <th>Owner</th>
+                                  <th>Custody</th>
+                                  <th>Asset</th>
+                                  <th>Delta</th>
+                                  <th>Type</th>
+                                  <th>Source request</th>
+                                </tr>
+                              </thead>
+
+                              <tbody id="treasuryOwnershipLedgerBody">
+                                <tr>
+                                  <td colspan="7" class="empty-state">
+                                    No ownership ledger entries.
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </section>
             </div>
-            <div class="private-balance-actions">
-              <button class="button primary" id="depositButton">Deposit</button>
-              <button class="button secondary" id="refreshPrivateBalance">Refresh balance</button>
-            </div>
-          </div>
+          </details>
+        </section>
 
-          <div id="privateBalanceLoading" class="private-balance-message hidden">Loading private Gate balances…</div>
-          <div id="privateBalanceError" class="private-balance-message error hidden" role="alert"></div>
-          <div id="privateBalanceSelect" class="private-balance-message hidden">Select one of your assigned accounts above to view its private balance.</div>
-
-          <div id="privateBalanceContent" class="hidden">
-            <div class="private-balance-grid">
-              <section class="private-balance-card">
-                <span>Total account value</span>
-                <strong id="privateTotalValue">—</strong>
-                <small id="privateTotalNote">Gate wallet estimate</small>
-              </section>
-              <section class="private-balance-card">
-                <span>Spot USDT</span>
-                <strong id="privateUsdtTotal">—</strong>
-                <small id="privateUsdtNote">—</small>
-              </section>
-              <section class="private-balance-card">
-                <span>Spot EQTY</span>
-                <strong id="privateEqtyTotal">—</strong>
-                <small id="privateEqtyNote">—</small>
-              </section>
-              <section class="private-balance-card">
-                <span>Funds in Gate bots</span>
-                <strong id="privateQuantValue">—</strong>
-                <small id="privateQuantNote">Gate bot funds</small>
-              </section>
-              <section class="private-balance-card">
-                <span>Other spot tokens</span>
-                <strong id="privateOtherValue">—</strong>
-                <small id="privateOtherNote">—</small>
-              </section>
-            </div>
-
-            <div class="private-balance-meta">
-              <span id="privateBalanceUpdated">—</span>
-              <span id="privateBalanceCoverage">—</span>
-            </div>
-
-            <div id="privateAccountBreakdown" class="private-account-breakdown"></div>
-
-            <details class="private-assets-details">
-              <summary>View spot asset details</summary>
-              <div class="table-scroll">
-                <table class="private-assets-table">
-                  <thead><tr><th>Asset</th><th>Available</th><th>Locked</th><th>Total</th><th>Price USDT</th><th>Value USDT</th></tr></thead>
-                  <tbody id="privateAssetsBody"></tbody>
-                </table>
+        <section
+          class="wallet-workspace"
+          id="walletDepositsWorkspace"
+          data-wallet-workspace="deposits"
+          role="tabpanel"
+          aria-labelledby="walletDepositsTab"
+          aria-hidden="true"
+          hidden
+        >
+          <article class="panel wallet-deposit-panel">
+            <div class="panel-header wallet-deposit-header">
+              <div>
+                <h2>Deposits</h2>
+                <p>
+                  Generate a Gate deposit address for the selected
+                  Wallet account and review confirmed deposits.
+                </p>
               </div>
-              <p class="private-balance-footnote">Token quantities are spot-account balances. Funds allocated to Gate bots are shown separately and are not counted twice.</p>
-            </details>
-            <section class="deposit-history" id="depositHistorySection">
-              <div class="deposit-history-header">
+
+              <button
+                type="button"
+                class="button primary"
+                id="depositButton"
+              >
+                New deposit
+              </button>
+            </div>
+
+            <details
+              class="treasury-records wallet-records"
+              id="walletDepositRecords"
+            >
+              <summary class="treasury-records-summary">
                 <div>
-                  <h3>Recent deposits</h3>
-                  <p id="depositHistorySubtitle">Gate-confirmed onchain deposits stored locally.</p>
+                  <strong>Records &amp; audit</strong>
+                  <small>Gate-confirmed onchain deposits</small>
                 </div>
-                <div class="deposit-history-actions">
-                  <button type="button" class="button secondary" id="refreshDepositHistory">Refresh list</button>
-                  <button type="button" class="button secondary" id="syncDepositHistory">Sync Gate deposits</button>
-                </div>
+
+                <span class="treasury-records-review">
+                  Review deposits
+                </span>
+              </summary>
+
+              <div class="treasury-records-content">
+                <section class="deposit-history" id="depositHistorySection">
+                              <div class="deposit-history-header">
+                                <div>
+                                  <h3>Recent deposits</h3>
+                                  <p id="depositHistorySubtitle">Gate-confirmed onchain deposits stored locally.</p>
+                                </div>
+                                <div class="deposit-history-actions">
+                                  <button type="button" class="button secondary" id="refreshDepositHistory">Refresh list</button>
+                                  <button type="button" class="button secondary" id="syncDepositHistory">Sync Gate deposits</button>
+                                </div>
+                              </div>
+                              <div id="depositHistoryLoading" class="deposit-history-message hidden">Loading deposit history…</div>
+                              <div id="depositHistoryError" class="deposit-history-message error hidden" role="alert"></div>
+                              <div id="depositHistoryEmpty" class="deposit-history-message hidden">No Gate deposit records have been stored for this account.</div>
+                              <div class="table-scroll" id="depositHistoryTableWrap">
+                                <table class="deposit-history-table">
+                                  <thead><tr><th>Time</th><th>Asset</th><th>Network</th><th>Amount</th><th>Status</th><th>TXID</th></tr></thead>
+                                  <tbody id="depositHistoryBody"></tbody>
+                                </table>
+                              </div>
+                              <div class="deposit-history-footer">
+                                <span id="depositHistorySyncState">Not synchronized yet</span>
+                                <span id="depositHistoryCount">0 records</span>
+                              </div>
+                            </section>
               </div>
-              <div id="depositHistoryLoading" class="deposit-history-message hidden">Loading deposit history…</div>
-              <div id="depositHistoryError" class="deposit-history-message error hidden" role="alert"></div>
-              <div id="depositHistoryEmpty" class="deposit-history-message hidden">No Gate deposit records have been stored for this account.</div>
-              <div class="table-scroll" id="depositHistoryTableWrap">
-                <table class="deposit-history-table">
-                  <thead><tr><th>Time</th><th>Asset</th><th>Network</th><th>Amount</th><th>Status</th><th>TXID</th></tr></thead>
-                  <tbody id="depositHistoryBody"></tbody>
-                </table>
-              </div>
-              <div class="deposit-history-footer">
-                <span id="depositHistorySyncState">Not synchronized yet</span>
-                <span id="depositHistoryCount">0 records</span>
-              </div>
-            </section>
-          </div>
-        </article>
+            </details>
+          </article>
+        </section>
 
         <article
           class="panel treasury-panel"
           id="treasuryPanel"
+          hidden
         >
           <div class="panel-header treasury-header">
             <div>
@@ -950,646 +1168,602 @@
             role="status"
           ></div>
 
-          <div class="treasury-actions-grid">
-
           <section
-            class="treasury-withdrawal-section"
-            id="treasuryWithdrawalAction"
+            class="wallet-workspace wallet-treasury-workspace"
+            id="walletWithdrawalsWorkspace"
+            data-wallet-workspace="withdrawals"
+            role="tabpanel"
+            aria-labelledby="walletWithdrawalsTab"
+            aria-hidden="true"
+            hidden
           >
-            <div class="treasury-section-header">
-              <div>
-                <h3>Withdraw funds</h3>
-                <p>Choose an asset, network and saved recipient. Approved routes match automatically; preflight performs Gate reads only and does not submit a withdrawal to Gate.</p>
-              </div>
+            <div class="treasury-actions-grid wallet-treasury-actions-grid">
+              <section
+                          class="treasury-withdrawal-section"
+                          id="treasuryWithdrawalAction"
+                        >
+                          <div class="treasury-section-header">
+                            <div>
+                              <h3>Withdraw funds</h3>
+                              <p>Choose an asset, network and saved recipient. Approved routes match automatically; preflight performs Gate reads only and does not submit a withdrawal to Gate.</p>
+                            </div>
 
-              <div class="treasury-action-badges">
-                <span
-                  id="treasuryWithdrawalState"
-                  class="treasury-count treasury-capability-badge"
-                >Checking…</span>
+                            <div class="treasury-action-badges">
+                              <span
+                                id="treasuryWithdrawalState"
+                                class="treasury-count treasury-capability-badge"
+                              >Checking…</span>
 
-                <span
-                  id="treasuryWithdrawalDestinationCount"
-                  class="treasury-count"
-                >0 approved destinations</span>
+                              <span
+                                id="treasuryWithdrawalDestinationCount"
+                                class="treasury-count"
+                              >0 approved destinations</span>
 
-                <button
-                  type="button"
-                  class="button secondary treasury-withdrawal-review-button hidden"
-                  id="reviewTreasuryWithdrawalDestinations"
-                  disabled
-                >
-                  Review destinations
-                </button>
-              </div>
+                              <button
+                                type="button"
+                                class="button secondary treasury-withdrawal-review-button hidden"
+                                id="reviewTreasuryWithdrawalDestinations"
+                                disabled
+                              >
+                                Review destinations
+                              </button>
+                            </div>
+                          </div>
+
+                            <div
+                              class="treasury-withdrawal-flow"
+                              aria-label="Withdrawal workflow"
+                            >
+                              <div class="treasury-withdrawal-flow-item">
+                                <span class="treasury-withdrawal-flow-number">1</span>
+
+                                <div>
+                                  <strong>Destination</strong>
+                                  <small>Asset, network and recipient</small>
+                                </div>
+                              </div>
+
+                              <div class="treasury-withdrawal-flow-item">
+                                <span class="treasury-withdrawal-flow-number">2</span>
+
+                                <div>
+                                  <strong>Amount &amp; safety</strong>
+                                  <small>Review amount, fee and run preflight</small>
+                                </div>
+                              </div>
+
+                              <div class="treasury-withdrawal-flow-item">
+                                <span class="treasury-withdrawal-flow-number">3</span>
+
+                                <div>
+                                  <strong>Create request</strong>
+                                  <small>Local audited request only</small>
+                                </div>
+                              </div>
+                            </div>
+
+                          <div
+                            class="treasury-withdrawal-route-builder"
+                            id="treasuryWithdrawalRouteBuilder"
+                          >
+                            <div class="treasury-withdrawal-route-head">
+                              <div>
+                                <strong>Withdrawal destination</strong>
+                                <span>
+                                  Asset → network → saved recipient
+                                </span>
+                              </div>
+                              <span
+                                class="treasury-withdrawal-route-head-actions"
+                              >
+                                <span
+                                  id="treasuryWithdrawalRouteOwner"
+                                  class="treasury-withdrawal-route-owner"
+                                >Select one account above</span>
+
+                                <button
+                                  type="button"
+                                  class="button secondary"
+                                  id="manageTreasuryWithdrawalRecipients"
+                                  disabled
+                                >
+                                  Manage recipients
+                                </button>
+                              </span>
+                            </div>
+
+                            <div class="treasury-withdrawal-route-grid">
+                              <label class="treasury-withdrawal-route-asset">
+                                Asset
+                                <select
+                                  id="treasuryWithdrawalAsset"
+                                  disabled
+                                >
+                                  <option value="">Select asset</option>
+                                </select>
+                              </label>
+
+                              <label class="treasury-withdrawal-route-network">
+                                Network
+                                <select
+                                  id="treasuryWithdrawalNetwork"
+                                  disabled
+                                >
+                                  <option value="">
+                                    Select asset first
+                                  </option>
+                                </select>
+                              </label>
+
+                              <label class="treasury-withdrawal-route-recipient">
+                                Recipient
+                                <select
+                                  id="treasuryWithdrawalRecipient"
+                                  disabled
+                                >
+                                  <option value="">
+                                    No active recipients saved
+                                  </option>
+                                </select>
+                              </label>
+
+                              <label
+                                id="treasuryWithdrawalRecipientMemoField"
+                                class="treasury-withdrawal-route-memo"
+                              >
+                                <span
+                                  id="treasuryWithdrawalRecipientMemoLabel"
+                                >Memo / tag · optional</span>
+                                <input
+                                  id="treasuryWithdrawalRecipientMemo"
+                                  type="text"
+                                  autocomplete="off"
+                                  maxlength="512"
+                                  placeholder="Optional"
+                                >
+                              </label>
+
+                              <div
+                                class="treasury-withdrawal-route-actions"
+                              >
+                                <button
+                                  type="button"
+                                  class="button secondary"
+                                  id="resetTreasuryWithdrawalRoute"
+                                >
+                                  Reset
+                                </button>
+
+                                <button
+                                  type="button"
+                                  class="button secondary hidden"
+                                  id="prepareTreasuryWithdrawalDestination"
+                                  disabled
+                                >
+                                  Request destination approval
+                                </button>
+                              </div>
+                            </div>
+
+                            <div
+                              id="treasuryWithdrawalRouteStatus"
+                              class="treasury-withdrawal-route-status"
+                            >
+                              Select one account to prepare a withdrawal
+                              destination.
+                            </div>
+                          </div>
+
+                          <div
+                            id="treasuryWithdrawalUnavailable"
+                            class="treasury-withdrawal-unavailable hidden"
+                          >
+                            No approved withdrawal destinations are ready yet.
+                            Prepare one from a saved recipient above; an
+                            administrator must approve a new route before withdrawal.
+                          </div>
+
+                          <form
+                            id="treasuryWithdrawalForm"
+                            class="treasury-withdrawal-form"
+                          >
+                            <label class="treasury-withdrawal-destination-field">Matched withdrawal destination<select
+                                id="treasuryWithdrawalDestination"
+                                required
+                              >
+                                <option value="">
+                                  No approved destinations loaded
+                                </option>
+                              </select>
+                            </label>
+
+                            <div
+                              id="treasuryWithdrawalDestinationSummary"
+                              class="treasury-withdrawal-destination-summary"
+                            >
+                              Select an approved destination.
+                            </div>
+
+                            <div
+                              id="treasuryWithdrawalPreflightContext"
+                              class="treasury-withdrawal-preflight-context hidden"
+                              aria-live="polite"
+                            ></div>
+
+                            <div class="treasury-withdrawal-execution-row">
+                              <label class="treasury-withdrawal-amount-field">
+                                Amount
+
+                                <input
+                                  id="treasuryWithdrawalAmount"
+                                  type="text"
+                                  inputmode="decimal"
+                                  autocomplete="off"
+                                  placeholder="0.00"
+                                  required
+                                >
+                              </label>
+
+                                <div
+                                  id="treasuryWithdrawalFundingSummary"
+                                  class="treasury-withdrawal-funding-summary"
+                                  aria-live="polite"
+                                >
+                                  <div class="treasury-withdrawal-funding-summary-empty">
+                                    Select an approved destination to review funding.
+                                  </div>
+                                </div>
+
+
+                              <div class="treasury-withdrawal-actions">
+                                <button
+                                  type="submit"
+                                  class="button secondary"
+                                  id="treasuryWithdrawalPreflightButton"
+                                >
+                                  Run safety preflight
+                                </button>
+
+                                <button
+                                  type="button"
+                                  class="button"
+                                  id="createTreasuryWithdrawalRequest"
+                                  disabled
+                                >
+                                  Create withdrawal request
+                                </button>
+                              </div>
+                            </div>
+                          </form>
+
+                          <div
+                            id="treasuryWithdrawalFormError"
+                            class="treasury-message error hidden"
+                            role="alert"
+                          ></div>
+
+                          <div
+                            id="treasuryWithdrawalPreflight"
+                            class="treasury-withdrawal-preflight hidden"
+                          ></div>
+                        </section>
             </div>
 
-              <div
-                class="treasury-withdrawal-flow"
-                aria-label="Withdrawal workflow"
-              >
-                <div class="treasury-withdrawal-flow-item">
-                  <span class="treasury-withdrawal-flow-number">1</span>
-
-                  <div>
-                    <strong>Destination</strong>
-                    <small>Asset, network and recipient</small>
-                  </div>
-                </div>
-
-                <div class="treasury-withdrawal-flow-item">
-                  <span class="treasury-withdrawal-flow-number">2</span>
-
-                  <div>
-                    <strong>Amount &amp; safety</strong>
-                    <small>Review amount, fee and run preflight</small>
-                  </div>
-                </div>
-
-                <div class="treasury-withdrawal-flow-item">
-                  <span class="treasury-withdrawal-flow-number">3</span>
-
-                  <div>
-                    <strong>Create request</strong>
-                    <small>Local audited request only</small>
-                  </div>
-                </div>
-              </div>
-
-            <div
-              class="treasury-withdrawal-route-builder"
-              id="treasuryWithdrawalRouteBuilder"
+            <details
+              class="treasury-records wallet-records"
+              id="treasuryWithdrawalRecords"
             >
-              <div class="treasury-withdrawal-route-head">
+              <summary class="treasury-records-summary">
                 <div>
-                  <strong>Withdrawal destination</strong>
-                  <span>
-                    Asset → network → saved recipient
-                  </span>
+                  <strong>Records &amp; audit</strong>
+                  <small>Withdrawal requests and lifecycle history</small>
                 </div>
-                <span
-                  class="treasury-withdrawal-route-head-actions"
-                >
-                  <span
-                    id="treasuryWithdrawalRouteOwner"
-                    class="treasury-withdrawal-route-owner"
-                  >Select one account above</span>
-
-                  <button
-                    type="button"
-                    class="button secondary"
-                    id="manageTreasuryWithdrawalRecipients"
-                    disabled
-                  >
-                    Manage recipients
-                  </button>
-                </span>
-              </div>
-
-              <div class="treasury-withdrawal-route-grid">
-                <label class="treasury-withdrawal-route-asset">
-                  Asset
-                  <select
-                    id="treasuryWithdrawalAsset"
-                    disabled
-                  >
-                    <option value="">Select asset</option>
-                  </select>
-                </label>
-
-                <label class="treasury-withdrawal-route-network">
-                  Network
-                  <select
-                    id="treasuryWithdrawalNetwork"
-                    disabled
-                  >
-                    <option value="">
-                      Select asset first
-                    </option>
-                  </select>
-                </label>
-
-                <label class="treasury-withdrawal-route-recipient">
-                  Recipient
-                  <select
-                    id="treasuryWithdrawalRecipient"
-                    disabled
-                  >
-                    <option value="">
-                      No active recipients saved
-                    </option>
-                  </select>
-                </label>
-
-                <label
-                  id="treasuryWithdrawalRecipientMemoField"
-                  class="treasury-withdrawal-route-memo"
-                >
-                  <span
-                    id="treasuryWithdrawalRecipientMemoLabel"
-                  >Memo / tag · optional</span>
-                  <input
-                    id="treasuryWithdrawalRecipientMemo"
-                    type="text"
-                    autocomplete="off"
-                    maxlength="512"
-                    placeholder="Optional"
-                  >
-                </label>
-
-                <div
-                  class="treasury-withdrawal-route-actions"
-                >
-                  <button
-                    type="button"
-                    class="button secondary"
-                    id="resetTreasuryWithdrawalRoute"
-                  >
-                    Reset
-                  </button>
-
-                  <button
-                    type="button"
-                    class="button secondary hidden"
-                    id="prepareTreasuryWithdrawalDestination"
-                    disabled
-                  >
-                    Request destination approval
-                  </button>
-                </div>
-              </div>
-
-              <div
-                id="treasuryWithdrawalRouteStatus"
-                class="treasury-withdrawal-route-status"
-              >
-                Select one account to prepare a withdrawal
-                destination.
-              </div>
-            </div>
-
-            <div
-              id="treasuryWithdrawalUnavailable"
-              class="treasury-withdrawal-unavailable hidden"
-            >
-              No approved withdrawal destinations are ready yet.
-              Prepare one from a saved recipient above; an
-              administrator must approve a new route before withdrawal.
-            </div>
-
-            <form
-              id="treasuryWithdrawalForm"
-              class="treasury-withdrawal-form"
-            >
-              <label class="treasury-withdrawal-destination-field">Matched withdrawal destination<select
-                  id="treasuryWithdrawalDestination"
-                  required
-                >
-                  <option value="">
-                    No approved destinations loaded
-                  </option>
-                </select>
-              </label>
-
-              <div
-                id="treasuryWithdrawalDestinationSummary"
-                class="treasury-withdrawal-destination-summary"
-              >
-                Select an approved destination.
-              </div>
-
-              <div
-                id="treasuryWithdrawalPreflightContext"
-                class="treasury-withdrawal-preflight-context hidden"
-                aria-live="polite"
-              ></div>
-
-              <div class="treasury-withdrawal-execution-row">
-                <label class="treasury-withdrawal-amount-field">
-                  Amount
-
-                  <input
-                    id="treasuryWithdrawalAmount"
-                    type="text"
-                    inputmode="decimal"
-                    autocomplete="off"
-                    placeholder="0.00"
-                    required
-                  >
-                </label>
-
-                  <div
-                    id="treasuryWithdrawalFundingSummary"
-                    class="treasury-withdrawal-funding-summary"
-                    aria-live="polite"
-                  >
-                    <div class="treasury-withdrawal-funding-summary-empty">
-                      Select an approved destination to review funding.
-                    </div>
-                  </div>
-
-
-                <div class="treasury-withdrawal-actions">
-                  <button
-                    type="submit"
-                    class="button secondary"
-                    id="treasuryWithdrawalPreflightButton"
-                  >
-                    Run safety preflight
-                  </button>
-
-                  <button
-                    type="button"
-                    class="button"
-                    id="createTreasuryWithdrawalRequest"
-                    disabled
-                  >
-                    Create withdrawal request
-                  </button>
-                </div>
-              </div>
-            </form>
-
-            <div
-              id="treasuryWithdrawalFormError"
-              class="treasury-message error hidden"
-              role="alert"
-            ></div>
-
-            <div
-              id="treasuryWithdrawalPreflight"
-              class="treasury-withdrawal-preflight hidden"
-            ></div>
-          </section>
-
-          <section
-            class="treasury-withdrawal-section treasury-user-transfer-section"
-          >
-            <div class="treasury-section-header">
-              <div>
-                <h3>Transfer between registered users</h3>
-                <p>
-                  Transfer Gate spot funds from this Wallet account to another
-                  registered dashboard user. Source authorization is
-                  enforced server-side.
-                </p>
-              </div>
-
-              <div class="treasury-action-badges">
-                <span
-                  class="treasury-user-transfer-scope"
-                >
-                  FROM
-                  <strong
-                    id="treasuryUserTransferSourceDisplay"
-                  >—</strong>
-                </span>
-
-                <span
-                  id="treasuryUserTransferState"
-                  class="treasury-count treasury-capability-badge"
-                >Checking…</span>
-              </div>
-            </div>
-
-            <form
-              id="treasuryUserTransferForm"
-              class="treasury-user-transfer-form"
-            >
-              <input
-                id="treasuryUserTransferSource"
-                type="hidden"
-                value=""
-              >
-
-              <label>
-                To
-
-                <select
-                  id="treasuryUserTransferDestination"
-                  required
-                >
-                  <option value="">
-                    No recipients loaded
-                  </option>
-                </select>
-              </label>
-
-              <label>
-                Asset
-
-                <select
-                  id="treasuryUserTransferCurrency"
-                  required
-                >
-                  <option value="">
-                    No transferable assets
-                  </option>
-                </select>
-              </label>
-
-              <label>
-                Amount
-
-                <input
-                  id="treasuryUserTransferAmount"
-                  type="text"
-                  inputmode="decimal"
-                  autocomplete="off"
-                  placeholder="0.00"
-                  required
-                >
-              </label>
-
-              <div class="treasury-user-transfer-actions">
-                <button
-                  type="button"
-                  class="button secondary"
-                  id="treasuryUserTransferResetButton"
-                >
-                  Reset
-                </button>
-
-                <button
-                  type="submit"
-                  class="button secondary"
-                  id="treasuryUserTransferPreviewButton"
-                >
-                  Review transfer
-                </button>
-              </div>
-            </form>
-
-            <div
-              id="treasuryUserTransferError"
-              class="treasury-message error hidden"
-              role="alert"
-            ></div>
-
-            <div
-              id="treasuryUserTransferPreview"
-              class="treasury-user-transfer-preview hidden"
-            ></div>
-
-            <div
-              id="treasuryUserTransferConfirmationBlock"
-              class="treasury-user-transfer-confirmation hidden"
-            >
-              <div class="treasury-user-transfer-confirmation-head">
-                <strong>Final confirmation</strong>
-
-                <span id="treasuryUserTransferConfirmationText">
-                  Type the exact phrase shown below.
-                </span>
-              </div>
-
-              <code
-                id="treasuryUserTransferRequiredConfirmation"
-              >—</code>
-
-              <div class="treasury-user-transfer-confirmation-row">
-                <input
-                  id="treasuryUserTransferConfirmation"
-                  type="text"
-                  autocomplete="off"
-                  spellcheck="false"
-                  placeholder="Type exact confirmation"
-                >
-
-                <button
-                  type="button"
-                  class="button"
-                  id="executeTreasuryUserTransfer"
-                  disabled
-                >
-                  Transfer funds
-                </button>
-              </div>
-            </div>
-
-            </section>
-
-          </div>
-
-          <details
-            class="treasury-records"
-            id="treasuryRecords"
-          >
-            <summary class="treasury-records-summary">
-              <div>
-                <strong>Records &amp; audit</strong>
-                <small>
-                  Withdrawal requests, ownership, locks and activity
-                </small>
-              </div>
-              <div class="treasury-records-badges">
-                <span
-                  id="treasuryLockCount"
-                  class="treasury-count treasury-lock-count hidden"
-                >0 ACTIVE LOCKS</span>
 
                 <span class="treasury-records-review">
-                  Review history
+                  Review withdrawals
                 </span>
+              </summary>
+
+              <div class="treasury-records-content">
+                <section class="treasury-withdrawal-section">
+                            <div class="treasury-section-header">
+                              <div>
+                                <h3>Withdrawal requests</h3>
+                                <p>
+                                  Persistent withdrawal lifecycle records.
+                                  Live execution controls are intentionally not
+                                  exposed in this UI stage.
+                                </p>
+                              </div>
+
+                              <span
+                                id="treasuryWithdrawalRequestCount"
+                                class="treasury-count"
+                              >0 requests</span>
+                            </div>
+
+                            <div class="table-scroll">
+                              <table class="treasury-withdrawal-table">
+                                <thead>
+                                  <tr>
+                                    <th>Time</th>
+                                    <th>Owner</th>
+                                    <th>Destination</th>
+                                    <th>Amount</th>
+                                    <th>Fee</th>
+                                    <th>Status</th>
+                                    <th>Gate status</th>
+                                    <th>Request</th>
+                                  </tr>
+                                </thead>
+
+                                <tbody id="treasuryWithdrawalRequestBody">
+                                  <tr>
+                                    <td colspan="8" class="empty-state">
+                                      No withdrawal requests loaded.
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          </section>
               </div>
-            </summary>
+            </details>
 
-            <div class="treasury-records-content">
-
-          <section class="treasury-withdrawal-section">
-            <div class="treasury-section-header">
-              <div>
-                <h3>Withdrawal requests</h3>
-                <p>
-                  Persistent withdrawal lifecycle records.
-                  Live execution controls are intentionally not
-                  exposed in this UI stage.
-                </p>
-              </div>
-
-              <span
-                id="treasuryWithdrawalRequestCount"
-                class="treasury-count"
-              >0 requests</span>
-            </div>
-
-            <div class="table-scroll">
-              <table class="treasury-withdrawal-table">
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Owner</th>
-                    <th>Destination</th>
-                    <th>Amount</th>
-                    <th>Fee</th>
-                    <th>Status</th>
-                    <th>Gate status</th>
-                    <th>Request</th>
-                  </tr>
-                </thead>
-
-                <tbody id="treasuryWithdrawalRequestBody">
-                  <tr>
-                    <td colspan="8" class="empty-state">
-                      No withdrawal requests loaded.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <div class="treasury-footnote">
+                        This dashboard does not arm Treasury or change Gate API permissions. The current withdrawal UI performs read-only preflight and local audited request creation only. JIT transfer, external submission and ownership settlement remain unavailable from the browser.
+                      </div>
           </section>
 
-          <section class="treasury-ownership-section">
-            <div class="treasury-section-header">
-              <div>
-                <h3 id="treasuryOwnershipTitle">Main-held economic ownership</h3>
-                <p id="treasuryOwnershipSubtitle">
-                  Funds physically held by the Gate main
-                  account but economically owned by a
-                  dashboard account.
-                </p>
-              </div>
+          <section
+            class="wallet-workspace wallet-treasury-workspace"
+            id="walletTransfersWorkspace"
+            data-wallet-workspace="transfers"
+            role="tabpanel"
+            aria-labelledby="walletTransfersTab"
+            aria-hidden="true"
+            hidden
+          >
+            <div class="treasury-actions-grid wallet-treasury-actions-grid">
+              <section
+                          class="treasury-withdrawal-section treasury-user-transfer-section"
+                        >
+                          <div class="treasury-section-header">
+                            <div>
+                              <h3>Transfer between registered users</h3>
+                              <p>
+                                Transfer Gate spot funds from this Wallet account to another
+                                registered dashboard user. Source authorization is
+                                enforced server-side.
+                              </p>
+                            </div>
 
-              <span
-                id="treasuryOwnershipBalanceCount"
-                class="treasury-count"
-              >0 balances</span>
+                            <div class="treasury-action-badges">
+                              <span
+                                class="treasury-user-transfer-scope"
+                              >
+                                FROM
+                                <strong
+                                  id="treasuryUserTransferSourceDisplay"
+                                >—</strong>
+                              </span>
+
+                              <span
+                                id="treasuryUserTransferState"
+                                class="treasury-count treasury-capability-badge"
+                              >Checking…</span>
+                            </div>
+                          </div>
+
+                          <form
+                            id="treasuryUserTransferForm"
+                            class="treasury-user-transfer-form"
+                          >
+                            <input
+                              id="treasuryUserTransferSource"
+                              type="hidden"
+                              value=""
+                            >
+
+                            <label>
+                              To
+
+                              <select
+                                id="treasuryUserTransferDestination"
+                                required
+                              >
+                                <option value="">
+                                  No recipients loaded
+                                </option>
+                              </select>
+                            </label>
+
+                            <label>
+                              Asset
+
+                              <select
+                                id="treasuryUserTransferCurrency"
+                                required
+                              >
+                                <option value="">
+                                  No transferable assets
+                                </option>
+                              </select>
+                            </label>
+
+                            <label>
+                              Amount
+
+                              <input
+                                id="treasuryUserTransferAmount"
+                                type="text"
+                                inputmode="decimal"
+                                autocomplete="off"
+                                placeholder="0.00"
+                                required
+                              >
+                            </label>
+
+                            <div class="treasury-user-transfer-actions">
+                              <button
+                                type="button"
+                                class="button secondary"
+                                id="treasuryUserTransferResetButton"
+                              >
+                                Reset
+                              </button>
+
+                              <button
+                                type="submit"
+                                class="button secondary"
+                                id="treasuryUserTransferPreviewButton"
+                              >
+                                Review transfer
+                              </button>
+                            </div>
+                          </form>
+
+                          <div
+                            id="treasuryUserTransferError"
+                            class="treasury-message error hidden"
+                            role="alert"
+                          ></div>
+
+                          <div
+                            id="treasuryUserTransferPreview"
+                            class="treasury-user-transfer-preview hidden"
+                          ></div>
+
+                          <div
+                            id="treasuryUserTransferConfirmationBlock"
+                            class="treasury-user-transfer-confirmation hidden"
+                          >
+                            <div class="treasury-user-transfer-confirmation-head">
+                              <strong>Final confirmation</strong>
+
+                              <span id="treasuryUserTransferConfirmationText">
+                                Type the exact phrase shown below.
+                              </span>
+                            </div>
+
+                            <code
+                              id="treasuryUserTransferRequiredConfirmation"
+                            >—</code>
+
+                            <div class="treasury-user-transfer-confirmation-row">
+                              <input
+                                id="treasuryUserTransferConfirmation"
+                                type="text"
+                                autocomplete="off"
+                                spellcheck="false"
+                                placeholder="Type exact confirmation"
+                              >
+
+                              <button
+                                type="button"
+                                class="button"
+                                id="executeTreasuryUserTransfer"
+                                disabled
+                              >
+                                Transfer funds
+                              </button>
+                            </div>
+                          </div>
+
+                          </section>
             </div>
 
-            <div class="table-scroll">
-              <table class="treasury-ownership-table">
-                <thead>
-                  <tr>
-                    <th>Economic owner</th>
-                    <th>Custody account</th>
-                    <th>Asset</th>
-                    <th id="treasuryOwnershipAmountHeader">Main-held amount</th>
-                  </tr>
-                </thead>
-
-                <tbody id="treasuryOwnershipBalanceBody">
-                  <tr>
-                    <td colspan="4" class="empty-state">
-                      No main-held ownership balances.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="treasury-ownership-ledger-header">
-              <div>
-                <h3>Ownership ledger</h3>
-                <p>
-                  Append-only accounting history. Credits
-                  and future debits preserve the economic
-                  owner independently from physical custody.
-                </p>
-              </div>
-
-              <span
-                id="treasuryOwnershipLedgerCount"
-                class="treasury-count"
-              >0 entries</span>
-            </div>
-
-            <div class="table-scroll">
-              <table class="treasury-ownership-table">
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Owner</th>
-                    <th>Custody</th>
-                    <th>Asset</th>
-                    <th>Delta</th>
-                    <th>Type</th>
-                    <th>Source request</th>
-                  </tr>
-                </thead>
-
-                <tbody id="treasuryOwnershipLedgerBody">
-                  <tr>
-                    <td colspan="7" class="empty-state">
-                      No ownership ledger entries.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="treasury-lock-section">
-            <div class="treasury-section-header">
-              <div>
-                <h3>Active Treasury locks</h3>
-                <p>
-                  Unresolved transfers remain locked until
-                  Gate reaches a definitive outcome or a
-                  reviewed manual resolution is recorded.
-                </p>
-              </div>
-            </div>
-
-            <div
-              id="treasuryLockList"
-              class="treasury-lock-list"
+            <details
+              class="treasury-records wallet-records"
+              id="treasuryRecords"
             >
-              <div class="treasury-empty">
-                No active Treasury locks.
+              <summary class="treasury-records-summary">
+                <div>
+                  <strong>Records &amp; audit</strong>
+                  <small>Transfer requests, active locks and activity</small>
+                </div>
+
+                <div class="treasury-records-badges">
+                  <span
+                    id="treasuryLockCount"
+                    class="treasury-count treasury-lock-count hidden"
+                  >0 ACTIVE LOCKS</span>
+
+                  <span class="treasury-records-review">
+                    Review transfers
+                  </span>
+                </div>
+              </summary>
+
+              <div class="treasury-records-content">
+                <section class="treasury-lock-section">
+                            <div class="treasury-section-header">
+                              <div>
+                                <h3>Active Treasury locks</h3>
+                                <p>
+                                  Unresolved transfers remain locked until
+                                  Gate reaches a definitive outcome or a
+                                  reviewed manual resolution is recorded.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div
+                              id="treasuryLockList"
+                              class="treasury-lock-list"
+                            >
+                              <div class="treasury-empty">
+                                No active Treasury locks.
+                              </div>
+                            </div>
+                          </section>
+
+                <section class="treasury-activity-section">
+                            <div class="treasury-section-header">
+                              <div>
+                                <h3>Treasury activity</h3>
+                                <p>
+                                  Persistent local audit history. Operation
+                                  type, live/simulation mode and outcome are
+                                  recorded separately.
+                                </p>
+                              </div>
+
+                              <span
+                                id="treasuryActivityCount"
+                                class="treasury-count"
+                              >0 records</span>
+                            </div>
+
+                            <div class="table-scroll">
+                              <table class="treasury-activity-table">
+                                <thead>
+                                  <tr>
+                                    <th>Time</th>
+                                    <th>Type</th>
+                                    <th>Source</th>
+                                    <th>Destination</th>
+                                    <th>Amount</th>
+                                    <th>Mode</th>
+                                    <th>Status</th>
+                                    <th>Gate TX</th>
+                                    <th>Request</th>
+                                  </tr>
+                                </thead>
+
+                                <tbody id="treasuryActivityBody">
+                                  <tr>
+                                    <td colspan="9" class="empty-state">
+                                      No Treasury activity loaded.
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          </section>
               </div>
-            </div>
+            </details>
           </section>
-
-          <section class="treasury-activity-section">
-            <div class="treasury-section-header">
-              <div>
-                <h3>Treasury activity</h3>
-                <p>
-                  Persistent local audit history. Operation
-                  type, live/simulation mode and outcome are
-                  recorded separately.
-                </p>
-              </div>
-
-              <span
-                id="treasuryActivityCount"
-                class="treasury-count"
-              >0 records</span>
-            </div>
-
-            <div class="table-scroll">
-              <table class="treasury-activity-table">
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Type</th>
-                    <th>Source</th>
-                    <th>Destination</th>
-                    <th>Amount</th>
-                    <th>Mode</th>
-                    <th>Status</th>
-                    <th>Gate TX</th>
-                    <th>Request</th>
-                  </tr>
-                </thead>
-
-                <tbody id="treasuryActivityBody">
-                  <tr>
-                    <td colspan="9" class="empty-state">
-                      No Treasury activity loaded.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-            </div>
-          </details>
-
-          <div class="treasury-footnote">
-            This dashboard does not arm Treasury or change Gate API permissions. The current withdrawal UI performs read-only preflight and local audited request creation only. JIT transfer, external submission and ownership settlement remain unavailable from the browser.
-          </div>
         </article>
       </section>
 
@@ -2698,7 +2872,7 @@
     defer
   ></script>
   <script
-    src="./app.js?v=20260830-reload-scroll-v1"
+    src="./app.js?v=20260830-wallet-subnav-v1"
     defer
   ></script>
   <script

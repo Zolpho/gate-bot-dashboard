@@ -23,7 +23,7 @@ def test_treasury_assets_are_versioned():
     )
 
     assert (
-        './app.js?v=20260830-reload-scroll-v1'
+        './app.js?v=20260830-wallet-subnav-v1'
         in HTML
     )
 
@@ -129,19 +129,45 @@ def test_configuration_only_surfaces_when_unavailable():
 
 
 def test_treasury_has_compact_action_workspace():
+    from html.parser import HTMLParser
+
+    class Parser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.action_grids = 0
+            self.ids = set()
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            classes = attrs.get(
+                "class",
+                "",
+            ).split()
+
+            if (
+                "treasury-actions-grid"
+                in classes
+            ):
+                self.action_grids += 1
+
+            element_id = attrs.get("id")
+
+            if element_id:
+                self.ids.add(element_id)
+
+    parser = Parser()
+    parser.feed(HTML)
+
+    assert parser.action_grids >= 1
+
     assert (
-        'class="treasury-actions-grid"'
-        in HTML
+        "treasuryWithdrawalAction"
+        in parser.ids
     )
 
     assert (
-        'id="treasuryWithdrawalAction"'
-        in HTML
-    )
-
-    assert (
-        'id="treasuryWithdrawalUnavailable"'
-        in HTML
+        "treasuryWithdrawalUnavailable"
+        in parser.ids
     )
 
     assert (
@@ -172,14 +198,53 @@ def test_withdrawal_without_destinations_is_compacted():
 
 
 def test_treasury_records_are_collapsible():
-    assert (
-        'class="treasury-records"'
-        in HTML
+    from html.parser import HTMLParser
+
+    class Parser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.record_elements = []
+            self.text = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            classes = attrs.get(
+                "class",
+                "",
+            ).split()
+
+            if (
+                "treasury-records"
+                in classes
+            ):
+                self.record_elements.append({
+                    "tag": tag,
+                    "id": attrs.get("id"),
+                    "classes": tuple(classes),
+                })
+
+        def handle_data(self, data):
+            value = " ".join(
+                data.split()
+            )
+
+            if value:
+                self.text.append(value)
+
+    parser = Parser()
+    parser.feed(HTML)
+
+    assert parser.record_elements
+
+    assert any(
+        item["id"] == "treasuryRecords"
+        for item in parser.record_elements
     )
 
-    assert 'id="treasuryRecords"' in HTML
-
-    assert "Records &amp; audit" in HTML
+    assert (
+        "Records & audit"
+        in " ".join(parser.text)
+    )
 
     assert (
         ".treasury-records-summary"
@@ -451,21 +516,114 @@ def test_periodic_core_refresh_does_not_reload_wallet_data():
 
 
 def test_wallet_activation_still_performs_initial_private_load():
-    start = APP.index(
-        "function switchTab("
+    import re
+
+    pattern = re.compile(
+        r"^(?:async\s+)?function\s+"
+        r"([A-Za-z0-9_$]+)\s*\(",
+        re.M,
     )
 
-    end = APP.index(
-        "\nfunction setMetric(",
-        start,
+    matches = list(
+        pattern.finditer(APP)
     )
 
-    switch_tab = APP[start:end]
+    def function(name):
+        found = []
 
-    assert "target === 'wallet'" in switch_tab
-    assert "loadPrivateBalance({ quiet: true })" in switch_tab
-    assert "loadDepositHistory({ quiet: true })" in switch_tab
-    assert "loadTreasuryOverview({ quiet: true })" in switch_tab
+        for index, match in enumerate(matches):
+            if match.group(1) != name:
+                continue
+
+            end = (
+                matches[index + 1].start()
+                if index + 1 < len(matches)
+                else len(APP)
+            )
+
+            found.append(
+                APP[
+                    match.start():
+                    end
+                ]
+            )
+
+        assert len(found) == 1
+
+        return found[0]
+
+    switch_tab = function(
+        "switchTab"
+    )
+
+    switch_wallet = function(
+        "switchWalletView"
+    )
+
+    load_wallet = function(
+        "loadWalletViewData"
+    )
+
+    assert (
+        "target === 'wallet'"
+        in switch_tab
+    )
+
+    assert (
+        "switchWalletView("
+        in switch_tab
+    )
+
+    assert (
+        "tabChanged"
+        in switch_tab
+    )
+
+    assert (
+        "? 'balance'"
+        in switch_tab
+    )
+
+    assert (
+        "load: true"
+        in switch_tab
+    )
+
+    assert (
+        "void loadWalletViewData("
+        in switch_wallet
+    )
+
+    balance = load_wallet.index(
+        "target === 'balance'"
+    )
+
+    private = load_wallet.index(
+        "loadPrivateBalance(",
+        balance,
+    )
+
+    treasury = load_wallet.index(
+        "loadTreasuryOverview(",
+        balance,
+    )
+
+    assert (
+        balance
+        < private
+        < treasury
+    )
+
+    deposits = load_wallet.index(
+        "target === 'deposits'"
+    )
+
+    deposit_history = load_wallet.index(
+        "loadDepositHistory(",
+        deposits,
+    )
+
+    assert deposits < deposit_history
 
 
 def test_successful_user_transfer_refreshes_balance_once_explicitly():
@@ -1026,7 +1184,7 @@ def test_treasury_css_version_marks_withdraw_polish():
 
 def test_app_version_marks_withdraw_polish():
     assert (
-        './app.js?v=20260830-reload-scroll-v1'
+        './app.js?v=20260830-wallet-subnav-v1'
         in HTML
     )
 
@@ -1071,11 +1229,45 @@ def test_withdraw_approved_destination_flow_is_compact():
 
 
 def test_withdraw_preflight_is_hidden_until_run():
-    assert (
-        'id="treasuryWithdrawalPreflight"\n'
-        '              class="treasury-withdrawal-preflight hidden"'
-        in HTML
+    from html.parser import HTMLParser
+
+    class Parser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.matches = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+
+            if (
+                attrs.get("id")
+                == "treasuryWithdrawalPreflight"
+            ):
+                self.matches.append({
+                    "tag": tag,
+                    "classes": tuple(
+                        attrs.get(
+                            "class",
+                            "",
+                        ).split()
+                    ),
+                })
+
+    parser = Parser()
+    parser.feed(HTML)
+
+    assert len(parser.matches) == 1
+
+    classes = set(
+        parser.matches[0]["classes"]
     )
+
+    assert (
+        "treasury-withdrawal-preflight"
+        in classes
+    )
+
+    assert "hidden" in classes
 
     start = APP.index(
         "function renderTreasuryWithdrawalPreflight()"
@@ -1088,7 +1280,10 @@ def test_withdraw_preflight_is_hidden_until_run():
 
     block = APP[start:end]
 
-    assert "element.innerHTML = '';" in block
+    assert (
+        "element.innerHTML = '';"
+        in block
+    )
 
     assert (
         "element.classList.add('hidden');"

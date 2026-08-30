@@ -40,7 +40,7 @@ def test_wallet_balance_assets_are_versioned():
     )
 
     assert (
-        './app.js?v=20260830-reload-scroll-v1'
+        './app.js?v=20260830-wallet-subnav-v1'
         in HTML
     )
 
