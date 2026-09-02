@@ -315,25 +315,81 @@ def portfolio_history(
     account_id: str | None = None,
 ) -> list[dict[str, Any]]:
     stmt = (
-        select(BotSnapshot, Bot)
-        .join(Bot, Bot.id == BotSnapshot.bot_id)
-        .where(BotSnapshot.captured_at >= since)
-        .order_by(BotSnapshot.captured_at.asc(), BotSnapshot.id.asc())
+        select(
+            BotSnapshot.captured_at,
+            BotSnapshot.bot_id,
+            BotSnapshot.invest_amount,
+            BotSnapshot.current_value,
+            BotSnapshot.total_profit,
+            BotSnapshot.pnl,
+        )
+        .join(
+            Bot,
+            Bot.id == BotSnapshot.bot_id,
+        )
+        .where(
+            BotSnapshot.captured_at >= since
+        )
+        .order_by(
+            BotSnapshot.captured_at.asc(),
+            BotSnapshot.id.asc(),
+        )
     )
-    if account_id:
-        stmt = stmt.where(Bot.account_id == account_id)
 
-    # Keep only the latest snapshot for each bot within each minute. This avoids
-    # inflating portfolio totals when POLL_SECONDS is less than 60.
-    latest_per_bot_minute: dict[tuple[str, int], BotSnapshot] = {}
-    for snapshot, bot in session.execute(stmt).all():
-        captured = as_utc(snapshot.captured_at)
+    if account_id:
+        stmt = stmt.where(
+            Bot.account_id == account_id
+        )
+
+    # Keep only the latest snapshot for each bot within
+    # each minute. This avoids inflating portfolio totals
+    # when POLL_SECONDS is less than 60.
+    latest_per_bot_minute: dict[
+        tuple[str, int],
+        tuple[
+            Decimal | None,
+            Decimal | None,
+            Decimal | None,
+            Decimal | None,
+        ],
+    ] = {}
+
+    for (
+        captured_at,
+        bot_id,
+        invest_amount,
+        current_value,
+        total_profit,
+        pnl,
+    ) in session.execute(stmt):
+        captured = as_utc(
+            captured_at
+        )
+
         if captured is None:
             continue
-        minute = captured.replace(second=0, microsecond=0).isoformat()
-        latest_per_bot_minute[(minute, bot.id)] = snapshot
 
-    buckets: dict[str, dict[str, Any]] = defaultdict(
+        minute = captured.replace(
+            second=0,
+            microsecond=0,
+        ).isoformat()
+
+        latest_per_bot_minute[
+            (
+                minute,
+                bot_id,
+            )
+        ] = (
+            invest_amount,
+            current_value,
+            total_profit,
+            pnl,
+        )
+
+    buckets: dict[
+        str,
+        dict[str, Any],
+    ] = defaultdict(
         lambda: {
             "invest_amount": Decimal("0"),
             "current_value": Decimal("0"),
@@ -341,29 +397,92 @@ def portfolio_history(
             "bots": set(),
         }
     )
-    for (minute, bot_id), snapshot in latest_per_bot_minute.items():
-        bucket = buckets[minute]
-        bucket["bots"].add(bot_id)
-        bucket["invest_amount"] += snapshot.invest_amount or Decimal("0")
-        bucket["current_value"] += snapshot.current_value or Decimal("0")
-        bucket["pnl"] += (
-            snapshot.total_profit
-            if snapshot.total_profit is not None
-            else (snapshot.pnl or Decimal("0"))
+
+    for (
+        minute,
+        bot_id,
+    ), values in (
+        latest_per_bot_minute.items()
+    ):
+        (
+            invest_amount,
+            current_value,
+            total_profit,
+            pnl,
+        ) = values
+
+        bucket = buckets[
+            minute
+        ]
+
+        bucket["bots"].add(
+            bot_id
         )
 
-    result: list[dict[str, Any]] = []
-    for timestamp, bucket in sorted(buckets.items()):
-        invest = bucket["invest_amount"]
+        bucket[
+            "invest_amount"
+        ] += (
+            invest_amount
+            or Decimal("0")
+        )
+
+        bucket[
+            "current_value"
+        ] += (
+            current_value
+            or Decimal("0")
+        )
+
+        bucket["pnl"] += (
+            total_profit
+            if total_profit
+            is not None
+            else (
+                pnl
+                or Decimal("0")
+            )
+        )
+
+    result: list[
+        dict[str, Any]
+    ] = []
+
+    for timestamp, bucket in sorted(
+        buckets.items()
+    ):
+        invest = bucket[
+            "invest_amount"
+        ]
+
         pnl = bucket["pnl"]
+
         result.append(
             {
                 "captured_at": timestamp,
-                "invest_amount": float(invest),
-                "current_value": float(bucket["current_value"]),
-                "pnl": float(pnl),
-                "roi_pct": float(pnl / invest * Decimal("100")) if invest else None,
-                "bot_count": len(bucket["bots"]),
+                "invest_amount": float(
+                    invest
+                ),
+                "current_value": float(
+                    bucket[
+                        "current_value"
+                    ]
+                ),
+                "pnl": float(
+                    pnl
+                ),
+                "roi_pct": (
+                    float(
+                        pnl
+                        / invest
+                        * Decimal("100")
+                    )
+                    if invest
+                    else None
+                ),
+                "bot_count": len(
+                    bucket["bots"]
+                ),
             }
         )
+
     return result
