@@ -30,15 +30,15 @@
   --aurora-trading-cell:
     rgba(1, 18, 15, 0.72);
   --aurora-trading-mint:
-    rgb(91, 243, 193);
+    var(--positive);
   --aurora-trading-muted:
     rgba(182, 212, 201, 0.68);
   --aurora-trading-dim:
     rgba(158, 194, 181, 0.48);
   --aurora-trading-amber:
-    rgb(245, 205, 112);
+    var(--warning);
   --aurora-trading-red:
-    rgb(255, 126, 139);
+    var(--negative);
   gap: 16px;
 }
 

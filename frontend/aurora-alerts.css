@@ -27,11 +27,11 @@
   --aurora-alerts-cell:
     rgba(1, 18, 15, 0.68);
   --aurora-alerts-mint:
-    rgb(91, 243, 193);
+    var(--positive);
   --aurora-alerts-amber:
-    rgb(245, 205, 112);
+    var(--warning);
   --aurora-alerts-red:
-    rgb(255, 126, 139);
+    var(--negative);
   --aurora-alerts-muted:
     rgba(168, 204, 190, 0.60);
 }

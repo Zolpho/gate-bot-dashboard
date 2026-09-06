@@ -25,11 +25,11 @@
   --aurora-overview-soft:
     rgba(210, 237, 227, 0.84);
   --aurora-overview-mint:
-    #63f1bf;
+    var(--positive);
   --aurora-overview-amber:
-    #e9bd67;
+    var(--warning);
   --aurora-overview-red:
-    #ff7d8a;
+    var(--negative);
 }
 
 

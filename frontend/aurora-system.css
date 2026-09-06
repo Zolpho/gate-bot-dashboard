@@ -22,11 +22,11 @@
   --aurora-system-soft:
     rgba(204, 233, 222, 0.80);
   --aurora-system-mint:
-    #63f1bf;
+    var(--positive);
   --aurora-system-warning:
-    #e9bd67;
+    var(--warning);
   --aurora-system-error:
-    #ff7d8a;
+    var(--negative);
 }
 
 
