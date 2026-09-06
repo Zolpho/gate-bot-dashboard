@@ -752,6 +752,267 @@
   }
 
 
+  /*
+   * Bot Details artwork is presentation-only.
+   *
+   * renderBotDialog() remains authoritative for text and values.
+   * The existing MutationObserver reruns this decorator whenever
+   * app.js replaces subtitle or definition-list content.
+   */
+  function prependBotDetailMarketSymbols(
+    host,
+    market,
+  ) {
+    if (!host) {
+      return;
+    }
+
+    const [
+      base,
+      quote,
+    ] = splitBotMarketAssets(
+      market
+    );
+
+    if (!base) {
+      return;
+    }
+
+    const key = (
+      `${base}|${quote}`
+    );
+
+    const existing =
+      host.querySelector(
+        ':scope > '
+        + '.aurora-bot-detail-market-symbols'
+      );
+
+    if (
+      existing
+      && existing.dataset
+        .auroraMarket
+        === key
+    ) {
+      return;
+    }
+
+    existing?.remove();
+
+    const group =
+      document.createElement(
+        'span'
+      );
+
+    group.className =
+      'aurora-bot-detail-market-symbols';
+
+    group.dataset
+      .auroraMarket =
+        key;
+
+    group.setAttribute(
+      'aria-hidden',
+      'true',
+    );
+
+    group.setAttribute(
+      'title',
+      quote
+        ? `${base} / ${quote}`
+        : base,
+    );
+
+    [
+      base,
+      quote,
+    ]
+      .filter(Boolean)
+      .forEach(symbol => {
+        const slot =
+          document.createElement(
+            'span'
+          );
+
+        slot.className =
+          'aurora-bot-detail-market-symbol-slot';
+
+        prependSymbol(
+          slot,
+          'asset',
+          symbol,
+          symbol,
+          'aurora-bot-detail-market-symbol-inline',
+        );
+
+        group.append(
+          slot
+        );
+      });
+
+    host.prepend(
+      group
+    );
+  }
+
+
+  function decorateBotDialogSymbols() {
+    const subtitle =
+      document.querySelector(
+        '#dialogSubtitle'
+      );
+
+    if (subtitle) {
+      const existing =
+        subtitle.querySelector(
+          ':scope > '
+          + '.aurora-bot-detail-market-symbols'
+        );
+
+      const raw = (
+        existing
+          ? String(
+              subtitle.dataset
+                .auroraBotDetailText
+              || ''
+            ).trim()
+          : String(
+              subtitle.textContent
+              || ''
+            ).trim()
+      );
+
+      if (raw) {
+        subtitle.dataset
+          .auroraBotDetailText =
+            raw;
+
+        const parts = raw
+          .split('·')
+          .map(
+            value =>
+              value.trim()
+          )
+          .filter(Boolean);
+
+        const market =
+          parts.length > 1
+            ? parts[1]
+            : '';
+
+        if (market) {
+          prependBotDetailMarketSymbols(
+            subtitle,
+            market,
+          );
+        }
+      }
+    }
+
+    const definitions =
+      document.querySelector(
+        '#botDefinitionList'
+      );
+
+    if (!definitions) {
+      return;
+    }
+
+    definitions
+      .querySelectorAll('dt')
+      .forEach(term => {
+        const value =
+          term.nextElementSibling;
+
+        if (!value) {
+          return;
+        }
+
+        const label = String(
+          term.textContent
+          || ''
+        ).trim();
+
+        if (
+          label === 'Market'
+        ) {
+          const existing =
+            value.querySelector(
+              ':scope > '
+              + '.aurora-bot-detail-market-symbols'
+            );
+
+          const market = (
+            existing
+              ? String(
+                  value.dataset
+                    .auroraBotDetailMarket
+                  || ''
+                ).trim()
+              : String(
+                  value.textContent
+                  || ''
+                ).trim()
+          );
+
+          if (market) {
+            value.dataset
+              .auroraBotDetailMarket =
+                market;
+
+            prependBotDetailMarketSymbols(
+              value,
+              market,
+            );
+          }
+
+          return;
+        }
+
+        if (
+          label !== 'Base asset'
+          && label !== 'Quote asset'
+        ) {
+          return;
+        }
+
+        const existingSymbol =
+          value.querySelector(
+            ':scope > .aurora-symbol'
+          );
+
+        const asset = (
+          existingSymbol
+            ? String(
+                value.dataset
+                  .auroraBotDetailAsset
+                || ''
+              ).trim()
+            : String(
+                value.textContent
+                || ''
+              ).trim()
+        );
+
+        if (!asset) {
+          return;
+        }
+
+        value.dataset
+          .auroraBotDetailAsset =
+            asset;
+
+        prependSymbol(
+          value,
+          'asset',
+          asset,
+          asset,
+          'aurora-bot-detail-asset-symbol',
+        );
+      });
+  }
+
+
   function decorate() {
     decorateDepositOptions();
     decorateDepositFavorites();
@@ -759,6 +1020,7 @@
     decorateDepositHistory();
     decorateBalance();
     decorateBotsMarkets();
+    decorateBotDialogSymbols();
   }
 
   let scheduled = false;

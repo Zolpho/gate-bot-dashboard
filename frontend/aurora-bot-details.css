@@ -1,0 +1,863 @@
+/*
+ * Aurora — Bot Details
+ *
+ * Presentation-only redesign of the canonical #botDialog.
+ *
+ * Safety:
+ * - every selector is rooted under #botDialog
+ * - app.js retains dialog rendering, chart, raw-data and Bot Stop ownership
+ * - canonical dialog IDs are unchanged
+ * - asset/market artwork is added by aurora-symbols.js
+ */
+
+
+/* =========================================================
+   Dialog shell / backdrop
+   ========================================================= */
+
+#botDialog {
+  width:
+    min(
+      1220px,
+      calc(100vw - 42px)
+    );
+  max-height:
+    calc(100vh - 40px);
+  padding: 0;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(83, 197, 158, 0.24);
+  border-radius: 22px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 31, 24, 0.985),
+      rgba(2, 18, 15, 0.995)
+    );
+  color: #def3eb;
+  box-shadow:
+    0 34px 90px
+    rgba(0, 0, 0, 0.55),
+    0 0 0 1px
+    rgba(70, 255, 195, 0.025),
+    inset 0 1px
+    rgba(255, 255, 255, 0.03);
+}
+
+#botDialog::backdrop {
+  background:
+    radial-gradient(
+      circle at 50% 22%,
+      rgba(16, 85, 64, 0.22),
+      transparent 42%
+    ),
+    rgba(0, 7, 5, 0.82);
+  backdrop-filter:
+    blur(7px);
+}
+
+
+/* =========================================================
+   Header
+   ========================================================= */
+
+#botDialog .dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding:
+    19px 21px 18px;
+  border-bottom:
+    1px solid
+    rgba(85, 176, 146, 0.17);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(7, 38, 29, 0.99),
+      rgba(4, 26, 21, 0.985)
+    );
+  box-shadow:
+    0 12px 28px
+    rgba(0, 0, 0, 0.16);
+}
+
+#botDialog .dialog-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(82, 242, 190, 0.6),
+      rgba(67, 167, 255, 0.3),
+      transparent
+    );
+}
+
+#botDialog .dialog-header > div {
+  min-width: 0;
+}
+
+#botDialog #dialogTitle {
+  margin: 0;
+  color: #effff9;
+  font-size: 1.08rem;
+  font-weight: 760;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+#botDialog #dialogSubtitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  min-height: 24px;
+  margin: 6px 0 0;
+  color:
+    rgba(172, 208, 194, 0.62);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+#botDialog #closeDialog {
+  display: grid;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  padding: 0;
+  border:
+    1px solid
+    rgba(82, 242, 190, 0.25);
+  border-radius: 11px;
+  background:
+    rgba(12, 60, 45, 0.46);
+  color: #d8f7eb;
+  font-size: 1.15rem;
+  line-height: 1;
+  box-shadow:
+    inset 0 1px
+    rgba(255, 255, 255, 0.035);
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    transform 140ms ease;
+}
+
+#botDialog #closeDialog:hover {
+  border-color:
+    rgba(82, 242, 190, 0.47);
+  background:
+    rgba(20, 83, 62, 0.6);
+  transform:
+    translateY(-1px);
+}
+
+
+/* =========================================================
+   Dialog content surface
+   ========================================================= */
+
+#botDialog .dialog-content {
+  position: relative;
+  max-height:
+    calc(100vh - 120px);
+  padding: 21px;
+  overflow: auto;
+  background:
+    radial-gradient(
+      circle at 13% 0%,
+      rgba(42, 146, 105, 0.085),
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 89% 5%,
+      rgba(62, 146, 227, 0.05),
+      transparent 31%
+    );
+  scrollbar-width: thin;
+  scrollbar-color:
+    rgba(82, 242, 190, 0.2)
+    transparent;
+}
+
+#botDialog .dialog-content::-webkit-scrollbar {
+  width: 9px;
+}
+
+#botDialog .dialog-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#botDialog .dialog-content::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background:
+    rgba(82, 242, 190, 0.16);
+}
+
+
+/* =========================================================
+   Performance metrics
+   ========================================================= */
+
+#botDialog #botDetailMetrics {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      6,
+      minmax(0, 1fr)
+    );
+  gap: 10px;
+  margin-bottom: 17px;
+}
+
+#botDialog .detail-stat {
+  position: relative;
+  min-width: 0;
+  min-height: 92px;
+  padding: 13px 14px;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(92, 170, 144, 0.16);
+  border-radius: 13px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(10, 45, 35, 0.72),
+      rgba(4, 27, 22, 0.8)
+    );
+  box-shadow:
+    inset 0 1px
+    rgba(255, 255, 255, 0.02);
+}
+
+#botDialog .detail-stat::after {
+  content: "";
+  position: absolute;
+  right: -22px;
+  bottom: -28px;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    rgba(82, 242, 190, 0.025);
+}
+
+#botDialog .detail-stat:nth-child(3),
+#botDialog .detail-stat:nth-child(6),
+#botDialog .detail-stat:nth-child(7) {
+  border-color:
+    rgba(82, 242, 190, 0.23);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(14, 57, 43, 0.82),
+      rgba(5, 31, 25, 0.86)
+    );
+}
+
+#botDialog .detail-stat span,
+#botDialog .detail-stat small {
+  display: block;
+  color:
+    rgba(171, 204, 191, 0.56);
+  font-size: 0.66rem;
+  font-weight: 680;
+  letter-spacing: 0.025em;
+}
+
+#botDialog .detail-stat strong {
+  display: block;
+  margin: 9px 0 0;
+  overflow-wrap: anywhere;
+  color: #e8f8f2;
+  font-size: 1.04rem;
+  font-weight: 760;
+  line-height: 1.15;
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#botDialog .detail-stat strong.positive {
+  color: #58efb6;
+}
+
+#botDialog .detail-stat strong.negative {
+  color: #ff8c9a;
+}
+
+#botDialog .detail-stat:nth-child(11) {
+  grid-column:
+    span 2;
+}
+
+#botDialog .detail-stat:nth-child(11) strong {
+  width: fit-content;
+  padding: 5px 9px;
+  border:
+    1px solid
+    rgba(82, 242, 190, 0.22);
+  border-radius: 999px;
+  background:
+    rgba(20, 90, 67, 0.28);
+  color: #77edc1;
+  font-size: 0.76rem;
+}
+
+
+/* =========================================================
+   Equity / drawdown chart
+   ========================================================= */
+
+#botDialog .detail-chart {
+  position: relative;
+  margin: 0 0 17px;
+  padding: 17px;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(91, 170, 144, 0.16);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 27, 22, 0.82),
+      rgba(2, 18, 15, 0.9)
+    );
+}
+
+#botDialog .detail-chart::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(82, 242, 190, 0.3),
+      transparent
+    );
+}
+
+#botDialog .detail-chart .panel-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+#botDialog .detail-chart .panel-header > div {
+  min-width: 0;
+}
+
+#botDialog .detail-chart h3 {
+  margin: 0;
+  color: #dff3eb;
+  font-size: 0.82rem;
+  font-weight: 730;
+}
+
+#botDialog #drawdownSummary {
+  margin: 5px 0 0;
+  color:
+    rgba(166, 199, 186, 0.56);
+  font-size: 0.71rem;
+  line-height: 1.4;
+}
+
+#botDialog #botHistoryRange {
+  flex: 0 0 auto;
+  min-width: 108px;
+  min-height: 38px;
+  padding: 0 10px;
+  border:
+    1px solid
+    rgba(96, 173, 147, 0.18);
+  border-radius: 10px;
+  outline: 0;
+  background:
+    rgba(3, 22, 18, 0.9);
+  color: #d7ede5;
+  font-size: 0.73rem;
+}
+
+#botDialog #botHistoryRange:focus {
+  border-color:
+    rgba(82, 242, 190, 0.5);
+  box-shadow:
+    0 0 0 3px
+    rgba(82, 242, 190, 0.07);
+}
+
+#botDialog .detail-chart .chart-wrap {
+  position: relative;
+  height: 270px;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(96, 159, 139, 0.09);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      rgba(82, 242, 190, 0.025) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(82, 242, 190, 0.025) 1px,
+      transparent 1px
+    ),
+    rgba(0, 12, 10, 0.35);
+  background-size:
+    44px 44px;
+}
+
+#botDialog #botChart {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+
+/* =========================================================
+   Strategy / Gate data columns
+   ========================================================= */
+
+#botDialog .detail-columns {
+  display: grid;
+  grid-template-columns:
+    minmax(320px, 0.9fr)
+    minmax(0, 1.35fr);
+  gap: 16px;
+  align-items: start;
+}
+
+#botDialog .detail-columns > section {
+  min-width: 0;
+  padding: 17px;
+  border:
+    1px solid
+    rgba(91, 169, 143, 0.15);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(6, 31, 25, 0.76),
+      rgba(2, 20, 16, 0.84)
+    );
+}
+
+#botDialog .detail-columns > section > h3 {
+  margin: 0 0 14px;
+  color: #e0f2eb;
+  font-size: 0.8rem;
+  font-weight: 730;
+}
+
+
+/* =========================================================
+   Strategy information
+   ========================================================= */
+
+#botDialog #botDefinitionList {
+  display: grid;
+  grid-template-columns:
+    minmax(126px, 0.72fr)
+    minmax(0, 1fr);
+  gap: 0;
+  margin: 0;
+}
+
+#botDialog #botDefinitionList dt,
+#botDialog #botDefinitionList dd {
+  min-width: 0;
+  margin: 0;
+  padding: 9px 0;
+  border-bottom:
+    1px solid
+    rgba(91, 150, 131, 0.1);
+  line-height: 1.35;
+}
+
+#botDialog #botDefinitionList dt {
+  padding-right: 14px;
+  color:
+    rgba(164, 198, 185, 0.56);
+  font-size: 0.7rem;
+  font-weight: 610;
+}
+
+#botDialog #botDefinitionList dd {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: flex-end;
+  color:
+    rgba(225, 241, 235, 0.9);
+  font-size: 0.73rem;
+  font-weight: 580;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#botDialog #botDefinitionList dt:last-of-type,
+#botDialog #botDefinitionList dd:last-of-type {
+  border-bottom-color:
+    transparent;
+}
+
+
+/* =========================================================
+   Gate dynamic data
+   ========================================================= */
+
+#botDialog .raw-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: -2px 0 10px;
+  padding: 3px;
+  border:
+    1px solid
+    rgba(93, 166, 142, 0.13);
+  border-radius: 10px;
+  background:
+    rgba(0, 14, 11, 0.38);
+}
+
+#botDialog .raw-tab {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color:
+    rgba(165, 197, 185, 0.56);
+  font-size: 0.69rem;
+  font-weight: 680;
+  cursor: pointer;
+  transition:
+    background-color 130ms ease,
+    color 130ms ease;
+}
+
+#botDialog .raw-tab:hover {
+  background:
+    rgba(82, 242, 190, 0.05);
+  color:
+    rgba(211, 234, 225, 0.8);
+}
+
+#botDialog .raw-tab.active {
+  border: 0;
+  background:
+    rgba(24, 100, 74, 0.38);
+  color: #63edba;
+  box-shadow:
+    inset 0 0 0 1px
+    rgba(82, 242, 190, 0.15);
+}
+
+#botDialog #botRaw {
+  min-height: 220px;
+  max-height: 440px;
+  margin: 0;
+  padding: 14px 15px;
+  overflow: auto;
+  border:
+    1px solid
+    rgba(93, 163, 140, 0.13);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(0, 13, 10, 0.92),
+      rgba(1, 20, 15, 0.9)
+    );
+  color:
+    rgba(190, 221, 209, 0.78);
+  font:
+    11.5px/1.55
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  scrollbar-width: thin;
+  scrollbar-color:
+    rgba(82, 242, 190, 0.18)
+    transparent;
+}
+
+
+/* =========================================================
+   Bot control / danger zone
+   ========================================================= */
+
+#botDialog #dangerZone {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 17px;
+  padding: 14px 15px;
+  border:
+    1px solid
+    rgba(242, 104, 122, 0.22);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(82, 25, 34, 0.16),
+      rgba(41, 17, 22, 0.13)
+    );
+}
+
+#botDialog #dangerZone p {
+  margin: 0;
+  color:
+    rgba(210, 178, 181, 0.66);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+#botDialog #stopBotButton {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 13px;
+  border:
+    1px solid
+    rgba(246, 100, 120, 0.28);
+  border-radius: 10px;
+  background:
+    rgba(102, 31, 42, 0.3);
+  color: #f6a4ae;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+#botDialog #stopBotButton:hover:not(:disabled) {
+  border-color:
+    rgba(246, 100, 120, 0.5);
+  background:
+    rgba(124, 39, 52, 0.42);
+  color: #ffd0d5;
+}
+
+#botDialog #stopBotButton:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+
+/* =========================================================
+   Bot market / asset artwork
+   ========================================================= */
+
+#botDialog .aurora-bot-detail-market-symbols {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 28px;
+  height: 21px;
+}
+
+#botDialog .aurora-bot-detail-market-symbol-slot {
+  position: relative;
+  display: inline-flex;
+  width: 19px;
+  height: 19px;
+  align-items: center;
+  justify-content: center;
+}
+
+#botDialog .aurora-bot-detail-market-symbol-slot
++ .aurora-bot-detail-market-symbol-slot {
+  margin-left: -6px;
+}
+
+#botDialog .aurora-bot-detail-market-symbol-slot
+.aurora-symbol {
+  width: 19px;
+  height: 19px;
+  border:
+    1px solid
+    rgba(109, 187, 159, 0.24);
+  border-radius: 50%;
+  background: #061a14;
+  box-shadow:
+    0 0 0 2px
+    rgba(4, 25, 20, 0.98);
+}
+
+#botDialog .aurora-bot-detail-market-symbol-slot
+.aurora-symbol-fallback {
+  font-size: 0.48rem;
+  font-weight: 800;
+}
+
+#botDialog #botDefinitionList dd
+> .aurora-symbol {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 1100px) {
+  #botDialog {
+    width:
+      min(
+        980px,
+        calc(100vw - 30px)
+      );
+  }
+
+  #botDialog #botDetailMetrics {
+    grid-template-columns:
+      repeat(
+        4,
+        minmax(0, 1fr)
+      );
+  }
+
+  #botDialog .detail-stat:nth-child(11) {
+    grid-column:
+      auto;
+  }
+
+  #botDialog .detail-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  #botDialog {
+    width:
+      calc(100vw - 18px);
+    max-height:
+      calc(100vh - 18px);
+    border-radius: 17px;
+  }
+
+  #botDialog .dialog-header {
+    padding:
+      16px 16px 15px;
+  }
+
+  #botDialog .dialog-content {
+    max-height:
+      calc(100vh - 94px);
+    padding: 15px;
+  }
+
+  #botDialog #botDetailMetrics {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  #botDialog .detail-stat {
+    min-height: 84px;
+  }
+
+  #botDialog .detail-chart {
+    padding: 14px;
+  }
+
+  #botDialog .detail-chart .chart-wrap {
+    height: 230px;
+  }
+
+  #botDialog .detail-columns > section {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 520px) {
+  #botDialog .dialog-header {
+    gap: 12px;
+  }
+
+  #botDialog #dialogTitle {
+    font-size: 0.96rem;
+  }
+
+  #botDialog #dialogSubtitle {
+    font-size: 0.68rem;
+  }
+
+  #botDialog #botDetailMetrics {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  #botDialog .detail-stat {
+    min-height: 79px;
+    padding: 11px;
+  }
+
+  #botDialog .detail-stat strong {
+    font-size: 0.91rem;
+  }
+
+  #botDialog .detail-chart .panel-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #botDialog #botHistoryRange {
+    width: 100%;
+  }
+
+  #botDialog #botDefinitionList {
+    grid-template-columns: 1fr;
+  }
+
+  #botDialog #botDefinitionList dt {
+    padding:
+      9px 0 3px;
+    border-bottom: 0;
+  }
+
+  #botDialog #botDefinitionList dd {
+    justify-content: flex-start;
+    padding:
+      0 0 9px;
+    text-align: left;
+  }
+
+  #botDialog #dangerZone {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #botDialog #stopBotButton {
+    width: 100%;
+  }
+}
