@@ -1,0 +1,1551 @@
+/*
+ * AURORA A7C101 — TRADING PRESENTATION
+ * =====================================
+ *
+ * Presentation only.
+ *
+ * The canonical Trading DOM, Trading state machine,
+ * API calls, order placement, cancellation, amendment,
+ * recovery and account/pair controls remain owned by
+ * trading.js and trading-limit.js.
+ *
+ * Every selector in this file is intentionally rooted
+ * beneath #tab-trading so Classic remains unaffected.
+ */
+
+
+/* ============================================================
+ * 01. WORKSPACE / MARKET COMMAND HEADER
+ * ============================================================ */
+
+#tab-trading {
+  --aurora-trading-line:
+    rgba(102, 244, 194, 0.16);
+  --aurora-trading-line-strong:
+    rgba(102, 244, 194, 0.34);
+  --aurora-trading-panel:
+    rgba(4, 27, 22, 0.74);
+  --aurora-trading-panel-deep:
+    rgba(2, 19, 16, 0.90);
+  --aurora-trading-cell:
+    rgba(1, 18, 15, 0.72);
+  --aurora-trading-mint:
+    rgb(91, 243, 193);
+  --aurora-trading-muted:
+    rgba(182, 212, 201, 0.68);
+  --aurora-trading-dim:
+    rgba(158, 194, 181, 0.48);
+  --aurora-trading-amber:
+    rgb(245, 205, 112);
+  --aurora-trading-red:
+    rgb(255, 126, 139);
+  display: grid;
+  gap: 16px;
+}
+
+#tab-trading > .panel:first-child {
+  position: relative;
+  overflow: hidden;
+  border:
+    1px solid
+    var(--aurora-trading-line);
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      circle at 7% 0%,
+      rgba(61, 217, 162, 0.10),
+      transparent 34%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(4, 34, 27, 0.88),
+      rgba(2, 21, 18, 0.92)
+    );
+  box-shadow:
+    inset 0 1px 0
+    rgba(172, 255, 225, 0.035);
+}
+
+#tab-trading > .panel:first-child::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 22px;
+  left: 22px;
+  height: 1px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(90, 245, 194, 0.72),
+      rgba(70, 196, 255, 0.40),
+      transparent
+    );
+  pointer-events: none;
+}
+
+#tab-trading .trading-market-header {
+  align-items: center;
+  min-height: 54px;
+  padding-bottom: 14px;
+  border-bottom:
+    1px solid
+    rgba(105, 237, 193, 0.10);
+}
+
+#tab-trading .trading-market-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  min-width: 0;
+}
+
+#tab-trading .trading-market-title h2 {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 760;
+  letter-spacing: -0.018em;
+}
+
+#tab-trading .trading-last-price {
+  font-size: 1.12rem;
+  font-weight: 780;
+  color:
+    rgba(235, 255, 248, 0.96);
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-trading .trading-change {
+  min-width: 58px;
+  padding: 4px 8px;
+  border:
+    1px solid
+    rgba(155, 209, 190, 0.13);
+  border-radius: 999px;
+  background:
+    rgba(5, 26, 22, 0.72);
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-trading .trading-change.positive {
+  color:
+    var(--aurora-trading-mint);
+  border-color:
+    rgba(91, 243, 193, 0.28);
+  background:
+    rgba(22, 117, 87, 0.13);
+}
+
+#tab-trading .trading-change.negative {
+  color:
+    var(--aurora-trading-red);
+  border-color:
+    rgba(255, 126, 139, 0.24);
+  background:
+    rgba(131, 35, 48, 0.10);
+}
+
+#tab-trading .trading-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  padding: 5px 9px;
+  border:
+    1px solid
+    rgba(86, 237, 188, 0.24);
+  border-radius: 999px;
+  background:
+    rgba(15, 93, 70, 0.10);
+  color:
+    rgba(141, 232, 199, 0.76);
+  font-size: 0.66rem;
+  font-weight: 720;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+#tab-trading .trading-live-indicator::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background:
+    var(--aurora-trading-mint);
+  box-shadow:
+    0 0 10px
+    rgba(91, 243, 193, 0.72);
+}
+
+
+/* ============================================================
+ * 02. MARKET TOOLBAR
+ * ============================================================ */
+
+#tab-trading .trading-toolbar {
+  align-items: end;
+  gap: 11px;
+  margin-top: 14px;
+}
+
+#tab-trading .trading-field,
+#tab-trading .trading-toolbar > div {
+  min-width: 0;
+}
+
+#tab-trading .trading-field > span:first-child,
+#tab-trading .trading-label {
+  display: block;
+  margin-bottom: 6px;
+  color:
+    rgba(174, 207, 195, 0.66);
+  font-size: 0.66rem;
+  font-weight: 720;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+#tab-trading .trading-field select,
+#tab-trading .trading-field input,
+#tab-trading .trading-depth-selector select {
+  min-height: 42px;
+  border:
+    1px solid
+    rgba(102, 224, 183, 0.18);
+  border-radius: 10px;
+  background:
+    rgba(1, 19, 16, 0.82);
+  color:
+    rgba(231, 250, 243, 0.94);
+  box-shadow:
+    inset 0 1px 0
+    rgba(174, 255, 225, 0.025);
+}
+
+#tab-trading .trading-field select:hover,
+#tab-trading .trading-field input:hover,
+#tab-trading .trading-depth-selector select:hover {
+  border-color:
+    rgba(100, 236, 190, 0.31);
+}
+
+#tab-trading .trading-field select:focus,
+#tab-trading .trading-field input:focus,
+#tab-trading .trading-depth-selector select:focus {
+  border-color:
+    rgba(91, 243, 193, 0.58);
+  outline: 0;
+  box-shadow:
+    0 0 0 3px
+    rgba(91, 243, 193, 0.08);
+}
+
+#tab-trading .trading-account-static {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 11px;
+  border:
+    1px solid
+    rgba(102, 224, 183, 0.14);
+  border-radius: 10px;
+  background:
+    rgba(1, 19, 16, 0.68);
+  color:
+    rgba(225, 246, 238, 0.90);
+}
+
+#tab-trading .trading-account-static.hidden {
+  display: none;
+}
+
+#tab-trading .trading-intervals {
+  gap: 4px;
+  padding: 4px;
+  border:
+    1px solid
+    rgba(101, 223, 183, 0.14);
+  border-radius: 11px;
+  background:
+    rgba(1, 19, 16, 0.70);
+}
+
+#tab-trading .trading-interval {
+  min-width: 36px;
+  min-height: 32px;
+  padding: 5px 8px;
+  border:
+    1px solid
+    transparent;
+  border-radius: 8px;
+  background:
+    transparent;
+  color:
+    rgba(170, 204, 192, 0.62);
+  font-size: 0.70rem;
+  font-weight: 720;
+}
+
+#tab-trading .trading-interval:hover {
+  color:
+    rgba(220, 246, 237, 0.90);
+  background:
+    rgba(68, 187, 147, 0.07);
+}
+
+#tab-trading .trading-interval.active {
+  border-color:
+    rgba(91, 243, 193, 0.30);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(38, 150, 112, 0.22),
+      rgba(23, 104, 80, 0.13)
+    );
+  color:
+    var(--aurora-trading-mint);
+  box-shadow:
+    inset 0 1px 0
+    rgba(181, 255, 227, 0.05);
+}
+
+#tab-trading #refreshTradingMarket {
+  min-height: 42px;
+  border-color:
+    rgba(102, 224, 183, 0.19);
+  background:
+    rgba(3, 30, 25, 0.76);
+  color:
+    rgba(208, 235, 225, 0.84);
+}
+
+
+/* ============================================================
+ * 03. MARKET METRICS
+ * ============================================================ */
+
+#tab-trading .trading-metrics {
+  gap: 9px;
+  margin: 0;
+}
+
+#tab-trading .trading-metric {
+  position: relative;
+  min-width: 0;
+  padding: 12px 13px 11px;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(98, 219, 180, 0.14);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(4, 31, 25, 0.78),
+      rgba(2, 21, 18, 0.86)
+    );
+}
+
+#tab-trading .trading-metric::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(91, 243, 193, 0.54),
+      rgba(91, 243, 193, 0.05)
+    );
+}
+
+#tab-trading .trading-metric span {
+  margin-bottom: 5px;
+  color:
+    rgba(163, 199, 186, 0.59);
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+#tab-trading .trading-metric strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color:
+    rgba(229, 251, 243, 0.92);
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ============================================================
+ * 04. MARKET DECK
+ * ============================================================ */
+
+#tab-trading .trading-market-grid {
+  gap: 14px;
+}
+
+#tab-trading .trading-chart-panel,
+#tab-trading .trading-order-panel,
+#tab-trading .trading-book-panel,
+#tab-trading .trading-orders-panel {
+  border:
+    1px solid
+    var(--aurora-trading-line);
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(4, 31, 25, 0.78),
+      rgba(2, 20, 17, 0.92)
+    );
+  box-shadow:
+    inset 0 1px 0
+    rgba(177, 255, 226, 0.025);
+}
+
+#tab-trading .trading-chart-panel .panel-header,
+#tab-trading .trading-order-panel .panel-header,
+#tab-trading .trading-orders-panel .panel-header {
+  padding-bottom: 11px;
+  border-bottom:
+    1px solid
+    rgba(99, 223, 182, 0.09);
+}
+
+#tab-trading .trading-chart-panel .panel-header h2,
+#tab-trading .trading-order-panel .panel-header h2,
+#tab-trading .trading-orders-panel .panel-header h2 {
+  margin: 0;
+  color:
+    rgba(235, 254, 247, 0.95);
+  font-size: 0.96rem;
+  font-weight: 740;
+}
+
+#tab-trading .trading-chart-panel .panel-header p,
+#tab-trading .trading-order-panel .panel-header p,
+#tab-trading .trading-orders-panel .panel-header p {
+  margin-top: 4px;
+  color:
+    rgba(165, 199, 186, 0.55);
+  font-size: 0.70rem;
+}
+
+#tab-trading .trading-chart-wrap {
+  margin-top: 10px;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(89, 205, 166, 0.09);
+  border-radius: 12px;
+  background:
+    radial-gradient(
+      circle at 35% 10%,
+      rgba(32, 115, 88, 0.06),
+      transparent 40%
+    ),
+    rgba(1, 15, 13, 0.55);
+}
+
+#tab-trading .trading-chart-message {
+  color:
+    rgba(160, 195, 182, 0.58);
+}
+
+#tab-trading .trading-volume-legend {
+  border:
+    1px solid
+    rgba(101, 220, 181, 0.12);
+  border-radius: 8px;
+  background:
+    rgba(2, 21, 17, 0.86);
+  color:
+    rgba(164, 198, 186, 0.60);
+}
+
+#tab-trading .trading-volume-legend strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color:
+    rgba(224, 247, 238, 0.88);
+}
+
+#tab-trading .trading-attribution {
+  color:
+    rgba(148, 182, 170, 0.45);
+  font-size: 0.64rem;
+}
+
+
+/* ============================================================
+ * 05. LIMIT ORDER TICKET
+ * ============================================================ */
+
+#tab-trading .trading-order-preview-badge {
+  border-color:
+    rgba(245, 205, 112, 0.22);
+  background:
+    rgba(115, 83, 20, 0.08);
+  color:
+    rgba(245, 205, 112, 0.76);
+  letter-spacing: 0.055em;
+}
+
+#tab-trading .trading-order-ticket {
+  gap: 13px;
+}
+
+#tab-trading .trading-order-side-tabs {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  padding: 4px;
+  border:
+    1px solid
+    rgba(100, 221, 182, 0.13);
+  border-radius: 11px;
+  background:
+    rgba(1, 18, 15, 0.68);
+}
+
+#tab-trading .trading-order-side {
+  min-height: 36px;
+  border:
+    1px solid
+    transparent;
+  border-radius: 8px;
+  background:
+    transparent;
+  color:
+    rgba(166, 201, 188, 0.64);
+  font-weight: 760;
+}
+
+#tab-trading .trading-order-side.buy.active {
+  border-color:
+    rgba(91, 243, 193, 0.34);
+  background:
+    rgba(33, 139, 104, 0.20);
+  color:
+    var(--aurora-trading-mint);
+}
+
+#tab-trading .trading-order-side.sell.active {
+  border-color:
+    rgba(255, 126, 139, 0.30);
+  background:
+    rgba(135, 43, 55, 0.17);
+  color:
+    var(--aurora-trading-red);
+}
+
+#tab-trading .trading-order-field > span {
+  color:
+    rgba(163, 199, 186, 0.61);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+#tab-trading .trading-order-input-wrap,
+#tab-trading .trading-order-value {
+  min-height: 43px;
+  border:
+    1px solid
+    rgba(101, 223, 183, 0.16);
+  border-radius: 10px;
+  background:
+    rgba(1, 18, 15, 0.78);
+}
+
+#tab-trading .trading-order-input-wrap:focus-within {
+  border-color:
+    rgba(91, 243, 193, 0.50);
+  box-shadow:
+    0 0 0 3px
+    rgba(91, 243, 193, 0.07);
+}
+
+#tab-trading .trading-order-input-wrap input {
+  color:
+    rgba(235, 253, 246, 0.96);
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-trading .trading-order-input-wrap b,
+#tab-trading .trading-order-value b {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color:
+    rgba(184, 216, 204, 0.70);
+  font-size: 0.69rem;
+}
+
+#tab-trading .trading-order-value strong {
+  color:
+    rgba(236, 254, 247, 0.94);
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-trading .trading-order-field select {
+  min-height: 43px;
+  border:
+    1px solid
+    rgba(101, 223, 183, 0.16);
+  border-radius: 10px;
+  background:
+    rgba(1, 18, 15, 0.78);
+  color:
+    rgba(226, 247, 239, 0.90);
+}
+
+#tab-trading .trading-order-funds {
+  padding: 10px 11px;
+  border:
+    1px solid
+    rgba(100, 221, 182, 0.11);
+  border-radius: 10px;
+  background:
+    rgba(3, 29, 24, 0.44);
+}
+
+#tab-trading #tradingLimitAvailable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color:
+    rgba(194, 224, 212, 0.72);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-trading .trading-order-percentages {
+  gap: 5px;
+}
+
+#tab-trading .trading-order-percentages button {
+  min-height: 29px;
+  border:
+    1px solid
+    rgba(100, 221, 182, 0.14);
+  border-radius: 8px;
+  background:
+    rgba(2, 24, 20, 0.70);
+  color:
+    rgba(172, 205, 193, 0.66);
+  font-size: 0.66rem;
+  font-weight: 720;
+}
+
+#tab-trading .trading-order-percentages button:hover:not(:disabled),
+#tab-trading .trading-order-percentages button.active {
+  border-color:
+    rgba(91, 243, 193, 0.34);
+  color:
+    var(--aurora-trading-mint);
+  background:
+    rgba(29, 118, 90, 0.14);
+}
+
+#tab-trading .trading-order-hint {
+  color:
+    rgba(160, 194, 182, 0.52);
+  font-size: 0.68rem;
+}
+
+#tab-trading #reviewTradingLimitOrder {
+  min-height: 42px;
+  border:
+    1px solid
+    rgba(91, 243, 193, 0.36);
+  border-radius: 10px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(39, 139, 105, 0.36),
+      rgba(24, 99, 78, 0.28)
+    );
+  color:
+    rgba(202, 255, 235, 0.93);
+  font-weight: 740;
+}
+
+#tab-trading #reviewTradingLimitOrder:disabled {
+  border-color:
+    rgba(111, 154, 139, 0.11);
+  background:
+    rgba(62, 87, 78, 0.10);
+  color:
+    rgba(147, 178, 167, 0.34);
+}
+
+
+/* ============================================================
+ * 06. PREFLIGHT / EXECUTION / CANCELLATION
+ * ============================================================ */
+
+#tab-trading .trading-order-preview {
+  padding: 13px;
+  border:
+    1px solid
+    rgba(91, 243, 193, 0.20);
+  border-radius: 13px;
+  background:
+    rgba(3, 31, 25, 0.58);
+}
+
+#tab-trading .trading-order-preview-head {
+  align-items: center;
+  padding-bottom: 9px;
+  border-bottom:
+    1px solid
+    rgba(91, 243, 193, 0.09);
+}
+
+#tab-trading .trading-order-preview-head > strong {
+  color:
+    rgba(233, 253, 246, 0.94);
+  font-size: 0.82rem;
+}
+
+#tab-trading .trading-order-preview-status {
+  letter-spacing: 0.055em;
+}
+
+#tab-trading .trading-order-preview-status.ready {
+  border-color:
+    rgba(91, 243, 193, 0.38);
+  background:
+    rgba(32, 130, 99, 0.13);
+  color:
+    var(--aurora-trading-mint);
+}
+
+#tab-trading .trading-order-preview-status.invalid {
+  border-color:
+    rgba(255, 126, 139, 0.30);
+  background:
+    rgba(135, 43, 55, 0.11);
+  color:
+    var(--aurora-trading-red);
+}
+
+#tab-trading .trading-order-preview-grid {
+  gap: 7px;
+}
+
+#tab-trading .trading-order-preview-card {
+  padding: 9px 10px;
+  border-color:
+    rgba(100, 220, 181, 0.11);
+  border-radius: 9px;
+  background:
+    rgba(1, 18, 15, 0.58);
+}
+
+#tab-trading .trading-order-preview-card span {
+  margin-bottom: 4px;
+  color:
+    rgba(153, 190, 176, 0.52);
+  font-size: 0.60rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+#tab-trading .trading-order-preview-card strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color:
+    rgba(226, 249, 240, 0.89);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-trading .trading-order-safety {
+  border-top:
+    1px solid
+    rgba(91, 243, 193, 0.08);
+  color:
+    rgba(157, 193, 179, 0.54);
+}
+
+#tab-trading .trading-order-safety strong {
+  color:
+    rgba(116, 230, 190, 0.78);
+}
+
+#tab-trading .trading-order-execution {
+  padding: 13px;
+  border:
+    1px solid
+    rgba(245, 205, 112, 0.22);
+  border-radius: 13px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(58, 45, 14, 0.18),
+      rgba(20, 25, 17, 0.38)
+    );
+}
+
+#tab-trading .trading-order-execution-head {
+  padding-bottom: 9px;
+  border-bottom:
+    1px solid
+    rgba(245, 205, 112, 0.10);
+}
+
+#tab-trading .trading-order-execution-head > div > strong {
+  color:
+    rgba(246, 231, 189, 0.93);
+}
+
+#tab-trading .trading-order-execution-head small {
+  color:
+    rgba(195, 182, 146, 0.59);
+}
+
+#tab-trading .trading-order-execution-status {
+  letter-spacing: 0.045em;
+}
+
+#tab-trading .trading-order-execution-status.disabled {
+  border-color:
+    rgba(143, 154, 138, 0.18);
+  color:
+    rgba(162, 174, 158, 0.55);
+}
+
+#tab-trading .trading-order-execution-status.ready {
+  border-color:
+    rgba(91, 243, 193, 0.40);
+  background:
+    rgba(31, 126, 95, 0.13);
+  color:
+    var(--aurora-trading-mint);
+}
+
+#tab-trading .trading-order-execution-status.warning {
+  border-color:
+    rgba(245, 205, 112, 0.38);
+  background:
+    rgba(114, 84, 18, 0.10);
+  color:
+    var(--aurora-trading-amber);
+}
+
+#tab-trading .trading-order-confirmation {
+  border-color:
+    rgba(245, 205, 112, 0.14);
+  border-radius: 10px;
+  background:
+    rgba(21, 24, 14, 0.36);
+}
+
+#tab-trading .trading-order-confirmation code {
+  color:
+    rgba(249, 222, 154, 0.92);
+}
+
+#tab-trading .trading-order-execution-actions input {
+  border-color:
+    rgba(245, 205, 112, 0.18);
+  background:
+    rgba(1, 17, 14, 0.78);
+}
+
+#tab-trading .trading-order-execution-actions input:focus {
+  border-color:
+    rgba(245, 205, 112, 0.48);
+  outline: 0;
+  box-shadow:
+    0 0 0 3px
+    rgba(245, 205, 112, 0.07);
+}
+
+#tab-trading .trading-order-execution-actions button {
+  border-radius: 9px;
+}
+
+#tab-trading .trading-order-cancellation {
+  padding-top: 12px;
+  border-top:
+    1px solid
+    rgba(255, 126, 139, 0.12);
+}
+
+#tab-trading .trading-order-cancellation
+.trading-order-execution-head {
+  border-bottom-color:
+    rgba(255, 126, 139, 0.10);
+}
+
+#tab-trading .trading-order-cancellation
+.trading-order-confirmation {
+  border-color:
+    rgba(255, 126, 139, 0.16);
+  background:
+    rgba(55, 18, 22, 0.18);
+}
+
+#tab-trading .trading-order-execution-result {
+  border-color:
+    rgba(104, 205, 171, 0.15);
+  background:
+    rgba(1, 18, 15, 0.62);
+  color:
+    rgba(183, 211, 200, 0.70);
+}
+
+#tab-trading .trading-order-execution-result.success {
+  border-color:
+    rgba(91, 243, 193, 0.34);
+}
+
+#tab-trading .trading-order-execution-result.error {
+  border-color:
+    rgba(255, 126, 139, 0.34);
+}
+
+#tab-trading .trading-order-execution-result.uncertain {
+  border-color:
+    rgba(245, 205, 112, 0.36);
+}
+
+
+/* ============================================================
+ * 07. ORDER BOOK / TRADE TAPE
+ * ============================================================ */
+
+#tab-trading .trading-book-panel {
+  border-color:
+    rgba(103, 228, 186, 0.17);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(3, 28, 23, 0.88),
+      rgba(1, 18, 15, 0.94)
+    );
+}
+
+#tab-trading .trading-book-tabs {
+  padding-bottom: 9px;
+  border-bottom:
+    1px solid
+    rgba(98, 221, 181, 0.10);
+}
+
+#tab-trading .trading-book-tab {
+  color:
+    rgba(159, 196, 182, 0.55);
+}
+
+#tab-trading .trading-book-tab.active {
+  color:
+    rgba(224, 250, 240, 0.92);
+}
+
+#tab-trading .trading-book-tab.active::after {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(91, 243, 193, 0.50),
+      var(--aurora-trading-mint)
+    );
+  box-shadow:
+    0 0 12px
+    rgba(91, 243, 193, 0.24);
+}
+
+#tab-trading .trading-book-toolbar {
+  padding: 9px 0;
+  color:
+    rgba(154, 191, 177, 0.54);
+}
+
+#tab-trading .trading-depth-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+#tab-trading .trading-depth-selector select {
+  min-height: 30px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-size: 0.68rem;
+}
+
+#tab-trading .trading-book-head,
+#tab-trading .trading-trades-head {
+  color:
+    rgba(144, 181, 168, 0.47);
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+#tab-trading .trading-book-head span,
+#tab-trading .trading-trades-head span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#tab-trading .trading-book-head span:not(:first-child),
+#tab-trading .trading-trades-head span:not(:first-child) {
+  justify-content: flex-end;
+}
+
+#tab-trading button.trading-book-row {
+  border-radius: 7px;
+}
+
+#tab-trading button.trading-book-row:hover {
+  background:
+    rgba(91, 243, 193, 0.035);
+}
+
+#tab-trading button.trading-book-row.selected {
+  background:
+    rgba(91, 243, 193, 0.075);
+  box-shadow:
+    inset 0 0 0 1px
+    rgba(91, 243, 193, 0.31);
+}
+
+#tab-trading .trading-book-depth {
+  opacity: 0.07;
+}
+
+#tab-trading .trading-spread {
+  margin: 4px 0;
+  border-top:
+    1px solid
+    rgba(103, 227, 186, 0.08);
+  border-bottom:
+    1px solid
+    rgba(103, 227, 186, 0.08);
+  background:
+    rgba(4, 35, 28, 0.38);
+}
+
+#tab-trading .trading-spread strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color:
+    rgba(205, 233, 222, 0.78);
+}
+
+#tab-trading .trading-depth-ratio {
+  border-color:
+    rgba(98, 219, 180, 0.11);
+  background:
+    rgba(2, 23, 19, 0.52);
+}
+
+#tab-trading .trading-trade-row {
+  border-radius: 6px;
+}
+
+#tab-trading .trading-trade-row:hover {
+  background:
+    rgba(91, 243, 193, 0.025);
+}
+
+
+/* ============================================================
+ * 08. PERSISTENT ORDERS
+ * ============================================================ */
+
+#tab-trading .trading-orders-panel {
+  overflow: hidden;
+}
+
+#tab-trading .trading-orders-layout {
+  gap: 13px;
+}
+
+#tab-trading .trading-orders-section {
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(99, 220, 181, 0.12);
+  border-radius: 12px;
+  background:
+    rgba(1, 19, 16, 0.54);
+}
+
+#tab-trading .trading-orders-section-head {
+  padding: 11px 12px;
+  border-bottom:
+    1px solid
+    rgba(99, 220, 181, 0.09);
+  background:
+    rgba(7, 42, 34, 0.32);
+}
+
+#tab-trading .trading-orders-section-head strong {
+  color:
+    rgba(227, 250, 241, 0.91);
+  font-size: 0.79rem;
+}
+
+#tab-trading .trading-orders-section-head small {
+  color:
+    rgba(154, 190, 177, 0.49);
+  font-size: 0.63rem;
+}
+
+#tab-trading .trading-orders-count {
+  min-width: 30px;
+  padding: 4px 8px;
+  border:
+    1px solid
+    rgba(91, 243, 193, 0.19);
+  border-radius: 999px;
+  background:
+    rgba(24, 104, 79, 0.10);
+  color:
+    rgba(127, 230, 191, 0.78);
+  text-align: center;
+  font-size: 0.66rem;
+  font-weight: 760;
+}
+
+#tab-trading .trading-orders-message {
+  margin: 8px 10px;
+  color:
+    rgba(155, 191, 178, 0.54);
+}
+
+#tab-trading .trading-orders-message.error {
+  color:
+    rgba(255, 148, 158, 0.82);
+}
+
+#tab-trading .trading-orders-table {
+  color:
+    rgba(194, 221, 211, 0.77);
+}
+
+#tab-trading .trading-orders-table th {
+  border-bottom:
+    1px solid
+    rgba(102, 219, 181, 0.10);
+  color:
+    rgba(139, 180, 165, 0.48);
+  background:
+    rgba(5, 34, 28, 0.24);
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+#tab-trading .trading-orders-table td {
+  border-bottom:
+    1px solid
+    rgba(102, 219, 181, 0.065);
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-trading .trading-orders-table tbody tr:hover td {
+  background:
+    rgba(71, 182, 145, 0.025);
+}
+
+#tab-trading .trading-orders-table code {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color:
+    rgba(216, 242, 232, 0.84);
+}
+
+#tab-trading .trading-orders-side {
+  border-radius: 999px;
+  font-size: 0.62rem;
+  letter-spacing: 0.045em;
+}
+
+#tab-trading .trading-orders-side.buy {
+  color:
+    var(--aurora-trading-mint);
+}
+
+#tab-trading .trading-orders-side.sell {
+  color:
+    var(--aurora-trading-red);
+}
+
+#tab-trading .trading-orders-status {
+  color:
+    rgba(178, 208, 196, 0.67);
+}
+
+#tab-trading .trading-orders-status.warning {
+  color:
+    var(--aurora-trading-amber);
+}
+
+#tab-trading .trading-orders-action-buttons {
+  gap: 5px;
+}
+
+#tab-trading .trading-orders-amend-button,
+#tab-trading .trading-orders-cancel-button,
+#tab-trading .trading-orders-reconcile-button,
+#tab-trading .trading-orders-recover-button {
+  min-height: 28px;
+  padding: 4px 7px;
+  border-radius: 7px;
+  font-size: 0.61rem;
+  font-weight: 700;
+}
+
+#tab-trading .trading-orders-amend-button,
+#tab-trading .trading-orders-reconcile-button,
+#tab-trading .trading-orders-recover-button {
+  border-color:
+    rgba(91, 243, 193, 0.23);
+  background:
+    rgba(28, 112, 86, 0.11);
+  color:
+    rgba(123, 229, 190, 0.82);
+}
+
+#tab-trading .trading-orders-cancel-button {
+  border-color:
+    rgba(255, 126, 139, 0.24);
+  background:
+    rgba(126, 36, 48, 0.10);
+  color:
+    rgba(255, 151, 160, 0.80);
+}
+
+#tab-trading .trading-orders-action-note {
+  color:
+    rgba(145, 179, 166, 0.43);
+  font-size: 0.60rem;
+}
+
+
+/* ============================================================
+ * 09. SPOT BALANCES / GUARD NOTICE
+ * ============================================================ */
+
+#tab-trading .trading-balances {
+  gap: 10px;
+}
+
+#tab-trading .trading-balance-card {
+  position: relative;
+  overflow: hidden;
+  padding: 13px 14px;
+  border-color:
+    rgba(99, 221, 181, 0.14);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(4, 31, 25, 0.70),
+      rgba(2, 21, 18, 0.80)
+    );
+}
+
+#tab-trading .trading-balance-card::after {
+  content: "";
+  position: absolute;
+  top: -28px;
+  right: -24px;
+  width: 82px;
+  height: 82px;
+  border:
+    1px solid
+    rgba(91, 243, 193, 0.06);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+#tab-trading .trading-balance-card span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color:
+    rgba(153, 190, 176, 0.54);
+}
+
+#tab-trading .trading-balance-card strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color:
+    rgba(230, 251, 243, 0.92);
+  font-size: 0.87rem;
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-trading .trading-balance-detail {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  color:
+    rgba(153, 188, 175, 0.50);
+  font-size: 0.67rem;
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-trading .trading-readonly-notice {
+  align-items: flex-start;
+  border-color:
+    rgba(91, 243, 193, 0.16);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(19, 91, 69, 0.08),
+      rgba(2, 24, 20, 0.45)
+    );
+  color:
+    rgba(157, 193, 179, 0.56);
+}
+
+#tab-trading .trading-readonly-notice strong {
+  flex: 0 0 auto;
+  color:
+    rgba(107, 229, 187, 0.82);
+  letter-spacing: 0.055em;
+}
+
+
+/* ============================================================
+ * 10. ERRORS / DISABLED / FOCUS
+ * ============================================================ */
+
+#tab-trading .trading-error {
+  border:
+    1px solid
+    rgba(255, 126, 139, 0.24);
+  border-radius: 10px;
+  background:
+    rgba(123, 35, 47, 0.10);
+  color:
+    rgba(255, 159, 168, 0.84);
+}
+
+#tab-trading button:disabled,
+#tab-trading input:disabled,
+#tab-trading select:disabled {
+  cursor: not-allowed;
+}
+
+#tab-trading button:focus-visible,
+#tab-trading input:focus-visible,
+#tab-trading select:focus-visible {
+  outline:
+    2px solid
+    rgba(91, 243, 193, 0.56);
+  outline-offset: 2px;
+}
+
+
+/* ============================================================
+ * 11. TOKEN / MARKET ARTWORK
+ * ============================================================ */
+
+#tab-trading .aurora-trading-asset-symbol {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(118, 238, 198, 0.17);
+  border-radius: 50%;
+  background:
+    rgba(4, 37, 30, 0.86);
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+#tab-trading .aurora-trading-asset-symbol
+.aurora-trading-symbol-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#tab-trading .aurora-trading-asset-symbol
+.aurora-trading-symbol-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color:
+    rgba(158, 236, 207, 0.84);
+  font-size: 0.43rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+#tab-trading .aurora-trading-market-symbols {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-right: 6px;
+  pointer-events: none;
+}
+
+#tab-trading .aurora-trading-market-symbols
+.aurora-trading-asset-symbol {
+  width: 18px;
+  height: 18px;
+  margin-right: -4px;
+  box-shadow:
+    0 0 0 2px
+    rgba(2, 21, 18, 0.92);
+}
+
+#tab-trading .aurora-trading-market-symbols
+.aurora-trading-asset-symbol:last-child {
+  margin-right: 0;
+}
+
+#tab-trading #tradingMarketTitle
+.aurora-trading-market-symbols {
+  margin-right: 8px;
+}
+
+#tab-trading .trading-orders-table
+.aurora-trading-market-symbols {
+  margin-right: 5px;
+}
+
+#tab-trading .trading-orders-table
+.aurora-trading-market-symbols
+.aurora-trading-asset-symbol {
+  width: 14px;
+  height: 14px;
+}
+
+#tab-trading .trading-book-head
+.aurora-trading-asset-symbol,
+#tab-trading .trading-trades-head
+.aurora-trading-asset-symbol {
+  width: 12px;
+  height: 12px;
+}
+
+
+/* ============================================================
+ * 12. RESPONSIVE
+ * ============================================================ */
+
+@media (max-width: 1250px) {
+  #tab-trading .trading-metrics {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+  }
+
+  #tab-trading .trading-market-grid {
+    grid-template-columns:
+      minmax(0, 1.65fr)
+      minmax(270px, 0.78fr);
+  }
+}
+
+@media (max-width: 900px) {
+  #tab-trading .trading-market-header {
+    align-items: flex-start;
+  }
+
+  #tab-trading .trading-live-indicator {
+    margin-left: 0;
+  }
+
+  #tab-trading .trading-market-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-trading .trading-book-panel {
+    position: static;
+    max-height: none;
+  }
+
+  #tab-trading .trading-order-preview-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  #tab-trading {
+    gap: 12px;
+  }
+
+  #tab-trading > .panel:first-child,
+  #tab-trading .trading-chart-panel,
+  #tab-trading .trading-order-panel,
+  #tab-trading .trading-book-panel,
+  #tab-trading .trading-orders-panel {
+    border-radius: 15px;
+  }
+
+  #tab-trading .trading-market-header {
+    gap: 10px;
+  }
+
+  #tab-trading .trading-market-title {
+    gap: 8px 10px;
+  }
+
+  #tab-trading .trading-metrics {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  #tab-trading .trading-order-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-trading .trading-readonly-notice {
+    display: grid;
+  }
+}
+
+@media (max-width: 460px) {
+  #tab-trading .trading-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-trading .trading-market-symbols
+  .aurora-trading-asset-symbol {
+    width: 16px;
+    height: 16px;
+  }
+}

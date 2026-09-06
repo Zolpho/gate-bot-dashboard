@@ -2041,6 +2041,794 @@
   }
 
 
+
+  /*
+   * ==========================================================
+   * AURORA A7C101 — TRADING TOKEN / MARKET SYMBOLS
+   * ==========================================================
+   *
+   * Presentation only.
+   *
+   * No Trading listener, request, write capability or state
+   * transition is owned here. Runtime text remains canonical.
+   * When trading.js / trading-limit.js replace text or rows,
+   * the existing shared symbol MutationObserver simply
+   * decorates the newly rendered presentation again.
+   */
+
+  function tradingTextWithoutAuroraSymbols(
+    element,
+  ) {
+    if (!element) {
+      return '';
+    }
+
+    const clone = element.cloneNode(true);
+
+    clone.querySelectorAll(
+      '.aurora-trading-asset-symbol, '
+      + '.aurora-trading-market-symbols'
+    ).forEach(
+      node => node.remove()
+    );
+
+    return String(
+      clone.textContent || ''
+    ).trim();
+  }
+
+  function tradingMarketAssets(
+    value,
+  ) {
+    const canonical = String(
+      value || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    if (!canonical) {
+      return [
+        '',
+        '',
+      ];
+    }
+
+    const direct = canonical.match(
+      /^([A-Z0-9.]{1,24})\s*(?:\/|_|-)\s*([A-Z0-9.]{1,24})$/
+    );
+
+    if (direct) {
+      return [
+        direct[1],
+        direct[2],
+      ];
+    }
+
+    const fallback = splitBotMarketAssets(
+      canonical
+    );
+
+    return [
+      String(
+        fallback?.[0] || ''
+      ).trim().toUpperCase(),
+      String(
+        fallback?.[1] || ''
+      ).trim().toUpperCase(),
+    ];
+  }
+
+  function tradingCurrentMarketAssets() {
+    const pairInput = document.querySelector(
+      '#tradingPair'
+    );
+
+    const marketTitle = document.querySelector(
+      '#tradingMarketTitle'
+    );
+
+    const candidates = [
+      String(
+        pairInput?.value || ''
+      ),
+      tradingTextWithoutAuroraSymbols(
+        marketTitle
+      ),
+    ];
+
+    for (const candidate of candidates) {
+      const [
+        base,
+        quote,
+      ] = tradingMarketAssets(
+        candidate
+      );
+
+      if (
+        base
+        && quote
+      ) {
+        return [
+          base,
+          quote,
+        ];
+      }
+    }
+
+    return [
+      '',
+      '',
+    ];
+  }
+
+  function tradingCreateAssetSymbol(
+    asset,
+  ) {
+    const canonical = String(
+      asset || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    if (!canonical) {
+      return null;
+    }
+
+    const wrapper = document.createElement(
+      'span'
+    );
+
+    wrapper.className =
+      'aurora-trading-asset-symbol';
+
+    wrapper.dataset.auroraTradingAsset =
+      canonical;
+
+    wrapper.setAttribute(
+      'aria-hidden',
+      'true'
+    );
+
+    const icon = assetIcon(
+      canonical
+    );
+
+    if (icon) {
+      const image = document.createElement(
+        'img'
+      );
+
+      image.className =
+        'aurora-trading-symbol-image';
+
+      image.src =
+        `./assets/symbols/${icon}`;
+
+      image.alt = '';
+
+      image.draggable = false;
+
+      wrapper.append(
+        image
+      );
+
+      return wrapper;
+    }
+
+    const fallback = document.createElement(
+      'span'
+    );
+
+    fallback.className =
+      'aurora-trading-symbol-fallback';
+
+    fallback.textContent =
+      canonical.slice(
+        0,
+        2,
+      );
+
+    wrapper.append(
+      fallback
+    );
+
+    return wrapper;
+  }
+
+  function tradingPrependAssetSymbol(
+    element,
+    asset,
+  ) {
+    if (
+      !element
+      || !asset
+    ) {
+      return;
+    }
+
+    const canonical = String(
+      asset
+    )
+      .trim()
+      .toUpperCase();
+
+    const existing = Array.from(
+      element.children
+    ).find(
+      child => (
+        child.classList
+          ?.contains(
+            'aurora-trading-asset-symbol'
+          )
+      )
+    );
+
+    if (
+      existing
+      && existing.dataset
+        .auroraTradingAsset
+        === canonical
+    ) {
+      return;
+    }
+
+    Array.from(
+      element.children
+    )
+      .filter(
+        child => (
+          child.classList
+            ?.contains(
+              'aurora-trading-asset-symbol'
+            )
+        )
+      )
+      .forEach(
+        child => child.remove()
+      );
+
+    const symbol = tradingCreateAssetSymbol(
+      canonical
+    );
+
+    if (!symbol) {
+      return;
+    }
+
+    element.prepend(
+      symbol
+    );
+  }
+
+  function tradingPrependMarketSymbols(
+    element,
+    market,
+  ) {
+    if (!element) {
+      return;
+    }
+
+    const [
+      base,
+      quote,
+    ] = tradingMarketAssets(
+      market
+    );
+
+    if (
+      !base
+      || !quote
+    ) {
+      return;
+    }
+
+    const canonicalMarket =
+      `${base}_${quote}`;
+
+    const existing = Array.from(
+      element.children
+    ).find(
+      child => (
+        child.classList
+          ?.contains(
+            'aurora-trading-market-symbols'
+          )
+      )
+    );
+
+    if (
+      existing
+      && existing.dataset
+        .auroraTradingMarket
+        === canonicalMarket
+    ) {
+      return;
+    }
+
+    Array.from(
+      element.children
+    )
+      .filter(
+        child => (
+          child.classList
+            ?.contains(
+              'aurora-trading-market-symbols'
+            )
+        )
+      )
+      .forEach(
+        child => child.remove()
+      );
+
+    const group = document.createElement(
+      'span'
+    );
+
+    group.className =
+      'aurora-trading-market-symbols';
+
+    group.dataset.auroraTradingMarket =
+      canonicalMarket;
+
+    group.setAttribute(
+      'aria-hidden',
+      'true'
+    );
+
+    [
+      base,
+      quote,
+    ].forEach(
+      asset => {
+        const symbol =
+          tradingCreateAssetSymbol(
+            asset
+          );
+
+        if (symbol) {
+          group.append(
+            symbol
+          );
+        }
+      }
+    );
+
+    if (!group.children.length) {
+      return;
+    }
+
+    element.prepend(
+      group
+    );
+  }
+
+  function tradingAssetFromNumericText(
+    value,
+  ) {
+    const match = String(
+      value || ''
+    ).match(
+      /^\s*[-+]?(?:(?:\d{1,3}(?:,\d{3})+)|\d+)(?:\.\d+)?\s+([A-Za-z][A-Za-z0-9._-]{1,14})(?=\s+(?:available|locked)\b|\s*$)/i
+    );
+
+    return String(
+      match?.[1] || ''
+    )
+      .trim()
+      .toUpperCase();
+  }
+
+  function tradingAssetFromKnownSuffix(
+    value,
+  ) {
+    const match = String(
+      value || ''
+    ).match(
+      /^\s*[-+]?(?:(?:\d{1,3}(?:,\d{3})+)|\d+)(?:\.\d+)?\s+([A-Za-z][A-Za-z0-9._-]{1,14})\s*$/
+    );
+
+    return String(
+      match?.[1] || ''
+    )
+      .trim()
+      .toUpperCase();
+  }
+
+  function decorateTradingMarketHeader(
+    base,
+    quote,
+  ) {
+    const title = document.querySelector(
+      '#tradingMarketTitle'
+    );
+
+    if (title) {
+      const raw =
+        tradingTextWithoutAuroraSymbols(
+          title
+        );
+
+      const [
+        titleBase,
+        titleQuote,
+      ] = tradingMarketAssets(
+        raw
+      );
+
+      if (
+        titleBase
+        && titleQuote
+      ) {
+        tradingPrependMarketSymbols(
+          title,
+          `${titleBase}_${titleQuote}`,
+        );
+      }
+    }
+
+    const quoteTargets = [
+      '#tradingLastPrice',
+      '#tradingBestBid',
+      '#tradingBestAsk',
+      '#tradingHigh24h',
+      '#tradingLow24h',
+      '#tradingSpread',
+    ];
+
+    quoteTargets.forEach(
+      selector => {
+        tradingPrependAssetSymbol(
+          document.querySelector(
+            selector
+          ),
+          quote,
+        );
+      }
+    );
+
+    const baseTargets = [
+      '#tradingBaseVolume',
+      '#tradingVolumeValue',
+    ];
+
+    baseTargets.forEach(
+      selector => {
+        tradingPrependAssetSymbol(
+          document.querySelector(
+            selector
+          ),
+          base,
+        );
+      }
+    );
+
+    tradingPrependAssetSymbol(
+      document.querySelector(
+        '#tradingQuoteVolume'
+      ),
+      quote,
+    );
+  }
+
+  function decorateTradingTicketAssets(
+    base,
+    quote,
+  ) {
+    tradingPrependAssetSymbol(
+      document.querySelector(
+        '#tradingLimitPriceAsset'
+      ),
+      quote,
+    );
+
+    tradingPrependAssetSymbol(
+      document.querySelector(
+        '#tradingLimitAmountAsset'
+      ),
+      base,
+    );
+
+    tradingPrependAssetSymbol(
+      document.querySelector(
+        '#tradingLimitTotalAsset'
+      ),
+      quote,
+    );
+
+    const available = document.querySelector(
+      '#tradingLimitAvailable'
+    );
+
+    if (available) {
+      const asset =
+        tradingAssetFromNumericText(
+          tradingTextWithoutAuroraSymbols(
+            available
+          )
+        );
+
+      if (asset) {
+        tradingPrependAssetSymbol(
+          available,
+          asset,
+        );
+      }
+    }
+  }
+
+  function decorateTradingBalanceAssets(
+    base,
+    quote,
+  ) {
+    [
+      '#tradingBaseBalanceLabel',
+      '#tradingBaseAvailable',
+      '#tradingBaseLocked',
+    ].forEach(
+      selector => {
+        tradingPrependAssetSymbol(
+          document.querySelector(
+            selector
+          ),
+          base,
+        );
+      }
+    );
+
+    [
+      '#tradingQuoteBalanceLabel',
+      '#tradingQuoteAvailable',
+      '#tradingQuoteLocked',
+    ].forEach(
+      selector => {
+        tradingPrependAssetSymbol(
+          document.querySelector(
+            selector
+          ),
+          quote,
+        );
+      }
+    );
+  }
+
+  function decorateTradingBookHeaders(
+    base,
+    quote,
+  ) {
+    const bookHeaders =
+      document.querySelectorAll(
+        '#tab-trading '
+        + '.trading-book-head > span'
+      );
+
+    const bookAssets = [
+      quote,
+      base,
+      quote,
+    ];
+
+    bookHeaders.forEach(
+      (
+        element,
+        index,
+      ) => {
+        tradingPrependAssetSymbol(
+          element,
+          bookAssets[index] || '',
+        );
+      }
+    );
+
+    const tradeHeaders =
+      document.querySelectorAll(
+        '#tab-trading '
+        + '.trading-trades-head > span'
+      );
+
+    const tradeAssets = [
+      quote,
+      base,
+      quote,
+      '',
+    ];
+
+    tradeHeaders.forEach(
+      (
+        element,
+        index,
+      ) => {
+        tradingPrependAssetSymbol(
+          element,
+          tradeAssets[index] || '',
+        );
+      }
+    );
+  }
+
+  function decorateTradingPreviewAssets(
+    base,
+    quote,
+  ) {
+    document.querySelectorAll(
+      '#tradingLimitOrderPreview '
+      + '.trading-order-preview-card'
+    ).forEach(
+      card => {
+        const label = String(
+          card.querySelector(
+            'span'
+          )?.textContent || ''
+        )
+          .trim()
+          .toLowerCase();
+
+        const value = card.querySelector(
+          'strong'
+        );
+
+        if (!value) {
+          return;
+        }
+
+        let asset = '';
+
+        if (
+          label === 'price'
+          || label === 'total'
+          || label === 'best bid'
+          || label === 'best ask'
+        ) {
+          asset = quote;
+        } else if (
+          label === 'amount'
+        ) {
+          asset = base;
+        } else if (
+          label === 'funds required'
+          || label === 'available'
+          || label === 'remaining'
+        ) {
+          const rawValue =
+            tradingTextWithoutAuroraSymbols(
+              value
+            );
+
+          asset =
+            tradingAssetFromNumericText(
+              rawValue
+            )
+            || tradingAssetFromKnownSuffix(
+              rawValue
+            );
+        }
+
+        if (asset) {
+          tradingPrependAssetSymbol(
+            value,
+            asset,
+          );
+        }
+      }
+    );
+  }
+
+  function decorateTradingOrderMarkets() {
+    const tableTargets = [
+      [
+        '#tradingOpenOrders',
+        0,
+      ],
+      [
+        '#tradingRecentOrders',
+        1,
+      ],
+    ];
+
+    tableTargets.forEach(
+      ([
+        selector,
+        pairCellIndex,
+      ]) => {
+        const body = document.querySelector(
+          selector
+        );
+
+        if (!body) {
+          return;
+        }
+
+        Array.from(
+          body.rows || []
+        ).forEach(
+          row => {
+            const cell =
+              row.cells?.[
+                pairCellIndex
+              ];
+
+            const code =
+              cell?.querySelector(
+                'code'
+              );
+
+            if (!code) {
+              return;
+            }
+
+            const market =
+              tradingTextWithoutAuroraSymbols(
+                code
+              );
+
+            const [
+              base,
+              quote,
+            ] = tradingMarketAssets(
+              market
+            );
+
+            if (
+              base
+              && quote
+            ) {
+              tradingPrependMarketSymbols(
+                code,
+                `${base}_${quote}`,
+              );
+            }
+          }
+        );
+      }
+    );
+  }
+
+  function decorateTradingSymbols() {
+    const root = document.querySelector(
+      '#tab-trading'
+    );
+
+    if (!root) {
+      return;
+    }
+
+    const [
+      base,
+      quote,
+    ] = tradingCurrentMarketAssets();
+
+    if (
+      base
+      && quote
+    ) {
+      decorateTradingMarketHeader(
+        base,
+        quote,
+      );
+
+      decorateTradingTicketAssets(
+        base,
+        quote,
+      );
+
+      decorateTradingBalanceAssets(
+        base,
+        quote,
+      );
+
+      decorateTradingBookHeaders(
+        base,
+        quote,
+      );
+
+      decorateTradingPreviewAssets(
+        base,
+        quote,
+      );
+    }
+
+    decorateTradingOrderMarkets();
+  }
+
   function decorateTreasurySymbols() {
     decorateTreasuryTransferSymbols();
 
@@ -2059,6 +2847,8 @@
     decorateBotControlSymbols();
 
     decorateTreasurySymbols();
+
+    decorateTradingSymbols();
   }
 
   let scheduled = false;
