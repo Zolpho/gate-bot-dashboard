@@ -1,0 +1,664 @@
+/*
+ * Aurora Alerts
+ * A7C127 — presentation only.
+ *
+ * Canonical Alerts semantics remain in:
+ *   alerts.css
+ *   app.js
+ *
+ * This stylesheet owns Aurora presentation only.
+ * It must never own #tab-alerts visibility.
+ */
+
+
+/* ============================================================
+ * 01. ALERTS WORKSPACE
+ * ============================================================ */
+
+#tab-alerts {
+  --aurora-alerts-line:
+    rgba(102, 244, 194, 0.15);
+  --aurora-alerts-line-strong:
+    rgba(102, 244, 194, 0.30);
+  --aurora-alerts-panel:
+    rgba(3, 28, 23, 0.74);
+  --aurora-alerts-panel-deep:
+    rgba(2, 20, 17, 0.90);
+  --aurora-alerts-cell:
+    rgba(1, 18, 15, 0.68);
+  --aurora-alerts-mint:
+    rgb(91, 243, 193);
+  --aurora-alerts-amber:
+    rgb(245, 205, 112);
+  --aurora-alerts-red:
+    rgb(255, 126, 139);
+  --aurora-alerts-muted:
+    rgba(168, 204, 190, 0.60);
+}
+
+#tab-alerts .alerts-grid {
+  grid-template-columns:
+    minmax(300px, 0.82fr)
+    minmax(0, 1.48fr);
+  gap: 16px;
+}
+
+#tab-alerts .alerts-panel {
+  position: relative;
+  overflow: hidden;
+  border:
+    1px solid
+    var(--aurora-alerts-line);
+  border-radius: 20px;
+  background:
+    linear-gradient(
+      150deg,
+      rgba(5, 39, 31, 0.84),
+      rgba(2, 22, 18, 0.90)
+    );
+  box-shadow:
+    inset 0 1px 0
+    rgba(134, 255, 215, 0.025);
+}
+
+#tab-alerts .alerts-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(91, 243, 193, 0.36),
+      transparent
+    );
+}
+
+#tab-alerts .alerts-panel > .panel-header {
+  position: relative;
+  z-index: 1;
+  gap: 14px;
+  padding-bottom: 13px;
+  border-bottom:
+    1px solid
+    rgba(102, 244, 194, 0.10);
+}
+
+#tab-alerts .alerts-panel > .panel-header h2 {
+  margin: 0;
+  color:
+    rgba(235, 254, 247, 0.96);
+  font-size: 1rem;
+  letter-spacing: -0.015em;
+}
+
+#tab-alerts .alerts-panel > .panel-header p {
+  margin-top: 4px;
+  color:
+    rgba(163, 200, 186, 0.53);
+  font-size: 0.69rem;
+}
+
+
+/* ============================================================
+ * 02. ALERT RULES
+ * ============================================================ */
+
+#tab-alerts .alerts-rules-panel {
+  background:
+    radial-gradient(
+      circle at 0% 0%,
+      rgba(42, 144, 109, 0.10),
+      transparent 38%
+    ),
+    linear-gradient(
+      150deg,
+      rgba(5, 39, 31, 0.84),
+      rgba(2, 22, 18, 0.90)
+    );
+}
+
+#tab-alerts #addRuleButton {
+  min-height: 36px;
+  padding:
+    7px
+    13px;
+  border-color:
+    rgba(91, 243, 193, 0.28);
+  border-radius: 10px;
+  background:
+    rgba(19, 87, 66, 0.14);
+  color:
+    rgba(136, 244, 208, 0.88);
+  font-size: 0.72rem;
+  font-weight: 720;
+}
+
+#tab-alerts #addRuleButton:hover:not(:disabled) {
+  border-color:
+    rgba(91, 243, 193, 0.54);
+  background:
+    rgba(26, 111, 84, 0.20);
+}
+
+#tab-alerts #addRuleButton:disabled {
+  border-color:
+    rgba(143, 164, 156, 0.14);
+  background:
+    rgba(29, 41, 37, 0.22);
+  color:
+    rgba(153, 172, 165, 0.38);
+}
+
+#tab-alerts .alerts-rule-list {
+  gap: 9px;
+}
+
+#tab-alerts .alerts-rule {
+  border:
+    1px solid
+    rgba(102, 244, 194, 0.11);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(4, 32, 26, 0.72),
+      rgba(2, 22, 18, 0.76)
+    );
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+#tab-alerts .alerts-rule:hover {
+  border-color:
+    rgba(102, 244, 194, 0.22);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 40, 32, 0.78),
+      rgba(2, 25, 20, 0.82)
+    );
+}
+
+#tab-alerts .alerts-rule-title strong {
+  color:
+    rgba(228, 251, 242, 0.92);
+  font-weight: 720;
+}
+
+#tab-alerts .alerts-rule-meta {
+  gap: 6px 8px;
+}
+
+#tab-alerts .alerts-rule-scope {
+  border-color:
+    rgba(91, 243, 193, 0.16);
+  background:
+    rgba(24, 91, 70, 0.10);
+  color:
+    rgba(169, 220, 201, 0.73);
+}
+
+#tab-alerts .alerts-rule-condition {
+  color:
+    rgba(211, 237, 227, 0.78);
+}
+
+#tab-alerts .alerts-rule-cooldown {
+  color:
+    rgba(144, 181, 168, 0.50);
+}
+
+#tab-alerts .alerts-rule-status {
+  border-color:
+    rgba(143, 164, 156, 0.16);
+  background:
+    rgba(43, 57, 52, 0.14);
+  color:
+    rgba(164, 184, 176, 0.58);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+#tab-alerts .alerts-rule-status.active {
+  border-color:
+    rgba(91, 243, 193, 0.34);
+  background:
+    rgba(27, 113, 85, 0.12);
+  color:
+    var(--aurora-alerts-mint);
+}
+
+#tab-alerts .alerts-rule-actions {
+  gap: 9px;
+}
+
+#tab-alerts .alerts-rule-toggle {
+  filter:
+    saturate(0.92)
+    brightness(0.94);
+}
+
+#tab-alerts .delete-rule {
+  color:
+    rgba(255, 139, 150, 0.78);
+}
+
+#tab-alerts .delete-rule:hover {
+  color:
+    var(--aurora-alerts-red);
+}
+
+
+/* ============================================================
+ * 03. ACTIVE INCIDENTS
+ * ============================================================ */
+
+#tab-alerts .alerts-incidents-panel {
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(245, 205, 112, 0.055),
+      transparent 34%
+    ),
+    linear-gradient(
+      150deg,
+      rgba(5, 37, 30, 0.84),
+      rgba(2, 22, 18, 0.90)
+    );
+}
+
+#tab-alerts .alerts-count-badge {
+  border-color:
+    rgba(91, 243, 193, 0.28);
+  background:
+    rgba(27, 113, 85, 0.10);
+  color:
+    var(--aurora-alerts-mint);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+#tab-alerts .alerts-count-badge.has-open {
+  border-color:
+    rgba(245, 205, 112, 0.38);
+  background:
+    rgba(114, 84, 18, 0.12);
+  color:
+    var(--aurora-alerts-amber);
+}
+
+#tab-alerts .alerts-count-badge.muted {
+  border-color:
+    rgba(133, 158, 148, 0.14);
+  background:
+    rgba(31, 45, 40, 0.10);
+  color:
+    rgba(144, 169, 159, 0.45);
+}
+
+#tab-alerts .alerts-incident-list,
+#tab-alerts .alerts-history-list {
+  gap: 9px;
+}
+
+#tab-alerts .alerts-incident {
+  position: relative;
+  border:
+    1px solid
+    rgba(245, 205, 112, 0.15);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(52, 42, 16, 0.14),
+      rgba(4, 28, 23, 0.68)
+    );
+}
+
+#tab-alerts .alerts-incident.is-open {
+  box-shadow:
+    inset 2px 0 0
+    rgba(245, 205, 112, 0.46);
+}
+
+#tab-alerts .alerts-incident.is-acknowledged {
+  border-color:
+    rgba(137, 160, 151, 0.12);
+  background:
+    rgba(4, 27, 22, 0.54);
+  box-shadow: none;
+}
+
+#tab-alerts .alerts-incident .event-dot {
+  box-shadow:
+    0 0 0 4px
+    rgba(245, 205, 112, 0.055);
+}
+
+#tab-alerts .alerts-incident.is-acknowledged .event-dot {
+  box-shadow: none;
+}
+
+#tab-alerts .alerts-incident-heading strong {
+  color:
+    rgba(237, 250, 245, 0.92);
+  font-weight: 720;
+}
+
+#tab-alerts .alerts-incident-heading span {
+  color:
+    rgba(151, 188, 174, 0.52);
+}
+
+#tab-alerts .alerts-incident-condition {
+  color:
+    rgba(225, 234, 202, 0.74);
+}
+
+#tab-alerts .alerts-incident-values {
+  gap: 7px;
+}
+
+#tab-alerts .alerts-incident-values > div {
+  border-color:
+    rgba(102, 244, 194, 0.09);
+  border-radius: 8px;
+  background:
+    rgba(1, 18, 15, 0.56);
+}
+
+#tab-alerts .alerts-incident-values span {
+  color:
+    rgba(139, 177, 163, 0.48);
+  letter-spacing: 0.055em;
+}
+
+#tab-alerts .alerts-incident-values strong {
+  color:
+    rgba(225, 246, 238, 0.84);
+}
+
+#tab-alerts .alerts-incident-time-row {
+  color:
+    rgba(139, 174, 161, 0.43);
+}
+
+#tab-alerts .alerts-incident-status {
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+#tab-alerts .alerts-incident-status.open {
+  border-color:
+    rgba(245, 205, 112, 0.38);
+  background:
+    rgba(114, 84, 18, 0.12);
+  color:
+    var(--aurora-alerts-amber);
+}
+
+#tab-alerts .alerts-incident-status.acknowledged {
+  border-color:
+    rgba(137, 160, 151, 0.14);
+  background:
+    rgba(39, 52, 47, 0.12);
+  color:
+    rgba(151, 173, 165, 0.52);
+}
+
+#tab-alerts .ack-incident {
+  padding:
+    4px
+    7px;
+  border:
+    1px solid
+    rgba(245, 205, 112, 0.20);
+  border-radius: 8px;
+  background:
+    rgba(96, 72, 18, 0.08);
+  color:
+    rgba(245, 205, 112, 0.82);
+}
+
+#tab-alerts .ack-incident:hover {
+  border-color:
+    rgba(245, 205, 112, 0.42);
+  background:
+    rgba(114, 84, 18, 0.14);
+  color:
+    var(--aurora-alerts-amber);
+}
+
+
+/* ============================================================
+ * 04. RECOVERED HISTORY
+ * ============================================================ */
+
+#tab-alerts .alerts-history-section {
+  border-top-color:
+    rgba(102, 244, 194, 0.09);
+}
+
+#tab-alerts .alerts-history-header h3 {
+  color:
+    rgba(220, 243, 234, 0.82);
+  font-size: 0.82rem;
+}
+
+#tab-alerts .alerts-history-header p {
+  color:
+    rgba(143, 176, 164, 0.43);
+}
+
+#tab-alerts .alerts-history-item {
+  border-color:
+    rgba(102, 244, 194, 0.08);
+  border-radius: 9px;
+  background:
+    rgba(1, 19, 16, 0.45);
+}
+
+#tab-alerts .alerts-history-item.is-acknowledged {
+  opacity: 0.72;
+}
+
+#tab-alerts .alerts-history-title strong {
+  color:
+    rgba(202, 229, 218, 0.72);
+}
+
+#tab-alerts .alerts-history-title span,
+#tab-alerts .alerts-history-values,
+#tab-alerts .alerts-history-times {
+  color:
+    rgba(135, 167, 155, 0.42);
+}
+
+#tab-alerts .alerts-history-condition {
+  color:
+    rgba(177, 206, 195, 0.58);
+}
+
+#tab-alerts .alerts-incident-status.recovered {
+  border-color:
+    rgba(91, 243, 193, 0.20);
+  background:
+    rgba(25, 92, 71, 0.08);
+  color:
+    rgba(108, 222, 184, 0.68);
+}
+
+
+/* ============================================================
+ * 05. EMPTY STATES
+ * ============================================================ */
+
+#tab-alerts .empty-state {
+  min-height: 88px;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  border:
+    1px dashed
+    rgba(102, 244, 194, 0.11);
+  border-radius: 11px;
+  background:
+    rgba(1, 18, 15, 0.34);
+  color:
+    rgba(141, 178, 164, 0.45);
+  font-size: 0.72rem;
+}
+
+
+/* ============================================================
+ * 06. ADD RULE DIALOG
+ * ============================================================ */
+
+#ruleDialog {
+  width:
+    min(
+      620px,
+      calc(100vw - 28px)
+    );
+  border:
+    1px solid
+    rgba(102, 244, 194, 0.24);
+  border-radius: 20px;
+  background:
+    linear-gradient(
+      150deg,
+      rgba(5, 37, 30, 0.98),
+      rgba(2, 20, 17, 0.99)
+    );
+  color:
+    rgba(231, 251, 243, 0.92);
+  box-shadow:
+    0 26px 90px
+    rgba(0, 0, 0, 0.56);
+}
+
+#ruleDialog::backdrop {
+  background:
+    rgba(0, 10, 8, 0.72);
+  backdrop-filter:
+    blur(5px);
+}
+
+#ruleDialog .dialog-header {
+  padding-bottom: 13px;
+  border-bottom:
+    1px solid
+    rgba(102, 244, 194, 0.11);
+}
+
+#ruleDialog .dialog-header h2 {
+  color:
+    rgba(237, 254, 248, 0.96);
+}
+
+#ruleDialog .dialog-header p {
+  color:
+    rgba(151, 190, 175, 0.52);
+}
+
+#ruleDialog .form-grid {
+  gap: 13px;
+}
+
+#ruleDialog label {
+  color:
+    rgba(157, 196, 181, 0.62);
+  font-size: 0.70rem;
+  font-weight: 650;
+}
+
+#ruleDialog input,
+#ruleDialog select {
+  border-color:
+    rgba(102, 244, 194, 0.15);
+  border-radius: 9px;
+  background:
+    rgba(1, 18, 15, 0.82);
+  color:
+    rgba(226, 249, 240, 0.90);
+}
+
+#ruleDialog input:focus,
+#ruleDialog select:focus {
+  border-color:
+    rgba(91, 243, 193, 0.48);
+  outline: 0;
+  box-shadow:
+    0 0 0 3px
+    rgba(91, 243, 193, 0.06);
+}
+
+#ruleDialog .form-actions {
+  padding-top: 4px;
+}
+
+#ruleDialog .form-actions .button.primary {
+  border-color:
+    rgba(91, 243, 193, 0.34);
+  background:
+    rgba(34, 163, 120, 0.76);
+  color:
+    rgba(3, 23, 18, 0.96);
+}
+
+#ruleDialog .form-actions .button.primary:hover {
+  background:
+    rgba(47, 195, 146, 0.84);
+}
+
+#ruleDialog .form-actions .button.secondary {
+  border-color:
+    rgba(135, 162, 151, 0.16);
+  background:
+    rgba(33, 49, 43, 0.18);
+  color:
+    rgba(165, 191, 181, 0.62);
+}
+
+
+/* ============================================================
+ * 07. RESPONSIVE
+ * ============================================================ */
+
+@media (max-width: 1120px) {
+  #tab-alerts .alerts-grid {
+    grid-template-columns:
+      minmax(270px, 0.72fr)
+      minmax(0, 1.28fr);
+  }
+}
+
+@media (max-width: 900px) {
+  #tab-alerts .alerts-grid {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  #tab-alerts .alerts-panel {
+    border-radius: 15px;
+  }
+
+  #tab-alerts #addRuleButton {
+    width: 100%;
+  }
+
+  #tab-alerts .alerts-incident-values {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+  #ruleDialog {
+    border-radius: 15px;
+  }
+}
