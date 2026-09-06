@@ -1548,3 +1548,59 @@
     height: 16px;
   }
 }
+
+/*
+ * AURORA A7C120 — LIVE EXECUTION CAUTION
+ * ======================================
+ *
+ * Presentation only.
+ *
+ * An enabled confirmation input means the guarded backend has
+ * exposed live Spot execution for the reviewed order and no
+ * execution attempt is currently active.
+ *
+ * Keep read-only preflight READY mint. Highlight only the
+ * live-write boundary and its submit control in amber.
+ */
+
+#tab-trading #tradingLimitExecution:has(
+  #tradingLimitConfirmation:not(:disabled)
+) .trading-order-execution-status.ready {
+  border-color:
+    rgba(245, 205, 112, 0.48);
+  background:
+    rgba(114, 84, 18, 0.14);
+  color:
+    var(--aurora-trading-amber);
+}
+
+#tab-trading #tradingLimitExecution:has(
+  #tradingLimitConfirmation:not(:disabled)
+) #placeTradingLimitOrder {
+  border-color:
+    rgba(245, 205, 112, 0.42);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(124, 91, 19, 0.22),
+      rgba(71, 53, 15, 0.18)
+    );
+  color:
+    rgba(249, 222, 154, 0.94);
+}
+
+#tab-trading #tradingLimitExecution:has(
+  #tradingLimitConfirmation:not(:disabled)
+) #placeTradingLimitOrder:hover:not(:disabled) {
+  border-color:
+    rgba(245, 205, 112, 0.72);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(151, 109, 22, 0.32),
+      rgba(88, 65, 17, 0.24)
+    );
+  box-shadow:
+    0 0 0 3px
+    rgba(245, 205, 112, 0.07);
+}
