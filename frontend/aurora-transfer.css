@@ -1,0 +1,1014 @@
+/*
+ * Aurora — Wallet / Transfers
+ *
+ * Presentation-only treatment of the canonical Classic Transfers DOM.
+ *
+ * Safety invariants:
+ * - scoped exclusively to #walletTransfersWorkspace
+ * - no shared IDs are created, removed or renamed
+ * - app.js retains all transfer state / event / execution ownership
+ * - no transfer or Treasury semantics are changed here
+ */
+
+
+/* =========================================================
+   Workspace / command surface
+   ========================================================= */
+
+#walletTransfersWorkspace {
+  position: relative;
+  isolation: isolate;
+  padding-bottom: 12px;
+}
+
+#walletTransfersWorkspace::before {
+  content: "";
+  position: absolute;
+  inset: -28px -18px auto;
+  height: 250px;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(
+      circle at 18% 18%,
+      rgba(82, 242, 190, 0.11),
+      transparent 48%
+    ),
+    radial-gradient(
+      circle at 82% 6%,
+      rgba(73, 162, 255, 0.08),
+      transparent 42%
+    );
+  filter: blur(2px);
+}
+
+#walletTransfersWorkspace
+.wallet-treasury-actions-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+
+/* =========================================================
+   Primary transfer panel
+   ========================================================= */
+
+#walletTransfersWorkspace
+.treasury-user-transfer-section {
+  position: relative;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(82, 242, 190, 0.24);
+  border-radius: 22px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(7, 27, 22, 0.98),
+      rgba(4, 16, 14, 0.98)
+    );
+  box-shadow:
+    0 22px 65px rgba(0, 0, 0, 0.24),
+    inset 0 1px rgba(255, 255, 255, 0.035);
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-section::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(82, 242, 190, 0.76),
+      rgba(93, 198, 255, 0.38),
+      transparent
+    );
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-section
+> .treasury-section-header {
+  position: relative;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 24px 26px 18px;
+  border-bottom:
+    1px solid
+    rgba(111, 170, 149, 0.12);
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-section
+> .treasury-section-header
+h3 {
+  margin: 0 0 7px;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-section
+> .treasury-section-header
+p {
+  max-width: 720px;
+  margin: 0;
+  color: rgba(196, 221, 211, 0.66);
+  line-height: 1.58;
+}
+
+#walletTransfersWorkspace
+.treasury-action-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+
+/* =========================================================
+   Source / capability signal
+   ========================================================= */
+
+#walletTransfersWorkspace
+.treasury-user-transfer-scope {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 31px;
+  padding: 5px 11px;
+  border:
+    1px solid
+    rgba(82, 242, 190, 0.18);
+  border-radius: 999px;
+  background: rgba(13, 49, 39, 0.48);
+  color: rgba(202, 235, 222, 0.76);
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-scope
+strong {
+  color: #66f0c1;
+  font-weight: 700;
+}
+
+#walletTransfersWorkspace
+.treasury-capability-badge {
+  min-height: 31px;
+  padding: 6px 10px;
+  border:
+    1px solid
+    rgba(82, 242, 190, 0.18);
+  border-radius: 999px;
+  background: rgba(9, 37, 30, 0.72);
+  color: #8decc9;
+  font-size: 0.69rem;
+  font-weight: 750;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+#walletTransfersWorkspace
+.treasury-capability-badge.disabled,
+#walletTransfersWorkspace
+.treasury-capability-badge.warning {
+  border-color: rgba(243, 190, 83, 0.24);
+  background: rgba(64, 46, 17, 0.36);
+  color: #f0c36e;
+}
+
+
+/* =========================================================
+   Transfer route form
+   ========================================================= */
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr)
+    minmax(160px, 0.58fr)
+    minmax(180px, 0.72fr);
+  gap: 14px;
+  padding: 22px 26px 25px;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+> label {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+  margin: 0;
+  color: rgba(190, 218, 207, 0.7);
+  font-size: 0.73rem;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+select,
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+input:not([type="hidden"]) {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 13px;
+  border:
+    1px solid
+    rgba(105, 175, 149, 0.22);
+  border-radius: 12px;
+  outline: none;
+  background: rgba(2, 14, 12, 0.88);
+  color: #e6f5ef;
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.025);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+select:hover,
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+input:not([type="hidden"]):hover {
+  border-color: rgba(95, 222, 177, 0.38);
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+select:focus,
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+input:not([type="hidden"]):focus {
+  border-color: rgba(82, 242, 190, 0.62);
+  background: rgba(4, 23, 19, 0.96);
+  box-shadow:
+    0 0 0 3px rgba(82, 242, 190, 0.09);
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+select:disabled,
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+#walletTransfersWorkspace
+#treasuryUserTransferAmount {
+  font-variant-numeric: tabular-nums;
+  font-size: 1rem;
+  font-weight: 680;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 2px;
+  padding-top: 16px;
+  border-top:
+    1px solid
+    rgba(111, 170, 149, 0.11);
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-actions
+.button {
+  min-height: 40px;
+  border-radius: 11px;
+}
+
+#walletTransfersWorkspace
+#treasuryUserTransferPreviewButton {
+  border-color: rgba(82, 242, 190, 0.4);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(29, 105, 79, 0.84),
+      rgba(14, 69, 52, 0.9)
+    );
+  color: #d9fff1;
+}
+
+#walletTransfersWorkspace
+#treasuryUserTransferPreviewButton:hover:not(:disabled) {
+  border-color: rgba(82, 242, 190, 0.7);
+  box-shadow:
+    0 7px 24px rgba(33, 197, 140, 0.12);
+}
+
+#walletTransfersWorkspace
+#treasuryUserTransferResetButton,
+#walletTransfersWorkspace
+#treasuryUserTransferReviewResetButton {
+  background: rgba(6, 24, 20, 0.7);
+}
+
+
+/* =========================================================
+   Error state
+   ========================================================= */
+
+#walletTransfersWorkspace
+#treasuryUserTransferError {
+  grid-column: 1 / -1;
+  margin: 0 26px 22px;
+  padding: 12px 14px;
+  border:
+    1px solid
+    rgba(247, 99, 116, 0.26);
+  border-radius: 12px;
+  background: rgba(91, 27, 35, 0.24);
+  color: #ff9fab;
+}
+
+
+/* =========================================================
+   Read-only preview projection generated by app.js
+   ========================================================= */
+
+#walletTransfersWorkspace
+.treasury-user-transfer-preview {
+  margin: 0 26px 22px;
+  padding: 20px;
+  border:
+    1px solid
+    rgba(81, 199, 160, 0.21);
+  border-radius: 17px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(9, 39, 31, 0.76),
+      rgba(4, 24, 20, 0.82)
+    );
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-preview-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+  gap: 10px;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-card {
+  min-width: 0;
+  padding: 14px 15px;
+  border:
+    1px solid
+    rgba(104, 178, 151, 0.14);
+  border-radius: 13px;
+  background: rgba(1, 13, 11, 0.54);
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-card
+> span {
+  display: block;
+  margin-bottom: 7px;
+  color: rgba(181, 213, 200, 0.55);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-card
+> strong {
+  display: block;
+  overflow: hidden;
+  color: #e4f5ef;
+  font-size: 0.91rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-number {
+  color: #68f0c1;
+  font-size: 1.04rem;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-chip,
+#walletTransfersWorkspace
+.treasury-user-transfer-helper {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  width: fit-content;
+  min-height: 25px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 760;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-chip.success,
+#walletTransfersWorkspace
+.treasury-user-transfer-chip.safe,
+#walletTransfersWorkspace
+.treasury-user-transfer-helper.success {
+  border:
+    1px solid
+    rgba(82, 242, 190, 0.22);
+  background: rgba(26, 100, 76, 0.24);
+  color: #72efc3;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-chip.warning,
+#walletTransfersWorkspace
+.treasury-user-transfer-helper.warning {
+  border:
+    1px solid
+    rgba(243, 190, 83, 0.24);
+  background: rgba(82, 56, 16, 0.27);
+  color: #f1ca79;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-chip.danger {
+  border:
+    1px solid
+    rgba(247, 99, 116, 0.24);
+  background: rgba(91, 27, 35, 0.28);
+  color: #ff9fab;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-chip.neutral {
+  border:
+    1px solid
+    rgba(146, 177, 166, 0.18);
+  background: rgba(42, 57, 52, 0.34);
+  color: #b7cbc4;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-review-helpers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-helper-note {
+  margin-top: 11px;
+  color: rgba(184, 211, 201, 0.62);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+   Confirmation / execution gate
+   ========================================================= */
+
+#walletTransfersWorkspace
+.treasury-user-transfer-confirmation {
+  margin: 0 26px 26px;
+  padding: 18px 19px;
+  border:
+    1px solid
+    rgba(238, 178, 73, 0.25);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(68, 47, 14, 0.28),
+      rgba(35, 27, 10, 0.35)
+    );
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-confirmation-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-confirmation-head
+> strong {
+  color: #f4d48d;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-confirmation-head
+> span {
+  color: rgba(222, 202, 158, 0.62);
+  font-size: 0.73rem;
+}
+
+#walletTransfersWorkspace
+#treasuryUserTransferRequiredConfirmation {
+  display: block;
+  max-width: 100%;
+  margin: 10px 0 14px;
+  padding: 11px 12px;
+  overflow: auto;
+  border:
+    1px solid
+    rgba(235, 188, 95, 0.17);
+  border-radius: 10px;
+  background: rgba(4, 12, 10, 0.7);
+  color: #f0d59d;
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-confirmation-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto auto;
+  gap: 9px;
+  align-items: center;
+}
+
+#walletTransfersWorkspace
+#treasuryUserTransferConfirmation {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  border:
+    1px solid
+    rgba(235, 188, 95, 0.28);
+  border-radius: 10px;
+  outline: none;
+  background: rgba(4, 14, 12, 0.82);
+  color: #f4e4c0;
+  font-family: inherit;
+}
+
+#walletTransfersWorkspace
+#treasuryUserTransferConfirmation:focus {
+  border-color: rgba(244, 199, 109, 0.58);
+  box-shadow:
+    0 0 0 3px rgba(235, 188, 95, 0.08);
+}
+
+#walletTransfersWorkspace
+#executeTreasuryUserTransfer {
+  min-height: 42px;
+  border-color: rgba(82, 242, 190, 0.45);
+  background:
+    linear-gradient(
+      180deg,
+      #52e8b7,
+      #33c894
+    );
+  color: #052119;
+  font-weight: 780;
+}
+
+#walletTransfersWorkspace
+#executeTreasuryUserTransfer:disabled {
+  border-color: rgba(113, 146, 134, 0.13);
+  background: rgba(65, 82, 76, 0.34);
+  color: rgba(183, 205, 197, 0.42);
+}
+
+
+/* =========================================================
+   Persistent execution outcome
+   ========================================================= */
+
+#walletTransfersWorkspace
+.treasury-user-transfer-outcome {
+  display: grid;
+  grid-template-columns:
+    auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 15px 16px;
+  border-radius: 14px;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-outcome.success {
+  border:
+    1px solid
+    rgba(82, 242, 190, 0.24);
+  background: rgba(27, 102, 77, 0.21);
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-outcome.uncertain {
+  border:
+    1px solid
+    rgba(244, 184, 82, 0.25);
+  background: rgba(83, 57, 17, 0.22);
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-outcome-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.055);
+  font-weight: 800;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-outcome-body
+> strong {
+  color: #e7f7f1;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-outcome-body
+p {
+  margin: 4px 0 0;
+  color: rgba(190, 216, 206, 0.65);
+  font-size: 0.76rem;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-outcome-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 8px;
+  color: rgba(183, 210, 199, 0.58);
+  font-size: 0.71rem;
+}
+
+#walletTransfersWorkspace
+.treasury-user-transfer-outcome-actions {
+  display: flex;
+  gap: 8px;
+}
+
+
+/* =========================================================
+   Activity / lock records
+   ========================================================= */
+
+#walletTransfersWorkspace
+#treasuryRecords {
+  overflow: hidden;
+  margin-top: 18px;
+  border:
+    1px solid
+    rgba(94, 163, 138, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      150deg,
+      rgba(5, 23, 19, 0.94),
+      rgba(3, 16, 14, 0.96)
+    );
+}
+
+#walletTransfersWorkspace
+#treasuryRecords
+> .treasury-records-summary {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-height: 68px;
+  padding: 15px 20px;
+  border-bottom:
+    1px solid
+    transparent;
+  cursor: pointer;
+  list-style: none;
+}
+
+#walletTransfersWorkspace
+#treasuryRecords[open]
+> .treasury-records-summary {
+  border-bottom-color:
+    rgba(104, 168, 145, 0.13);
+}
+
+#walletTransfersWorkspace
+#treasuryRecords
+> .treasury-records-summary:hover {
+  background: rgba(22, 66, 53, 0.17);
+}
+
+#walletTransfersWorkspace
+.treasury-records-summary
+strong {
+  color: #dff3eb;
+}
+
+#walletTransfersWorkspace
+.treasury-records-summary
+small {
+  color: rgba(176, 207, 195, 0.56);
+}
+
+#walletTransfersWorkspace
+.treasury-records-review {
+  color: #63e7b8;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+#walletTransfersWorkspace
+.treasury-records-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  margin-left: auto;
+}
+
+#walletTransfersWorkspace
+.treasury-count {
+  border:
+    1px solid
+    rgba(95, 175, 145, 0.17);
+  border-radius: 999px;
+  background: rgba(12, 42, 34, 0.52);
+  color: rgba(188, 226, 211, 0.78);
+}
+
+#walletTransfersWorkspace
+.treasury-lock-count.attention {
+  border-color: rgba(246, 179, 75, 0.26);
+  background: rgba(74, 50, 13, 0.34);
+  color: #f2c56e;
+}
+
+#walletTransfersWorkspace
+.treasury-records-content {
+  padding: 18px 20px 21px;
+}
+
+#walletTransfersWorkspace
+.treasury-lock-section,
+#walletTransfersWorkspace
+.treasury-activity-section {
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(98, 155, 135, 0.12);
+  border-radius: 14px;
+  background: rgba(2, 13, 11, 0.42);
+}
+
+#walletTransfersWorkspace
+.treasury-lock-section
++ .treasury-activity-section {
+  margin-top: 14px;
+}
+
+#walletTransfersWorkspace
+.treasury-lock-section
+.treasury-section-header,
+#walletTransfersWorkspace
+.treasury-activity-section
+.treasury-section-header {
+  padding: 14px 16px;
+  border-bottom:
+    1px solid
+    rgba(104, 166, 144, 0.1);
+}
+
+#walletTransfersWorkspace
+.treasury-lock-list {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+}
+
+#walletTransfersWorkspace
+.treasury-lock-card {
+  display: grid;
+  gap: 10px;
+  padding: 13px 14px;
+  border:
+    1px solid
+    rgba(110, 173, 150, 0.13);
+  border-radius: 11px;
+  background: rgba(8, 30, 25, 0.52);
+}
+
+#walletTransfersWorkspace
+.treasury-empty,
+#walletTransfersWorkspace
+.empty-state {
+  padding: 18px;
+  color: rgba(177, 204, 194, 0.54);
+  text-align: center;
+}
+
+#walletTransfersWorkspace
+.table-scroll {
+  scrollbar-color:
+    rgba(82, 242, 190, 0.25)
+    transparent;
+}
+
+#walletTransfersWorkspace
+.treasury-activity-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#walletTransfersWorkspace
+.treasury-activity-table
+th {
+  padding: 10px 12px;
+  border-bottom:
+    1px solid
+    rgba(102, 164, 142, 0.13);
+  background: rgba(6, 26, 21, 0.8);
+  color: rgba(174, 207, 194, 0.58);
+  font-size: 0.67rem;
+  font-weight: 720;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+#walletTransfersWorkspace
+.treasury-activity-table
+td {
+  padding: 11px 12px;
+  border-bottom:
+    1px solid
+    rgba(101, 154, 136, 0.08);
+  color: rgba(215, 235, 227, 0.82);
+  font-size: 0.75rem;
+}
+
+#walletTransfersWorkspace
+.treasury-activity-table
+tbody
+tr:hover {
+  background: rgba(37, 94, 72, 0.13);
+}
+
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 1120px) {
+  #walletTransfersWorkspace
+  .treasury-user-transfer-form {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-preview-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+@media (max-width: 720px) {
+  #walletTransfersWorkspace
+  .treasury-user-transfer-section
+  > .treasury-section-header {
+    flex-direction: column;
+    padding:
+      20px
+      18px
+      16px;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-action-badges {
+    justify-content: flex-start;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-form {
+    grid-template-columns: 1fr;
+    padding:
+      18px;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-preview {
+    margin:
+      0
+      18px
+      18px;
+    padding: 15px;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-confirmation {
+    margin:
+      0
+      18px
+      18px;
+    padding: 15px;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-confirmation-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-confirmation-row {
+    grid-template-columns: 1fr;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-actions {
+    justify-content: stretch;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-actions
+  .button {
+    flex: 1 1 150px;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-outcome {
+    grid-template-columns:
+      auto
+      minmax(0, 1fr);
+  }
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-outcome-actions {
+    grid-column: 1 / -1;
+  }
+
+  #walletTransfersWorkspace
+  #treasuryRecords
+  > .treasury-records-summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-records-badges {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  #walletTransfersWorkspace
+  .treasury-records-content {
+    padding:
+      14px;
+  }
+}
