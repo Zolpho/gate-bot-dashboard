@@ -2560,34 +2560,18 @@
     base,
     quote,
   ) {
-    [
-      '#tradingBaseBalanceLabel',
-      '#tradingBaseAvailable',
-      '#tradingBaseLocked',
-    ].forEach(
-      selector => {
-        tradingPrependAssetSymbol(
-          document.querySelector(
-            selector
-          ),
-          base,
-        );
-      }
+    tradingPrependAssetSymbol(
+      document.querySelector(
+        '#tradingBaseAvailable'
+      ),
+      base,
     );
 
-    [
-      '#tradingQuoteBalanceLabel',
-      '#tradingQuoteAvailable',
-      '#tradingQuoteLocked',
-    ].forEach(
-      selector => {
-        tradingPrependAssetSymbol(
-          document.querySelector(
-            selector
-          ),
-          quote,
-        );
-      }
+    tradingPrependAssetSymbol(
+      document.querySelector(
+        '#tradingQuoteAvailable'
+      ),
+      quote,
     );
   }
 
