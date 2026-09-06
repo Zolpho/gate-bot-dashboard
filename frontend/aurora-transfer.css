@@ -1012,3 +1012,139 @@ tr:hover {
       14px;
   }
 }
+
+/*
+ * ============================================================
+ * AURORA A7C94 — TRANSFER LUCIDITY PASS
+ * ============================================================
+ *
+ * Raise readability one step without changing hierarchy,
+ * geometry or Treasury execution behavior.
+ */
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+> label {
+
+  color: rgba(
+    205,
+    230,
+    221,
+    0.82
+  );
+
+}
+
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+select,
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+input {
+
+  border-color: rgba(
+    95,
+    222,
+    177,
+    0.23
+  );
+
+}
+
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+select:disabled,
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+input:disabled {
+
+  opacity: 0.72;
+
+}
+
+
+#walletTransfersWorkspace
+.treasury-user-transfer-helper-note {
+
+  color: rgba(
+    195,
+    221,
+    211,
+    0.74
+  );
+
+}
+
+
+#walletTransfersWorkspace
+.treasury-user-transfer-confirmation-head
+> span {
+
+  color: rgba(
+    230,
+    211,
+    170,
+    0.72
+  );
+
+}
+
+
+#walletTransfersWorkspace
+#executeTreasuryUserTransfer:disabled {
+
+  border-color: rgba(
+    121,
+    157,
+    144,
+    0.20
+  );
+
+  background: rgba(
+    65,
+    82,
+    76,
+    0.38
+  );
+
+  color: rgba(
+    198,
+    219,
+    211,
+    0.60
+  );
+
+}
+
+
+#walletTransfersWorkspace
+.treasury-user-transfer-outcome-meta {
+
+  color: rgba(
+    196,
+    220,
+    211,
+    0.68
+  );
+
+}
+
+
+#walletTransfersWorkspace
+.treasury-empty,
+
+#walletTransfersWorkspace
+.empty-state {
+
+  color: rgba(
+    190,
+    216,
+    206,
+    0.66
+  );
+
+}

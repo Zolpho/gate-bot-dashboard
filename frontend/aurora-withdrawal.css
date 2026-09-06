@@ -6048,3 +6048,319 @@ strong {
       1fr !important;
   }
 }
+
+/*
+ * ============================================================
+ * AURORA A7C94 — WITHDRAWAL LUCIDITY PASS
+ * ============================================================
+ *
+ * Inactive means contextual, not illegible.
+ * Geometry and active-stage dominance remain unchanged.
+ */
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head
+> div
+> span {
+
+  color: rgba(
+    192,
+    221,
+    211,
+    0.64
+  );
+
+}
+
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid
+label {
+
+  color: rgba(
+    214,
+    236,
+    228,
+    0.78
+  );
+
+}
+
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-status {
+
+  border-color: rgba(
+    83,
+    224,
+    179,
+    0.17
+  );
+
+  color: rgba(
+    197,
+    224,
+    214,
+    0.72
+  );
+
+}
+
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-owner {
+
+  opacity: 0.70 !important;
+
+}
+
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-idle {
+
+  border-color: rgba(
+    84,
+    248,
+    194,
+    0.20
+  );
+
+  color: rgba(
+    190,
+    218,
+    208,
+    0.62
+  );
+
+}
+
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-placeholder
+p {
+
+  color: rgba(
+    190,
+    218,
+    208,
+    0.62
+  );
+
+}
+
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage[
+  data-aurora-state="waiting"
+]
+.aurora-withdrawal-stage-heading,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage[
+  data-aurora-state="locked"
+]
+.aurora-withdrawal-stage-heading {
+
+  opacity: 0.90;
+
+}
+
+
+#treasuryWithdrawalAction
+#createTreasuryWithdrawalRequest:disabled {
+
+  border-color: rgba(
+    84,
+    248,
+    194,
+    0.22
+  );
+
+  color: rgba(
+    202,
+    228,
+    218,
+    0.58
+  );
+
+}
+
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary {
+
+  border-color: rgba(
+    84,
+    248,
+    194,
+    0.14
+  );
+
+}
+
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-grid
+> div {
+
+  border-color: rgba(
+    84,
+    248,
+    194,
+    0.13
+  );
+
+  background: rgba(
+    8,
+    31,
+    24,
+    0.50
+  );
+
+}
+
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid
+> div {
+
+  border-color: rgba(
+    84,
+    248,
+    194,
+    0.13
+  );
+
+  background: rgba(
+    6,
+    27,
+    20,
+    0.62
+  );
+
+}
+
+
+/*
+ * Telemetry rail.
+ * Keep future steps subordinate but comfortably readable.
+ */
+
+.aurora-command-node[
+  data-aurora-state="waiting"
+],
+
+.aurora-command-node[
+  data-aurora-state="locked"
+] {
+
+  opacity: 0.62 !important;
+
+}
+
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="safety"
+]
+.aurora-command-node[
+  data-aurora-command-node="route"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="request"
+]
+.aurora-command-node[
+  data-aurora-command-node="route"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="request"
+]
+.aurora-command-node[
+  data-aurora-command-node="safety"
+] {
+
+  opacity: 0.72 !important;
+
+}
+
+
+/*
+ * Lower workspace.
+ * Current stage remains 1.0; context stages rise only enough
+ * to read labels and safety state without strain.
+ */
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="route"
+]
+.aurora-withdrawal-stage-safety {
+
+  opacity: 0.82 !important;
+
+}
+
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="route"
+]
+.aurora-withdrawal-stage-request {
+
+  opacity: 0.80 !important;
+
+}
+
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="safety"
+]
+.aurora-withdrawal-stage-destination {
+
+  opacity: 0.88 !important;
+
+}
+
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="safety"
+]
+.aurora-withdrawal-stage-request {
+
+  opacity: 0.80 !important;
+
+}
+
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-safety {
+
+  opacity: 0.86 !important;
+
+}
+
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="route"
+]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="safety"
+]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-request {
+
+  opacity: 1 !important;
+
+}

@@ -1464,6 +1464,590 @@
   }
 
 
+
+  /*
+   * AURORA A7C94
+   * Treasury symbol projection.
+   *
+   * Presentation only:
+   * - native selects remain native
+   * - text remains authoritative
+   * - app.js state / API behavior is untouched
+   * - existing MutationObserver is reused
+   */
+
+
+  function treasuryCanonicalText(
+    element
+  ) {
+    if (!element) {
+      return '';
+    }
+
+    const existing =
+      element.querySelector(
+        ':scope > .aurora-symbol'
+      );
+
+    if (!existing) {
+      const rendered = String(
+        element.textContent || ''
+      ).trim();
+
+      if (rendered) {
+        element.dataset
+          .auroraTreasuryCanonical =
+            rendered;
+      }
+
+      return rendered;
+    }
+
+    return String(
+      element.dataset
+        .auroraTreasuryCanonical
+      || ''
+    ).trim();
+  }
+
+
+  function treasuryAssetFromAmount(
+    value
+  ) {
+    const raw = String(
+      value || ''
+    ).trim();
+
+    if (
+      !raw
+      || raw === '—'
+    ) {
+      return '';
+    }
+
+    const match = raw.match(
+      /^\s*[-+]?(?:(?:\d{1,3}(?:,\d{3})+)|\d+)(?:\.\d+)?\s+([A-Za-z][A-Za-z0-9._-]{1,14})(?=\s*(?:\+|$))/
+    );
+
+    return match
+      ? match[1].toUpperCase()
+      : '';
+  }
+
+
+  function decorateTreasuryAmount(
+    element,
+    extraClass = '',
+  ) {
+    const raw =
+      treasuryCanonicalText(
+        element
+      );
+
+    const asset =
+      treasuryAssetFromAmount(
+        raw
+      );
+
+    if (!asset) {
+      return;
+    }
+
+    prependSymbol(
+      element,
+      'asset',
+      asset,
+      asset,
+      extraClass,
+    );
+  }
+
+
+  function decorateTreasuryDirectValue(
+    element,
+    kind,
+    value,
+    label = '',
+    extraClass = '',
+  ) {
+    const canonical = String(
+      value || ''
+    ).trim();
+
+    if (
+      !element
+      || !canonical
+      || canonical === '—'
+    ) {
+      return;
+    }
+
+    if (
+      !element.querySelector(
+        ':scope > .aurora-symbol'
+      )
+    ) {
+      element.dataset
+        .auroraTreasuryCanonical =
+          String(
+            element.textContent || ''
+          ).trim();
+    }
+
+    prependSymbol(
+      element,
+      kind,
+      canonical,
+      label || canonical,
+      extraClass,
+    );
+  }
+
+
+  function decorateTreasurySelect(
+    select,
+    kind,
+    value,
+    label = '',
+  ) {
+    if (!select) {
+      return;
+    }
+
+    const field =
+      select.closest('label');
+
+    if (!field) {
+      return;
+    }
+
+    field.classList.add(
+      'aurora-symbol-select-field'
+    );
+
+    let host =
+      field.querySelector(
+        ':scope > '
+        + '.aurora-select-symbol-host'
+      );
+
+    if (!host) {
+      host =
+        document.createElement(
+          'span'
+        );
+
+      host.className =
+        'aurora-select-symbol-host';
+
+      host.setAttribute(
+        'aria-hidden',
+        'true',
+      );
+
+      field.insertBefore(
+        host,
+        select,
+      );
+    }
+
+    const canonical = String(
+      value || ''
+    ).trim();
+
+    const display = String(
+      label || canonical
+    ).trim();
+
+    if (!canonical) {
+      select.classList.remove(
+        'aurora-symbol-select-active'
+      );
+
+      if (!host.hidden) {
+        host.hidden = true;
+      }
+
+      if (
+        host.dataset
+          .auroraSelectSymbolKey
+      ) {
+        host.replaceChildren();
+
+        delete host.dataset
+          .auroraSelectSymbolKey;
+      }
+
+      return;
+    }
+
+    const key = (
+      `${kind}|${canonical}|${display}`
+    );
+
+    select.classList.add(
+      'aurora-symbol-select-active'
+    );
+
+    host.hidden = false;
+
+    if (
+      host.dataset
+        .auroraSelectSymbolKey
+      !== key
+    ) {
+      host.replaceChildren(
+        makeSymbol(
+          kind,
+          canonical,
+          display,
+        )
+      );
+
+      host.dataset
+        .auroraSelectSymbolKey =
+          key;
+    }
+
+    if (
+      !select.dataset
+        .auroraTreasurySymbolListener
+    ) {
+      select.dataset
+        .auroraTreasurySymbolListener =
+          '1';
+
+      select.addEventListener(
+        'change',
+        scheduleDecorate,
+      );
+    }
+  }
+
+
+  function decorateTreasuryLabelledGrid(
+    root,
+    rowSelector,
+    specifications
+  ) {
+    if (!root) {
+      return;
+    }
+
+    root.querySelectorAll(
+      rowSelector
+    ).forEach(row => {
+      const label =
+        row.querySelector(
+          ':scope > span'
+        );
+
+      const value =
+        row.querySelector(
+          ':scope > strong'
+        );
+
+      if (
+        !label
+        || !value
+      ) {
+        return;
+      }
+
+      const labelText = String(
+        label.textContent || ''
+      ).trim();
+
+      const specification =
+        specifications[labelText];
+
+      if (!specification) {
+        return;
+      }
+
+      if (
+        specification === 'amount'
+      ) {
+        decorateTreasuryAmount(
+          value,
+          'aurora-treasury-value-symbol',
+        );
+
+        return;
+      }
+
+      const raw =
+        treasuryCanonicalText(
+          value
+        );
+
+      decorateTreasuryDirectValue(
+        value,
+        specification,
+        raw,
+        raw,
+        'aurora-treasury-value-symbol',
+      );
+    });
+  }
+
+
+  function decorateTreasuryTransferSymbols() {
+    const currencySelect =
+      document.querySelector(
+        '#treasuryUserTransferCurrency'
+      );
+
+    if (currencySelect) {
+      decorateTreasurySelect(
+        currencySelect,
+        'asset',
+        currencySelect.value,
+        currencySelect.value,
+      );
+    }
+
+    const preview =
+      document.querySelector(
+        '#treasuryUserTransferPreview'
+      );
+
+    decorateTreasuryLabelledGrid(
+      preview,
+      '.treasury-user-transfer-card',
+      {
+        'Asset': 'asset',
+        'Amount': 'amount',
+        'Balance before': 'amount',
+        'Balance after': 'amount',
+      },
+    );
+
+    document.querySelectorAll(
+      '#treasuryActivityBody tr'
+    ).forEach(row => {
+      const cells =
+        row.querySelectorAll('td');
+
+      if (cells.length < 5) {
+        return;
+      }
+
+      decorateTreasuryAmount(
+        cells[4],
+        'aurora-treasury-table-symbol',
+      );
+    });
+
+    document.querySelectorAll(
+      '#treasuryLockList '
+      + '.treasury-lock-field'
+    ).forEach(field => {
+      const label =
+        field.querySelector(
+          ':scope > span'
+        );
+
+      const value =
+        field.querySelector(
+          ':scope > strong'
+        );
+
+      if (
+        String(
+          label?.textContent || ''
+        ).trim() !== 'Currency'
+      ) {
+        return;
+      }
+
+      const currency =
+        treasuryCanonicalText(
+          value
+        );
+
+      decorateTreasuryDirectValue(
+        value,
+        'asset',
+        currency,
+        currency,
+        'aurora-treasury-value-symbol',
+      );
+    });
+
+    decorateTreasuryAmount(
+      document.querySelector(
+        '#treasuryRequestSummary '
+        + '.treasury-request-heading h3'
+      ),
+      'aurora-treasury-value-symbol',
+    );
+  }
+
+
+  function decorateTreasuryWithdrawalSymbols() {
+    const assetSelect =
+      document.querySelector(
+        '#treasuryWithdrawalAsset'
+      );
+
+    if (assetSelect) {
+      decorateTreasurySelect(
+        assetSelect,
+        'asset',
+        assetSelect.value,
+        assetSelect.value,
+      );
+    }
+
+    const networkSelect =
+      document.querySelector(
+        '#treasuryWithdrawalNetwork'
+      );
+
+    if (networkSelect) {
+      const option =
+        networkSelect.selectedOptions?.[0];
+
+      const label = String(
+        option?.textContent
+        || networkSelect.value
+        || ''
+      )
+        .replace(
+          /\s+·\s+currently unavailable$/i,
+          ''
+        )
+        .trim();
+
+      decorateTreasurySelect(
+        networkSelect,
+        'network',
+        networkSelect.value,
+        label,
+      );
+    }
+
+    document.querySelectorAll(
+      '#treasuryWithdrawalFundingSummary '
+      + '.treasury-withdrawal-funding-summary-grid '
+      + '> div > strong'
+    ).forEach(value => {
+      decorateTreasuryAmount(
+        value,
+        'aurora-treasury-value-symbol',
+      );
+    });
+
+    document.querySelectorAll(
+      '#treasuryWithdrawalPreflight '
+      + '.treasury-withdrawal-preflight-grid '
+      + '> div > strong'
+    ).forEach(value => {
+      decorateTreasuryAmount(
+        value,
+        'aurora-treasury-value-symbol',
+      );
+    });
+
+    document.querySelectorAll(
+      '#treasuryWithdrawalRequestBody tr'
+    ).forEach(row => {
+      const cells =
+        row.querySelectorAll('td');
+
+      if (cells.length < 5) {
+        return;
+      }
+
+      decorateTreasuryAmount(
+        cells[3],
+        'aurora-treasury-table-symbol',
+      );
+
+      decorateTreasuryAmount(
+        cells[4],
+        'aurora-treasury-table-symbol',
+      );
+    });
+
+    decorateTreasuryAmount(
+      document.querySelector(
+        '#treasuryWithdrawalRequestSummary '
+        + '.treasury-request-heading h3'
+      ),
+      'aurora-treasury-value-symbol',
+    );
+
+    decorateTreasuryLabelledGrid(
+      document.querySelector(
+        '#treasuryWithdrawalRequestSummary'
+      ),
+      '.treasury-request-grid > div',
+      {
+        'Asset': 'asset',
+        'Network': 'network',
+        'Estimated fee': 'amount',
+        'Minimum JIT': 'amount',
+      },
+    );
+
+    document.querySelectorAll(
+      '#treasuryWithdrawalLockDetail '
+      + '.treasury-lock-field'
+    ).forEach(field => {
+      const label =
+        field.querySelector(
+          ':scope > span'
+        );
+
+      const value =
+        field.querySelector(
+          ':scope > strong'
+        );
+
+      if (
+        String(
+          label?.textContent || ''
+        ).trim() !== 'Currency'
+      ) {
+        return;
+      }
+
+      const currency =
+        treasuryCanonicalText(
+          value
+        );
+
+      decorateTreasuryDirectValue(
+        value,
+        'asset',
+        currency,
+        currency,
+        'aurora-treasury-value-symbol',
+      );
+    });
+
+    decorateTreasuryLabelledGrid(
+      document.querySelector(
+        '#treasuryWithdrawalDestinationReviewList'
+      ),
+      '.treasury-destination-review-grid > div',
+      {
+        'Asset': 'asset',
+        'Network': 'network',
+      },
+    );
+  }
+
+
+  function decorateTreasurySymbols() {
+    decorateTreasuryTransferSymbols();
+
+    decorateTreasuryWithdrawalSymbols();
+  }
+
+
   function decorate() {
     decorateDepositOptions();
     decorateDepositFavorites();
@@ -1473,6 +2057,8 @@
     decorateBotsMarkets();
     decorateBotDialogSymbols();
     decorateBotControlSymbols();
+
+    decorateTreasurySymbols();
   }
 
   let scheduled = false;

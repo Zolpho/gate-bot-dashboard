@@ -234,3 +234,162 @@ strong.aurora-symbol-inline {
   --aurora-symbol-size:
     17px;
 }
+
+/*
+ * ============================================================
+ * AURORA A7C94 — TREASURY TOKEN / NETWORK SYMBOLS
+ * ============================================================
+ *
+ * Presentation only. Native select semantics remain unchanged.
+ */
+
+#walletTransfersWorkspace
+.aurora-symbol-select-field,
+
+#treasuryWithdrawalAction
+.aurora-symbol-select-field {
+
+  position: relative;
+
+}
+
+
+#walletTransfersWorkspace
+.aurora-select-symbol-host,
+
+#treasuryWithdrawalAction
+.aurora-select-symbol-host {
+
+  position: absolute;
+
+  left: 14px;
+
+  bottom: 13px;
+
+  z-index: 2;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  pointer-events: none;
+
+}
+
+
+#walletTransfersWorkspace
+.aurora-select-symbol-host[hidden],
+
+#treasuryWithdrawalAction
+.aurora-select-symbol-host[hidden] {
+
+  display: none;
+
+}
+
+
+#walletTransfersWorkspace
+.aurora-select-symbol-host
+.aurora-symbol,
+
+#treasuryWithdrawalAction
+.aurora-select-symbol-host
+.aurora-symbol {
+
+  --aurora-symbol-size: 18px;
+
+}
+
+
+#walletTransfersWorkspace
+select.aurora-symbol-select-active,
+
+#treasuryWithdrawalAction
+select.aurora-symbol-select-active {
+
+  padding-left: 42px !important;
+
+}
+
+
+#walletTransfersWorkspace
+.aurora-treasury-value-symbol,
+
+#walletTransfersWorkspace
+.aurora-treasury-table-symbol,
+
+#treasuryRequestDialog
+.aurora-treasury-value-symbol,
+
+#treasuryWithdrawalAction
+.aurora-treasury-value-symbol,
+
+#treasuryWithdrawalAction
+.aurora-treasury-table-symbol,
+
+#treasuryWithdrawalRequestDialog
+.aurora-treasury-value-symbol,
+
+#treasuryWithdrawalDestinationReviewDialog
+.aurora-treasury-value-symbol {
+
+  gap: 7px;
+
+}
+
+
+#walletTransfersWorkspace
+.aurora-treasury-value-symbol
+.aurora-symbol,
+
+#walletTransfersWorkspace
+.aurora-treasury-table-symbol
+.aurora-symbol,
+
+#treasuryRequestDialog
+.aurora-treasury-value-symbol
+.aurora-symbol,
+
+#treasuryWithdrawalAction
+.aurora-treasury-value-symbol
+.aurora-symbol,
+
+#treasuryWithdrawalAction
+.aurora-treasury-table-symbol
+.aurora-symbol,
+
+#treasuryWithdrawalRequestDialog
+.aurora-treasury-value-symbol
+.aurora-symbol,
+
+#treasuryWithdrawalDestinationReviewDialog
+.aurora-treasury-value-symbol
+.aurora-symbol {
+
+  --aurora-symbol-size: 17px;
+
+}
+
+
+#treasuryWithdrawalRequestDialog
+.treasury-request-heading
+.aurora-symbol,
+
+#treasuryRequestDialog
+.treasury-request-heading
+.aurora-symbol {
+
+  --aurora-symbol-size: 20px;
+
+}
+
+
+#treasuryWithdrawalDestinationReviewDialog
+.treasury-destination-review-grid
+.aurora-symbol {
+
+  --aurora-symbol-size: 18px;
+
+}
