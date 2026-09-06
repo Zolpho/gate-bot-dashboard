@@ -1,14 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg"
-viewBox="0 0 64 64">
-<circle cx="32" cy="32" r="30"
-fill="#123d32"/>
-<circle cx="32" cy="32" r="29"
-fill="none" stroke="#41deb0"
-stroke-opacity=".55" stroke-width="2"/>
-<text x="32" y="36"
-text-anchor="middle"
-font-family="Arial,sans-serif"
-font-size="15"
-font-weight="700"
-fill="#bfffe9">EQTY</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" aria-label="EQTY logo">
+  <defs>
+    <linearGradient id="eqtyGradient" x1="287" y1="518" x2="735" y2="518" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#19D8F5"/>
+      <stop offset="0.56" stop-color="#1FC1EF"/>
+      <stop offset="1" stop-color="#3D8EE5"/>
+    </linearGradient>
+  </defs>
+
+  <polygon
+    points="512 207 735 431 647 519 511 384 375 519 287 433"
+    fill="url(#eqtyGradient)"
+  />
+
+  <polygon
+    points="375 522 288 607 511 829 734 608 649 521 510 658"
+    fill="url(#eqtyGradient)"
+  />
 </svg>
