@@ -39,7 +39,6 @@
     rgb(245, 205, 112);
   --aurora-trading-red:
     rgb(255, 126, 139);
-  display: grid;
   gap: 16px;
 }
 
