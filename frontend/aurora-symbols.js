@@ -2827,6 +2827,442 @@
    * re-applies this decoration after each render.
    */
 
+  /*
+   * ============================================================
+   * AURORA A7C148 — OVERVIEW MARKET SYMBOLS
+   * ============================================================
+   *
+   * Presentation only.
+   *
+   * Performance leaders render:
+   *   account · market · strategy
+   *
+   * Overview incidents render:
+   *   account · bot · market · condition
+   *   · Current value · Opened time
+   *
+   * Canonical text is stored before decorative nodes are added.
+   * Strict market parsing is reused and ambiguous text fails
+   * closed.
+   */
+
+  function overviewCanonicalText(
+    element,
+    dataKey,
+  ) {
+    if (!element) {
+      return '';
+    }
+
+    const stored = String(
+      element.dataset?.[dataKey]
+      || ''
+    ).trim();
+
+    if (stored) {
+      return stored;
+    }
+
+    const rendered = String(
+      element.textContent || ''
+    )
+      .replace(
+        /\s+/g,
+        ' ',
+      )
+      .trim();
+
+    if (rendered) {
+      element.dataset[dataKey] =
+        rendered;
+    }
+
+    return rendered;
+  }
+
+
+  function makeOverviewMarketHost(
+    base,
+    quote,
+    market,
+  ) {
+    const host =
+      document.createElement(
+        'span'
+      );
+
+    host.className =
+      'aurora-overview-market';
+
+    host.dataset
+      .auroraOverviewMarket =
+        `${base}|${quote}`;
+
+    host.title =
+      `${base} / ${quote}`;
+
+    const symbols =
+      document.createElement(
+        'span'
+      );
+
+    symbols.className =
+      'aurora-overview-market-symbols';
+
+    symbols.setAttribute(
+      'aria-hidden',
+      'true',
+    );
+
+    [
+      base,
+      quote,
+    ].forEach(asset => {
+      const slot =
+        document.createElement(
+          'span'
+        );
+
+      slot.className =
+        'aurora-overview-market-symbol-slot';
+
+      slot.append(
+        makeSymbol(
+          'asset',
+          asset,
+          asset,
+        )
+      );
+
+      symbols.append(
+        slot
+      );
+    });
+
+    host.append(
+      symbols,
+      document.createTextNode(
+        market
+      ),
+    );
+
+    return host;
+  }
+
+
+  function decorateOverviewLeaderMarket(
+    element,
+  ) {
+    const raw =
+      overviewCanonicalText(
+        element,
+        'auroraOverviewLeaderText',
+      );
+
+    if (!raw) {
+      return;
+    }
+
+    const separator = ' · ';
+
+    const parts = raw
+      .split(
+        separator
+      )
+      .map(
+        part => part.trim()
+      );
+
+    if (parts.length < 3) {
+      return;
+    }
+
+    const candidates = [];
+
+    for (
+      let index = 1;
+      index < parts.length - 1;
+      index += 1
+    ) {
+      const [
+        base,
+        quote,
+      ] = alertMarketAssets(
+        parts[index]
+      );
+
+      if (
+        base
+        && quote
+      ) {
+        candidates.push(
+          {
+            index,
+            base,
+            quote,
+          }
+        );
+      }
+    }
+
+    /*
+     * Fail closed if text is ambiguous.
+     * Canonical Overview output normally has exactly one strict
+     * market pair between account and strategy.
+     */
+    if (candidates.length !== 1) {
+      return;
+    }
+
+    const candidate =
+      candidates[0];
+
+    const market =
+      parts[candidate.index];
+
+    const key =
+      `${candidate.base}|${candidate.quote}`;
+
+    const existing =
+      element.querySelector(
+        ':scope > '
+        + '.aurora-overview-market'
+      );
+
+    if (
+      existing
+      && existing.dataset
+        .auroraOverviewMarket
+        === key
+    ) {
+      return;
+    }
+
+    element.replaceChildren();
+
+    parts.forEach(
+      (
+        part,
+        index,
+      ) => {
+        if (index > 0) {
+          element.append(
+            document.createTextNode(
+              separator
+            )
+          );
+        }
+
+        if (
+          index
+          === candidate.index
+        ) {
+          element.append(
+            makeOverviewMarketHost(
+              candidate.base,
+              candidate.quote,
+              market,
+            )
+          );
+
+          return;
+        }
+
+        element.append(
+          document.createTextNode(
+            part
+          )
+        );
+      }
+    );
+  }
+
+
+  function decorateOverviewIncidentMarket(
+    element,
+  ) {
+    const raw =
+      overviewCanonicalText(
+        element,
+        'auroraOverviewIncidentText',
+      );
+
+    if (!raw) {
+      return;
+    }
+
+    const separator = ' · ';
+    const currentMarker =
+      ' · Current ';
+    const openedMarker =
+      ' · Opened ';
+
+    const currentIndex =
+      raw.indexOf(
+        currentMarker
+      );
+
+    const openedIndex =
+      raw.indexOf(
+        openedMarker,
+        currentIndex
+          + currentMarker.length,
+      );
+
+    if (
+      currentIndex < 0
+      || openedIndex
+        <= currentIndex
+    ) {
+      return;
+    }
+
+    const beforeCurrent = raw
+      .slice(
+        0,
+        currentIndex
+      )
+      .trim();
+
+    const suffix = raw
+      .slice(
+        currentIndex
+      );
+
+    const parts =
+      beforeCurrent
+        .split(
+          separator
+        )
+        .map(
+          part => part.trim()
+        );
+
+    /*
+     * Proven app.js contract:
+     *
+     *   account · bot · market · condition
+     *
+     * alertIncidentCondition() does not emit the separator.
+     * Therefore the market is the penultimate segment.
+     */
+    if (parts.length < 4) {
+      return;
+    }
+
+    const marketIndex =
+      parts.length - 2;
+
+    if (marketIndex < 2) {
+      return;
+    }
+
+    const market =
+      parts[marketIndex];
+
+    const [
+      base,
+      quote,
+    ] = alertMarketAssets(
+      market
+    );
+
+    if (
+      !base
+      || !quote
+    ) {
+      return;
+    }
+
+    const key =
+      `${base}|${quote}`;
+
+    const existing =
+      element.querySelector(
+        ':scope > '
+        + '.aurora-overview-market'
+      );
+
+    if (
+      existing
+      && existing.dataset
+        .auroraOverviewMarket
+        === key
+    ) {
+      return;
+    }
+
+    element.replaceChildren();
+
+    parts.forEach(
+      (
+        part,
+        index,
+      ) => {
+        if (index > 0) {
+          element.append(
+            document.createTextNode(
+              separator
+            )
+          );
+        }
+
+        if (
+          index
+          === marketIndex
+        ) {
+          element.append(
+            makeOverviewMarketHost(
+              base,
+              quote,
+              market,
+            )
+          );
+
+          return;
+        }
+
+        element.append(
+          document.createTextNode(
+            part
+          )
+        );
+      }
+    );
+
+    element.append(
+      document.createTextNode(
+        suffix
+      )
+    );
+  }
+
+
+  function decorateOverviewSymbols() {
+    const root =
+      document.querySelector(
+        '#tab-overview'
+      );
+
+    if (!root) {
+      return;
+    }
+
+    root.querySelectorAll(
+      '.leader-meta'
+    ).forEach(
+      decorateOverviewLeaderMarket
+    );
+
+    root.querySelectorAll(
+      '#overviewAlerts '
+      + '.event small'
+    ).forEach(
+      decorateOverviewIncidentMarket
+    );
+  }
+
+
   function alertScopeCanonicalText(
     element,
   ) {
@@ -3078,6 +3514,7 @@
     decorateDepositHistory();
     decorateBalance();
     decorateBotsMarkets();
+    decorateOverviewSymbols();
     decorateBotDialogSymbols();
     decorateBotControlSymbols();
 
