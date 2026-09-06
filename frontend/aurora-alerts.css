@@ -463,24 +463,24 @@
 }
 
 #tab-alerts .alerts-history-item.is-acknowledged {
-  opacity: 0.72;
+  opacity: 0.86;
 }
 
 #tab-alerts .alerts-history-title strong {
   color:
-    rgba(202, 229, 218, 0.72);
+    rgba(211, 237, 227, 0.82);
 }
 
 #tab-alerts .alerts-history-title span,
 #tab-alerts .alerts-history-values,
 #tab-alerts .alerts-history-times {
   color:
-    rgba(135, 167, 155, 0.42);
+    rgba(151, 188, 174, 0.56);
 }
 
 #tab-alerts .alerts-history-condition {
   color:
-    rgba(177, 206, 195, 0.58);
+    rgba(190, 219, 208, 0.68);
 }
 
 #tab-alerts .alerts-incident-status.recovered {
@@ -494,7 +494,46 @@
 
 
 /* ============================================================
- * 05. EMPTY STATES
+ * 05. ALERT MARKET ARTWORK
+ * ============================================================ */
+
+#tab-alerts .alerts-incident-heading > span,
+#tab-alerts .alerts-history-title > span {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#tab-alerts .aurora-alert-market {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+#tab-alerts .aurora-alert-market-symbols {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 1px;
+  line-height: 1;
+}
+
+#tab-alerts .aurora-alert-market-symbol-slot {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+#tab-alerts
+.aurora-alert-market-symbol-slot
+.aurora-symbol {
+  --aurora-symbol-size: 14px;
+}
+
+
+/* ============================================================
+ * 06. EMPTY STATES
  * ============================================================ */
 
 #tab-alerts .empty-state {
@@ -515,7 +554,7 @@
 
 
 /* ============================================================
- * 06. ADD RULE DIALOG
+ * 07. ADD RULE DIALOG
  * ============================================================ */
 
 #ruleDialog {
@@ -626,7 +665,7 @@
 
 
 /* ============================================================
- * 07. RESPONSIVE
+ * 08. RESPONSIVE
  * ============================================================ */
 
 @media (max-width: 1120px) {

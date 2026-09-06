@@ -2813,6 +2813,257 @@
     decorateTradingOrderMarkets();
   }
 
+
+  /*
+   * ==========================================================
+   * AURORA A7C133 — ALERT MARKET SYMBOLS
+   * ==========================================================
+   *
+   * Presentation only.
+   *
+   * app.js remains authoritative for incident/history text,
+   * state and mutation permissions. renderAlerts() replaces
+   * list HTML, so the existing shared MutationObserver simply
+   * re-applies this decoration after each render.
+   */
+
+  function alertScopeCanonicalText(
+    element,
+  ) {
+    if (!element) {
+      return '';
+    }
+
+    const stored = String(
+      element.dataset
+        ?.auroraAlertScopeText
+      || ''
+    ).trim();
+
+    if (stored) {
+      return stored;
+    }
+
+    const rendered = String(
+      element.textContent || ''
+    ).trim();
+
+    if (rendered) {
+      element.dataset
+        .auroraAlertScopeText =
+          rendered;
+    }
+
+    return rendered;
+  }
+
+  function alertMarketAssets(
+    value,
+  ) {
+    const canonical = String(
+      value || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    const match = canonical.match(
+      /^([A-Z0-9.]{1,24})\s*(?:\/|_|-)\s*([A-Z0-9.]{1,24})$/
+    );
+
+    if (!match) {
+      return [
+        '',
+        '',
+      ];
+    }
+
+    return [
+      match[1],
+      match[2],
+    ];
+  }
+
+  function decorateAlertMarketScope(
+    element,
+  ) {
+    if (!element) {
+      return;
+    }
+
+    const raw =
+      alertScopeCanonicalText(
+        element
+      );
+
+    if (!raw) {
+      return;
+    }
+
+    const separator = ' · ';
+
+    const firstSeparator =
+      raw.indexOf(
+        separator
+      );
+
+    const lastSeparator =
+      raw.lastIndexOf(
+        separator
+      );
+
+    /*
+     * A market is only trusted when the scope has at least
+     * account · bot · market. This avoids mistaking a strategy
+     * name containing "/" or "_" for a market when market data
+     * is absent.
+     */
+    if (
+      firstSeparator < 0
+      || lastSeparator
+        <= firstSeparator
+    ) {
+      return;
+    }
+
+    const prefix = raw
+      .slice(
+        0,
+        lastSeparator
+      )
+      .trim();
+
+    const market = raw
+      .slice(
+        lastSeparator
+        + separator.length
+      )
+      .trim();
+
+    const [
+      base,
+      quote,
+    ] = alertMarketAssets(
+      market
+    );
+
+    if (
+      !prefix
+      || !base
+      || !quote
+    ) {
+      return;
+    }
+
+    const key =
+      `${base}|${quote}`;
+
+    const existing =
+      element.querySelector(
+        ':scope > '
+        + '.aurora-alert-market'
+      );
+
+    if (
+      existing
+      && existing.dataset
+        .auroraAlertMarket
+        === key
+    ) {
+      return;
+    }
+
+    element.replaceChildren();
+
+    element.append(
+      document.createTextNode(
+        `${prefix}${separator}`
+      )
+    );
+
+    const marketHost =
+      document.createElement(
+        'span'
+      );
+
+    marketHost.className =
+      'aurora-alert-market';
+
+    marketHost.dataset
+      .auroraAlertMarket =
+        key;
+
+    marketHost.title =
+      `${base} / ${quote}`;
+
+    const symbols =
+      document.createElement(
+        'span'
+      );
+
+    symbols.className =
+      'aurora-alert-market-symbols';
+
+    symbols.setAttribute(
+      'aria-hidden',
+      'true',
+    );
+
+    [
+      base,
+      quote,
+    ].forEach(asset => {
+      const slot =
+        document.createElement(
+          'span'
+        );
+
+      slot.className =
+        'aurora-alert-market-symbol-slot';
+
+      slot.append(
+        makeSymbol(
+          'asset',
+          asset,
+          asset,
+        )
+      );
+
+      symbols.append(
+        slot
+      );
+    });
+
+    marketHost.append(
+      symbols,
+      document.createTextNode(
+        market
+      ),
+    );
+
+    element.append(
+      marketHost
+    );
+  }
+
+  function decorateAlertSymbols() {
+    const root =
+      document.querySelector(
+        '#tab-alerts'
+      );
+
+    if (!root) {
+      return;
+    }
+
+    root.querySelectorAll(
+      '.alerts-incident-heading > span, '
+      + '.alerts-history-title > span'
+    ).forEach(
+      decorateAlertMarketScope
+    );
+  }
+
+
   function decorateTreasurySymbols() {
     decorateTreasuryTransferSymbols();
 
@@ -2829,6 +3080,8 @@
     decorateBotsMarkets();
     decorateBotDialogSymbols();
     decorateBotControlSymbols();
+
+    decorateAlertSymbols();
 
     decorateTreasurySymbols();
 
