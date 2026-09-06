@@ -1,0 +1,2237 @@
+/*
+ * Aurora Bot Control presentation.
+ *
+ * Presentation-only:
+ * - no execution semantics;
+ * - no Bot Control state ownership;
+ * - no Gate API behavior;
+ * - no live/simulation policy behavior.
+ *
+ * Every selector is rooted in the canonical Bot Control tab
+ * or one of its three canonical dialogs.
+ */
+
+#tab-bot-control {
+  position: relative;
+  isolation: isolate;
+  padding-bottom: 1.5rem;
+}
+
+#tab-bot-control::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -1.5rem -1rem auto;
+  height: 28rem;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at 18% 12%,
+      rgba(50, 228, 175, 0.09),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 82% 2%,
+      rgba(36, 170, 133, 0.07),
+      transparent 31%
+    );
+  filter: blur(3px);
+}
+
+#tab-bot-control .bot-control-layout {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+#tab-bot-control .bot-control-form-panel,
+#tab-bot-control .bot-control-review-panel,
+#tab-bot-control .bot-control-attention-panel,
+#tab-bot-control .bot-control-activity-panel {
+  position: relative;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(80, 235, 187, 0.16);
+  border-radius: 1.15rem;
+  background:
+    linear-gradient(
+      155deg,
+      rgba(6, 35, 29, 0.97),
+      rgba(3, 22, 19, 0.96)
+    );
+  box-shadow:
+    inset 0 1px 0
+      rgba(171, 255, 226, 0.03),
+    0 18px 40px
+      rgba(0, 0, 0, 0.14);
+}
+
+#tab-bot-control .bot-control-form-panel::after,
+#tab-bot-control .bot-control-review-panel::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  width: 10rem;
+  height: 10rem;
+  right: -5rem;
+  bottom: -5rem;
+  border-radius: 50%;
+  border:
+    1px solid
+    rgba(70, 236, 186, 0.05);
+}
+
+#tab-bot-control .bot-control-form-panel {
+  padding: 1.1rem;
+}
+
+#tab-bot-control .bot-control-review-panel {
+  padding: 1.1rem;
+}
+
+#tab-bot-control .bot-control-attention-panel,
+#tab-bot-control .bot-control-activity-panel {
+  grid-column: 1 / -1;
+}
+
+#tab-bot-control .bot-control-create-title-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+#tab-bot-control .bot-control-create-title-row h2,
+#tab-bot-control .bot-control-review-panel h2,
+#tab-bot-control .bot-control-attention-panel h2,
+#tab-bot-control .bot-control-activity-panel h2 {
+  margin: 0;
+  color: rgba(236, 255, 248, 0.97);
+  font-size: 1rem;
+  font-weight: 720;
+  letter-spacing: -0.015em;
+}
+
+#tab-bot-control .bot-control-create-state {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-end;
+  text-align: right;
+}
+
+#tab-bot-control .bot-control-create-state .status-badge {
+  min-width: 4.7rem;
+  justify-content: center;
+  border:
+    1px solid
+    rgba(73, 236, 187, 0.25);
+  border-radius: 999px;
+  background:
+    rgba(25, 111, 88, 0.17);
+  color: rgb(99, 239, 196);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.065em;
+}
+
+#tab-bot-control .bot-control-create-state .status-badge.warning {
+  border-color:
+    rgba(247, 190, 74, 0.38);
+  background:
+    rgba(147, 100, 18, 0.17);
+  color: rgb(255, 205, 99);
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(255, 221, 148, 0.02);
+}
+
+#tab-bot-control .bot-control-create-state small {
+  color: rgba(154, 186, 175, 0.7);
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+#tab-bot-control .bot-control-account-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0.28rem 0.68rem;
+  border:
+    1px solid
+    rgba(72, 225, 180, 0.18);
+  border-radius: 999px;
+  background:
+    rgba(10, 70, 57, 0.34);
+  color: rgba(188, 235, 219, 0.9);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+#tab-bot-control .bot-control-account-chip.hidden {
+  display: none;
+}
+
+#tab-bot-control .bot-control-form {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+  gap: 0.8rem;
+}
+
+#tab-bot-control .bot-control-form label {
+  position: relative;
+  display: grid;
+  gap: 0.38rem;
+  min-width: 0;
+  color: rgba(138, 176, 162, 0.78);
+  font-size: 0.68rem;
+  font-weight: 720;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+#tab-bot-control .bot-control-form .full {
+  grid-column: 1 / -1;
+}
+
+#tab-bot-control .bot-control-form input,
+#tab-bot-control .bot-control-form select,
+#tab-bot-control .bot-control-activity-page-size select {
+  width: 100%;
+  min-height: 2.65rem;
+  border:
+    1px solid
+    rgba(78, 220, 178, 0.16);
+  border-radius: 0.74rem;
+  outline: none;
+  background:
+    rgba(1, 19, 16, 0.76);
+  color: rgba(230, 250, 243, 0.94);
+  box-shadow:
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.015);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease;
+}
+
+#tab-bot-control .bot-control-form input {
+  padding:
+    0.7rem
+    0.75rem;
+}
+
+#tab-bot-control .bot-control-form select,
+#tab-bot-control .bot-control-activity-page-size select {
+  padding:
+    0.6rem
+    2.1rem
+    0.6rem
+    0.75rem;
+}
+
+#tab-bot-control .bot-control-form input:hover,
+#tab-bot-control .bot-control-form select:hover,
+#tab-bot-control .bot-control-activity-page-size select:hover {
+  border-color:
+    rgba(82, 230, 185, 0.26);
+  background:
+    rgba(2, 25, 21, 0.88);
+}
+
+#tab-bot-control .bot-control-form input:focus,
+#tab-bot-control .bot-control-form select:focus,
+#tab-bot-control .bot-control-activity-page-size select:focus {
+  border-color:
+    rgba(91, 244, 197, 0.53);
+  box-shadow:
+    0 0 0 3px
+      rgba(64, 232, 180, 0.08);
+}
+
+#tab-bot-control .input-with-suffix {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  align-items: stretch;
+}
+
+#tab-bot-control .input-with-suffix input {
+  border-radius:
+    0.74rem
+    0
+    0
+    0.74rem;
+}
+
+#tab-bot-control .input-with-suffix span {
+  display: grid;
+  place-items: center;
+  min-width: 3.5rem;
+  padding: 0 0.65rem;
+  border:
+    1px solid
+    rgba(78, 220, 178, 0.16);
+  border-left: 0;
+  border-radius:
+    0
+    0.74rem
+    0.74rem
+    0;
+  background:
+    rgba(9, 52, 43, 0.55);
+  color: rgba(132, 193, 170, 0.8);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+#tab-bot-control .aurora-bot-control-market-input-symbols {
+  position: absolute;
+  z-index: 2;
+  left: 0.72rem;
+  bottom: 0.68rem;
+  display: inline-flex;
+  gap: 0.12rem;
+  align-items: center;
+  pointer-events: none;
+}
+
+#tab-bot-control .aurora-bot-control-market-input-symbols[hidden] {
+  display: none;
+}
+
+#tab-bot-control .aurora-bot-control-market-input-symbols
+.aurora-bot-control-market-symbol-slot {
+  display: inline-flex;
+  width: 1.05rem;
+  height: 1.05rem;
+  align-items: center;
+  justify-content: center;
+}
+
+#tab-bot-control .aurora-bot-control-market-input-symbols
+.aurora-symbol {
+  width: 1rem;
+  height: 1rem;
+}
+
+#tab-bot-control .bot-control-form label:has(
+  > .aurora-bot-control-market-input-symbols
+) > input {
+  padding-left: 3.1rem;
+}
+
+#tab-bot-control .bot-control-advanced,
+#tab-bot-control .bot-control-payload {
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(72, 214, 171, 0.13);
+  border-radius: 0.8rem;
+  background:
+    rgba(1, 19, 16, 0.42);
+}
+
+#tab-bot-control .bot-control-advanced summary,
+#tab-bot-control .bot-control-payload summary {
+  cursor: pointer;
+  padding: 0.75rem 0.82rem;
+  color: rgba(184, 220, 207, 0.82);
+  font-size: 0.74rem;
+  font-weight: 680;
+  user-select: none;
+}
+
+#tab-bot-control .bot-control-advanced[open] summary,
+#tab-bot-control .bot-control-payload[open] summary {
+  border-bottom:
+    1px solid
+    rgba(75, 220, 175, 0.1);
+  color: rgba(213, 242, 231, 0.94);
+}
+
+#tab-bot-control .bot-control-advanced-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+  gap: 0.7rem;
+  padding: 0.75rem;
+}
+
+#tab-bot-control .bot-control-form-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 0.1rem;
+}
+
+#tab-bot-control .button {
+  min-height: 2.45rem;
+  border-radius: 0.72rem;
+  font-weight: 690;
+  letter-spacing: 0.005em;
+}
+
+#tab-bot-control .button.primary {
+  border-color:
+    rgba(83, 236, 190, 0.48);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(72, 237, 188, 0.96),
+      rgba(49, 207, 164, 0.94)
+    );
+  color: rgb(0, 42, 33);
+  box-shadow:
+    0 7px 18px
+      rgba(41, 213, 165, 0.13);
+}
+
+#tab-bot-control .button.primary:hover:not(:disabled) {
+  filter: brightness(1.045);
+  box-shadow:
+    0 9px 22px
+      rgba(41, 213, 165, 0.18);
+}
+
+#tab-bot-control .button.secondary {
+  border-color:
+    rgba(75, 219, 177, 0.18);
+  background:
+    rgba(5, 46, 38, 0.48);
+  color: rgba(178, 226, 209, 0.9);
+}
+
+#tab-bot-control .button.secondary:hover:not(:disabled) {
+  border-color:
+    rgba(79, 227, 181, 0.3);
+  background:
+    rgba(8, 62, 50, 0.57);
+}
+
+#tab-bot-control .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.43;
+  filter: saturate(0.65);
+}
+
+#tab-bot-control .form-error {
+  border:
+    1px solid
+    rgba(247, 103, 117, 0.25);
+  border-radius: 0.7rem;
+  background:
+    rgba(101, 28, 37, 0.16);
+  color: rgba(255, 145, 157, 0.93);
+  padding: 0.65rem 0.72rem;
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+#tab-bot-control .bot-control-review-status {
+  margin-top: 0.82rem;
+}
+
+#tab-bot-control .bot-control-message {
+  border:
+    1px solid
+    rgba(72, 215, 174, 0.15);
+  border-radius: 0.78rem;
+  padding: 0.72rem 0.78rem;
+  background:
+    rgba(3, 35, 29, 0.56);
+  color: rgba(186, 222, 209, 0.88);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+#tab-bot-control .bot-control-message.success {
+  border-color:
+    rgba(65, 232, 180, 0.2);
+  background:
+    rgba(12, 89, 68, 0.18);
+  color: rgb(103, 232, 192);
+}
+
+#tab-bot-control .bot-control-message.warning {
+  border-color:
+    rgba(242, 187, 79, 0.25);
+  background:
+    rgba(107, 74, 18, 0.16);
+  color: rgb(246, 204, 117);
+}
+
+#tab-bot-control .bot-control-message.error {
+  border-color:
+    rgba(247, 102, 117, 0.25);
+  background:
+    rgba(101, 28, 37, 0.16);
+  color: rgb(255, 139, 151);
+}
+
+#tab-bot-control .bot-control-review-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+  gap: 0.55rem;
+  margin-top: 0.72rem;
+}
+
+#tab-bot-control .bot-control-review-item {
+  min-width: 0;
+  padding: 0.72rem 0.75rem;
+  border:
+    1px solid
+    rgba(74, 218, 174, 0.1);
+  border-radius: 0.72rem;
+  background:
+    rgba(1, 19, 16, 0.44);
+}
+
+#tab-bot-control .bot-control-review-item span {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: rgba(124, 164, 149, 0.68);
+  font-size: 0.64rem;
+  font-weight: 710;
+  letter-spacing: 0.052em;
+  text-transform: uppercase;
+}
+
+#tab-bot-control .bot-control-review-item strong {
+  display: flex;
+  gap: 0.38rem;
+  align-items: center;
+  min-width: 0;
+  color: rgba(230, 249, 242, 0.95);
+  font-size: 0.78rem;
+  font-weight: 680;
+  word-break: break-word;
+}
+
+#tab-bot-control .aurora-bot-control-market-symbols {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.08rem;
+  align-items: center;
+  margin-right: 0.1rem;
+  vertical-align: middle;
+}
+
+#tab-bot-control .aurora-bot-control-market-symbol-slot {
+  display: inline-flex;
+  width: 1.02rem;
+  height: 1.02rem;
+  align-items: center;
+  justify-content: center;
+}
+
+#tab-bot-control .aurora-bot-control-market-symbol-slot
+.aurora-symbol,
+#tab-bot-control .aurora-bot-control-asset-inline {
+  width: 0.98rem;
+  height: 0.98rem;
+}
+
+#tab-bot-control .bot-control-validation {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.72rem;
+}
+
+#tab-bot-control .bot-control-payload {
+  margin-top: 0.72rem;
+}
+
+#tab-bot-control .bot-control-payload pre {
+  max-height: 17rem;
+  overflow: auto;
+  margin: 0;
+  padding: 0.82rem;
+  background:
+    rgba(0, 12, 10, 0.78);
+  color: rgba(179, 219, 204, 0.86);
+  font-size: 0.69rem;
+  line-height: 1.52;
+  scrollbar-color:
+    rgba(73, 194, 156, 0.28)
+    rgba(0, 0, 0, 0);
+}
+
+#tab-bot-control .bot-control-result {
+  margin-top: 0.72rem;
+  border:
+    1px solid
+    rgba(71, 226, 177, 0.16);
+  border-radius: 0.78rem;
+  padding: 0.72rem;
+  background:
+    rgba(6, 67, 52, 0.17);
+}
+
+#tab-bot-control .bot-control-attention-panel {
+  padding: 1rem;
+}
+
+#tab-bot-control .bot-control-attention-title,
+#tab-bot-control .bot-control-activity-panel .panel-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#tab-bot-control .bot-control-attention-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  border:
+    1px solid
+    rgba(246, 190, 84, 0.22);
+  border-radius: 999px;
+  background:
+    rgba(123, 82, 17, 0.14);
+  color: rgb(244, 200, 112);
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+#tab-bot-control .bot-control-attention-count.is-clear {
+  border-color:
+    rgba(64, 227, 177, 0.16);
+  background:
+    rgba(11, 81, 63, 0.14);
+  color: rgb(101, 224, 185);
+}
+
+#tab-bot-control .bot-control-attention-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.75rem;
+}
+
+#tab-bot-control .bot-control-attention-clear {
+  display: flex;
+  gap: 0.62rem;
+  align-items: center;
+  border:
+    1px solid
+    rgba(67, 226, 177, 0.12);
+  border-radius: 0.78rem;
+  padding: 0.7rem 0.78rem;
+  background:
+    rgba(7, 73, 56, 0.14);
+  color: rgba(153, 215, 193, 0.82);
+}
+
+#tab-bot-control .bot-control-attention-clear
+> span:first-child {
+  display: grid;
+  place-items: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 50%;
+  background:
+    rgba(68, 225, 177, 0.12);
+  color: rgb(80, 229, 183);
+}
+
+#tab-bot-control .bot-control-attention-clear strong {
+  color: rgba(216, 243, 233, 0.92);
+}
+
+#tab-bot-control .bot-control-attention-card {
+  border:
+    1px solid
+    rgba(237, 187, 85, 0.16);
+  border-radius: 0.9rem;
+  padding: 0.85rem;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(61, 47, 15, 0.17),
+      rgba(3, 25, 21, 0.55)
+    );
+}
+
+#tab-bot-control .bot-control-attention-card.high {
+  border-color:
+    rgba(247, 113, 119, 0.25);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(87, 28, 31, 0.2),
+      rgba(3, 25, 21, 0.56)
+    );
+}
+
+#tab-bot-control .bot-control-attention-card.medium {
+  border-color:
+    rgba(241, 185, 76, 0.21);
+}
+
+#tab-bot-control .bot-control-attention-head {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#tab-bot-control .bot-control-attention-severity {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 760;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+#tab-bot-control .bot-control-attention-severity.high {
+  border:
+    1px solid
+    rgba(247, 106, 119, 0.27);
+  background:
+    rgba(113, 29, 37, 0.2);
+  color: rgb(255, 136, 147);
+}
+
+#tab-bot-control .bot-control-attention-severity.medium {
+  border:
+    1px solid
+    rgba(239, 184, 79, 0.24);
+  background:
+    rgba(112, 76, 18, 0.18);
+  color: rgb(247, 201, 112);
+}
+
+#tab-bot-control .bot-control-attention-main {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+  gap: 0.48rem;
+  margin-top: 0.68rem;
+}
+
+#tab-bot-control .bot-control-attention-field {
+  min-width: 0;
+  padding: 0.55rem 0.62rem;
+  border:
+    1px solid
+    rgba(72, 214, 171, 0.08);
+  border-radius: 0.65rem;
+  background:
+    rgba(0, 16, 13, 0.36);
+}
+
+#tab-bot-control .bot-control-attention-field span {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: rgba(123, 162, 147, 0.65);
+  font-size: 0.6rem;
+  font-weight: 690;
+  letter-spacing: 0.048em;
+  text-transform: uppercase;
+}
+
+#tab-bot-control .bot-control-attention-field strong {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  color: rgba(217, 242, 233, 0.9);
+  font-size: 0.72rem;
+  word-break: break-word;
+}
+
+#tab-bot-control .bot-control-attention-recommendation {
+  margin-top: 0.65rem;
+  border-left:
+    2px solid
+    rgba(241, 189, 86, 0.38);
+  padding:
+    0.45rem
+    0.6rem;
+  color: rgba(190, 204, 190, 0.78);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+#tab-bot-control .bot-control-attention-recommendation strong {
+  display: block;
+  margin-bottom: 0.12rem;
+  color: rgba(235, 218, 174, 0.92);
+}
+
+#tab-bot-control .bot-control-attention-meta {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-top: 0.55rem;
+  color: rgba(119, 151, 140, 0.65);
+  font-size: 0.64rem;
+}
+
+#tab-bot-control .bot-control-activity-panel {
+  padding: 1rem;
+}
+
+#tab-bot-control .bot-control-activity-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+#tab-bot-control .bot-control-activity-actions .button {
+  min-height: 2.15rem;
+  padding:
+    0.45rem
+    0.66rem;
+  font-size: 0.69rem;
+}
+
+#tab-bot-control .bot-control-activity-wrap {
+  overflow: auto;
+  margin-top: 0.72rem;
+  border:
+    1px solid
+    rgba(72, 215, 171, 0.12);
+  border-radius: 0.82rem;
+  background:
+    rgba(0, 15, 12, 0.48);
+}
+
+#tab-bot-control .bot-control-activity-table {
+  width: 100%;
+  min-width: 64rem;
+  border-collapse: collapse;
+}
+
+#tab-bot-control .bot-control-activity-table th {
+  padding:
+    0.58rem
+    0.66rem;
+  border-bottom:
+    1px solid
+    rgba(72, 218, 173, 0.13);
+  background:
+    rgba(8, 55, 45, 0.68);
+  color: rgba(119, 160, 145, 0.7);
+  font-size: 0.6rem;
+  font-weight: 750;
+  letter-spacing: 0.055em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#tab-bot-control .bot-control-activity-table td {
+  padding:
+    0.62rem
+    0.66rem;
+  border-bottom:
+    1px solid
+    rgba(67, 200, 160, 0.07);
+  color: rgba(190, 216, 207, 0.82);
+  font-size: 0.69rem;
+  white-space: nowrap;
+}
+
+#tab-bot-control .bot-control-activity-table tr:last-child td {
+  border-bottom: 0;
+}
+
+#tab-bot-control .bot-control-activity-table tbody tr:hover td {
+  background:
+    rgba(19, 80, 64, 0.09);
+}
+
+#tab-bot-control .bot-control-activity-mode,
+#tab-bot-control .bot-control-activity-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.14rem 0.43rem;
+  border:
+    1px solid
+    rgba(73, 218, 175, 0.14);
+  border-radius: 999px;
+  background:
+    rgba(8, 58, 47, 0.24);
+  color: rgba(159, 204, 187, 0.84);
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+#tab-bot-control .bot-control-activity-mode.live {
+  border-color:
+    rgba(241, 186, 79, 0.26);
+  background:
+    rgba(114, 78, 17, 0.18);
+  color: rgb(245, 201, 113);
+}
+
+#tab-bot-control .bot-control-activity-mode.simulation {
+  border-color:
+    rgba(90, 175, 232, 0.22);
+  background:
+    rgba(27, 82, 118, 0.18);
+  color: rgb(135, 203, 243);
+}
+
+#tab-bot-control .bot-control-activity-status.succeeded,
+#tab-bot-control .bot-control-activity-status.simulated {
+  border-color:
+    rgba(64, 225, 175, 0.21);
+  color: rgb(99, 226, 186);
+}
+
+#tab-bot-control .bot-control-activity-status.rejected {
+  border-color:
+    rgba(247, 103, 117, 0.24);
+  background:
+    rgba(106, 29, 37, 0.16);
+  color: rgb(255, 139, 151);
+}
+
+#tab-bot-control .bot-control-activity-status.uncertain,
+#tab-bot-control .bot-control-activity-status.reserved,
+#tab-bot-control .bot-control-activity-status.submitting {
+  border-color:
+    rgba(240, 186, 81, 0.23);
+  background:
+    rgba(105, 73, 18, 0.15);
+  color: rgb(241, 199, 114);
+}
+
+#tab-bot-control .bot-control-activity-request-button,
+#tab-bot-control .text-button {
+  border: 0;
+  background: transparent;
+  color: rgb(90, 222, 181);
+  font-size: 0.68rem;
+  font-weight: 680;
+  cursor: pointer;
+}
+
+#tab-bot-control .bot-control-activity-request-button:hover,
+#tab-bot-control .text-button:hover {
+  color: rgb(127, 242, 205);
+  text-decoration: underline;
+}
+
+#tab-bot-control .bot-control-activity-footer {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.7rem;
+  color: rgba(124, 158, 146, 0.68);
+  font-size: 0.68rem;
+}
+
+#tab-bot-control .bot-control-activity-controls {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+#tab-bot-control .bot-control-activity-pagination {
+  display: flex;
+  gap: 0.42rem;
+  align-items: center;
+}
+
+#tab-bot-control .bot-control-activity-page-size {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: rgba(127, 163, 149, 0.7);
+  font-size: 0.66rem;
+}
+
+#tab-bot-control .bot-control-activity-page-size select {
+  width: auto;
+  min-height: 2rem;
+  padding:
+    0.3rem
+    1.7rem
+    0.3rem
+    0.55rem;
+  font-size: 0.66rem;
+}
+
+#tab-bot-control .bot-control-activity-pagination .button {
+  min-height: 2rem;
+  padding:
+    0.35rem
+    0.62rem;
+  font-size: 0.66rem;
+}
+
+#tab-bot-control .bot-control-activity-page {
+  min-width: 5.4rem;
+  text-align: center;
+  color: rgba(172, 204, 192, 0.79);
+  font-size: 0.66rem;
+}
+
+/* Create confirmation dialog */
+
+#spotGridConfirmDialog {
+  width: min(
+    46rem,
+    calc(100vw - 2rem)
+  );
+  max-height:
+    min(
+      88vh,
+      52rem
+    );
+  overflow: auto;
+  border:
+    1px solid
+    rgba(82, 233, 186, 0.22);
+  border-radius: 1.05rem;
+  background:
+    linear-gradient(
+      155deg,
+      rgb(5, 35, 29),
+      rgb(2, 22, 18)
+    );
+  color: rgba(223, 246, 237, 0.94);
+  box-shadow:
+    0 28px 80px
+      rgba(0, 0, 0, 0.58),
+    inset 0 1px 0
+      rgba(178, 255, 229, 0.04);
+}
+
+#spotGridConfirmDialog::backdrop {
+  background:
+    rgba(0, 10, 8, 0.76);
+  backdrop-filter:
+    blur(8px);
+}
+
+#spotGridConfirmDialog > .dialog-header {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom:
+    1px solid
+    rgba(76, 218, 175, 0.13);
+  background:
+    rgba(4, 31, 26, 0.94);
+  backdrop-filter:
+    blur(12px);
+}
+
+#spotGridConfirmDialog .bot-control-confirm-content {
+  display: grid;
+  gap: 0.82rem;
+  padding: 1rem;
+}
+
+#spotGridConfirmDialog .bot-control-confirm-summary {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+  gap: 0.55rem;
+}
+
+#spotGridConfirmDialog .bot-control-confirm-row {
+  min-width: 0;
+  padding: 0.7rem;
+  border:
+    1px solid
+    rgba(73, 216, 172, 0.1);
+  border-radius: 0.7rem;
+  background:
+    rgba(0, 16, 13, 0.5);
+}
+
+#spotGridConfirmDialog .bot-control-confirm-row span {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: rgba(121, 161, 146, 0.67);
+  font-size: 0.61rem;
+  font-weight: 710;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+#spotGridConfirmDialog .bot-control-confirm-row strong {
+  display: flex;
+  gap: 0.32rem;
+  align-items: center;
+  color: rgba(230, 249, 242, 0.95);
+  font-size: 0.76rem;
+  word-break: break-word;
+}
+
+#spotGridConfirmDialog .aurora-bot-control-market-symbols {
+  display: inline-flex;
+  gap: 0.08rem;
+  flex: 0 0 auto;
+}
+
+#spotGridConfirmDialog .aurora-bot-control-market-symbol-slot {
+  display: inline-flex;
+  width: 1.04rem;
+  height: 1.04rem;
+}
+
+#spotGridConfirmDialog .aurora-bot-control-market-symbol-slot
+.aurora-symbol,
+#spotGridConfirmDialog .aurora-bot-control-asset-inline {
+  width: 1rem;
+  height: 1rem;
+}
+
+#spotGridConfirmDialog .bot-control-safety-notice {
+  border:
+    1px solid
+    rgba(79, 206, 168, 0.15);
+  border-radius: 0.76rem;
+  padding: 0.72rem;
+  background:
+    rgba(5, 56, 45, 0.23);
+  color: rgba(178, 211, 198, 0.83);
+  font-size: 0.72rem;
+  line-height: 1.48;
+}
+
+#spotGridConfirmDialog .bot-control-safety-notice.enabled {
+  border-color:
+    rgba(246, 185, 70, 0.36);
+  background:
+    rgba(118, 77, 14, 0.2);
+  color: rgb(251, 205, 112);
+  box-shadow:
+    inset 3px 0 0
+      rgba(247, 188, 75, 0.48);
+}
+
+#spotGridConfirmDialog .bot-control-confirm-input {
+  display: grid;
+  gap: 0.38rem;
+  color: rgba(145, 182, 168, 0.74);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+#spotGridConfirmDialog .bot-control-confirm-input input {
+  min-height: 2.6rem;
+  border:
+    1px solid
+    rgba(78, 220, 177, 0.18);
+  border-radius: 0.7rem;
+  outline: 0;
+  background:
+    rgba(0, 15, 12, 0.75);
+  color: rgba(233, 251, 245, 0.96);
+  padding: 0.7rem;
+}
+
+#spotGridConfirmDialog .bot-control-confirm-input input:focus {
+  border-color:
+    rgba(85, 239, 190, 0.5);
+  box-shadow:
+    0 0 0 3px
+      rgba(70, 231, 182, 0.08);
+}
+
+#spotGridConfirmDialog .form-actions {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+#spotGridConfirmDialog .button {
+  border-radius: 0.7rem;
+}
+
+#spotGridConfirmDialog .button.danger {
+  border-color:
+    rgba(241, 187, 76, 0.43);
+  background:
+    rgba(127, 82, 13, 0.3);
+  color: rgb(255, 210, 118);
+}
+
+#spotGridConfirmDialog .button.danger:hover:not(:disabled) {
+  background:
+    rgba(150, 96, 14, 0.39);
+}
+
+#spotGridConfirmDialog .form-error {
+  color: rgb(255, 139, 151);
+}
+
+/* Stop confirmation dialog */
+
+#stopBotConfirmDialog {
+  width: min(
+    54rem,
+    calc(100vw - 2rem)
+  );
+  max-height:
+    min(
+      90vh,
+      58rem
+    );
+  overflow: auto;
+  border:
+    1px solid
+    rgba(91, 220, 178, 0.2);
+  border-radius: 1.05rem;
+  background:
+    linear-gradient(
+      155deg,
+      rgb(5, 34, 28),
+      rgb(2, 21, 18)
+    );
+  color: rgba(224, 246, 238, 0.94);
+  box-shadow:
+    0 30px 85px
+      rgba(0, 0, 0, 0.6);
+}
+
+#stopBotConfirmDialog::backdrop {
+  background:
+    rgba(0, 9, 7, 0.78);
+  backdrop-filter:
+    blur(8px);
+}
+
+#stopBotConfirmDialog > .dialog-header {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  border-bottom:
+    1px solid
+    rgba(78, 219, 175, 0.13);
+  background:
+    rgba(4, 30, 25, 0.95);
+  backdrop-filter:
+    blur(12px);
+}
+
+#stopBotConfirmDialog .bot-control-confirm-content {
+  display: grid;
+  gap: 0.82rem;
+  padding: 1rem;
+}
+
+#stopBotConfirmDialog .bot-stop-strategy-card {
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(76, 219, 174, 0.14);
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(7, 57, 46, 0.38),
+      rgba(0, 17, 14, 0.58)
+    );
+}
+
+#stopBotConfirmDialog .bot-stop-strategy-heading {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.82rem;
+  border-bottom:
+    1px solid
+    rgba(73, 211, 170, 0.09);
+}
+
+#stopBotConfirmDialog .bot-stop-card-label {
+  display: block;
+  margin-bottom: 0.22rem;
+  color: rgba(120, 161, 146, 0.68);
+  font-size: 0.61rem;
+  font-weight: 720;
+  letter-spacing: 0.052em;
+  text-transform: uppercase;
+}
+
+#stopBotConfirmDialog .bot-stop-strategy-heading strong {
+  color: rgba(236, 252, 246, 0.97);
+  font-size: 0.9rem;
+}
+
+#stopBotConfirmDialog .bot-stop-account-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.55rem;
+  padding:
+    0.18rem
+    0.5rem;
+  border:
+    1px solid
+    rgba(72, 217, 174, 0.17);
+  border-radius: 999px;
+  background:
+    rgba(7, 70, 55, 0.3);
+  color: rgba(159, 211, 192, 0.86);
+  font-size: 0.64rem;
+  font-weight: 680;
+}
+
+#stopBotConfirmDialog .bot-stop-strategy-meta {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+}
+
+#stopBotConfirmDialog .bot-stop-strategy-meta > div {
+  min-width: 0;
+  padding:
+    0.66rem
+    0.78rem;
+  border-right:
+    1px solid
+    rgba(72, 210, 168, 0.07);
+}
+
+#stopBotConfirmDialog .bot-stop-strategy-meta > div:last-child {
+  border-right: 0;
+}
+
+#stopBotConfirmDialog .bot-stop-strategy-meta span,
+#stopBotConfirmDialog .bot-stop-status-item > span,
+#stopBotConfirmDialog .bot-stop-financial-card > span {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: rgba(117, 157, 142, 0.67);
+  font-size: 0.61rem;
+  font-weight: 700;
+  letter-spacing: 0.048em;
+  text-transform: uppercase;
+}
+
+#stopBotConfirmDialog .bot-stop-strategy-meta strong {
+  display: flex;
+  gap: 0.32rem;
+  align-items: center;
+  color: rgba(218, 241, 232, 0.9);
+  font-size: 0.72rem;
+  word-break: break-word;
+}
+
+#stopBotConfirmDialog .aurora-bot-control-market-symbols {
+  display: inline-flex;
+  gap: 0.08rem;
+  flex: 0 0 auto;
+}
+
+#stopBotConfirmDialog .aurora-bot-control-market-symbol-slot {
+  display: inline-flex;
+  width: 1.04rem;
+  height: 1.04rem;
+}
+
+#stopBotConfirmDialog .aurora-bot-control-market-symbol-slot
+.aurora-symbol,
+#stopBotConfirmDialog .aurora-bot-control-asset-inline {
+  width: 1rem;
+  height: 1rem;
+}
+
+#stopBotConfirmDialog .bot-stop-status-row {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+  border-top:
+    1px solid
+    rgba(72, 211, 168, 0.07);
+}
+
+#stopBotConfirmDialog .bot-stop-status-item {
+  padding:
+    0.67rem
+    0.78rem;
+}
+
+#stopBotConfirmDialog .bot-stop-status-item + .bot-stop-status-item {
+  border-left:
+    1px solid
+    rgba(72, 211, 168, 0.07);
+}
+
+#stopBotConfirmDialog .bot-stop-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.4rem;
+  padding:
+    0.14rem
+    0.45rem;
+  border:
+    1px solid
+    rgba(67, 226, 177, 0.2);
+  border-radius: 999px;
+  background:
+    rgba(8, 82, 63, 0.18);
+  color: rgb(97, 226, 186);
+  font-size: 0.63rem;
+  font-weight: 700;
+}
+
+#stopBotConfirmDialog .bot-stop-financial-cards {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+  gap: 0.55rem;
+}
+
+#stopBotConfirmDialog .bot-stop-financial-card {
+  padding: 0.72rem;
+  border:
+    1px solid
+    rgba(76, 218, 174, 0.1);
+  border-radius: 0.72rem;
+  background:
+    rgba(0, 17, 14, 0.48);
+}
+
+#stopBotConfirmDialog .bot-stop-financial-card > strong {
+  color: rgba(231, 248, 242, 0.94);
+  font-size: 0.88rem;
+}
+
+#stopBotConfirmDialog .bot-stop-financial-card.positive > strong {
+  color: rgb(77, 232, 184);
+}
+
+#stopBotConfirmDialog .bot-stop-financial-card.negative > strong {
+  color: rgb(255, 119, 135);
+}
+
+#stopBotConfirmDialog .bot-stop-return-estimate {
+  border:
+    1px solid
+    rgba(71, 222, 176, 0.13);
+  border-radius: 0.86rem;
+  background:
+    rgba(1, 19, 16, 0.5);
+}
+
+#stopBotConfirmDialog .bot-stop-return-heading {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.76rem;
+  border-bottom:
+    1px solid
+    rgba(72, 211, 169, 0.08);
+}
+
+#stopBotConfirmDialog .bot-stop-return-heading strong {
+  display: block;
+  color: rgba(228, 248, 240, 0.94);
+  font-size: 0.8rem;
+}
+
+#stopBotConfirmDialog .bot-stop-return-heading span {
+  color: rgba(121, 158, 144, 0.68);
+  font-size: 0.65rem;
+}
+
+#stopBotConfirmDialog .bot-stop-return-confidence {
+  display: inline-flex;
+  min-height: 1.4rem;
+  padding:
+    0.14rem
+    0.45rem;
+  align-items: center;
+  border:
+    1px solid
+    rgba(77, 219, 175, 0.15);
+  border-radius: 999px;
+  background:
+    rgba(6, 68, 53, 0.21);
+}
+
+#stopBotConfirmDialog .bot-stop-return-assets {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+}
+
+#stopBotConfirmDialog .bot-stop-return-asset {
+  padding: 0.7rem 0.76rem;
+}
+
+#stopBotConfirmDialog .bot-stop-return-asset + .bot-stop-return-asset {
+  border-left:
+    1px solid
+    rgba(72, 211, 169, 0.07);
+}
+
+#stopBotConfirmDialog .bot-stop-return-asset span,
+#stopBotConfirmDialog .bot-stop-return-total span {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: rgba(117, 156, 141, 0.67);
+  font-size: 0.61rem;
+  font-weight: 700;
+  letter-spacing: 0.048em;
+  text-transform: uppercase;
+}
+
+#stopBotConfirmDialog .bot-stop-return-asset strong {
+  display: flex;
+  gap: 0.32rem;
+  align-items: center;
+  color: rgba(223, 244, 236, 0.92);
+  font-size: 0.78rem;
+}
+
+#stopBotConfirmDialog .bot-stop-return-total {
+  padding: 0.72rem 0.76rem;
+  border-top:
+    1px solid
+    rgba(72, 211, 169, 0.07);
+  background:
+    rgba(8, 60, 48, 0.12);
+}
+
+#stopBotConfirmDialog .bot-stop-return-total strong {
+  color: rgb(99, 229, 188);
+  font-size: 0.9rem;
+}
+
+#stopBotConfirmDialog .bot-stop-return-note {
+  padding:
+    0
+    0.76rem
+    0.72rem;
+  color: rgba(119, 154, 141, 0.67);
+  font-size: 0.66rem;
+  line-height: 1.42;
+}
+
+#stopBotConfirmDialog .bot-control-validation {
+  display: grid;
+  gap: 0.45rem;
+}
+
+#stopBotConfirmDialog .bot-control-message {
+  border-radius: 0.72rem;
+  padding: 0.68rem 0.72rem;
+  font-size: 0.71rem;
+}
+
+#stopBotConfirmDialog .bot-control-message.success {
+  border:
+    1px solid
+    rgba(65, 227, 178, 0.2);
+  background:
+    rgba(8, 79, 61, 0.17);
+  color: rgb(99, 227, 187);
+}
+
+#stopBotConfirmDialog .bot-control-message.warning {
+  border:
+    1px solid
+    rgba(240, 184, 77, 0.23);
+  background:
+    rgba(105, 72, 17, 0.17);
+  color: rgb(244, 201, 113);
+}
+
+#stopBotConfirmDialog .bot-control-message.error {
+  border:
+    1px solid
+    rgba(247, 102, 117, 0.24);
+  background:
+    rgba(105, 28, 37, 0.17);
+  color: rgb(255, 139, 151);
+}
+
+#stopBotConfirmDialog .bot-control-safety-notice {
+  border:
+    1px solid
+    rgba(76, 214, 172, 0.15);
+  border-radius: 0.76rem;
+  padding: 0.72rem;
+  background:
+    rgba(4, 52, 42, 0.22);
+  color: rgba(178, 210, 198, 0.83);
+  font-size: 0.72rem;
+  line-height: 1.48;
+}
+
+#stopBotConfirmDialog .bot-control-safety-notice.enabled {
+  border-color:
+    rgba(247, 104, 117, 0.4);
+  background:
+    rgba(111, 28, 37, 0.2);
+  color: rgb(255, 143, 154);
+  box-shadow:
+    inset 3px 0 0
+      rgba(249, 102, 117, 0.55);
+}
+
+#stopBotConfirmDialog .bot-control-confirm-prompt {
+  color: rgba(172, 199, 189, 0.8);
+  font-size: 0.72rem;
+}
+
+#stopBotConfirmDialog .bot-control-confirm-prompt strong {
+  color: rgb(255, 170, 178);
+}
+
+#stopBotConfirmDialog .bot-control-confirm-input {
+  display: grid;
+  gap: 0.38rem;
+  color: rgba(144, 181, 167, 0.74);
+  font-size: 0.7rem;
+}
+
+#stopBotConfirmDialog .bot-control-confirm-input input {
+  min-height: 2.6rem;
+  border:
+    1px solid
+    rgba(233, 101, 115, 0.22);
+  border-radius: 0.7rem;
+  outline: 0;
+  background:
+    rgba(19, 8, 10, 0.55);
+  color: rgba(250, 231, 234, 0.96);
+  padding: 0.7rem;
+}
+
+#stopBotConfirmDialog .bot-control-confirm-input input:focus {
+  border-color:
+    rgba(246, 116, 131, 0.5);
+  box-shadow:
+    0 0 0 3px
+      rgba(238, 93, 110, 0.08);
+}
+
+#stopBotConfirmDialog .form-actions {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+#stopBotConfirmDialog .button.danger {
+  border-color:
+    rgba(244, 91, 108, 0.43);
+  background:
+    rgba(132, 31, 42, 0.35);
+  color: rgb(255, 148, 159);
+}
+
+#stopBotConfirmDialog .button.danger:hover:not(:disabled) {
+  background:
+    rgba(157, 36, 49, 0.43);
+}
+
+/* Request-detail / recovery dialog */
+
+#botControlRequestDialog {
+  width: min(
+    58rem,
+    calc(100vw - 2rem)
+  );
+  max-height:
+    min(
+      91vh,
+      62rem
+    );
+  overflow: auto;
+  border:
+    1px solid
+    rgba(82, 229, 184, 0.2);
+  border-radius: 1.08rem;
+  background:
+    linear-gradient(
+      155deg,
+      rgb(5, 34, 28),
+      rgb(2, 21, 18)
+    );
+  color: rgba(224, 246, 238, 0.94);
+  box-shadow:
+    0 30px 88px
+      rgba(0, 0, 0, 0.61);
+}
+
+#botControlRequestDialog::backdrop {
+  background:
+    rgba(0, 9, 7, 0.79);
+  backdrop-filter:
+    blur(8px);
+}
+
+#botControlRequestDialog > .dialog-header {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  border-bottom:
+    1px solid
+    rgba(77, 215, 173, 0.13);
+  background:
+    rgba(4, 30, 25, 0.95);
+  backdrop-filter:
+    blur(12px);
+}
+
+#botControlRequestDialog .bot-control-request-content {
+  display: grid;
+  gap: 0.82rem;
+  padding: 1rem;
+}
+
+#botControlRequestDialog .bot-control-request-card {
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(75, 216, 173, 0.13);
+  border-radius: 0.86rem;
+  background:
+    rgba(0, 17, 14, 0.48);
+}
+
+#botControlRequestDialog .bot-control-request-heading {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.78rem;
+  border-bottom:
+    1px solid
+    rgba(72, 210, 168, 0.08);
+}
+
+#botControlRequestDialog .bot-control-request-label {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: rgba(119, 159, 144, 0.68);
+  font-size: 0.61rem;
+  font-weight: 710;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+#botControlRequestDialog .bot-control-request-heading
+> div > strong {
+  color: rgba(233, 250, 244, 0.96);
+  font-size: 0.88rem;
+}
+
+#botControlRequestDialog .bot-control-request-status {
+  display: inline-flex;
+  min-height: 1.5rem;
+  align-items: center;
+  padding:
+    0.16rem
+    0.5rem;
+  border:
+    1px solid
+    rgba(76, 219, 175, 0.17);
+  border-radius: 999px;
+  background:
+    rgba(7, 67, 53, 0.22);
+  color: rgba(156, 211, 191, 0.86);
+  font-size: 0.63rem;
+  font-weight: 710;
+}
+
+#botControlRequestDialog .bot-control-request-status.success {
+  border-color:
+    rgba(63, 226, 176, 0.23);
+  color: rgb(96, 228, 187);
+}
+
+#botControlRequestDialog .bot-control-request-status.warning {
+  border-color:
+    rgba(241, 185, 77, 0.27);
+  background:
+    rgba(107, 73, 17, 0.17);
+  color: rgb(244, 201, 112);
+}
+
+#botControlRequestDialog .bot-control-request-status.danger {
+  border-color:
+    rgba(246, 102, 116, 0.28);
+  background:
+    rgba(107, 28, 36, 0.18);
+  color: rgb(255, 139, 151);
+}
+
+#botControlRequestDialog .bot-control-request-id {
+  padding: 0.65rem 0.78rem;
+  border-bottom:
+    1px solid
+    rgba(71, 206, 166, 0.07);
+}
+
+#botControlRequestDialog .bot-control-request-id span,
+#botControlRequestDialog .bot-control-request-identity span,
+#botControlRequestDialog .bot-control-request-metric > span,
+#botControlRequestDialog .bot-control-request-times span {
+  display: block;
+  margin-bottom: 0.17rem;
+  color: rgba(114, 153, 139, 0.66);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.047em;
+  text-transform: uppercase;
+}
+
+#botControlRequestDialog .bot-control-request-id strong {
+  color: rgba(197, 227, 216, 0.87);
+  font-size: 0.67rem;
+  word-break: break-all;
+}
+
+#botControlRequestDialog .bot-control-request-identity,
+#botControlRequestDialog .bot-control-request-times {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+}
+
+#botControlRequestDialog .bot-control-request-identity > div,
+#botControlRequestDialog .bot-control-request-times > div {
+  min-width: 0;
+  padding: 0.65rem 0.78rem;
+}
+
+#botControlRequestDialog .bot-control-request-identity
+> div + div,
+#botControlRequestDialog .bot-control-request-times
+> div + div {
+  border-left:
+    1px solid
+    rgba(71, 206, 166, 0.07);
+}
+
+#botControlRequestDialog .bot-control-request-identity strong,
+#botControlRequestDialog .bot-control-request-times strong {
+  color: rgba(218, 241, 232, 0.9);
+  font-size: 0.72rem;
+}
+
+#botControlRequestDialog .bot-control-request-metrics {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+  border-top:
+    1px solid
+    rgba(71, 206, 166, 0.07);
+  border-bottom:
+    1px solid
+    rgba(71, 206, 166, 0.07);
+}
+
+#botControlRequestDialog .bot-control-request-metric {
+  min-width: 0;
+  padding: 0.65rem 0.78rem;
+}
+
+#botControlRequestDialog .bot-control-request-metric
++ .bot-control-request-metric {
+  border-left:
+    1px solid
+    rgba(71, 206, 166, 0.07);
+}
+
+#botControlRequestDialog .bot-control-request-metric
+> strong {
+  color: rgba(218, 241, 232, 0.9);
+  font-size: 0.72rem;
+}
+
+#botControlRequestDialog .bot-control-request-metric small {
+  display: block;
+  margin-top: 0.2rem;
+  color: rgba(119, 154, 141, 0.63);
+  font-size: 0.61rem;
+  line-height: 1.35;
+}
+
+#botControlRequestDialog .bot-control-lock-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding:
+    0.13rem
+    0.42rem;
+  border:
+    1px solid
+    rgba(76, 220, 175, 0.17);
+  border-radius: 999px;
+  background:
+    rgba(7, 67, 53, 0.19);
+}
+
+#botControlRequestDialog .bot-control-safety-notice {
+  border:
+    1px solid
+    rgba(72, 210, 169, 0.14);
+  border-radius: 0.76rem;
+  padding: 0.72rem;
+  background:
+    rgba(4, 50, 40, 0.2);
+  color: rgba(177, 209, 197, 0.82);
+  font-size: 0.71rem;
+  line-height: 1.47;
+}
+
+#botControlRequestDialog .bot-control-safety-notice.enabled {
+  border-color:
+    rgba(242, 183, 76, 0.28);
+  background:
+    rgba(108, 73, 16, 0.17);
+  color: rgb(242, 199, 111);
+}
+
+#botControlRequestDialog .bot-control-reconciliation-history {
+  display: grid;
+  gap: 0.55rem;
+}
+
+#botControlRequestDialog .bot-control-reconciliation-card {
+  border:
+    1px solid
+    rgba(72, 211, 169, 0.11);
+  border-radius: 0.72rem;
+  padding: 0.7rem;
+  background:
+    rgba(0, 16, 13, 0.44);
+}
+
+#botControlRequestDialog .bot-control-reconciliation-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#botControlRequestDialog .bot-control-reconciliation-head strong {
+  color: rgba(218, 242, 233, 0.91);
+  font-size: 0.74rem;
+}
+
+#botControlRequestDialog .bot-control-reconciliation-card p {
+  margin:
+    0.45rem
+    0
+    0;
+  color: rgba(149, 181, 169, 0.74);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+#botControlRequestDialog .bot-control-reconciliation-meta {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.45rem;
+  color: rgba(112, 147, 134, 0.62);
+  font-size: 0.61rem;
+}
+
+#botControlRequestDialog .bot-control-request-content section {
+  border:
+    1px solid
+    rgba(72, 209, 168, 0.1);
+  border-radius: 0.8rem;
+  padding: 0.76rem;
+  background:
+    rgba(0, 15, 12, 0.34);
+}
+
+#botControlRequestDialog .bot-control-request-content section h3 {
+  margin:
+    0
+    0
+    0.55rem;
+  color: rgba(218, 241, 232, 0.91);
+  font-size: 0.78rem;
+}
+
+#botControlRequestDialog .bot-control-request-content details {
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(71, 206, 166, 0.1);
+  border-radius: 0.72rem;
+  background:
+    rgba(0, 13, 11, 0.42);
+}
+
+#botControlRequestDialog .bot-control-request-content summary {
+  cursor: pointer;
+  padding: 0.68rem 0.74rem;
+  color: rgba(171, 204, 192, 0.78);
+  font-size: 0.69rem;
+  font-weight: 670;
+}
+
+#botControlRequestDialog .bot-control-json {
+  max-height: 22rem;
+  overflow: auto;
+  margin: 0;
+  padding: 0.75rem;
+  border-top:
+    1px solid
+    rgba(71, 206, 166, 0.08);
+  background:
+    rgba(0, 11, 9, 0.74);
+  color: rgba(171, 211, 196, 0.83);
+  font-size: 0.67rem;
+  line-height: 1.52;
+  scrollbar-color:
+    rgba(73, 194, 156, 0.28)
+    rgba(0, 0, 0, 0);
+}
+
+#botControlRequestDialog .bot-control-confirm-input {
+  display: grid;
+  gap: 0.38rem;
+  color: rgba(144, 180, 166, 0.74);
+  font-size: 0.69rem;
+}
+
+#botControlRequestDialog .bot-control-confirm-input input,
+#botControlRequestDialog .bot-control-confirm-input textarea {
+  border:
+    1px solid
+    rgba(219, 93, 108, 0.2);
+  border-radius: 0.68rem;
+  outline: 0;
+  background:
+    rgba(18, 7, 9, 0.52);
+  color: rgba(247, 229, 232, 0.95);
+  padding: 0.68rem;
+}
+
+#botControlRequestDialog .bot-control-confirm-input input:focus,
+#botControlRequestDialog .bot-control-confirm-input textarea:focus {
+  border-color:
+    rgba(244, 111, 126, 0.45);
+  box-shadow:
+    0 0 0 3px
+      rgba(238, 94, 111, 0.07);
+}
+
+#botControlRequestDialog .form-actions {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+#botControlRequestDialog .button.danger {
+  border-color:
+    rgba(244, 91, 108, 0.4);
+  background:
+    rgba(130, 30, 42, 0.33);
+  color: rgb(255, 146, 157);
+}
+
+#botControlRequestDialog .form-error {
+  color: rgb(255, 139, 151);
+}
+
+/* Responsive */
+
+@media (max-width: 1100px) {
+  #tab-bot-control .bot-control-layout {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+  #tab-bot-control .bot-control-attention-panel,
+  #tab-bot-control .bot-control-activity-panel {
+    grid-column: auto;
+  }
+
+  #tab-bot-control .bot-control-attention-main {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  #stopBotConfirmDialog .bot-stop-financial-cards,
+  #botControlRequestDialog .bot-control-request-metrics {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+@media (max-width: 760px) {
+  #tab-bot-control .bot-control-form,
+  #tab-bot-control .bot-control-review-grid,
+  #tab-bot-control .bot-control-attention-main {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+  #tab-bot-control .bot-control-advanced-grid {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+  #tab-bot-control .bot-control-activity-footer,
+  #tab-bot-control .bot-control-activity-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #tab-bot-control .bot-control-activity-pagination {
+    justify-content: space-between;
+  }
+
+  #spotGridConfirmDialog .bot-control-confirm-summary {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+  #stopBotConfirmDialog .bot-stop-strategy-meta,
+  #stopBotConfirmDialog .bot-stop-status-row,
+  #stopBotConfirmDialog .bot-stop-financial-cards,
+  #stopBotConfirmDialog .bot-stop-return-assets,
+  #botControlRequestDialog .bot-control-request-identity,
+  #botControlRequestDialog .bot-control-request-times,
+  #botControlRequestDialog .bot-control-request-metrics {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+  #stopBotConfirmDialog .bot-stop-strategy-meta > div,
+  #stopBotConfirmDialog .bot-stop-status-item,
+  #stopBotConfirmDialog .bot-stop-return-asset,
+  #botControlRequestDialog .bot-control-request-identity > div,
+  #botControlRequestDialog .bot-control-request-times > div,
+  #botControlRequestDialog .bot-control-request-metric {
+    border-left: 0;
+    border-right: 0;
+  }
+
+  #stopBotConfirmDialog .bot-stop-strategy-meta > div
+  + div,
+  #stopBotConfirmDialog .bot-stop-status-item
+  + .bot-stop-status-item,
+  #stopBotConfirmDialog .bot-stop-return-asset
+  + .bot-stop-return-asset,
+  #botControlRequestDialog .bot-control-request-identity
+  > div + div,
+  #botControlRequestDialog .bot-control-request-times
+  > div + div,
+  #botControlRequestDialog .bot-control-request-metric
+  + .bot-control-request-metric {
+    border-top:
+      1px solid
+      rgba(72, 211, 169, 0.07);
+  }
+}
+
+@media (max-width: 520px) {
+  #tab-bot-control {
+    padding-bottom: 0.75rem;
+  }
+
+  #tab-bot-control .bot-control-form-panel,
+  #tab-bot-control .bot-control-review-panel,
+  #tab-bot-control .bot-control-attention-panel,
+  #tab-bot-control .bot-control-activity-panel {
+    border-radius: 0.85rem;
+  }
+
+  #tab-bot-control .bot-control-create-title-row,
+  #tab-bot-control .bot-control-attention-title,
+  #tab-bot-control .bot-control-activity-panel .panel-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #tab-bot-control .bot-control-create-state {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  #tab-bot-control .bot-control-form-actions,
+  #spotGridConfirmDialog .form-actions,
+  #stopBotConfirmDialog .form-actions,
+  #botControlRequestDialog .form-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  #tab-bot-control .bot-control-form-actions .button,
+  #spotGridConfirmDialog .form-actions .button,
+  #stopBotConfirmDialog .form-actions .button,
+  #botControlRequestDialog .form-actions .button {
+    width: 100%;
+  }
+
+  #stopBotConfirmDialog .bot-stop-strategy-heading,
+  #stopBotConfirmDialog .bot-stop-return-heading,
+  #botControlRequestDialog .bot-control-request-heading {
+    flex-direction: column;
+  }
+}

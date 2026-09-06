@@ -1013,6 +1013,457 @@
   }
 
 
+
+  /*
+   * Bot Control artwork is presentation-only.
+   *
+   * app.js remains authoritative for:
+   * - form state;
+   * - preflight state;
+   * - live/simulation policy;
+   * - confirmations;
+   * - create/stop submission.
+   *
+   * Dynamic Bot Control renderers replace their HTML, so
+   * the existing Aurora MutationObserver re-applies these
+   * decorations after each renderer update.
+   */
+
+  function prependBotControlMarketSymbols(
+    host,
+    market,
+  ) {
+    if (!host) {
+      return;
+    }
+
+    const canonicalMarket = String(
+      market || ''
+    ).trim();
+
+    if (!canonicalMarket) {
+      return;
+    }
+
+    const [
+      base,
+      quote,
+    ] = splitBotMarketAssets(
+      canonicalMarket
+    );
+
+    const existing = host.querySelector(
+      ':scope > .aurora-bot-control-market-symbols'
+    );
+
+    if (
+      existing
+      && existing.dataset.auroraMarket
+      === canonicalMarket
+    ) {
+      return;
+    }
+
+    if (existing) {
+      existing.remove();
+    }
+
+    const group = document.createElement(
+      'span'
+    );
+
+    group.className =
+      'aurora-bot-control-market-symbols';
+
+    group.dataset.auroraMarket =
+      canonicalMarket;
+
+    group.setAttribute(
+      'aria-hidden',
+      'true',
+    );
+
+    group.title = [
+      base,
+      quote,
+    ]
+      .filter(Boolean)
+      .join(' / ');
+
+    [
+      base,
+      quote,
+    ]
+      .filter(Boolean)
+      .forEach(symbol => {
+        const slot =
+          document.createElement(
+            'span'
+          );
+
+        slot.className =
+          'aurora-bot-control-market-symbol-slot';
+
+        group.appendChild(
+          slot
+        );
+
+        prependSymbol(
+          slot,
+          'asset',
+          symbol,
+          symbol,
+          'aurora-bot-control-market-symbol-inline',
+        );
+      });
+
+    host.insertBefore(
+      group,
+      host.firstChild,
+    );
+  }
+
+
+  function botControlCanonicalValue(
+    host,
+    datasetKey,
+  ) {
+    if (!host) {
+      return '';
+    }
+
+    const stored = String(
+      host.dataset?.[datasetKey]
+      || ''
+    ).trim();
+
+    if (stored) {
+      return stored;
+    }
+
+    const value = String(
+      host.textContent || ''
+    ).trim();
+
+    if (
+      value
+      && host.dataset
+    ) {
+      host.dataset[
+        datasetKey
+      ] = value;
+    }
+
+    return value;
+  }
+
+
+  function botControlAssetFromValue(
+    value,
+  ) {
+    const text = String(
+      value || ''
+    ).trim();
+
+    const match = text.match(
+      /(?:^|\s)([A-Za-z][A-Za-z0-9]{1,14})$/
+    );
+
+    if (!match) {
+      return '';
+    }
+
+    return String(
+      match[1] || ''
+    ).toUpperCase();
+  }
+
+
+  function decorateBotControlLabelledRows() {
+    const rows =
+      document.querySelectorAll(
+        [
+          '#spotGridReviewMetrics .bot-control-review-item',
+          '#spotGridConfirmSummary .bot-control-confirm-row',
+          '#botControlAttentionList .bot-control-attention-field',
+          '#stopBotConfirmSummary .bot-stop-strategy-meta > div',
+          '#stopBotReturnEstimate .bot-stop-return-asset',
+        ].join(', ')
+      );
+
+    rows.forEach(row => {
+      const label = Array.from(
+        row.children || []
+      ).find(child => (
+        child.tagName === 'SPAN'
+      ));
+
+      const value = Array.from(
+        row.children || []
+      ).find(child => (
+        child.tagName === 'STRONG'
+      ));
+
+      if (
+        !label
+        || !value
+      ) {
+        return;
+      }
+
+      const labelText = String(
+        label.textContent || ''
+      ).trim();
+
+      if (labelText === 'Market') {
+        const market =
+          botControlCanonicalValue(
+            value,
+            'auroraBotControlMarket',
+          );
+
+        if (market) {
+          prependBotControlMarketSymbols(
+            value,
+            market,
+          );
+        }
+
+        return;
+      }
+
+      if (
+        labelText !== 'Base asset'
+        && labelText !== 'Quote asset'
+      ) {
+        return;
+      }
+
+      const canonical =
+        botControlCanonicalValue(
+          value,
+          'auroraBotControlAssetValue',
+        );
+
+      const asset =
+        botControlAssetFromValue(
+          canonical
+        );
+
+      if (!asset) {
+        return;
+      }
+
+      prependSymbol(
+        value,
+        'asset',
+        asset,
+        asset,
+        'aurora-bot-control-asset-inline',
+      );
+    });
+  }
+
+
+  function decorateBotControlActivityMarkets() {
+    document
+      .querySelectorAll(
+        '#botControlActivityBody tr'
+      )
+      .forEach(row => {
+        const cells =
+          row.querySelectorAll(
+            'td'
+          );
+
+        /*
+         * Activity contract:
+         * 1 time
+         * 2 account
+         * 3 user
+         * 4 action
+         * 5 market
+         */
+        if (cells.length < 5) {
+          return;
+        }
+
+        const marketCell =
+          cells[4];
+
+        const market =
+          botControlCanonicalValue(
+            marketCell,
+            'auroraBotControlMarket',
+          );
+
+        if (
+          !market
+          || market === '—'
+        ) {
+          return;
+        }
+
+        prependBotControlMarketSymbols(
+          marketCell,
+          market,
+        );
+      });
+  }
+
+
+  function decorateBotControlMarketInput() {
+    const form = document.querySelector(
+      '#spotGridForm'
+    );
+
+    if (!form) {
+      return;
+    }
+
+    const marketLabel = Array.from(
+      form.querySelectorAll(
+        'label'
+      )
+    ).find(label => (
+      String(
+        label.textContent || ''
+      )
+        .trim()
+        .toLowerCase()
+        .startsWith('market')
+    ));
+
+    if (!marketLabel) {
+      return;
+    }
+
+    const input =
+      marketLabel.querySelector(
+        'input'
+      );
+
+    if (!input) {
+      return;
+    }
+
+    let group =
+      marketLabel.querySelector(
+        ':scope > .aurora-bot-control-market-input-symbols'
+      );
+
+    if (!group) {
+      group =
+        document.createElement(
+          'span'
+        );
+
+      group.className =
+        'aurora-bot-control-market-input-symbols';
+
+      group.setAttribute(
+        'aria-hidden',
+        'true',
+      );
+
+      marketLabel.insertBefore(
+        group,
+        input,
+      );
+    }
+
+    const market = String(
+      input.value || ''
+    ).trim();
+
+    if (!market) {
+      group.hidden = true;
+      group.replaceChildren();
+      delete group.dataset.auroraMarket;
+    } else if (
+      group.dataset.auroraMarket
+      !== market
+    ) {
+      group.replaceChildren();
+
+      const [
+        base,
+        quote,
+      ] = splitBotMarketAssets(
+        market
+      );
+
+      [
+        base,
+        quote,
+      ]
+        .filter(Boolean)
+        .forEach(symbol => {
+          const slot =
+            document.createElement(
+              'span'
+            );
+
+          slot.className =
+            'aurora-bot-control-market-symbol-slot';
+
+          group.appendChild(
+            slot
+          );
+
+          prependSymbol(
+            slot,
+            'asset',
+            symbol,
+            symbol,
+            'aurora-bot-control-market-symbol-inline',
+          );
+        });
+
+      group.dataset.auroraMarket =
+        market;
+
+      group.title = [
+        base,
+        quote,
+      ]
+        .filter(Boolean)
+        .join(' / ');
+
+      group.hidden = false;
+    } else {
+      group.hidden = false;
+    }
+
+    if (
+      input.dataset
+      && !input.dataset
+        .auroraBotControlSymbolListener
+    ) {
+      input.dataset
+        .auroraBotControlSymbolListener =
+        '1';
+
+      input.addEventListener(
+        'input',
+        scheduleDecorate,
+      );
+
+      input.addEventListener(
+        'change',
+        scheduleDecorate,
+      );
+    }
+  }
+
+
+  function decorateBotControlSymbols() {
+    decorateBotControlMarketInput();
+    decorateBotControlLabelledRows();
+    decorateBotControlActivityMarkets();
+  }
+
+
   function decorate() {
     decorateDepositOptions();
     decorateDepositFavorites();
@@ -1021,6 +1472,7 @@
     decorateBalance();
     decorateBotsMarkets();
     decorateBotDialogSymbols();
+    decorateBotControlSymbols();
   }
 
   let scheduled = false;
