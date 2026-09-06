@@ -1,0 +1,6050 @@
+/*
+ * Aurora Withdrawal — A6B
+ *
+ * Presentation only.
+ * No application logic.
+ * No financial calculations.
+ * No API behavior.
+ */
+
+/* ============================================================
+   SCENE
+   ============================================================ */
+
+#tab-wallet #treasuryWithdrawalAction {
+  --aw-mint: #55f8c4;
+  --aw-mint-soft: #9fffe0;
+  --aw-green: #1bd89c;
+  --aw-green-deep: #063d30;
+  --aw-line: rgba(84, 248, 194, 0.20);
+  --aw-line-hot: rgba(84, 248, 194, 0.58);
+  --aw-panel: rgba(5, 20, 16, 0.84);
+  --aw-panel-deep: rgba(2, 10, 8, 0.94);
+  --aw-muted: rgba(187, 219, 208, 0.62);
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+
+  padding: 28px;
+  border: 1px solid rgba(84, 248, 194, 0.21);
+  border-radius: 28px;
+
+  background:
+    radial-gradient(
+      circle at 16% 4%,
+      rgba(56, 244, 185, 0.15),
+      transparent 29%
+    ),
+    radial-gradient(
+      circle at 78% 12%,
+      rgba(45, 183, 143, 0.10),
+      transparent 27%
+    ),
+    radial-gradient(
+      circle at 94% 86%,
+      rgba(71, 255, 195, 0.09),
+      transparent 24%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(4, 19, 15, 0.97),
+      rgba(1, 8, 6, 0.985) 62%,
+      rgba(3, 15, 12, 0.97)
+    );
+
+  box-shadow:
+    0 34px 90px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(171, 255, 226, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55);
+
+  perspective: 1500px;
+  transform-style: preserve-3d;
+}
+
+#tab-wallet #treasuryWithdrawalAction::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  pointer-events: none;
+
+  background-image:
+    linear-gradient(
+      rgba(76, 239, 188, 0.033) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(76, 239, 188, 0.027) 1px,
+      transparent 1px
+    );
+
+  background-size: 38px 38px;
+
+  -webkit-mask-image:
+    radial-gradient(
+      ellipse at 52% 30%,
+      black 0%,
+      rgba(0, 0, 0, 0.72) 40%,
+      transparent 82%
+    );
+
+  mask-image:
+    radial-gradient(
+      ellipse at 52% 30%,
+      black 0%,
+      rgba(0, 0, 0, 0.72) 40%,
+      transparent 82%
+    );
+
+  opacity: 0.75;
+}
+
+#tab-wallet #treasuryWithdrawalAction::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+
+  width: 540px;
+  height: 540px;
+  left: 43%;
+  top: 42%;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(75, 255, 196, 0.10),
+      rgba(32, 189, 144, 0.035) 42%,
+      transparent 70%
+    );
+
+  filter: blur(28px);
+  transform: translate(-50%, -50%);
+}
+
+
+/* ============================================================
+   TOP IDENTITY
+   ============================================================ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+> .treasury-section-header {
+  position: relative;
+  z-index: 2;
+
+  margin-bottom: 22px;
+  padding-bottom: 19px;
+
+  border-bottom: 1px solid rgba(84, 248, 194, 0.12);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+> .treasury-section-header h3 {
+  margin-bottom: 7px;
+
+  font-size: clamp(1.25rem, 1.5vw, 1.55rem);
+  letter-spacing: -0.035em;
+
+  color: #f0fff9;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+> .treasury-section-header p {
+  max-width: 760px;
+
+  color: rgba(189, 221, 210, 0.66);
+  line-height: 1.55;
+}
+
+
+/* ============================================================
+   PROCESS RAIL
+   ============================================================ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-flow {
+  position: relative;
+  z-index: 2;
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+
+  margin: 0 0 24px;
+  padding: 5px;
+
+  border: 1px solid rgba(84, 248, 194, 0.14);
+  border-radius: 17px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(16, 48, 38, 0.44),
+      rgba(3, 15, 12, 0.58)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(162, 255, 222, 0.04),
+    0 15px 35px rgba(0, 0, 0, 0.16);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-flow-item {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  min-width: 0;
+  padding: 10px 14px;
+
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-flow-item
++ .treasury-withdrawal-flow-item::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 24%;
+  bottom: 24%;
+
+  width: 1px;
+
+  background:
+    linear-gradient(
+      transparent,
+      rgba(84, 248, 194, 0.22),
+      transparent
+    );
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-flow-number {
+  display: grid;
+  place-items: center;
+
+  width: 27px;
+  height: 27px;
+  flex: 0 0 27px;
+
+  border: 1px solid rgba(84, 248, 194, 0.32);
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle at 35% 25%,
+      rgba(147, 255, 219, 0.18),
+      rgba(21, 89, 68, 0.18)
+    );
+
+  color: var(--aw-mint);
+  font-size: 0.69rem;
+  font-weight: 800;
+
+  box-shadow:
+    0 0 18px rgba(84, 248, 194, 0.07),
+    inset 0 0 10px rgba(84, 248, 194, 0.04);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-flow-item strong {
+  display: block;
+
+  color: rgba(229, 251, 243, 0.88);
+  font-size: 0.77rem;
+  letter-spacing: 0.01em;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-flow-item small {
+  display: block;
+  margin-top: 2px;
+
+  color: rgba(172, 208, 196, 0.48);
+  font-size: 0.64rem;
+}
+
+
+/* ============================================================
+   THREE-STAGE COMPOSITION
+   ============================================================ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-grid {
+  position: relative;
+  z-index: 3;
+
+  display: grid;
+  grid-template-columns:
+    minmax(285px, 1.08fr)
+    minmax(300px, 1fr)
+    minmax(270px, 0.90fr);
+
+  gap: 17px;
+  align-items: stretch;
+
+  transform-style: preserve-3d;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage {
+  position: relative;
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
+  min-width: 0;
+  min-height: 520px;
+  padding: 18px;
+
+  border: 1px solid rgba(86, 246, 195, 0.17);
+  border-radius: 23px;
+
+  background:
+    linear-gradient(
+      154deg,
+      rgba(14, 42, 33, 0.78),
+      rgba(4, 18, 14, 0.92) 42%,
+      rgba(2, 11, 8, 0.95)
+    );
+
+  box-shadow:
+    0 24px 54px rgba(0, 0, 0, 0.31),
+    inset 0 1px 0 rgba(174, 255, 227, 0.055),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.38);
+
+  transform-style: preserve-3d;
+
+  transition:
+    transform 240ms ease,
+    border-color 240ms ease,
+    box-shadow 240ms ease;
+}
+
+@supports (backdrop-filter: blur(14px)) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage {
+    backdrop-filter:
+      blur(14px)
+      saturate(118%);
+  }
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+
+  left: 18px;
+  right: 18px;
+  top: 0;
+
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(109, 255, 209, 0.62),
+      rgba(109, 255, 209, 0.10),
+      transparent
+    );
+
+  opacity: 0.75;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage::after {
+  content: attr(data-aurora-stage);
+
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+
+  right: -5px;
+  top: 23px;
+
+  color: rgba(104, 255, 209, 0.034);
+
+  font-size: 7.3rem;
+  line-height: 0.78;
+  font-weight: 900;
+  letter-spacing: -0.09em;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination {
+  transform:
+    translateY(11px)
+    translateZ(0);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety {
+  border-color: rgba(91, 250, 198, 0.24);
+
+  box-shadow:
+    0 30px 65px rgba(0, 0, 0, 0.34),
+    0 0 34px rgba(58, 228, 174, 0.025),
+    inset 0 1px 0 rgba(174, 255, 227, 0.07);
+
+  transform:
+    translateY(2px)
+    translateZ(14px);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-request {
+  background:
+    radial-gradient(
+      circle at 60% 20%,
+      rgba(59, 238, 183, 0.075),
+      transparent 34%
+    ),
+    linear-gradient(
+      150deg,
+      rgba(10, 38, 29, 0.86),
+      rgba(2, 14, 10, 0.96) 56%,
+      rgba(1, 8, 6, 0.98)
+    );
+
+  transform:
+    translateY(-8px)
+    translateZ(24px);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage:hover {
+  border-color: rgba(84, 248, 194, 0.31);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination:hover {
+  transform:
+    translateY(7px)
+    translateZ(4px);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety:hover {
+  transform:
+    translateY(-2px)
+    translateZ(18px);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-request:hover {
+  transform:
+    translateY(-12px)
+    translateZ(29px);
+}
+
+
+/* ============================================================
+   STAGE HEADERS
+   ============================================================ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-heading {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  min-height: 58px;
+  margin-bottom: 17px;
+  padding-bottom: 14px;
+
+  border-bottom: 1px solid rgba(91, 242, 193, 0.10);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-kicker {
+  display: block;
+  margin-bottom: 5px;
+
+  color: var(--aw-mint);
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-heading strong {
+  display: block;
+
+  color: #effff9;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-signal {
+  flex: 0 0 auto;
+
+  padding: 5px 8px;
+
+  border: 1px solid rgba(84, 248, 194, 0.18);
+  border-radius: 999px;
+
+  background: rgba(45, 180, 137, 0.055);
+
+  color: rgba(132, 255, 216, 0.62);
+
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+}
+
+
+/* ============================================================
+   DESTINATION PLANE
+   ============================================================ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-builder {
+  position: relative;
+  z-index: 2;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+  box-shadow: none;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+
+  margin-bottom: 15px;
+  padding: 0 0 13px;
+
+  border-bottom: 1px solid rgba(84, 248, 194, 0.08);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head strong {
+  color: rgba(235, 255, 248, 0.91);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head > div > span {
+  color: rgba(178, 211, 200, 0.48);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 11px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid label {
+  gap: 6px;
+
+  color: rgba(205, 230, 221, 0.67);
+  font-size: 0.68rem;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid select,
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid input {
+  width: 100%;
+  min-height: 42px;
+
+  border-color: rgba(84, 248, 194, 0.14);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(4, 20, 15, 0.94),
+      rgba(2, 12, 9, 0.97)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(155, 255, 221, 0.035),
+    0 8px 18px rgba(0, 0, 0, 0.09);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid select:focus,
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid input:focus {
+  border-color: rgba(84, 248, 194, 0.52);
+
+  box-shadow:
+    0 0 0 3px rgba(84, 248, 194, 0.075),
+    0 0 24px rgba(84, 248, 194, 0.055);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+
+  margin-top: 2px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-status {
+  margin-top: 14px;
+  padding: 11px 12px;
+
+  border: 1px solid rgba(83, 224, 179, 0.11);
+  border-radius: 12px;
+
+  background: rgba(12, 41, 32, 0.33);
+
+  color: rgba(181, 214, 202, 0.60);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-unavailable {
+  position: relative;
+  z-index: 2;
+
+  margin-top: 14px;
+
+  border-color: rgba(255, 199, 87, 0.20);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(88, 62, 16, 0.16),
+      rgba(30, 24, 9, 0.15)
+    );
+}
+
+
+/* ============================================================
+   SAFETY PLANE
+   ============================================================ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-idle {
+  display: none;
+
+  position: relative;
+  z-index: 2;
+
+  margin-bottom: 13px;
+  padding: 11px 12px;
+
+  border: 1px dashed rgba(84, 248, 194, 0.14);
+  border-radius: 12px;
+
+  color: rgba(170, 205, 193, 0.46);
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-no-destinations
+.aurora-withdrawal-stage-idle {
+  display: block;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-form {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-form.hidden {
+  display: none;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-summary {
+  padding: 13px;
+
+  border-color: rgba(84, 248, 194, 0.14);
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      140deg,
+      rgba(20, 63, 49, 0.29),
+      rgba(4, 22, 16, 0.24)
+    );
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-context {
+  padding: 11px 12px;
+
+  border-color: rgba(84, 248, 194, 0.13);
+  border-radius: 12px;
+
+  background: rgba(13, 45, 35, 0.24);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-execution-row {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+
+  min-width: 0;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-amount-field {
+  width: 100%;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-amount-field input {
+  min-height: 53px;
+
+  border: 1px solid rgba(84, 248, 194, 0.22);
+  border-radius: 14px;
+
+  background:
+    radial-gradient(
+      circle at 90% 20%,
+      rgba(84, 248, 194, 0.045),
+      transparent 36%
+    ),
+    rgba(2, 14, 10, 0.88);
+
+  color: #effff9;
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary {
+  padding: 13px;
+
+  border: 1px solid rgba(84, 248, 194, 0.10);
+  border-radius: 14px;
+
+  background: rgba(5, 26, 19, 0.52);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary-grid > div {
+  border-color: rgba(84, 248, 194, 0.08);
+  background: rgba(8, 31, 24, 0.42);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-actions {
+  display: block;
+  margin-top: 1px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+#treasuryWithdrawalPreflightButton {
+  width: 100%;
+  min-height: 48px;
+
+  border: 1px solid rgba(84, 248, 194, 0.32);
+  border-radius: 13px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(24, 108, 82, 0.42),
+      rgba(10, 61, 45, 0.32)
+    );
+
+  color: var(--aw-mint-soft);
+
+  box-shadow:
+    inset 0 1px 0 rgba(183, 255, 232, 0.07),
+    0 9px 22px rgba(0, 0, 0, 0.13);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+#treasuryWithdrawalPreflightButton:not(:disabled):hover {
+  border-color: rgba(84, 248, 194, 0.62);
+
+  box-shadow:
+    0 0 0 3px rgba(84, 248, 194, 0.055),
+    0 0 31px rgba(84, 248, 194, 0.09),
+    inset 0 1px 0 rgba(184, 255, 232, 0.09);
+}
+
+
+/* ============================================================
+   REQUEST PLANE
+   ============================================================ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-request-body {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+
+  min-height: 390px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-request-orbit {
+  position: absolute;
+  pointer-events: none;
+
+  width: 250px;
+  height: 250px;
+
+  left: 50%;
+  top: 34%;
+
+  transform: translate(-50%, -50%);
+  opacity: 0.32;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-request-orbit span {
+  position: absolute;
+  inset: 0;
+
+  border: 1px solid rgba(84, 248, 194, 0.08);
+  border-radius: 50%;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-request-orbit span:nth-child(2) {
+  inset: 31px;
+
+  border-color: rgba(84, 248, 194, 0.11);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-request-orbit span:nth-child(3) {
+  inset: 71px;
+
+  border-color: rgba(84, 248, 194, 0.14);
+
+  box-shadow:
+    0 0 34px rgba(84, 248, 194, 0.035);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-placeholder {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 32px 15px;
+
+  text-align: center;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-placeholder-icon {
+  display: grid;
+  place-items: center;
+
+  width: 66px;
+  height: 66px;
+  margin-bottom: 18px;
+
+  border: 1px solid rgba(84, 248, 194, 0.20);
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle at 35% 25%,
+      rgba(119, 255, 215, 0.13),
+      rgba(8, 35, 26, 0.58)
+    );
+
+  color: rgba(119, 255, 215, 0.72);
+  font-size: 0.80rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+
+  box-shadow:
+    0 0 0 8px rgba(84, 248, 194, 0.018),
+    0 0 38px rgba(84, 248, 194, 0.055);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-placeholder strong {
+  color: rgba(224, 248, 239, 0.82);
+  font-size: 0.88rem;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-placeholder p {
+  max-width: 260px;
+  margin: 8px auto 0;
+
+  color: rgba(166, 203, 190, 0.47);
+  font-size: 0.67rem;
+  line-height: 1.5;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-request-body:has(
+  #treasuryWithdrawalPreflight:not(.hidden)
+)
+.aurora-withdrawal-stage-placeholder {
+  display: none;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+#treasuryWithdrawalPreflight {
+  position: relative;
+  z-index: 3;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-head {
+  padding: 13px;
+
+  border: 1px solid rgba(84, 248, 194, 0.13);
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(13, 52, 40, 0.52),
+      rgba(4, 22, 16, 0.56)
+    );
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid {
+  grid-template-columns: 1fr;
+  gap: 8px;
+
+  margin-top: 10px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-grid > div {
+  padding: 10px 11px;
+
+  border-color: rgba(84, 248, 194, 0.08);
+  border-radius: 11px;
+
+  background: rgba(6, 27, 20, 0.55);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-request-action {
+  position: relative;
+  z-index: 4;
+
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction
+#createTreasuryWithdrawalRequest {
+  width: 100%;
+  min-height: 54px;
+
+  border: 1px solid rgba(84, 248, 194, 0.16);
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(29, 78, 62, 0.34),
+      rgba(9, 34, 26, 0.42)
+    );
+
+  color: rgba(182, 218, 206, 0.44);
+
+  font-weight: 800;
+  letter-spacing: 0.01em;
+
+  box-shadow:
+    inset 0 1px 0 rgba(187, 255, 231, 0.035);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.aurora-withdrawal-stage-request {
+  border-color: rgba(84, 248, 194, 0.62);
+
+  background:
+    radial-gradient(
+      circle at 58% 18%,
+      rgba(84, 248, 194, 0.15),
+      transparent 35%
+    ),
+    linear-gradient(
+      148deg,
+      rgba(10, 51, 38, 0.94),
+      rgba(2, 19, 13, 0.98) 60%,
+      rgba(1, 10, 7, 0.99)
+    );
+
+  box-shadow:
+    0 34px 78px rgba(0, 0, 0, 0.40),
+    0 0 46px rgba(84, 248, 194, 0.10),
+    inset 0 1px 0 rgba(183, 255, 231, 0.12);
+
+  transform:
+    translateY(-13px)
+    translateZ(34px);
+
+  animation:
+    aurora-withdrawal-awaken
+    680ms
+    cubic-bezier(0.2, 0.8, 0.2, 1)
+    both;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-stage-signal {
+  border-color: rgba(84, 248, 194, 0.53);
+  background: rgba(84, 248, 194, 0.11);
+
+  color: var(--aw-mint);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-stage-signal {
+  font-size: 0;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-stage-signal::after {
+  content: "READY";
+
+  font-size: 0.54rem;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.aurora-withdrawal-stage-placeholder {
+  display: none;
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+#createTreasuryWithdrawalRequest:not(:disabled) {
+  border-color: rgba(112, 255, 211, 0.76);
+
+  background:
+    linear-gradient(
+      135deg,
+      #74f7cf,
+      #32dda7 52%,
+      #18bd8d
+    );
+
+  color: #03140e;
+
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.18);
+
+  box-shadow:
+    0 0 0 1px rgba(153, 255, 224, 0.12),
+    0 12px 31px rgba(27, 210, 157, 0.19),
+    0 0 42px rgba(68, 242, 187, 0.14),
+    inset 0 1px 0 rgba(239, 255, 250, 0.47);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+#createTreasuryWithdrawalRequest:not(:disabled):hover {
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 0 0 1px rgba(153, 255, 224, 0.17),
+    0 15px 36px rgba(27, 210, 157, 0.25),
+    0 0 55px rgba(68, 242, 187, 0.18),
+    inset 0 1px 0 rgba(239, 255, 250, 0.56);
+}
+
+
+/* ============================================================
+   VALID PREFLIGHT ENERGY PATH
+   ============================================================ */
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.treasury-withdrawal-flow {
+  box-shadow:
+    inset 0 1px 0 rgba(162, 255, 222, 0.06),
+    0 15px 35px rgba(0, 0, 0, 0.16),
+    0 0 32px rgba(84, 248, 194, 0.045);
+}
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.treasury-withdrawal-flow-item:nth-child(2)
+.treasury-withdrawal-flow-number,
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.treasury-withdrawal-flow-item:nth-child(3)
+.treasury-withdrawal-flow-number {
+  border-color: rgba(84, 248, 194, 0.70);
+  background: rgba(84, 248, 194, 0.14);
+
+  color: #baffea;
+
+  box-shadow:
+    0 0 22px rgba(84, 248, 194, 0.12);
+}
+
+
+/* ============================================================
+   MOTION
+   ============================================================ */
+
+@keyframes aurora-withdrawal-awaken {
+  0% {
+    box-shadow:
+      0 30px 68px rgba(0, 0, 0, 0.34),
+      0 0 0 rgba(84, 248, 194, 0);
+  }
+
+  45% {
+    box-shadow:
+      0 34px 78px rgba(0, 0, 0, 0.40),
+      0 0 62px rgba(84, 248, 194, 0.16);
+  }
+
+  100% {
+    box-shadow:
+      0 34px 78px rgba(0, 0, 0, 0.40),
+      0 0 46px rgba(84, 248, 194, 0.10),
+      inset 0 1px 0 rgba(183, 255, 231, 0.12);
+  }
+}
+
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 1380px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-grid {
+    grid-template-columns:
+      minmax(270px, 1fr)
+      minmax(280px, 1fr);
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-request {
+    grid-column: 1 / -1;
+
+    min-height: 360px;
+
+    transform:
+      translateY(0)
+      translateZ(14px);
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-request-body {
+    min-height: 250px;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction.has-valid-preflight
+  .aurora-withdrawal-stage-request {
+    transform:
+      translateY(-4px)
+      translateZ(20px);
+  }
+}
+
+@media (max-width: 900px) {
+  #tab-wallet #treasuryWithdrawalAction {
+    padding: 20px;
+    border-radius: 22px;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-flow {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-flow-item
+  + .treasury-withdrawal-flow-item::before {
+    left: 14px;
+    right: 14px;
+    top: 0;
+    bottom: auto;
+
+    width: auto;
+    height: 1px;
+
+    background:
+      linear-gradient(
+        90deg,
+        transparent,
+        rgba(84, 248, 194, 0.18),
+        transparent
+      );
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-destination,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-safety,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-request,
+  #tab-wallet
+  #treasuryWithdrawalAction.has-valid-preflight
+  .aurora-withdrawal-stage-request {
+    min-height: 0;
+
+    transform: none;
+  }
+}
+
+@media (max-width: 620px) {
+  #tab-wallet #treasuryWithdrawalAction {
+    padding: 16px;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage {
+    padding: 15px;
+    border-radius: 18px;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-heading {
+    flex-direction: column;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-funding-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  #createTreasuryWithdrawalRequest {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ==========================================================
+ * AURORA A6B1 DESTINATION INNER GRID FIX
+ *
+ * Classic Withdrawal uses a viewport-responsive 3-column
+ * route grid. Inside Aurora's narrow Destination stage that
+ * grid is a nested component, so viewport width is the wrong
+ * sizing signal.
+ *
+ * Aurora owns this composition:
+ *
+ *   Asset       Network
+ *   Recipient   Recipient
+ *   Memo        Memo
+ *   Actions     Actions
+ *
+ * No DOM or JavaScript semantics are changed.
+ * ========================================================== */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-grid {
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  grid-template-areas:
+    "asset network"
+    "recipient recipient"
+    "memo memo"
+    "actions actions";
+
+  align-items: end;
+  gap: 12px;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-asset {
+  grid-area: asset;
+  min-width: 0;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-network {
+  grid-area: network;
+  min-width: 0;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-recipient {
+  grid-area: recipient;
+  min-width: 0;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-memo {
+  grid-area: memo;
+  min-width: 0;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-actions {
+  grid-area: actions;
+
+  width: 100%;
+
+  justify-content: flex-end;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-grid
+select,
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-grid
+input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+
+/*
+ * Small-screen fallback.
+ * Once the complete Aurora workspace itself becomes narrow,
+ * use a single vertical route sequence.
+ */
+@media (max-width: 700px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-destination
+  .treasury-withdrawal-route-grid {
+    grid-template-columns: minmax(0, 1fr);
+
+    grid-template-areas:
+      "asset"
+      "network"
+      "recipient"
+      "memo"
+      "actions";
+  }
+}
+
+/* End AURORA A6B1 DESTINATION INNER GRID FIX */
+
+/* ==========================================================
+ * AURORA A6C THREE-STAGE DEPTH / WOW LAYER
+ *
+ * Presentation only.
+ *
+ * Gives the three Withdrawal stages a stronger physical
+ * hierarchy:
+ *
+ *   Destination  = rear control plane
+ *   Safety       = elevated verification plane
+ *   Request      = foreground execution plane
+ *
+ * No DOM, JavaScript, API or financial semantics are changed.
+ * ========================================================== */
+
+
+/* ----------------------------------------------------------
+ * 3D scene
+ * ---------------------------------------------------------- */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-grid {
+  position: relative;
+  isolation: isolate;
+
+  gap: 20px;
+
+  padding:
+    18px
+    12px
+    34px;
+
+  perspective: 1350px;
+  perspective-origin: 52% 38%;
+
+  transform-style: preserve-3d;
+}
+
+
+/*
+ * Soft light field beneath the entire three-stage workspace.
+ * This produces visual depth without adding another DOM node.
+ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-grid::before {
+  content: "";
+
+  position: absolute;
+  z-index: -2;
+  pointer-events: none;
+
+  left: 3%;
+  right: 3%;
+  bottom: -4px;
+
+  height: 155px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      ellipse at 18% 50%,
+      rgba(41, 196, 150, 0.12),
+      transparent 40%
+    ),
+    radial-gradient(
+      ellipse at 51% 48%,
+      rgba(82, 255, 201, 0.17),
+      transparent 39%
+    ),
+    radial-gradient(
+      ellipse at 84% 44%,
+      rgba(82, 255, 201, 0.21),
+      transparent 36%
+    );
+
+  filter: blur(34px);
+
+  opacity: 0.72;
+
+  transform:
+    rotateX(68deg)
+    translateZ(-80px);
+}
+
+
+/*
+ * A faint luminous horizon makes the cards appear to stand
+ * on a surface rather than simply sit in a CSS grid.
+ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-grid::after {
+  content: "";
+
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+
+  left: 5%;
+  right: 5%;
+  bottom: 13px;
+
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(89, 246, 197, 0.14) 15%,
+      rgba(110, 255, 211, 0.48) 50%,
+      rgba(89, 246, 197, 0.14) 85%,
+      transparent
+    );
+
+  box-shadow:
+    0 0 15px rgba(74, 244, 191, 0.24),
+    0 0 42px rgba(74, 244, 191, 0.08);
+
+  opacity: 0.8;
+}
+
+
+/* ----------------------------------------------------------
+ * Shared stage material
+ * ---------------------------------------------------------- */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage {
+  min-height: 548px;
+
+  border:
+    1px solid
+    rgba(79, 231, 184, 0.20);
+
+  background:
+    linear-gradient(
+      150deg,
+      rgba(9, 42, 32, 0.93) 0%,
+      rgba(4, 25, 19, 0.965) 48%,
+      rgba(1, 14, 11, 0.985) 100%
+    );
+
+  box-shadow:
+    0 35px 70px rgba(0, 0, 0, 0.42),
+    0 10px 28px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(190, 255, 232, 0.075),
+    inset 0 -1px 0 rgba(47, 166, 128, 0.07);
+
+  transform-style: preserve-3d;
+
+  transition:
+    transform 240ms ease,
+    border-color 240ms ease,
+    box-shadow 240ms ease,
+    background 240ms ease;
+}
+
+
+/*
+ * Existing ::before is the upper highlight.
+ * A6C makes it brighter and narrower so it behaves like an
+ * illuminated machined edge.
+ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage::before {
+  left: 26px;
+  right: 26px;
+
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(102, 255, 207, 0.20) 15%,
+      rgba(127, 255, 218, 0.74) 50%,
+      rgba(102, 255, 207, 0.20) 85%,
+      transparent
+    );
+
+  box-shadow:
+    0 0 12px rgba(83, 248, 198, 0.18),
+    0 0 28px rgba(83, 248, 198, 0.06);
+
+  opacity: 0.92;
+}
+
+
+/*
+ * Existing stage-number watermark becomes deeper and more
+ * cinematic while remaining deliberately behind the content.
+ */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage::after {
+  color:
+    rgba(67, 224, 176, 0.055);
+
+  text-shadow:
+    0 0 30px rgba(64, 234, 180, 0.025);
+}
+
+
+/* ----------------------------------------------------------
+ * Stage 01 — Destination / rear plane
+ * ---------------------------------------------------------- */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination {
+  border-color:
+    rgba(72, 211, 165, 0.20);
+
+  background:
+    radial-gradient(
+      circle at 15% 7%,
+      rgba(53, 205, 157, 0.075),
+      transparent 31%
+    ),
+    linear-gradient(
+      150deg,
+      rgba(7, 38, 29, 0.91),
+      rgba(2, 20, 15, 0.98) 66%
+    );
+
+  box-shadow:
+    -18px 38px 70px rgba(0, 0, 0, 0.36),
+    0 14px 30px rgba(0, 0, 0, 0.23),
+    -1px 0 0 rgba(100, 255, 208, 0.025),
+    inset 0 1px 0 rgba(182, 255, 229, 0.055);
+
+  transform:
+    translate3d(-5px, 15px, -4px)
+    rotateY(1.35deg);
+}
+
+
+/* ----------------------------------------------------------
+ * Stage 02 — Safety / elevated verification plane
+ * ---------------------------------------------------------- */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety {
+  border-color:
+    rgba(83, 246, 193, 0.33);
+
+  background:
+    radial-gradient(
+      circle at 48% 0%,
+      rgba(88, 255, 201, 0.105),
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 8% 72%,
+      rgba(38, 169, 130, 0.055),
+      transparent 34%
+    ),
+    linear-gradient(
+      150deg,
+      rgba(8, 43, 32, 0.94),
+      rgba(2, 22, 16, 0.985) 68%
+    );
+
+  box-shadow:
+    0 46px 86px rgba(0, 0, 0, 0.46),
+    0 18px 38px rgba(0, 0, 0, 0.27),
+    0 0 38px rgba(63, 241, 184, 0.055),
+    inset 0 1px 0 rgba(191, 255, 232, 0.09);
+
+  transform:
+    translate3d(0, -3px, 35px)
+    scale(1.008);
+}
+
+
+/* ----------------------------------------------------------
+ * Stage 03 — Request / foreground plane
+ * ---------------------------------------------------------- */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-request {
+  border-color:
+    rgba(79, 235, 182, 0.34);
+
+  background:
+    radial-gradient(
+      circle at 60% 12%,
+      rgba(68, 242, 183, 0.125),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 50% 72%,
+      rgba(38, 196, 146, 0.060),
+      transparent 39%
+    ),
+    linear-gradient(
+      148deg,
+      rgba(7, 46, 33, 0.96),
+      rgba(1, 20, 14, 0.99) 69%
+    );
+
+  box-shadow:
+    20px 54px 96px rgba(0, 0, 0, 0.50),
+    0 22px 44px rgba(0, 0, 0, 0.29),
+    0 0 48px rgba(63, 240, 181, 0.065),
+    inset 0 1px 0 rgba(198, 255, 235, 0.10);
+
+  transform:
+    translate3d(6px, -15px, 58px)
+    rotateY(-1.25deg);
+}
+
+
+/* ----------------------------------------------------------
+ * Lift interaction
+ * ---------------------------------------------------------- */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination:hover {
+  border-color:
+    rgba(86, 239, 189, 0.34);
+
+  box-shadow:
+    -18px 43px 82px rgba(0, 0, 0, 0.40),
+    0 0 35px rgba(72, 239, 183, 0.055),
+    inset 0 1px 0 rgba(192, 255, 233, 0.075);
+
+  transform:
+    translate3d(-5px, 8px, 8px)
+    rotateY(0.75deg);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety:hover {
+  border-color:
+    rgba(102, 255, 205, 0.48);
+
+  box-shadow:
+    0 51px 96px rgba(0, 0, 0, 0.48),
+    0 0 48px rgba(72, 246, 190, 0.09),
+    inset 0 1px 0 rgba(202, 255, 237, 0.11);
+
+  transform:
+    translate3d(0, -8px, 46px)
+    scale(1.012);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-request:hover {
+  border-color:
+    rgba(106, 255, 208, 0.50);
+
+  box-shadow:
+    22px 58px 104px rgba(0, 0, 0, 0.53),
+    0 0 58px rgba(72, 248, 190, 0.105),
+    inset 0 1px 0 rgba(209, 255, 240, 0.12);
+
+  transform:
+    translate3d(6px, -20px, 68px)
+    rotateY(-0.65deg);
+}
+
+
+/* ----------------------------------------------------------
+ * Header light hierarchy
+ * ---------------------------------------------------------- */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-heading {
+  position: relative;
+
+  padding-bottom: 17px;
+
+  border-bottom:
+    1px solid
+    rgba(90, 236, 188, 0.12);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-heading::after {
+  content: "";
+
+  position: absolute;
+  pointer-events: none;
+
+  left: 0;
+  bottom: -1px;
+
+  width: 74px;
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(99, 255, 209, 0.80),
+      transparent
+    );
+
+  box-shadow:
+    0 0 12px rgba(84, 245, 194, 0.18);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-kicker {
+  text-shadow:
+    0 0 16px rgba(83, 250, 196, 0.16);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-heading strong {
+  text-shadow:
+    0 2px 15px rgba(0, 0, 0, 0.40);
+}
+
+
+/* ----------------------------------------------------------
+ * Process rail energy
+ * ---------------------------------------------------------- */
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-flow {
+  position: relative;
+  overflow: hidden;
+
+  border-color:
+    rgba(78, 224, 176, 0.18);
+
+  box-shadow:
+    inset 0 1px 0 rgba(171, 255, 226, 0.035),
+    0 14px 34px rgba(0, 0, 0, 0.16);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction
+.treasury-withdrawal-flow::after {
+  content: "";
+
+  position: absolute;
+  pointer-events: none;
+
+  top: 0;
+  bottom: 0;
+
+  width: 34%;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(92, 255, 204, 0.055),
+      rgba(118, 255, 216, 0.115),
+      rgba(92, 255, 204, 0.055),
+      transparent
+    );
+
+  filter: blur(1px);
+
+  opacity: 0.30;
+
+  transform:
+    translateX(-150%)
+    skewX(-18deg);
+
+  animation:
+    aurora-a6c-rail-scan
+    7.5s
+    ease-in-out
+    infinite;
+}
+
+
+@keyframes aurora-a6c-rail-scan {
+  0%,
+  64% {
+    transform:
+      translateX(-150%)
+      skewX(-18deg);
+  }
+
+  82%,
+  100% {
+    transform:
+      translateX(390%)
+      skewX(-18deg);
+  }
+}
+
+
+/* ----------------------------------------------------------
+ * Valid-preflight energy transfer
+ * ---------------------------------------------------------- */
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.aurora-withdrawal-stage-request {
+  border-color:
+    rgba(106, 255, 207, 0.77);
+
+  background:
+    radial-gradient(
+      circle at 58% 14%,
+      rgba(83, 255, 198, 0.225),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 50% 70%,
+      rgba(48, 225, 165, 0.12),
+      transparent 42%
+    ),
+    linear-gradient(
+      148deg,
+      rgba(8, 61, 42, 0.98),
+      rgba(1, 23, 15, 0.995) 72%
+    );
+
+  box-shadow:
+    24px 62px 112px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(91, 250, 199, 0.07),
+    0 0 32px rgba(76, 255, 195, 0.17),
+    0 0 82px rgba(76, 255, 195, 0.085),
+    inset 0 1px 0 rgba(214, 255, 241, 0.17);
+
+  transform:
+    translate3d(7px, -23px, 78px)
+    rotateY(-0.4deg)
+    scale(1.012);
+
+  animation:
+    aurora-a6c-request-ready
+    3.4s
+    ease-in-out
+    infinite;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.aurora-withdrawal-stage-request::before {
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(116, 255, 215, 0.36) 13%,
+      rgba(164, 255, 228, 0.96) 50%,
+      rgba(116, 255, 215, 0.36) 87%,
+      transparent
+    );
+
+  box-shadow:
+    0 0 13px rgba(107, 255, 211, 0.34),
+    0 0 36px rgba(91, 255, 205, 0.14);
+
+  opacity: 1;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-stage-signal {
+  box-shadow:
+    0 0 0 1px rgba(93, 255, 204, 0.08),
+    0 0 18px rgba(81, 255, 198, 0.11);
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+.treasury-withdrawal-flow::after {
+  opacity: 0.86;
+
+  animation-duration: 2.7s;
+}
+
+
+#tab-wallet
+#treasuryWithdrawalAction.has-valid-preflight
+#createTreasuryWithdrawalRequest:not(:disabled) {
+  box-shadow:
+    0 12px 30px rgba(32, 212, 153, 0.22),
+    0 0 0 1px rgba(139, 255, 220, 0.12),
+    0 0 28px rgba(72, 255, 196, 0.17);
+}
+
+
+@keyframes aurora-a6c-request-ready {
+  0%,
+  100% {
+    box-shadow:
+      24px 62px 112px rgba(0, 0, 0, 0.55),
+      0 0 0 1px rgba(91, 250, 199, 0.07),
+      0 0 30px rgba(76, 255, 195, 0.14),
+      0 0 74px rgba(76, 255, 195, 0.07),
+      inset 0 1px 0 rgba(214, 255, 241, 0.17);
+  }
+
+  50% {
+    box-shadow:
+      24px 64px 116px rgba(0, 0, 0, 0.57),
+      0 0 0 1px rgba(107, 255, 209, 0.11),
+      0 0 42px rgba(76, 255, 195, 0.21),
+      0 0 96px rgba(76, 255, 195, 0.105),
+      inset 0 1px 0 rgba(220, 255, 244, 0.19);
+  }
+}
+
+
+/* ----------------------------------------------------------
+ * Responsive depth reduction
+ * ---------------------------------------------------------- */
+
+@media (max-width: 1380px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-grid {
+    perspective: 1100px;
+
+    gap: 17px;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-destination {
+    transform:
+      translate3d(-2px, 8px, 0);
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-safety {
+    transform:
+      translate3d(2px, -3px, 18px);
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-request {
+    transform:
+      translate3d(0, 0, 24px);
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction.has-valid-preflight
+  .aurora-withdrawal-stage-request {
+    transform:
+      translate3d(0, -5px, 32px)
+      scale(1.006);
+  }
+}
+
+
+@media (max-width: 900px) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-grid {
+    padding:
+      8px
+      0
+      20px;
+
+    perspective: none;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-destination,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-safety,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-request,
+  #tab-wallet
+  #treasuryWithdrawalAction.has-valid-preflight
+  .aurora-withdrawal-stage-request {
+    min-height: 0;
+
+    transform: none;
+
+    animation: none;
+  }
+
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-grid::before,
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-grid::after {
+    display: none;
+  }
+}
+
+
+/* ----------------------------------------------------------
+ * Accessibility / reduced motion
+ * ---------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  #tab-wallet
+  #treasuryWithdrawalAction
+  .treasury-withdrawal-flow::after,
+
+  #tab-wallet
+  #treasuryWithdrawalAction.has-valid-preflight
+  .aurora-withdrawal-stage-request {
+    animation: none;
+  }
+}
+
+/* End AURORA A6C THREE-STAGE DEPTH / WOW LAYER */
+
+
+/* ============================================================
+   AURORA A6D2 MISSION CONTROL COMPOSITOR
+   Presentation-only projection of the real Classic DOM state.
+   ============================================================ */
+
+.aurora-withdrawal-command-deck {
+  position: relative;
+  grid-column: 1 / -1;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 0 0 22px;
+  padding: 18px 22px 15px;
+  border: 1px solid rgba(133, 255, 196, 0.34);
+  border-radius: 24px 7px 24px 7px;
+  background:
+    linear-gradient(
+      112deg,
+      rgba(4, 18, 13, 0.98) 0%,
+      rgba(5, 34, 23, 0.88) 48%,
+      rgba(2, 12, 9, 0.98) 100%
+    );
+  box-shadow:
+    0 28px 70px rgba(0, 0, 0, 0.52),
+    0 0 0 1px rgba(105, 255, 177, 0.06) inset,
+    0 0 42px rgba(40, 255, 142, 0.09);
+  clip-path: polygon(
+    0 0,
+    calc(100% - 38px) 0,
+    100% 38px,
+    100% 100%,
+    38px 100%,
+    0 calc(100% - 38px)
+  );
+  transform:
+    perspective(1300px)
+    rotateX(1.2deg)
+    translateZ(0);
+  transform-origin: 50% 100%;
+}
+
+.aurora-withdrawal-command-deck::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  background:
+    radial-gradient(
+      circle at 18% 0%,
+      rgba(72, 255, 163, 0.18),
+      transparent 31%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0 49.7%,
+      rgba(117, 255, 192, 0.07) 49.8% 50.2%,
+      transparent 50.3% 100%
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(118, 255, 191, 0.035) 0 1px,
+      transparent 1px 58px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(118, 255, 191, 0.028) 0 1px,
+      transparent 1px 32px
+    );
+}
+
+.aurora-withdrawal-command-deck::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 240px;
+  height: 240px;
+  right: -90px;
+  top: -125px;
+  border: 1px solid rgba(112, 255, 190, 0.22);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 22px rgba(112, 255, 190, 0.025),
+    0 0 0 46px rgba(112, 255, 190, 0.018),
+    0 0 70px rgba(67, 255, 159, 0.12);
+}
+
+.aurora-command-crown {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.aurora-command-identity {
+  position: relative;
+  padding-left: 22px;
+}
+
+.aurora-command-beacon {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #79ffb5;
+  box-shadow:
+    0 0 0 5px rgba(121, 255, 181, 0.08),
+    0 0 20px rgba(121, 255, 181, 0.72);
+}
+
+.aurora-command-overline,
+.aurora-command-guard span,
+.aurora-command-node small,
+.aurora-command-floor {
+  font-family:
+    "SFMono-Regular",
+    "Roboto Mono",
+    "Liberation Mono",
+    monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.aurora-command-overline {
+  display: block;
+  margin-bottom: 5px;
+  color: rgba(152, 255, 203, 0.67);
+  font-size: 0.68rem;
+}
+
+.aurora-command-identity strong {
+  display: block;
+  color: #effff6;
+  font-size: clamp(1rem, 1.5vw, 1.32rem);
+  font-weight: 720;
+  letter-spacing: -0.025em;
+}
+
+.aurora-command-guard {
+  min-width: 170px;
+  padding: 10px 13px;
+  border-left: 2px solid rgba(97, 255, 174, 0.62);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(64, 255, 156, 0.09),
+      transparent
+    );
+}
+
+.aurora-command-guard span {
+  display: block;
+  margin-bottom: 4px;
+  color: rgba(149, 255, 202, 0.54);
+  font-size: 0.58rem;
+}
+
+.aurora-command-guard strong {
+  display: block;
+  color: #84ffba;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.aurora-command-vector {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(50px, 0.18fr)
+    minmax(0, 1fr)
+    minmax(50px, 0.18fr)
+    minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+}
+
+.aurora-command-node {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 13px;
+  min-width: 0;
+  min-height: 96px;
+  padding: 15px 16px;
+  border: 1px solid rgba(117, 255, 190, 0.12);
+  background:
+    linear-gradient(
+      140deg,
+      rgba(13, 45, 31, 0.62),
+      rgba(3, 15, 11, 0.72)
+    );
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.aurora-command-node::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(112, 255, 190, 0.18),
+      transparent
+    );
+}
+
+.aurora-command-index {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(114, 255, 187, 0.22);
+  border-radius: 50%;
+  color: rgba(173, 255, 216, 0.58);
+  font-family:
+    "SFMono-Regular",
+    "Roboto Mono",
+    "Liberation Mono",
+    monospace;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.aurora-command-node small {
+  display: block;
+  margin-bottom: 3px;
+  color: rgba(159, 255, 207, 0.45);
+  font-size: 0.54rem;
+}
+
+.aurora-command-node strong {
+  display: block;
+  margin-bottom: 5px;
+  color: rgba(235, 255, 245, 0.88);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+}
+
+.aurora-command-node p {
+  overflow: hidden;
+  margin: 0;
+  color: rgba(208, 239, 221, 0.57);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.aurora-command-link {
+  position: relative;
+  align-self: center;
+  height: 2px;
+  margin: 0 8px;
+  overflow: visible;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(108, 255, 184, 0.08),
+      rgba(108, 255, 184, 0.34),
+      rgba(108, 255, 184, 0.08)
+    );
+}
+
+.aurora-command-link::before,
+.aurora-command-link::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(110, 255, 187, 0.32);
+  background: #07170f;
+  transform:
+    translateY(-50%)
+    rotate(45deg);
+}
+
+.aurora-command-link::before {
+  left: -1px;
+}
+
+.aurora-command-link::after {
+  right: -1px;
+}
+
+.aurora-command-node[data-aurora-state="active"],
+.aurora-command-node[data-aurora-state="ready"],
+.aurora-command-node[data-aurora-state="verified"] {
+  border-color: rgba(112, 255, 187, 0.46);
+  background:
+    linear-gradient(
+      140deg,
+      rgba(21, 74, 48, 0.72),
+      rgba(4, 23, 15, 0.82)
+    );
+  box-shadow:
+    0 0 28px rgba(70, 255, 158, 0.07),
+    0 0 0 1px rgba(107, 255, 185, 0.03) inset;
+}
+
+.aurora-command-node[data-aurora-state="ready"],
+.aurora-command-node[data-aurora-state="verified"] {
+  transform: translateY(-4px);
+}
+
+.aurora-command-node[data-aurora-state="ready"]
+.aurora-command-index,
+.aurora-command-node[data-aurora-state="verified"]
+.aurora-command-index {
+  color: #dffff0;
+  border-color: rgba(124, 255, 193, 0.86);
+  background: rgba(84, 255, 166, 0.12);
+  box-shadow:
+    0 0 20px rgba(76, 255, 160, 0.26);
+}
+
+.aurora-command-node[data-aurora-state="ready"]::after,
+.aurora-command-node[data-aurora-state="verified"]::after {
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      #6dffae,
+      transparent
+    );
+  box-shadow:
+    0 0 14px rgba(82, 255, 164, 0.72);
+}
+
+.aurora-command-node[data-aurora-state="blocked"] {
+  opacity: 0.62;
+  border-color: rgba(255, 185, 111, 0.25);
+}
+
+.aurora-command-node[data-aurora-state="locked"],
+.aurora-command-node[data-aurora-state="waiting"] {
+  opacity: 0.58;
+  filter: saturate(0.68);
+}
+
+.aurora-command-floor {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 12px;
+  color: rgba(148, 255, 201, 0.34);
+  font-size: 0.5rem;
+}
+
+.aurora-command-floor span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.aurora-command-floor i {
+  display: inline-block;
+  width: 24px;
+  height: 1px;
+  background: rgba(119, 255, 190, 0.35);
+}
+
+.aurora-withdrawal-command-deck
++ #treasuryWithdrawalAction
+.treasury-withdrawal-flow {
+  display: none;
+}
+
+/*
+ * Dynamic stage posture.
+ * These attributes are presentation state only and are projected from
+ * the existing Classic-controlled DOM by aurora-ui.js.
+ */
+
+.aurora-withdrawal-stage[data-aurora-state="waiting"],
+.aurora-withdrawal-stage[data-aurora-state="locked"] {
+  opacity: 0.72;
+  filter: saturate(0.72);
+}
+
+.aurora-withdrawal-stage[data-aurora-state="active"] {
+  opacity: 1;
+}
+
+.aurora-withdrawal-stage[data-aurora-state="ready"],
+.aurora-withdrawal-stage[data-aurora-state="verified"] {
+  opacity: 1;
+  filter: none;
+}
+
+.aurora-withdrawal-stage[data-aurora-state="ready"]
+.aurora-withdrawal-stage-signal,
+.aurora-withdrawal-stage[data-aurora-state="verified"]
+.aurora-withdrawal-stage-signal {
+  color: #caffdf;
+  border-color: rgba(116, 255, 187, 0.68);
+  background: rgba(66, 255, 151, 0.11);
+  box-shadow:
+    0 0 22px rgba(61, 255, 149, 0.13);
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-destination,
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-safety,
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-request {
+  z-index: 7;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-destination {
+  transform:
+    perspective(1100px)
+    translateY(-7px)
+    rotateX(0.8deg);
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-safety {
+  transform:
+    perspective(1100px)
+    translateY(-9px)
+    scale(1.012);
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-request {
+  transform:
+    perspective(1100px)
+    translateY(-11px)
+    scale(1.018);
+}
+
+@media (max-width: 980px) {
+  .aurora-command-crown {
+    align-items: stretch;
+  }
+
+  .aurora-command-vector {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .aurora-command-link {
+    width: 2px;
+    height: 20px;
+    margin: 0 0 0 36px;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(108, 255, 184, 0.08),
+        rgba(108, 255, 184, 0.38),
+        rgba(108, 255, 184, 0.08)
+      );
+  }
+
+  .aurora-command-link::before,
+  .aurora-command-link::after {
+    left: 50%;
+    right: auto;
+  }
+
+  .aurora-command-link::before {
+    top: -1px;
+  }
+
+  .aurora-command-link::after {
+    top: auto;
+    bottom: -7px;
+  }
+}
+
+@media (max-width: 650px) {
+  .aurora-withdrawal-command-deck {
+    padding: 16px 14px 14px;
+    border-radius: 18px 5px 18px 5px;
+    clip-path: none;
+  }
+
+  .aurora-command-crown {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .aurora-command-guard {
+    min-width: 0;
+  }
+
+  .aurora-command-floor {
+    display: none;
+  }
+
+  .aurora-command-node {
+    min-height: 88px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-command-node,
+  .aurora-withdrawal-stage {
+    transition: none !important;
+  }
+}
+
+
+/* ============================================================
+   AURORA A6D3 OPEN STAGE
+   Mission control becomes the single workflow navigator.
+   ============================================================ */
+
+/*
+ * The mission-control compositor already represents these states.
+ * Keep the underlying Classic DOM intact, but remove the visual
+ * duplication from Aurora.
+ */
+
+#treasuryWithdrawalAction
+> .treasury-section-header,
+
+#treasuryWithdrawalAction
+> .treasury-withdrawal-flow {
+  display: none !important;
+}
+
+/*
+ * Remove the large "card around cards".
+ * The three stages become independent consoles.
+ */
+
+#treasuryWithdrawalAction {
+  overflow: visible !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/*
+ * Remove the outer frame around the stage grid.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-grid {
+  grid-template-columns:
+    minmax(0, 1.17fr)
+    minmax(0, 1.03fr)
+    minmax(0, 0.90fr) !important;
+  align-items: start !important;
+  gap: 16px !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/*
+ * Do not force empty downstream stages to inherit the height of
+ * the populated Destination stage.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage {
+  align-self: start !important;
+  height: auto !important;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-request {
+  min-height: 390px !important;
+}
+
+/*
+ * Destination is the active working console and gets slightly more
+ * breathing room.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination {
+  min-width: 0;
+}
+
+/*
+ * Prevent the route-builder heading from fighting with recipient
+ * management/account information.
+ */
+
+#treasuryWithdrawalRouteBuilder
+.treasury-withdrawal-route-head {
+  display: grid !important;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto !important;
+  align-items: start !important;
+  gap: 14px !important;
+}
+
+#treasuryWithdrawalRouteBuilder
+.treasury-withdrawal-route-head
+> div {
+  min-width: 0;
+}
+
+#treasuryWithdrawalRouteBuilder
+.treasury-withdrawal-route-head
+> div
+> span {
+  display: block;
+  max-width: 240px;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+#treasuryWithdrawalRouteBuilder
+.treasury-withdrawal-route-head-actions {
+  display: flex !important;
+  flex-direction: column;
+  align-items: flex-end !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  min-width: 132px;
+}
+
+#treasuryWithdrawalRouteBuilder
+.treasury-withdrawal-route-owner {
+  max-width: 160px;
+  text-align: right;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+/*
+ * Mission-control status stack.
+ */
+
+.aurora-command-status-stack {
+  display: grid;
+  grid-template-columns:
+    minmax(150px, 1fr)
+    minmax(125px, auto);
+  gap: 8px;
+  min-width: 320px;
+}
+
+.aurora-command-destinations {
+  padding: 10px 13px;
+  border-left: 1px solid rgba(97, 255, 174, 0.28);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(64, 255, 156, 0.045),
+      transparent
+    );
+}
+
+.aurora-command-destinations span {
+  display: block;
+  margin-bottom: 4px;
+  color: rgba(149, 255, 202, 0.48);
+  font-family:
+    "SFMono-Regular",
+    "Roboto Mono",
+    "Liberation Mono",
+    monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.aurora-command-destinations strong {
+  display: block;
+  color: rgba(221, 255, 236, 0.88);
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+/*
+ * The implementation-layer labels were useful during development,
+ * but should not be part of the user-facing dashboard.
+ */
+
+.aurora-command-floor {
+  display: none !important;
+}
+
+.aurora-command-vector {
+  margin-bottom: 2px;
+}
+
+/*
+ * Increase useful contrast without turning everything neon.
+ */
+
+.aurora-command-node p {
+  color: rgba(216, 244, 228, 0.69);
+}
+
+.aurora-command-node small {
+  color: rgba(163, 255, 210, 0.57);
+}
+
+.aurora-command-node[data-aurora-state="active"] {
+  border-color: rgba(112, 255, 187, 0.58);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.22),
+    0 0 28px rgba(70, 255, 158, 0.09);
+}
+
+/*
+ * Once a stage is not active, keep the information readable rather
+ * than fading the entire console nearly into the background.
+ */
+
+.aurora-withdrawal-stage[data-aurora-state="waiting"],
+
+.aurora-withdrawal-stage[data-aurora-state="locked"] {
+  opacity: 0.86 !important;
+}
+
+/*
+ * Mobile/tablet returns to one stage per row.
+ */
+
+@media (max-width: 980px) {
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-safety,
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-request {
+    min-height: 0 !important;
+  }
+
+  .aurora-command-status-stack {
+    min-width: 0;
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ============================================================
+   AURORA A6D4 ACTIVE-STAGE THEATER
+   Layout follows the presentation-only data-aurora-phase state.
+   ============================================================ */
+
+/*
+ * Default stage transitions.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-grid {
+  transition:
+    grid-template-columns 240ms ease,
+    gap 240ms ease;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage {
+  min-width: 0;
+  transition:
+    transform 220ms ease,
+    opacity 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background 220ms ease;
+}
+
+/*
+ * ------------------------------------------------------------
+ * PHASE 01 — ROUTE
+ *
+ * Destination is the working surface.
+ * Preflight and Request become compact standby consoles.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-grid {
+  display: grid !important;
+  grid-template-columns:
+    minmax(440px, 1.34fr)
+    minmax(310px, 0.76fr) !important;
+  grid-template-rows:
+    auto
+    auto;
+  align-items: start !important;
+  gap: 14px 18px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-destination {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  min-height: 500px !important;
+  transform:
+    perspective(1200px)
+    translateY(-5px)
+    rotateY(0.35deg) !important;
+  border-color: rgba(105, 255, 180, 0.48) !important;
+  box-shadow:
+    0 24px 58px rgba(0, 0, 0, 0.26),
+    0 0 38px rgba(63, 255, 150, 0.08) !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-safety {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+/*
+ * Compact inactive gates.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request {
+  min-height: 188px !important;
+  padding-bottom: 18px !important;
+  opacity: 0.82 !important;
+  transform: none !important;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(8, 35, 24, 0.72),
+      rgba(2, 15, 10, 0.88)
+    ) !important;
+}
+
+/*
+ * Safety's empty explanatory block should behave like status text,
+ * not like a large empty body.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-safety
+.aurora-withdrawal-stage-idle {
+  min-height: 0 !important;
+  margin-top: 18px !important;
+  padding: 16px 18px !important;
+}
+
+/*
+ * Collapse Request's decorative orbit while it is locked.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-request-body {
+  min-height: 0 !important;
+  padding: 18px 12px 8px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-request-orbit {
+  display: none !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-stage-placeholder {
+  min-height: 0 !important;
+  padding: 0 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-placeholder-icon {
+  width: 38px !important;
+  height: 38px !important;
+  margin-bottom: 9px !important;
+  font-size: 0.68rem !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-stage-placeholder
+p {
+  max-width: 290px;
+  margin:
+    6px auto
+    0 !important;
+  line-height: 1.35;
+}
+
+/*
+ * ------------------------------------------------------------
+ * PHASE 02 — PREFLIGHT
+ *
+ * Route remains editable, but Preflight becomes the dominant
+ * work surface. Request remains the smaller locked gate.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-grid {
+  display: grid !important;
+  grid-template-columns:
+    minmax(360px, 0.86fr)
+    minmax(470px, 1.24fr) !important;
+  grid-template-rows:
+    auto
+    auto;
+  align-items: start !important;
+  gap: 14px 18px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-destination {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  min-height: 500px !important;
+  transform: none !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-safety {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 500px !important;
+  transform:
+    perspective(1200px)
+    translateY(-7px) !important;
+  border-color: rgba(112, 255, 187, 0.58) !important;
+  box-shadow:
+    0 26px 64px rgba(0, 0, 0, 0.28),
+    0 0 42px rgba(63, 255, 150, 0.10) !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-request {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 168px !important;
+  transform: none !important;
+  opacity: 0.84 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-request-orbit {
+  display: none !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-request-body {
+  min-height: 0 !important;
+  padding: 16px 12px 8px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-stage-placeholder {
+  min-height: 0 !important;
+  padding: 0 !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * PHASE 03 — REQUEST
+ *
+ * The final audited action gets the stage.
+ * Route and Preflight become context consoles on the left.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-grid {
+  display: grid !important;
+  grid-template-columns:
+    minmax(330px, 0.78fr)
+    minmax(520px, 1.32fr) !important;
+  grid-template-rows:
+    auto
+    auto;
+  align-items: start !important;
+  gap: 14px 18px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-destination {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 0 !important;
+  transform: none !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0 !important;
+  transform: none !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-request {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-height: 500px !important;
+  transform:
+    perspective(1200px)
+    translateY(-8px) !important;
+  border-color: rgba(112, 255, 187, 0.66) !important;
+  box-shadow:
+    0 30px 72px rgba(0, 0, 0, 0.30),
+    0 0 48px rgba(63, 255, 150, 0.12) !important;
+}
+
+/*
+ * Give the active Request stage back its full visual body.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-request-orbit {
+  display: block !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * Stage-status readability.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage[data-aurora-state="waiting"]
+.aurora-withdrawal-stage-heading,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage[data-aurora-state="locked"]
+.aurora-withdrawal-stage-heading {
+  opacity: 0.82;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage[data-aurora-state="active"]
+.aurora-withdrawal-stage-heading,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage[data-aurora-state="ready"]
+.aurora-withdrawal-stage-heading,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage[data-aurora-state="verified"]
+.aurora-withdrawal-stage-heading {
+  opacity: 1;
+}
+
+/*
+ * Responsive fallback: preserve normal functional ordering.
+ */
+
+@media (max-width: 1080px) {
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
+  }
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-destination,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-safety,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-request {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-request
+  .aurora-withdrawal-request-orbit {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-grid,
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage {
+    transition: none !important;
+  }
+}
+
+
+/* ============================================================
+   AURORA A6D5 COMPACT THREE-LANE THEATER
+   Preserve the active-stage concept without vertical sprawl.
+   ============================================================ */
+
+/*
+ * Mission control: same hierarchy, ~20% less vertical mass.
+ */
+
+.aurora-withdrawal-command-deck {
+  margin-bottom: 15px !important;
+  padding:
+    13px
+    17px
+    11px !important;
+  border-radius:
+    20px
+    6px
+    20px
+    6px !important;
+}
+
+.aurora-command-crown {
+  margin-bottom: 11px !important;
+}
+
+.aurora-command-identity {
+  padding-left: 19px !important;
+}
+
+.aurora-command-overline {
+  margin-bottom: 3px !important;
+  font-size: 0.60rem !important;
+}
+
+.aurora-command-identity strong {
+  font-size:
+    clamp(
+      0.94rem,
+      1.25vw,
+      1.15rem
+    ) !important;
+}
+
+.aurora-command-status-stack {
+  min-width: 285px !important;
+}
+
+.aurora-command-guard,
+
+.aurora-command-destinations {
+  padding:
+    8px
+    11px !important;
+}
+
+.aurora-command-guard span,
+
+.aurora-command-destinations span {
+  font-size: 0.51rem !important;
+}
+
+.aurora-command-guard strong,
+
+.aurora-command-destinations strong {
+  font-size: 0.69rem !important;
+}
+
+.aurora-command-node {
+  min-height: 78px !important;
+  padding:
+    11px
+    12px !important;
+  gap: 10px !important;
+}
+
+.aurora-command-index {
+  width: 34px !important;
+  height: 34px !important;
+  font-size: 0.63rem !important;
+}
+
+.aurora-command-node small {
+  font-size: 0.49rem !important;
+}
+
+.aurora-command-node strong {
+  margin-bottom: 3px !important;
+  font-size: 0.73rem !important;
+}
+
+.aurora-command-node p {
+  font-size: 0.66rem !important;
+  line-height: 1.28 !important;
+}
+
+/*
+ * Make the CURRENT stage visibly dominant.
+ * Completed stages remain readable without competing equally.
+ */
+
+.aurora-withdrawal-command-deck[data-aurora-focus="route"]
+.aurora-command-node[data-aurora-command-node="route"],
+
+.aurora-withdrawal-command-deck[data-aurora-focus="safety"]
+.aurora-command-node[data-aurora-command-node="safety"],
+
+.aurora-withdrawal-command-deck[data-aurora-focus="request"]
+.aurora-command-node[data-aurora-command-node="request"] {
+  opacity: 1 !important;
+  transform: translateY(-3px) !important;
+  border-color:
+    rgba(
+      117,
+      255,
+      190,
+      0.78
+    ) !important;
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.22),
+    0 0 24px rgba(68, 255, 158, 0.13) !important;
+}
+
+.aurora-withdrawal-command-deck[data-aurora-focus="safety"]
+.aurora-command-node[data-aurora-command-node="route"],
+
+.aurora-withdrawal-command-deck[data-aurora-focus="request"]
+.aurora-command-node[data-aurora-command-node="route"],
+
+.aurora-withdrawal-command-deck[data-aurora-focus="request"]
+.aurora-command-node[data-aurora-command-node="safety"] {
+  opacity: 0.78 !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * DESKTOP THEATER
+ *
+ * Always ONE ROW.
+ * Active stage gets more width instead of pushing other stages
+ * underneath it.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase]
+.aurora-withdrawal-stage-grid {
+  display: grid !important;
+  grid-template-rows: auto !important;
+  align-items: start !important;
+  gap: 14px !important;
+}
+
+/*
+ * ROUTE:
+ * large working route + two narrower standby gates.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-grid {
+  grid-template-columns:
+    minmax(430px, 1.34fr)
+    minmax(275px, 0.79fr)
+    minmax(245px, 0.67fr) !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-destination {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  min-height: 0 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-safety {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  min-height: 170px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  min-height: 250px !important;
+}
+
+/*
+ * PREFLIGHT:
+ * route remains editable, preflight becomes widest,
+ * request stays compact.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-grid {
+  grid-template-columns:
+    minmax(330px, 0.82fr)
+    minmax(430px, 1.28fr)
+    minmax(230px, 0.62fr) !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-destination {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  min-height: 0 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-safety {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  min-height: 0 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-request {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  min-height: 240px !important;
+}
+
+/*
+ * REQUEST:
+ * final audited request dominates, but Route and Preflight stay
+ * beside it rather than stacking underneath.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-grid {
+  grid-template-columns:
+    minmax(325px, 0.76fr)
+    minmax(305px, 0.72fr)
+    minmax(440px, 1.34fr) !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-destination {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  min-height: 0 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  min-height: 0 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-request {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  min-height: 0 !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * GLOBAL STAGE DENSITY
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage {
+  padding:
+    17px
+    18px !important;
+  border-radius: 20px !important;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-heading {
+  margin-bottom: 13px !important;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-kicker {
+  font-size: 0.57rem !important;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-heading strong {
+  font-size: 0.95rem !important;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-signal {
+  padding:
+    5px
+    8px !important;
+  font-size: 0.52rem !important;
+}
+
+/*
+ * Route controls.
+ */
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-head {
+  margin-bottom: 11px !important;
+  padding-bottom: 11px !important;
+}
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid {
+  gap:
+    10px
+    12px !important;
+}
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-route-grid label {
+  gap: 5px !important;
+  font-size: 0.67rem !important;
+}
+
+#treasuryWithdrawalAction
+select,
+
+#treasuryWithdrawalAction
+input[type="text"] {
+  min-height: 40px !important;
+  padding:
+    8px
+    11px !important;
+  font-size: 0.73rem !important;
+}
+
+#treasuryWithdrawalAction
+#treasuryWithdrawalAmount {
+  min-height: 48px !important;
+  padding:
+    8px
+    12px !important;
+  font-size: 1.25rem !important;
+}
+
+#treasuryWithdrawalAction
+.button {
+  min-height: 38px;
+  padding:
+    8px
+    12px !important;
+  font-size: 0.72rem !important;
+}
+
+#treasuryWithdrawalAction
+#treasuryWithdrawalPreflightButton,
+
+#treasuryWithdrawalAction
+#createTreasuryWithdrawalRequest {
+  min-height: 42px !important;
+  font-size: 0.78rem !important;
+}
+
+/*
+ * Funding/preflight content.
+ */
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-destination-summary,
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight-context,
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-funding-summary,
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-preflight {
+  margin-top: 10px !important;
+}
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-execution-row {
+  gap: 10px !important;
+}
+
+#treasuryWithdrawalAction
+.treasury-withdrawal-form {
+  gap: 10px !important;
+}
+
+/*
+ * Inactive Request should be a status console, not an illustration.
+ */
+
+#treasuryWithdrawalAction:not(
+  [data-aurora-phase="request"]
+)
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-request-orbit {
+  display: none !important;
+}
+
+#treasuryWithdrawalAction:not(
+  [data-aurora-phase="request"]
+)
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-request-body {
+  min-height: 0 !important;
+  padding:
+    15px
+    8px
+    6px !important;
+}
+
+#treasuryWithdrawalAction:not(
+  [data-aurora-phase="request"]
+)
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-stage-placeholder {
+  min-height: 0 !important;
+  padding: 0 !important;
+}
+
+#treasuryWithdrawalAction:not(
+  [data-aurora-phase="request"]
+)
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-placeholder-icon {
+  width: 34px !important;
+  height: 34px !important;
+  margin-bottom: 7px !important;
+  font-size: 0.62rem !important;
+}
+
+#treasuryWithdrawalAction:not(
+  [data-aurora-phase="request"]
+)
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-stage-placeholder
+p {
+  margin:
+    5px
+    auto
+    0 !important;
+  font-size: 0.66rem !important;
+  line-height: 1.35 !important;
+}
+
+/*
+ * Remove excessive forced perspective movement now that width itself
+ * communicates the active phase.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[data-aurora-phase]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[data-aurora-phase]
+.aurora-withdrawal-stage-request {
+  transform: none !important;
+}
+
+/*
+ * Keep just a small lift on the active surface.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-request {
+  transform:
+    translateY(-3px) !important;
+}
+
+/*
+ * Responsive fallback.
+ */
+
+@media (max-width: 1180px) {
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-destination,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-safety,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-request {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .aurora-withdrawal-command-deck {
+    padding:
+      12px
+      12px !important;
+  }
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage {
+    padding:
+      15px
+      14px !important;
+  }
+}
+
+
+/* ============================================================
+   AURORA A6D6 COMPACT WORKBENCH
+   Compress Route, use Preflight width, clarify progression.
+   ============================================================ */
+
+/*
+ * ------------------------------------------------------------
+ * 01 — DESTINATION
+ *
+ * Reduce vertical travel:
+ * Asset / Network
+ * Recipient / Memo
+ * then compact actions + status.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-grid {
+  display: grid !important;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr) !important;
+  gap:
+    8px
+    10px !important;
+  align-items: end;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-asset {
+  grid-column: 1;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-network {
+  grid-column: 2;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-recipient {
+  grid-column: 1;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-memo {
+  grid-column: 2;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-actions {
+  grid-column: 1 / -1;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  min-height: 32px;
+  margin-top: 0 !important;
+}
+
+/*
+ * Shorten the route header.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-head {
+  margin-bottom: 8px !important;
+  padding-bottom: 9px !important;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-head
+> div
+> span {
+  max-width: none !important;
+  margin-top: 2px !important;
+  font-size: 0.61rem !important;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-head-actions {
+  gap: 5px !important;
+}
+
+/*
+ * The account owner is context, not a headline.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.treasury-withdrawal-route-owner {
+  font-size: 0.61rem !important;
+  opacity: 0.68;
+}
+
+/*
+ * Compact route footer.
+ */
+
+#treasuryWithdrawalAction
+#treasuryWithdrawalRouteStatus {
+  min-height: 34px !important;
+  margin-top: 8px !important;
+  padding:
+    8px
+    10px !important;
+  font-size: 0.64rem !important;
+  line-height: 1.3 !important;
+}
+
+#treasuryWithdrawalAction
+#resetTreasuryWithdrawalRoute {
+  min-height: 32px !important;
+  padding:
+    6px
+    10px !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * 02 — SAFETY PREFLIGHT
+ *
+ * Use the whole active card instead of leaving an empty right half.
+ * Existing financial facts become the sidecar:
+ *
+ * LEFT                 RIGHT
+ * Destination          Available
+ * Amount               Fee
+ *                      Minimum
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalForm {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/*
+ * Destination summary can use the full width.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-destination-field,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalDestinationSummary,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalPreflightContext {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/*
+ * Amount + existing funding/limit information become two columns.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-execution-row {
+  display: grid !important;
+  grid-template-columns:
+    minmax(150px, 0.72fr)
+    minmax(210px, 1.28fr) !important;
+  gap: 12px !important;
+  align-items: start !important;
+  width: 100% !important;
+}
+
+/*
+ * Remove inherited width restrictions.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-amount-field,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/*
+ * Make Withdrawal details visibly useful as a safety sidecar.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary {
+  margin-top: 0 !important;
+  min-height: 100%;
+  padding:
+    11px
+    12px !important;
+  border-color:
+    rgba(
+      104,
+      255,
+      178,
+      0.18
+    ) !important;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(23, 62, 44, 0.38),
+      rgba(7, 27, 19, 0.68)
+    ) !important;
+}
+
+/*
+ * Use the width inside the existing details component.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary
+> div:not(
+  .treasury-withdrawal-funding-summary-empty
+) {
+  width: 100%;
+}
+
+/*
+ * CTA remains unmistakable but does not need excess vertical space.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-actions {
+  margin-top: 8px !important;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalPreflightButton {
+  width: 100%;
+}
+
+/*
+ * Keep Safety compact after a valid preflight too.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-execution-row {
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary {
+  min-height: 0;
+}
+
+/*
+ * ------------------------------------------------------------
+ * 03 — REQUEST
+ *
+ * Keep the successful A6D5 composition.
+ * Only fix its state badge.
+ * ------------------------------------------------------------
+ */
+
+/*
+ * Do not expose the static underlying signal text because READY
+ * was being visually appended to LOCKED.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage
+.aurora-withdrawal-stage-signal {
+  font-size: 0 !important;
+}
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage
+.aurora-withdrawal-stage-signal::after {
+  display: inline-block;
+  font-size: 0.52rem !important;
+  line-height: 1;
+  letter-spacing: 0.12em;
+}
+
+/* Destination signal */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-destination
+.aurora-withdrawal-stage-signal::after {
+  content: "ROUTE" !important;
+}
+
+/* Safety signal */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+.aurora-withdrawal-stage-signal::after {
+  content: "READ ONLY" !important;
+}
+
+/* Request locked */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-stage-signal::after {
+  content: "LOCKED" !important;
+}
+
+/* Request ready */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-request[
+  data-aurora-state="ready"
+]
+.aurora-withdrawal-stage-signal::after,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-request[
+  data-aurora-state="active"
+]
+.aurora-withdrawal-stage-signal::after {
+  content: "READY" !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * MISSION CONTROL PROGRESSION
+ *
+ * Completed stages become contextual.
+ * Current stage is the one strong luminous object.
+ * ------------------------------------------------------------
+ */
+
+/* When Safety is current, Route is complete/context. */
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="safety"
+]
+.aurora-command-node[
+  data-aurora-command-node="route"
+] {
+  opacity: 0.58 !important;
+  transform: none !important;
+  border-color:
+    rgba(
+      112,
+      255,
+      187,
+      0.22
+    ) !important;
+  box-shadow: none !important;
+}
+
+/* When Request is current, Route and Safety are complete/context. */
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="request"
+]
+.aurora-command-node[
+  data-aurora-command-node="route"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="request"
+]
+.aurora-command-node[
+  data-aurora-command-node="safety"
+] {
+  opacity: 0.52 !important;
+  transform: none !important;
+  border-color:
+    rgba(
+      112,
+      255,
+      187,
+      0.20
+    ) !important;
+  box-shadow: none !important;
+}
+
+/*
+ * Current command node remains unmistakable.
+ */
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="route"
+]
+.aurora-command-node[
+  data-aurora-command-node="route"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="safety"
+]
+.aurora-command-node[
+  data-aurora-command-node="safety"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="request"
+]
+.aurora-command-node[
+  data-aurora-command-node="request"
+] {
+  opacity: 1 !important;
+  transform:
+    translateY(-3px) !important;
+  border-color:
+    rgba(
+      116,
+      255,
+      188,
+      0.82
+    ) !important;
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.22),
+    0 0 26px rgba(68, 255, 158, 0.17) !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * DESKTOP HEIGHT TARGET
+ *
+ * No forced tall workbench. Content determines height.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[data-aurora-phase]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[data-aurora-phase]
+.aurora-withdrawal-stage-request {
+  height: auto !important;
+}
+
+/*
+ * Only inactive Request keeps a useful minimum footprint.
+ */
+
+#treasuryWithdrawalAction:not(
+  [data-aurora-phase="request"]
+)
+.aurora-withdrawal-stage-request {
+  min-height: 215px !important;
+}
+
+/*
+ * Smaller displays revert the safety sidecar to one column.
+ */
+
+@media (max-width: 1320px) {
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-safety
+  .treasury-withdrawal-execution-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-destination
+  .treasury-withdrawal-route-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-destination
+  .treasury-withdrawal-route-asset,
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-destination
+  .treasury-withdrawal-route-network,
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-destination
+  .treasury-withdrawal-route-recipient,
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-destination
+  .treasury-withdrawal-route-memo,
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-destination
+  .treasury-withdrawal-route-actions {
+    grid-column: 1 !important;
+  }
+}
+
+
+/* ============================================================
+   AURORA A6D7 SLIM TELEMETRY RAIL
+   Compact progress telemetry + clearer active-card hierarchy.
+   ============================================================ */
+
+/*
+ * ------------------------------------------------------------
+ * MISSION CONTROL
+ *
+ * This is status/navigation, not a hero section.
+ * Remove roughly half its vertical visual mass.
+ * ------------------------------------------------------------
+ */
+
+.aurora-withdrawal-command-deck {
+  margin-bottom: 11px !important;
+  padding:
+    8px
+    13px
+    9px !important;
+  border-radius:
+    15px
+    4px
+    15px
+    4px !important;
+  clip-path:
+    polygon(
+      0 0,
+      calc(100% - 22px) 0,
+      100% 22px,
+      100% 100%,
+      22px 100%,
+      0 calc(100% - 22px)
+    ) !important;
+  transform: none !important;
+}
+
+/*
+ * Reduce the decorative orbital mass too.
+ */
+
+.aurora-withdrawal-command-deck::after {
+  width: 145px !important;
+  height: 145px !important;
+  right: -48px !important;
+  top: -78px !important;
+  box-shadow:
+    0 0 0 16px rgba(112, 255, 190, 0.018),
+    0 0 0 31px rgba(112, 255, 190, 0.012),
+    0 0 42px rgba(67, 255, 159, 0.08) !important;
+}
+
+/*
+ * Crown becomes a tiny telemetry header.
+ */
+
+.aurora-command-crown {
+  align-items: center !important;
+  margin-bottom: 6px !important;
+  gap: 12px !important;
+}
+
+.aurora-command-identity {
+  display: flex !important;
+  align-items: center !important;
+  min-width: 0;
+  padding-left: 15px !important;
+}
+
+.aurora-command-beacon {
+  top: 50% !important;
+  width: 7px !important;
+  height: 7px !important;
+  transform:
+    translateY(-50%);
+  box-shadow:
+    0 0 0 3px rgba(121, 255, 181, 0.07),
+    0 0 13px rgba(121, 255, 181, 0.58) !important;
+}
+
+.aurora-command-overline {
+  margin: 0 !important;
+  font-size: 0.52rem !important;
+  letter-spacing: 0.15em !important;
+}
+
+/*
+ * Remove the hero headline entirely.
+ * The real working panels already explain the workflow.
+ */
+
+.aurora-command-identity
+> strong {
+  display: none !important;
+}
+
+/*
+ * Guard / route count become tiny telemetry readouts.
+ */
+
+.aurora-command-status-stack {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: stretch !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+}
+
+.aurora-command-guard,
+
+.aurora-command-destinations {
+  min-width: 0 !important;
+  padding:
+    5px
+    8px !important;
+}
+
+.aurora-command-guard {
+  border-left-width: 1px !important;
+}
+
+.aurora-command-guard span,
+
+.aurora-command-destinations span {
+  margin-bottom: 2px !important;
+  font-size: 0.43rem !important;
+  letter-spacing: 0.12em !important;
+}
+
+.aurora-command-guard strong,
+
+.aurora-command-destinations strong {
+  font-size: 0.60rem !important;
+  line-height: 1.15 !important;
+}
+
+/*
+ * Workflow vector becomes a slim progress strip.
+ */
+
+.aurora-command-vector {
+  align-items: center !important;
+}
+
+.aurora-command-node {
+  min-height: 54px !important;
+  padding:
+    7px
+    9px !important;
+  gap: 8px !important;
+}
+
+/*
+ * The little category headings were useful conceptually,
+ * but duplicate ROUTE / PREFLIGHT / REQUEST.
+ */
+
+.aurora-command-node small {
+  display: none !important;
+}
+
+.aurora-command-index {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 0.56rem !important;
+}
+
+.aurora-command-node strong {
+  margin-bottom: 2px !important;
+  font-size: 0.65rem !important;
+  letter-spacing: 0.07em !important;
+}
+
+.aurora-command-node p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0 !important;
+  font-size: 0.56rem !important;
+  line-height: 1.22 !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.aurora-command-link {
+  height: 1px !important;
+  margin:
+    0
+    4px !important;
+}
+
+.aurora-command-link::before,
+
+.aurora-command-link::after {
+  width: 5px !important;
+  height: 5px !important;
+}
+
+/*
+ * Current stage gets a restrained glow.
+ * No more giant illuminated onboarding card.
+ */
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="route"
+]
+.aurora-command-node[
+  data-aurora-command-node="route"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="safety"
+]
+.aurora-command-node[
+  data-aurora-command-node="safety"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="request"
+]
+.aurora-command-node[
+  data-aurora-command-node="request"
+] {
+  transform:
+    translateY(-1px) !important;
+  border-color:
+    rgba(
+      116,
+      255,
+      188,
+      0.64
+    ) !important;
+  box-shadow:
+    0 7px 18px rgba(0, 0, 0, 0.16),
+    0 0 16px rgba(68, 255, 158, 0.10) !important;
+}
+
+/*
+ * Completed stages stay visible, but clearly become context.
+ */
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="safety"
+]
+.aurora-command-node[
+  data-aurora-command-node="route"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="request"
+]
+.aurora-command-node[
+  data-aurora-command-node="route"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="request"
+]
+.aurora-command-node[
+  data-aurora-command-node="safety"
+] {
+  opacity: 0.48 !important;
+  transform: none !important;
+  border-color:
+    rgba(
+      112,
+      255,
+      187,
+      0.14
+    ) !important;
+  box-shadow: none !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * DESTINATION HEADER
+ *
+ * Remove duplicated instructional copy.
+ * Keep:
+ *   Withdrawal destination
+ *   Account arnold
+ *   Manage recipients
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalRouteBuilder
+.treasury-withdrawal-route-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 9px !important;
+  margin-bottom: 7px !important;
+  padding-bottom: 8px !important;
+}
+
+#treasuryWithdrawalRouteBuilder
+.treasury-withdrawal-route-head
+> div
+> span {
+  display: none !important;
+}
+
+#treasuryWithdrawalRouteBuilder
+.treasury-withdrawal-route-head-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+}
+
+#treasuryWithdrawalRouteBuilder
+.treasury-withdrawal-route-owner {
+  max-width: none !important;
+  font-size: 0.58rem !important;
+  line-height: 1 !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+  opacity: 0.56 !important;
+}
+
+#treasuryWithdrawalRouteBuilder
+#manageTreasuryWithdrawalRecipients {
+  min-height: 30px !important;
+  padding:
+    5px
+    8px !important;
+  font-size: 0.64rem !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * LOWER STAGES
+ *
+ * Active card should be immediately obvious.
+ * Context cards stay usable/readable but stop competing.
+ * ------------------------------------------------------------
+ */
+
+/* ROUTE current */
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="route"
+]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="route"
+]
+.aurora-withdrawal-stage-request {
+  opacity: 0.72 !important;
+  border-color:
+    rgba(
+      112,
+      255,
+      187,
+      0.17
+    ) !important;
+  box-shadow: none !important;
+}
+
+/* PREFLIGHT current */
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="safety"
+]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="safety"
+]
+.aurora-withdrawal-stage-request {
+  opacity: 0.76 !important;
+  border-color:
+    rgba(
+      112,
+      255,
+      187,
+      0.18
+    ) !important;
+  box-shadow: none !important;
+}
+
+/* REQUEST current */
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-safety {
+  opacity: 0.70 !important;
+  border-color:
+    rgba(
+      112,
+      255,
+      187,
+      0.15
+    ) !important;
+  box-shadow: none !important;
+}
+
+/*
+ * Active work surface.
+ */
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="route"
+]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="safety"
+]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-request {
+  opacity: 1 !important;
+  border-color:
+    rgba(
+      113,
+      255,
+      187,
+      0.58
+    ) !important;
+  box-shadow:
+    0 17px 38px rgba(0, 0, 0, 0.20),
+    0 0 26px rgba(63, 255, 150, 0.07) !important;
+}
+
+/*
+ * Don't dim the actual form controls inside context panels as
+ * aggressively as the card itself.
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage
+select,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage
+input,
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage
+button {
+  opacity: 1;
+}
+
+/*
+ * ------------------------------------------------------------
+ * MOBILE / NARROW VIEW
+ * ------------------------------------------------------------
+ */
+
+@media (max-width: 900px) {
+  .aurora-command-crown {
+    display: flex !important;
+    flex-wrap: wrap;
+  }
+
+  .aurora-command-status-stack {
+    width: 100%;
+  }
+
+  .aurora-command-vector {
+    grid-template-columns: 1fr !important;
+    gap: 5px !important;
+  }
+
+  .aurora-command-link {
+    display: none !important;
+  }
+
+  .aurora-command-node {
+    min-height: 48px !important;
+  }
+}
+
+
+/* ============================================================
+   AURORA A6D8 FINAL READABILITY POLISH
+   Slightly clearer telemetry/context + robust long-number display.
+   ============================================================ */
+
+/*
+ * ------------------------------------------------------------
+ * TELEMETRY RAIL
+ *
+ * Keep A6D7 dimensions exactly as-is.
+ * Improve readability only.
+ * ------------------------------------------------------------
+ */
+
+.aurora-command-node p {
+  color:
+    rgba(
+      214,
+      244,
+      227,
+      0.72
+    ) !important;
+  font-size: 0.59rem !important;
+  line-height: 1.24 !important;
+}
+
+.aurora-command-node strong {
+  color:
+    rgba(
+      236,
+      255,
+      245,
+      0.94
+    ) !important;
+}
+
+/*
+ * Completed telemetry is context, not disabled content.
+ * A6D7's 0.48 was slightly too faint.
+ */
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="safety"
+]
+.aurora-command-node[
+  data-aurora-command-node="route"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="request"
+]
+.aurora-command-node[
+  data-aurora-command-node="route"
+],
+
+.aurora-withdrawal-command-deck[
+  data-aurora-focus="request"
+]
+.aurora-command-node[
+  data-aurora-command-node="safety"
+] {
+  opacity: 0.61 !important;
+}
+
+/*
+ * Future/locked telemetry stays subordinate.
+ */
+
+.aurora-command-node[
+  data-aurora-state="waiting"
+],
+
+.aurora-command-node[
+  data-aurora-state="locked"
+] {
+  opacity: 0.48 !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * LOWER WORKSPACE CONTEXT
+ *
+ * Completed cards should recede, but remain comfortable to verify.
+ * ------------------------------------------------------------
+ */
+
+/* Route phase: future stages */
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="route"
+]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="route"
+]
+.aurora-withdrawal-stage-request {
+  opacity: 0.76 !important;
+}
+
+/* Preflight phase: Route is completed context, Request is future */
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="safety"
+]
+.aurora-withdrawal-stage-destination {
+  opacity: 0.82 !important;
+}
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="safety"
+]
+.aurora-withdrawal-stage-request {
+  opacity: 0.74 !important;
+}
+
+/* Request phase: both prior stages are completed context */
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-safety {
+  opacity: 0.80 !important;
+}
+
+/*
+ * Preserve clear active-card dominance.
+ */
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="route"
+]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="safety"
+]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-request {
+  opacity: 1 !important;
+}
+
+/*
+ * ------------------------------------------------------------
+ * FUNDING / LIMIT VALUES
+ *
+ * Prevent long decimal amounts from ellipsizing or escaping cards.
+ * This changes presentation only — no values/calculations.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalFundingSummary,
+
+#treasuryWithdrawalFundingSummary
+* {
+  min-width: 0;
+}
+
+#treasuryWithdrawalFundingSummary
+strong,
+
+#treasuryWithdrawalFundingSummary
+b,
+
+#treasuryWithdrawalFundingSummary
+dd,
+
+#treasuryWithdrawalFundingSummary
+[class*="value"] {
+  overflow: visible !important;
+  max-width: 100%;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  font-variant-numeric:
+    tabular-nums;
+}
+
+/*
+ * Long values remain readable without forcing the panel wider.
+ */
+
+#treasuryWithdrawalFundingSummary
+strong {
+  line-height: 1.25 !important;
+}
+
+/*
+ * Give individual detail cells enough vertical room for a wrapped
+ * long value such as an 8-decimal minimum withdrawal.
+ */
+
+#treasuryWithdrawalFundingSummary
+> div,
+
+#treasuryWithdrawalFundingSummary
+> div
+> div {
+  min-height: 0 !important;
+}
+
+/*
+ * Request summary values may also become long for high-precision assets.
+ */
+
+#treasuryWithdrawalPreflight
+strong,
+
+#treasuryWithdrawalPreflight
+b,
+
+#treasuryWithdrawalPreflight
+[class*="value"] {
+  max-width: 100%;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+  font-variant-numeric:
+    tabular-nums;
+}
+
+/*
+ * No dimensional changes to the rail or primary stages in A6D8.
+ */
+
+
+/* ============================================================
+   AURORA A6D9C STABLE PHASE GEOMETRY
+   Remove Request-ready height jump + tighten Preflight amount.
+   ============================================================ */
+
+/*
+ * Dynamic stage geometry should not participate in browser
+ * scroll anchoring.
+ */
+
+#tab-wallet
+#treasuryWithdrawalAction,
+
+#tab-wallet
+#treasuryWithdrawalRecords {
+  overflow-anchor: none;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * PREFLIGHT AMOUNT / SAFETY SIDECAR
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-execution-row {
+  grid-template-columns:
+    minmax(118px, 0.52fr)
+    minmax(250px, 1.48fr) !important;
+  gap: 10px !important;
+}
+
+#treasuryWithdrawalAction
+#treasuryWithdrawalAmount {
+  min-height: 42px !important;
+  padding:
+    6px
+    10px !important;
+  font-size: 1.08rem !important;
+  line-height: 1.1 !important;
+}
+
+
+/*
+ * Four-value safety matrix:
+ *
+ * Available to withdraw | Withdrawal fee
+ * Minimum withdrawal    | Daily limit remaining
+ */
+
+#treasuryWithdrawalAction
+#treasuryWithdrawalFundingSummary
+.treasury-withdrawal-funding-summary-grid {
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    ) !important;
+}
+
+#treasuryWithdrawalAction
+#treasuryWithdrawalFundingSummary
+[data-aurora-daily-limit-cell] {
+  min-width: 0;
+}
+
+#treasuryWithdrawalAction
+#treasuryWithdrawalFundingSummary
+[data-aurora-daily-limit-cell]
+strong {
+  display: block;
+  max-width: 100%;
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * REQUEST READY
+ *
+ * Override the historical 390px request-body minimum.
+ * Real Request content determines the height.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-request-body {
+  flex:
+    0
+    1
+    auto !important;
+  min-height: 0 !important;
+}
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-request-action {
+  margin-top: 14px !important;
+  padding-top: 0 !important;
+}
+
+#treasuryWithdrawalAction[
+  data-aurora-phase="request"
+]
+.aurora-withdrawal-stage-request
+.aurora-withdrawal-request-orbit {
+  pointer-events: none;
+}
+
+
+@media (max-width: 1320px) {
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-safety
+  .treasury-withdrawal-execution-row {
+    grid-template-columns:
+      1fr !important;
+  }
+}
+
+
+/* ============================================================
+   AURORA A6D9D PREFLIGHT ACTION / POST-PREFLIGHT DENSITY
+   Comfortable entry before preflight; compact verification after.
+   ============================================================ */
+
+/*
+ * ------------------------------------------------------------
+ * PREFLIGHT ACTIVE
+ *
+ * Restore a comfortable Amount entry width.
+ *
+ * A6D9C's very narrow Amount column was intended as a density
+ * experiment, but Amount should remain comfortable while the
+ * operator is actually entering/editing it.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-execution-row {
+  grid-template-columns:
+    minmax(150px, 0.72fr)
+    minmax(240px, 1.28fr) !important;
+  gap: 12px !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * RUN SAFETY PREFLIGHT
+ *
+ * The action belongs to the whole Preflight stage, not to the
+ * narrow Amount column.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-actions {
+  display: flex !important;
+  width: 100% !important;
+  max-width: none !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  justify-self: stretch !important;
+  grid-column:
+    1
+    /
+    -1 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalPreflightButton {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  justify-self: stretch !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * POST-PREFLIGHT / REQUEST READY
+ *
+ * THIS is where Amount becomes compact.
+ *
+ * The value is now verification context rather than the primary
+ * input task, so give most of the horizontal space to the
+ * four-value Withdrawal details matrix.
+ *
+ * Keeping Amount + details on one row removes unnecessary
+ * vertical height from the completed Preflight card.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-execution-row {
+  display: grid !important;
+  grid-template-columns:
+    minmax(88px, 0.34fr)
+    minmax(0, 1.66fr) !important;
+  gap: 9px !important;
+  align-items: start !important;
+  width: 100% !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-amount-field {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalAmount {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 38px !important;
+  padding:
+    5px
+    8px !important;
+  font-size: 0.94rem !important;
+}
+
+
+/*
+ * The four authoritative safety values receive the recovered width.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin-top: 0 !important;
+  padding:
+    9px
+    10px !important;
+}
+
+
+/*
+ * Keep the 2 x 2 matrix in the compact completed Preflight card.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary
+.treasury-withdrawal-funding-summary-grid {
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    ) !important;
+}
+
+
+/*
+ * Long values may wrap, but should not grow horizontally.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary
+strong {
+  max-width: 100%;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  line-height: 1.18 !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * RUN PREFLIGHT AGAIN
+ *
+ * After success this is a secondary verification action.
+ * It should not become another giant CTA.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-actions {
+  display: flex !important;
+  width: 100% !important;
+  margin-top: 6px !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalPreflightButton {
+  width: auto !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 32px !important;
+  padding:
+    5px
+    9px !important;
+  font-size: 0.64rem !important;
+}
+
+
+/*
+ * A6D9D changes width/density only.
+ * Request geometry and scroll anchoring from A6D9C remain intact.
+ */
+
+
+@media (max-width: 1320px) {
+  /*
+   * On narrower displays there is not enough horizontal room for
+   * the post-preflight compact side-by-side form.
+   */
+
+  #treasuryWithdrawalAction[data-aurora-phase="request"]
+  .aurora-withdrawal-stage-safety
+  .treasury-withdrawal-execution-row {
+    grid-template-columns:
+      1fr !important;
+  }
+
+  #treasuryWithdrawalAction[data-aurora-phase="request"]
+  .aurora-withdrawal-stage-safety
+  #treasuryWithdrawalAmount {
+    max-width: 150px !important;
+  }
+}
+
+
+/* ============================================================
+   AURORA A6D9E COMPLETED PREFLIGHT VERTICAL
+   Request-active: Amount -> Withdrawal details -> secondary action.
+   ============================================================ */
+
+/*
+ * PREFLIGHT ACTIVE is intentionally unchanged.
+ *
+ * Only after a valid preflight moves the workflow into REQUEST
+ * do we change the completed Safety card.
+ */
+
+
+/*
+ * ------------------------------------------------------------
+ * REQUEST ACTIVE — COMPLETED PREFLIGHT
+ *
+ * Stack the verification content vertically.
+ *
+ * Amount
+ * Withdrawal details (2 x 2)
+ * Run preflight again
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-execution-row {
+  display: grid !important;
+  grid-template-columns:
+    minmax(0, 1fr) !important;
+  gap: 8px !important;
+  align-items: start !important;
+  width: 100% !important;
+}
+
+
+/*
+ * Amount is compact vertically, but may use the card width.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-amount-field {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalAmount {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 38px !important;
+  padding:
+    5px
+    9px !important;
+  font-size: 0.96rem !important;
+  line-height: 1.1 !important;
+}
+
+
+/*
+ * Withdrawal details now receives the entire card width.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin:
+    0 !important;
+  padding:
+    9px
+    10px !important;
+}
+
+
+/*
+ * Keep the four authoritative values as a clean 2 x 2 matrix.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary
+.treasury-withdrawal-funding-summary-grid {
+  display: grid !important;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    ) !important;
+  gap:
+    7px
+    9px !important;
+}
+
+
+/*
+ * Long high-precision values may wrap naturally within a cell.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary
+strong {
+  max-width: 100%;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+  line-height: 1.18 !important;
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+/*
+ * Re-run remains a small secondary verification action.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-actions {
+  display: flex !important;
+  width: 100% !important;
+  margin-top: 6px !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalPreflightButton {
+  width: auto !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 31px !important;
+  padding:
+    5px
+    9px !important;
+  font-size: 0.63rem !important;
+}
+
+
+/*
+ * No forced completed-card height.
+ * A6D9C's Request-stage natural-height behavior remains authoritative.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+
+/*
+ * Narrow-screen behavior is already vertical, so no special
+ * alternate composition is required.
+ */
+
+
+/* ============================================================
+   AURORA A6D9F COMPLETED PREFLIGHT DENSITY
+   Request phase only. Preserve structure; recover vertical space.
+   ============================================================ */
+
+/*
+ * This pass deliberately affects ONLY the completed Safety card
+ * after the workflow has advanced to REQUEST.
+ *
+ * PREFLIGHT-active geometry remains unchanged.
+ */
+
+
+/*
+ * ------------------------------------------------------------
+ * COMPLETED PREFLIGHT CARD SHELL
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety {
+  padding:
+    13px
+    14px !important;
+}
+
+
+/*
+ * Tighten stage heading without changing typography/hierarchy.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.aurora-withdrawal-stage-heading {
+  margin-bottom: 8px !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * MATCHED DESTINATION CONTEXT
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-destination-field {
+  gap: 3px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalPreflightContext {
+  margin-top: 2px !important;
+  margin-bottom: 3px !important;
+  font-size: 0.58rem !important;
+  line-height: 1.22 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalDestinationSummary {
+  margin-top: 4px !important;
+  padding:
+    7px
+    9px !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * AMOUNT
+ *
+ * In REQUEST phase this is verification context, not the primary
+ * editing task. Keep full width but reduce its vertical footprint.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-execution-row {
+  gap: 5px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-amount-field {
+  gap: 3px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalAmount {
+  min-height: 34px !important;
+  padding:
+    4px
+    8px !important;
+  font-size: 0.90rem !important;
+  line-height: 1.05 !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * FOUR-VALUE SAFETY MATRIX
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary {
+  padding:
+    7px
+    9px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary
+.treasury-withdrawal-funding-summary-grid {
+  gap:
+    4px
+    8px !important;
+}
+
+
+/*
+ * Labels can be slightly denser in completed verification context.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary
+span {
+  font-size: 0.54rem !important;
+  line-height: 1.14 !important;
+}
+
+
+/*
+ * Keep numbers intact whenever possible.
+ *
+ * Prefer wrapping between VALUE and ASSET instead of splitting
+ * the number itself across arbitrary character positions.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary
+strong {
+  font-size: 0.64rem !important;
+  line-height: 1.13 !important;
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+/*
+ * Daily-limit values are typically the longest.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalFundingSummary
+[data-aurora-daily-limit-cell]
+strong {
+  font-size: 0.60rem !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * SECONDARY RE-PREFLIGHT ACTION
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-actions {
+  margin-top: 3px !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+#treasuryWithdrawalPreflightButton {
+  min-height: 28px !important;
+  padding:
+    4px
+    8px !important;
+  font-size: 0.60rem !important;
+}
+
+
+/*
+ * Do not establish additional completed-card height.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[data-aurora-phase="request"]
+.aurora-withdrawal-stage-safety
+.treasury-withdrawal-form {
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+
+/*
+ * No changes to active PREFLIGHT or REQUEST panel geometry.
+ */
+
+
+/* ============================================================
+   AURORA A6D9G STABLE ROUTE PREFLIGHT GEOMETRY
+   Route -> Preflight changes emphasis, not workspace geometry.
+   ============================================================ */
+
+/*
+ * Route and Preflight are consecutive editing/verification states.
+ *
+ * Selecting a valid recipient may activate Preflight immediately,
+ * but that transition should not cause the three work surfaces to
+ * resize dramatically.
+ *
+ * Therefore ROUTE and PREFLIGHT share one desktop grid.
+ *
+ * REQUEST keeps its existing takeover geometry unchanged.
+ */
+
+
+/*
+ * ------------------------------------------------------------
+ * SHARED ROUTE / PREFLIGHT DESKTOP GRID
+ *
+ * Destination remains comfortably editable.
+ * Preflight has enough width for:
+ *
+ *   Amount | Withdrawal details
+ *
+ * Request remains a compact future-state console.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-grid,
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-grid {
+  grid-template-columns:
+    minmax(340px, 0.90fr)
+    minmax(430px, 1.10fr)
+    minmax(230px, 0.62fr) !important;
+}
+
+
+/*
+ * Keep the exact same physical positions during both phases.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-destination {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-safety {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request,
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-request {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * REMOVE GEOMETRIC MOTION BETWEEN ROUTE AND PREFLIGHT
+ *
+ * Active-state hierarchy comes from border/glow/opacity only.
+ * Do not lift one card while dropping the other.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request,
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-destination,
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-safety,
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-request {
+  transform: none !important;
+}
+
+
+/*
+ * Do not animate geometry even if an earlier Aurora rule uses a
+ * broad transition.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-grid,
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-grid {
+  transition:
+    none !important;
+}
+
+
+/*
+ * Individual cards may still communicate phase with restrained
+ * visual transitions.
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage,
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage {
+  transition-property:
+    opacity,
+    border-color,
+    box-shadow,
+    background-color !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * ROUTE ACTIVE
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-destination {
+  opacity: 1 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-safety {
+  opacity: 0.74 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="route"]
+.aurora-withdrawal-stage-request {
+  opacity: 0.72 !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * PREFLIGHT ACTIVE
+ *
+ * Same sizes. Only visual hierarchy changes.
+ * ------------------------------------------------------------
+ */
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-destination {
+  opacity: 0.82 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-safety {
+  opacity: 1 !important;
+}
+
+#treasuryWithdrawalAction[data-aurora-phase="safety"]
+.aurora-withdrawal-stage-request {
+  opacity: 0.72 !important;
+}
+
+
+/*
+ * REQUEST phase intentionally receives NO A6D9G grid override.
+ *
+ * Its existing A6D5-A6D9F takeover geometry remains authoritative.
+ */
+
+
+@media (max-width: 1180px) {
+  /*
+   * Preserve the established stacked responsive behavior.
+   */
+
+  #treasuryWithdrawalAction[data-aurora-phase="route"]
+  .aurora-withdrawal-stage-grid,
+
+  #treasuryWithdrawalAction[data-aurora-phase="safety"]
+  .aurora-withdrawal-stage-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+}

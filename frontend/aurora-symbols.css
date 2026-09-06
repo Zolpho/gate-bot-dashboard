@@ -1,0 +1,236 @@
+/*
+ * ============================================================
+ * AURORA A7C7 — SHARED TOKEN / CHAIN SYMBOL SYSTEM
+ *
+ * Aurora-only.
+ *
+ * Icons are decorative context only.
+ * Asset/network text remains authoritative and visible.
+ * ============================================================
+ */
+
+.aurora-symbol {
+  --aurora-symbol-size: 22px;
+
+  display:
+    inline-flex;
+
+  flex:
+    0 0
+    var(--aurora-symbol-size);
+
+  width:
+    var(--aurora-symbol-size);
+
+  height:
+    var(--aurora-symbol-size);
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  vertical-align:
+    middle;
+
+  border-radius:
+    50%;
+
+  overflow:
+    hidden;
+
+  background:
+    rgba(9, 46, 36, 0.78);
+
+  box-shadow:
+    0 0 0 1px
+    rgba(86, 228, 177, 0.12),
+    0 0 12px
+    rgba(58, 220, 165, 0.04);
+}
+
+
+.aurora-symbol img {
+  display:
+    block;
+
+  width:
+    100%;
+
+  height:
+    100%;
+
+  object-fit:
+    contain;
+}
+
+
+.aurora-symbol-fallback {
+  color:
+    rgba(184, 255, 231, 0.92);
+
+  font-size:
+    0.46rem;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.02em;
+
+  line-height:
+    1;
+}
+
+
+.aurora-symbol-inline {
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  gap:
+    7px;
+}
+
+
+.deposit-coin-mark.aurora-symbol-host {
+  display:
+    inline-flex;
+
+  flex:
+    0 0
+    26px;
+
+  width:
+    26px;
+
+  height:
+    26px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0;
+
+  overflow:
+    visible;
+
+  border:
+    0;
+
+  border-radius:
+    50%;
+
+  background:
+    transparent;
+}
+
+
+.deposit-coin-mark.aurora-symbol-host
+.aurora-symbol {
+  --aurora-symbol-size:
+    26px;
+}
+
+
+.deposit-favorite
+.aurora-symbol {
+  --aurora-symbol-size:
+    15px;
+
+  margin-right:
+    5px;
+}
+
+
+#depositSelectedAsset.aurora-symbol-inline,
+#depositSelectedNetwork.aurora-symbol-inline {
+  gap:
+    6px;
+}
+
+
+#depositSelectedAsset
+.aurora-symbol {
+  --aurora-symbol-size:
+    20px;
+}
+
+
+#depositSelectedNetwork
+.aurora-symbol {
+  --aurora-symbol-size:
+    17px;
+}
+
+
+#privateUsdtTotal.aurora-symbol-inline,
+#privateEqtyTotal.aurora-symbol-inline {
+  gap:
+    8px;
+}
+
+
+#privateUsdtTotal
+.aurora-symbol,
+#privateEqtyTotal
+.aurora-symbol {
+  --aurora-symbol-size:
+    22px;
+}
+
+
+#privateAssetsBody
+td:first-child
+strong.aurora-symbol-inline {
+  gap:
+    7px;
+}
+
+
+#privateAssetsBody
+td:first-child
+.aurora-symbol {
+  --aurora-symbol-size:
+    19px;
+}
+
+
+#depositHistoryBody
+.aurora-symbol {
+  --aurora-symbol-size:
+    17px;
+}
+
+
+#depositHistoryBody
+strong.aurora-symbol-inline {
+  gap:
+    6px;
+}
+
+
+.aurora-network-symbol-inline {
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  gap:
+    6px;
+}
+
+
+.aurora-network-symbol-inline
+.aurora-symbol {
+  --aurora-symbol-size:
+    17px;
+}

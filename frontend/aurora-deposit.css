@@ -1,0 +1,6168 @@
+/* ============================================================
+   AURORA A7C — WALLET DEPOSITS MISSION CONTROL
+
+   Presentation only.
+
+   Asset discovery, network discovery, address/QR generation,
+   clipboard behavior, account scope and deposit history remain
+   owned by the shared application logic.
+   ============================================================ */
+
+
+#walletDepositsWorkspace {
+  --aurora-deposit-line: rgba(88, 239, 184, 0.22);
+  --aurora-deposit-line-strong: rgba(88, 239, 184, 0.56);
+  --aurora-deposit-surface: rgba(4, 29, 22, 0.82);
+  --aurora-deposit-soft: rgba(7, 39, 30, 0.66);
+  --aurora-deposit-muted: rgba(183, 218, 204, 0.61);
+
+  position: relative;
+}
+
+
+/* ------------------------------------------------------------
+   OUTER DEPOSIT CONTROL SURFACE
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+.wallet-deposit-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+
+  border:
+    1px solid
+    var(--aurora-deposit-line);
+
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(7, 39, 30, 0.90),
+      rgba(3, 21, 16, 0.96) 57%,
+      rgba(2, 15, 12, 0.98)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(117, 255, 210, 0.035),
+    0 22px 70px rgba(0, 0, 0, 0.19);
+}
+
+
+#walletDepositsWorkspace
+.wallet-deposit-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+
+  pointer-events: none;
+
+  background-image:
+    linear-gradient(
+      rgba(72, 229, 174, 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(72, 229, 174, 0.035) 1px,
+      transparent 1px
+    ),
+    radial-gradient(
+      circle at 76% 18%,
+      rgba(48, 235, 168, 0.11),
+      transparent 28%
+    );
+
+  background-size:
+    46px 46px,
+    46px 46px,
+    auto;
+}
+
+
+#walletDepositsWorkspace
+.wallet-deposit-panel::after {
+  content: "DEPOSIT INGRESS CONTROL";
+
+  position: absolute;
+  top: 17px;
+  right: 22px;
+  z-index: -1;
+
+  color:
+    rgba(100, 241, 193, 0.19);
+
+  font-size: 0.53rem;
+  font-weight: 700;
+  letter-spacing: 0.19em;
+  line-height: 1;
+}
+
+
+/* ------------------------------------------------------------
+   HEADER / PRIMARY ACTION
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+.wallet-deposit-header {
+  position: relative;
+  z-index: 1;
+
+  align-items: center;
+  gap: 16px;
+
+  padding:
+    18px
+    20px !important;
+
+  border-bottom:
+    1px solid
+    rgba(88, 230, 176, 0.12);
+}
+
+
+#walletDepositsWorkspace
+.wallet-deposit-header::before {
+  content: "";
+
+  width: 7px;
+  height: 7px;
+
+  flex:
+    0
+    0
+    auto;
+
+  border-radius: 999px;
+
+  background: #59f2bd;
+
+  box-shadow:
+    0 0 0 4px rgba(89, 242, 189, 0.08),
+    0 0 16px rgba(89, 242, 189, 0.46);
+}
+
+
+#walletDepositsWorkspace
+#depositButton {
+  min-height: 38px;
+
+  padding:
+    8px
+    16px;
+
+  border-color:
+    rgba(91, 244, 188, 0.58);
+
+  background:
+    linear-gradient(
+      100deg,
+      rgba(84, 239, 187, 0.94),
+      rgba(33, 197, 151, 0.92)
+    );
+
+  color:
+    rgba(1, 24, 18, 0.96);
+
+  font-weight: 750;
+
+  box-shadow:
+    0 0 28px rgba(58, 230, 173, 0.12);
+}
+
+
+/* ------------------------------------------------------------
+   WORKFLOW SHELL
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog {
+  position: relative;
+
+  margin:
+    0
+    16px
+    16px;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(88, 238, 183, 0.22);
+
+  border-radius: 16px;
+
+  background:
+    rgba(2, 22, 17, 0.76);
+
+  box-shadow:
+    inset 0 1px 0 rgba(112, 255, 205, 0.025);
+}
+
+
+#walletDepositsWorkspace
+.deposit-dialog-header {
+  padding:
+    15px
+    17px
+    13px;
+
+  border-bottom:
+    1px solid
+    rgba(88, 231, 177, 0.12);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(8, 52, 39, 0.60),
+      rgba(3, 27, 21, 0.22)
+    );
+}
+
+
+#walletDepositsWorkspace
+#depositWorkflowTitle {
+  margin: 0;
+
+  color:
+    rgba(230, 255, 246, 0.96);
+
+  font-size: 1.03rem;
+}
+
+
+#walletDepositsWorkspace
+#depositAccountLabel {
+  margin-top: 4px;
+
+  color:
+    var(--aurora-deposit-muted);
+
+  font-size: 0.62rem;
+}
+
+
+#walletDepositsWorkspace
+.deposit-close-button {
+  min-height: 31px;
+
+  padding:
+    5px
+    10px;
+
+  border-color:
+    rgba(92, 230, 178, 0.18);
+
+  background:
+    rgba(4, 31, 24, 0.68);
+}
+
+
+/* ------------------------------------------------------------
+   MISSION RAIL — ASSET / NETWORK / DETAILS
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+.deposit-flow {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 1px;
+
+  margin:
+    12px
+    16px
+    0;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(82, 226, 172, 0.16);
+
+  border-radius: 11px;
+
+  background:
+    rgba(2, 22, 17, 0.72);
+}
+
+
+#walletDepositsWorkspace
+.deposit-flow-item {
+  position: relative;
+
+  min-width: 0;
+
+  padding:
+    9px
+    12px;
+
+  border: 0;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(7, 43, 33, 0.46),
+      rgba(4, 28, 21, 0.27)
+    );
+
+  color:
+    rgba(181, 217, 203, 0.63);
+
+  font-size: 0.60rem;
+  letter-spacing: 0.04em;
+}
+
+
+#walletDepositsWorkspace
+.deposit-flow-item + .deposit-flow-item {
+  border-left:
+    1px solid
+    rgba(82, 226, 172, 0.11);
+}
+
+
+#walletDepositsWorkspace
+.deposit-flow-item::after {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+
+  transform:
+    translateY(-50%);
+
+  color:
+    rgba(88, 236, 181, 0.12);
+
+  font-size: 1.55rem;
+  font-weight: 800;
+}
+
+
+#walletDepositsWorkspace
+.deposit-flow-item:nth-child(1)::after {
+  content: "01";
+}
+
+
+#walletDepositsWorkspace
+.deposit-flow-item:nth-child(2)::after {
+  content: "02";
+}
+
+
+#walletDepositsWorkspace
+.deposit-flow-item:nth-child(3)::after {
+  content: "03";
+}
+
+
+/* ------------------------------------------------------------
+   THREE STABLE WORK SURFACES
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+.deposit-dialog-content {
+  display: grid;
+
+  grid-template-columns:
+    minmax(280px, 0.86fr)
+    minmax(255px, 0.76fr)
+    minmax(420px, 1.28fr);
+
+  gap: 12px;
+
+  align-items: start;
+
+  padding:
+    12px
+    16px
+    16px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-step {
+  position: relative;
+
+  min-width: 0;
+  min-height: 330px;
+
+  padding:
+    15px;
+
+  border:
+    1px solid
+    rgba(81, 220, 168, 0.16);
+
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(7, 42, 32, 0.69),
+      rgba(3, 26, 20, 0.72)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(115, 255, 208, 0.025);
+
+  transition:
+    opacity 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+
+#walletDepositsWorkspace
+.deposit-step:not(.deposit-step-disabled) {
+  border-color:
+    rgba(82, 236, 179, 0.39);
+
+  box-shadow:
+    inset 0 -2px 0 rgba(69, 233, 175, 0.11),
+    0 0 26px rgba(55, 221, 165, 0.035);
+}
+
+
+#walletDepositsWorkspace
+.deposit-step-disabled {
+  opacity: 0.54;
+}
+
+
+#walletDepositsWorkspace
+.deposit-step-number {
+  display: inline-grid;
+
+  place-items: center;
+
+  width: 27px;
+  height: 27px;
+
+  margin-bottom: 10px;
+
+  border:
+    1px solid
+    rgba(84, 231, 176, 0.29);
+
+  border-radius: 999px;
+
+  background:
+    rgba(7, 50, 37, 0.72);
+
+  color:
+    rgba(104, 240, 193, 0.86);
+
+  font-size: 0.60rem;
+  font-weight: 750;
+}
+
+
+#walletDepositsWorkspace
+.deposit-step-content {
+  min-width: 0;
+}
+
+
+/* ------------------------------------------------------------
+   ASSET SEARCH / FAVORITES / OPTIONS
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+.deposit-search {
+  display: grid;
+
+  gap: 6px;
+}
+
+
+#walletDepositsWorkspace
+#depositCurrencySearch {
+  min-height: 39px;
+
+  border-color:
+    rgba(84, 226, 173, 0.20);
+
+  background:
+    rgba(2, 24, 18, 0.84);
+}
+
+
+#walletDepositsWorkspace
+.deposit-favorites-row {
+  margin-top: 11px;
+
+  padding:
+    9px
+    10px;
+
+  border:
+    1px solid
+    rgba(83, 220, 169, 0.11);
+
+  border-radius: 10px;
+
+  background:
+    rgba(4, 29, 22, 0.56);
+}
+
+
+#walletDepositsWorkspace
+.deposit-favorites-label {
+  color:
+    rgba(174, 211, 196, 0.59);
+
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+
+#walletDepositsWorkspace
+.deposit-option-list {
+  display: grid;
+
+  gap: 6px;
+
+  margin-top: 10px;
+
+  max-height: 232px;
+
+  overflow-y: auto;
+
+  scrollbar-width: thin;
+}
+
+
+#walletDepositsWorkspace
+.deposit-option-list button {
+  min-height: 37px;
+
+  border:
+    1px solid
+    rgba(83, 220, 169, 0.13);
+
+  border-radius: 9px;
+
+  background:
+    rgba(4, 31, 24, 0.66);
+
+  color:
+    rgba(216, 244, 233, 0.82);
+
+  transition:
+    border-color 130ms ease,
+    background-color 130ms ease,
+    box-shadow 130ms ease;
+}
+
+
+#walletDepositsWorkspace
+.deposit-option-list button:hover {
+  border-color:
+    rgba(89, 236, 181, 0.38);
+
+  background:
+    rgba(8, 52, 39, 0.72);
+
+  box-shadow:
+    inset 2px 0 0 rgba(84, 237, 181, 0.38);
+}
+
+
+#walletDepositsWorkspace
+.deposit-hint,
+
+#walletDepositsWorkspace
+.deposit-empty {
+  color:
+    rgba(161, 199, 184, 0.54);
+
+  font-size: 0.58rem;
+  line-height: 1.35;
+}
+
+
+/* ------------------------------------------------------------
+   RESULT — QR + ADDRESS
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDetails {
+  grid-template-columns:
+    minmax(160px, 0.55fr)
+    minmax(0, 1.45fr);
+
+  gap: 13px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-card {
+  border:
+    1px solid
+    rgba(84, 232, 177, 0.22);
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(8, 48, 36, 0.72),
+      rgba(3, 27, 21, 0.78)
+    );
+
+  overflow: hidden;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-card-head {
+  padding:
+    8px
+    10px;
+
+  border-bottom:
+    1px solid
+    rgba(84, 226, 174, 0.11);
+
+  color:
+    rgba(182, 219, 204, 0.68);
+
+  font-size: 0.58rem;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-surface {
+  padding: 12px;
+
+  background:
+    rgba(233, 255, 247, 0.93);
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-actions {
+  padding:
+    8px
+    10px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-safety {
+  color:
+    rgba(172, 211, 196, 0.58);
+
+  font-size: 0.55rem;
+  line-height: 1.3;
+}
+
+
+#walletDepositsWorkspace
+.deposit-address-fields {
+  min-width: 0;
+
+  padding:
+    12px;
+
+  border:
+    1px solid
+    rgba(82, 229, 174, 0.16);
+
+  border-radius: 12px;
+
+  background:
+    rgba(3, 28, 21, 0.67);
+}
+
+
+#walletDepositsWorkspace
+.deposit-selected-summary {
+  display: flex;
+
+  align-items: baseline;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  margin-bottom: 11px;
+
+  padding-bottom: 9px;
+
+  border-bottom:
+    1px solid
+    rgba(83, 225, 172, 0.11);
+}
+
+
+#walletDepositsWorkspace
+#depositSelectedAsset {
+  color: #62f1c1;
+
+  font-size: 1.03rem;
+}
+
+
+#walletDepositsWorkspace
+#depositSelectedNetwork {
+  color:
+    rgba(175, 216, 200, 0.64);
+
+  font-size: 0.61rem;
+}
+
+
+#walletDepositsWorkspace
+.deposit-copy-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  gap: 7px;
+
+  align-items: stretch;
+
+  margin-top: 7px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-copy-row code {
+  min-width: 0;
+
+  padding:
+    9px
+    10px;
+
+  overflow-wrap: anywhere;
+
+  border:
+    1px solid
+    rgba(82, 226, 172, 0.14);
+
+  border-radius: 8px;
+
+  background:
+    rgba(2, 22, 17, 0.82);
+
+  color:
+    rgba(218, 255, 240, 0.88);
+
+  font-size: 0.66rem;
+  line-height: 1.35;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+#walletDepositsWorkspace
+.deposit-definition-list {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 1px;
+
+  margin-top: 11px;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(82, 224, 171, 0.12);
+
+  border-radius: 9px;
+
+  background:
+    rgba(2, 22, 17, 0.62);
+}
+
+
+#walletDepositsWorkspace
+.deposit-definition-list > * {
+  min-width: 0;
+
+  padding:
+    7px
+    8px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-warning,
+
+#walletDepositsWorkspace
+.deposit-memo-warning {
+  margin-top: 9px;
+
+  padding:
+    8px
+    10px;
+
+  border:
+    1px solid
+    rgba(222, 188, 99, 0.16);
+
+  border-radius: 9px;
+
+  background:
+    rgba(83, 65, 19, 0.12);
+
+  color:
+    rgba(225, 208, 158, 0.71);
+
+  font-size: 0.57rem;
+  line-height: 1.35;
+}
+
+
+/* ------------------------------------------------------------
+   ERRORS / LOADING
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositError,
+
+#walletDepositsWorkspace
+#depositLoading {
+  margin:
+    10px
+    16px
+    0;
+
+  border-radius: 9px;
+}
+
+
+/* ------------------------------------------------------------
+   DEPOSIT HISTORY / OPERATIONAL FOOTER
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#walletDepositRecords {
+  margin-top: 12px;
+
+  border:
+    1px solid
+    rgba(79, 220, 167, 0.15);
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(5, 31, 24, 0.76),
+      rgba(3, 23, 18, 0.70)
+    );
+}
+
+
+#walletDepositsWorkspace
+#walletDepositRecords
+.treasury-records-summary {
+  min-height: 44px;
+
+  padding:
+    8px
+    13px;
+}
+
+
+#walletDepositsWorkspace
+#walletDepositRecords[open] {
+  border-color:
+    rgba(83, 231, 175, 0.28);
+
+  box-shadow:
+    0 0 28px rgba(51, 222, 164, 0.04);
+}
+
+
+#walletDepositsWorkspace
+.deposit-history {
+  padding: 13px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-history-header {
+  align-items: center;
+
+  padding-bottom: 10px;
+
+  border-bottom:
+    1px solid
+    rgba(81, 221, 169, 0.11);
+}
+
+
+#walletDepositsWorkspace
+.deposit-history-actions
+.button {
+  min-height: 31px;
+
+  padding:
+    5px
+    9px;
+
+  border-color:
+    rgba(85, 224, 172, 0.17);
+
+  background:
+    rgba(4, 30, 23, 0.65);
+}
+
+
+#walletDepositsWorkspace
+.deposit-history-footer {
+  margin-top: 9px;
+
+  padding-top: 8px;
+
+  border-top:
+    1px solid
+    rgba(82, 220, 169, 0.09);
+
+  color:
+    rgba(161, 199, 184, 0.55);
+
+  font-size: 0.56rem;
+}
+
+
+/* ------------------------------------------------------------
+   FULL-SIZE QR DIALOG — DEPOSIT SPECIFIC
+   ------------------------------------------------------------ */
+
+#depositQrDialog
+.deposit-qr-dialog-shell {
+  border:
+    1px solid
+    rgba(87, 234, 180, 0.30);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(6, 40, 30, 0.97),
+      rgba(2, 20, 15, 0.99)
+    );
+
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.45),
+    0 0 42px rgba(53, 226, 169, 0.07);
+}
+
+
+#depositQrDialog
+.deposit-qr-dialog-head {
+  border-bottom:
+    1px solid
+    rgba(83, 225, 172, 0.13);
+}
+
+
+#depositQrDialog
+.deposit-qr-dialog-surface {
+  background:
+    rgba(236, 255, 248, 0.96);
+}
+
+
+#depositQrDialog
+.deposit-qr-dialog-details {
+  border:
+    1px solid
+    rgba(83, 225, 172, 0.15);
+
+  background:
+    rgba(3, 27, 20, 0.76);
+}
+
+
+/* ------------------------------------------------------------
+   RESPONSIVE FALLBACK
+   ------------------------------------------------------------ */
+
+@media (max-width: 1180px) {
+  #walletDepositsWorkspace
+  .deposit-dialog-content {
+    grid-template-columns:
+      1fr;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-step {
+    min-height: 0;
+  }
+
+  #walletDepositsWorkspace
+  #depositDetails {
+    grid-template-columns:
+      minmax(150px, 0.55fr)
+      minmax(0, 1.45fr);
+  }
+}
+
+
+@media (max-width: 760px) {
+  #walletDepositsWorkspace
+  .deposit-flow {
+    grid-template-columns:
+      1fr;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-flow-item + .deposit-flow-item {
+    border-left: 0;
+
+    border-top:
+      1px solid
+      rgba(82, 226, 172, 0.11);
+  }
+
+  #walletDepositsWorkspace
+  #depositDetails {
+    grid-template-columns:
+      1fr;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-definition-list {
+    grid-template-columns:
+      1fr;
+  }
+}
+
+
+/* ============================================================
+   AURORA A7C3 — DEPOSIT WORKFLOW STRUCTURAL REDESIGN
+   ============================================================ */
+
+
+/*
+ * ------------------------------------------------------------
+ * HEADER ALIGNMENT
+ *
+ * Keep the status dot decorative rather than making it a flex
+ * item that pushes the heading toward the center.
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+.wallet-deposit-header {
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding:
+    20px
+    20px
+    18px
+    37px !important;
+}
+
+
+#walletDepositsWorkspace
+.wallet-deposit-header::before {
+  position: absolute;
+
+  left: 20px;
+  top: 27px;
+
+  width: 7px;
+  height: 7px;
+
+  margin: 0;
+
+  content: "";
+
+  border-radius: 999px;
+
+  background: #59f2bd;
+
+  box-shadow:
+    0 0 0 4px rgba(89, 242, 189, 0.08),
+    0 0 16px rgba(89, 242, 189, 0.46);
+}
+
+
+#walletDepositsWorkspace
+.wallet-deposit-header > div {
+  min-width: 0;
+}
+
+
+#walletDepositsWorkspace
+.wallet-deposit-header h2 {
+  margin: 0;
+}
+
+
+#walletDepositsWorkspace
+.wallet-deposit-header p {
+  margin:
+    4px
+    0
+    0;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * WORKFLOW SHELL
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog {
+  width: auto;
+  max-width: none;
+
+  margin:
+    0
+    16px
+    16px;
+
+  overflow: visible;
+
+  scroll-margin: 0;
+}
+
+
+#walletDepositsWorkspace
+.deposit-dialog-content {
+  position: relative;
+
+  display: grid;
+
+  grid-template-columns:
+    minmax(300px, 0.92fr)
+    minmax(285px, 0.88fr)
+    minmax(330px, 1.00fr);
+
+  gap: 12px;
+
+  align-items: start;
+
+  width: 100%;
+  min-width: 0;
+
+  padding:
+    12px
+    16px
+    16px;
+}
+
+
+/*
+ * Error/loading rows must never consume one workflow column.
+ */
+
+#walletDepositsWorkspace
+#depositError,
+
+#walletDepositsWorkspace
+#depositLoading {
+  grid-column:
+    1
+    /
+    -1;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * ALL THREE STAGES ARE PHYSICALLY PRESENT FROM THE START
+ *
+ * This overrides the legacy Deposit rule that display:none's
+ * disabled stages.
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+.wallet-deposit-workflow
+.deposit-step,
+
+#walletDepositsWorkspace
+.wallet-deposit-workflow
+.deposit-step.deposit-step-disabled {
+  display: block !important;
+
+  width: 100%;
+  min-width: 0;
+
+  transform: none;
+
+  opacity: 1;
+}
+
+
+#walletDepositsWorkspace
+.deposit-step {
+  min-height: 246px;
+
+  padding: 15px;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(82, 225, 172, 0.16);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(6, 39, 30, 0.68),
+      rgba(3, 25, 19, 0.75)
+    );
+
+  transition:
+    opacity 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+
+#walletDepositsWorkspace
+.deposit-step.deposit-step-disabled {
+  opacity: 0.46;
+
+  border-color:
+    rgba(74, 186, 145, 0.11);
+
+  background:
+    rgba(3, 25, 19, 0.50);
+
+  box-shadow: none;
+}
+
+
+/*
+ * Stage numbers are already represented by the mission rail.
+ */
+
+#walletDepositsWorkspace
+.deposit-step-number {
+  display: none !important;
+}
+
+
+#walletDepositsWorkspace
+.deposit-step-content h3 {
+  margin:
+    0
+    0
+    10px;
+
+  font-size: 0.88rem;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * MISSION RAIL
+ *
+ * Remove the duplicate giant 01/02/03. Existing numbered
+ * circles remain the only stage number.
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+.deposit-flow-item::after {
+  content: none !important;
+}
+
+
+#walletDepositsWorkspace
+.deposit-flow-item {
+  min-height: 52px;
+
+  opacity: 0.50;
+
+  border-color:
+    rgba(79, 213, 164, 0.10);
+
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+
+/*
+ * Initial state: Asset active.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositNetworkStep.deposit-step-disabled)
+.deposit-flow-item:nth-child(1) {
+  opacity: 1;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(10, 61, 45, 0.72),
+      rgba(5, 35, 27, 0.45)
+    );
+
+  box-shadow:
+    inset 0 -2px 0 rgba(80, 239, 181, 0.24);
+}
+
+
+/*
+ * Network state: Asset context + Network active.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositNetworkStep:not(.deposit-step-disabled)):
+has(#depositDetailsStep.deposit-step-disabled)
+.deposit-flow-item:nth-child(1) {
+  opacity: 0.74;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositNetworkStep:not(.deposit-step-disabled)):
+has(#depositDetailsStep.deposit-step-disabled)
+.deposit-flow-item:nth-child(2) {
+  opacity: 1;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(10, 61, 45, 0.72),
+      rgba(5, 35, 27, 0.45)
+    );
+
+  box-shadow:
+    inset 0 -2px 0 rgba(80, 239, 181, 0.24);
+}
+
+
+/*
+ * Address state: first two stages become verified context;
+ * Address becomes the active mission target.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-flow-item:nth-child(1),
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-flow-item:nth-child(2) {
+  opacity: 0.70;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-flow-item:nth-child(3) {
+  opacity: 1;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(10, 66, 49, 0.78),
+      rgba(5, 37, 28, 0.48)
+    );
+
+  box-shadow:
+    inset 0 -2px 0 rgba(83, 242, 184, 0.28),
+    0 0 24px rgba(54, 224, 167, 0.04);
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * PHASE 1 / PHASE 2 — STABLE GEOMETRY
+ *
+ * Asset and Network activation changes emphasis, not card
+ * placement or width.
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep.deposit-step-disabled)
+.deposit-dialog-content {
+  grid-template-columns:
+    minmax(310px, 0.98fr)
+    minmax(300px, 0.94fr)
+    minmax(310px, 0.98fr);
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositNetworkStep.deposit-step-disabled)
+.deposit-step:first-of-type {
+  border-color:
+    rgba(82, 236, 179, 0.43);
+
+  box-shadow:
+    inset 0 -2px 0 rgba(69, 233, 175, 0.12),
+    0 0 25px rgba(55, 221, 165, 0.035);
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositNetworkStep:not(.deposit-step-disabled)):
+has(#depositDetailsStep.deposit-step-disabled)
+#depositNetworkStep {
+  border-color:
+    rgba(82, 236, 179, 0.43);
+
+  box-shadow:
+    inset 0 -2px 0 rgba(69, 233, 175, 0.12),
+    0 0 25px rgba(55, 221, 165, 0.035);
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * PHASE 3 — ADDRESS TAKEOVER
+ *
+ * This is an intentional state change: the QR/address is now
+ * the user's result, so it receives the dominant width.
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-dialog-content {
+  grid-template-columns:
+    minmax(260px, 0.72fr)
+    minmax(240px, 0.66fr)
+    minmax(540px, 1.62fr);
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep {
+  opacity: 0.74;
+
+  min-height: 246px;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositDetailsStep {
+  opacity: 1;
+
+  min-height: 0;
+
+  border-color:
+    rgba(83, 240, 182, 0.49);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(9, 55, 41, 0.78),
+      rgba(3, 29, 22, 0.82)
+    );
+
+  box-shadow:
+    inset 0 -2px 0 rgba(73, 238, 179, 0.16),
+    0 0 34px rgba(54, 225, 168, 0.045);
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * WAITING PLACEHOLDERS
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkStep.deposit-step-disabled
+#depositNetworkList,
+
+#walletDepositsWorkspace
+#depositDetailsStep.deposit-step-disabled
+#depositDetailsPlaceholder {
+  display: grid;
+
+  place-items: center;
+
+  min-height: 150px;
+
+  padding: 18px;
+
+  border:
+    1px dashed
+    rgba(89, 213, 166, 0.12);
+
+  border-radius: 10px;
+
+  background:
+    rgba(3, 27, 21, 0.35);
+
+  text-align: center;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * ASSET / NETWORK DENSITY
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+.deposit-option-list {
+  max-height: 210px;
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList.compact {
+  max-height: 230px;
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option {
+  min-height: 58px;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * ADDRESS RESULT
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDetails {
+  display: grid;
+
+  grid-template-columns:
+    180px
+    minmax(0, 1fr);
+
+  gap: 13px;
+
+  align-items: start;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-card {
+  display: grid;
+
+  grid-template-columns: 1fr;
+
+  align-items: stretch;
+
+  width: 100%;
+  max-width: none;
+
+  margin: 0;
+  padding: 0;
+
+  overflow: hidden;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-card-head {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 7px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-surface {
+  display: grid;
+
+  place-items: center;
+
+  padding: 11px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-surface img {
+  display: block;
+
+  width: 152px;
+  height: 152px;
+
+  max-width: 100%;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-actions {
+  display: grid;
+
+  grid-template-columns:
+    1fr;
+
+  gap: 5px;
+
+  padding:
+    8px
+    10px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-actions
+.button {
+  width: 100%;
+  min-width: 0;
+  min-height: 31px;
+
+  padding:
+    5px
+    7px;
+
+  font-size: 0.58rem;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-card > small:not(.deposit-qr-safety) {
+  padding:
+    0
+    10px
+    7px;
+
+  color:
+    rgba(163, 203, 187, 0.55);
+
+  font-size: 0.54rem;
+  line-height: 1.3;
+}
+
+
+#walletDepositsWorkspace
+.deposit-qr-safety {
+  display: block;
+
+  padding:
+    0
+    10px
+    10px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-address-fields {
+  min-width: 0;
+
+  padding: 12px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-selected-summary {
+  margin-bottom: 10px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-copy-row {
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  gap: 7px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-copy-row
+.button {
+  min-width: 66px;
+
+  padding:
+    6px
+    9px;
+}
+
+
+#walletDepositsWorkspace
+.deposit-copy-row code {
+  min-height: 37px;
+
+  overflow-wrap: anywhere;
+}
+
+
+/*
+ * Metadata telemetry:
+ *
+ * Contract gets half the horizontal space.
+ * Minimum and confirmations each receive one quarter.
+ */
+
+#walletDepositsWorkspace
+.deposit-definition-list {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+
+  grid-template-rows:
+    auto
+    auto;
+
+  gap:
+    3px
+    8px;
+
+  padding:
+    9px
+    10px;
+
+  overflow: visible;
+}
+
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dt,
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dd {
+  min-width: 0;
+
+  margin: 0;
+  padding: 0;
+}
+
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dt {
+  color:
+    rgba(161, 200, 184, 0.57);
+
+  font-size: 0.52rem;
+  line-height: 1.2;
+}
+
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dd {
+  color:
+    rgba(222, 249, 238, 0.86);
+
+  font-size: 0.61rem;
+  line-height: 1.25;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  overflow-wrap: anywhere;
+}
+
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dt:nth-of-type(1),
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dd:nth-of-type(1) {
+  grid-column:
+    1
+    /
+    3;
+}
+
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dt:nth-of-type(2),
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dd:nth-of-type(2) {
+  grid-column: 3;
+}
+
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dt:nth-of-type(3),
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dd:nth-of-type(3) {
+  grid-column: 4;
+}
+
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dt {
+  grid-row: 1;
+}
+
+
+#walletDepositsWorkspace
+.deposit-definition-list
+dd {
+  grid-row: 2;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * RECORDS STABILITY
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#walletDepositRecords {
+  overflow-anchor: none;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * RESPONSIVE
+ * ------------------------------------------------------------
+ */
+
+@media (max-width: 1180px) {
+  #walletDepositsWorkspace
+  .deposit-dialog-content,
+
+  #walletDepositsWorkspace
+  #depositDialog:
+  has(#depositDetailsStep.deposit-step-disabled)
+  .deposit-dialog-content,
+
+  #walletDepositsWorkspace
+  #depositDialog:
+  has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-dialog-content {
+    grid-template-columns:
+      1fr;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-step,
+
+  #walletDepositsWorkspace
+  #depositDialog:
+  has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-step:first-of-type,
+
+  #walletDepositsWorkspace
+  #depositDialog:
+  has(#depositDetailsStep:not(.deposit-step-disabled))
+  #depositNetworkStep {
+    min-height: 0;
+  }
+
+  #walletDepositsWorkspace
+  #depositDetails {
+    grid-template-columns:
+      minmax(170px, 0.60fr)
+      minmax(0, 1.40fr);
+  }
+}
+
+
+@media (max-width: 760px) {
+  #walletDepositsWorkspace
+  #depositDetails {
+    grid-template-columns:
+      1fr;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-qr-card {
+    max-width: 280px;
+
+    margin:
+      0
+      auto;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-definition-list {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+
+    grid-template-rows:
+      auto
+      auto
+      auto
+      auto;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-definition-list
+  dt:nth-of-type(1),
+
+  #walletDepositsWorkspace
+  .deposit-definition-list
+  dd:nth-of-type(1) {
+    grid-column:
+      1
+      /
+      -1;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-definition-list
+  dt:nth-of-type(1) {
+    grid-row: 1;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-definition-list
+  dd:nth-of-type(1) {
+    grid-row: 2;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-definition-list
+  dt:nth-of-type(2) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-definition-list
+  dd:nth-of-type(2) {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-definition-list
+  dt:nth-of-type(3) {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-definition-list
+  dd:nth-of-type(3) {
+    grid-column: 2;
+    grid-row: 4;
+  }
+}
+
+
+/* ============================================================
+   AURORA A7C4 — COMPLETED CONTEXT / ADDRESS DENSITY
+
+   Final Address state only.
+
+   Asset and Network remain editable, but become compact context.
+   Address receives the dominant operational surface.
+   ============================================================ */
+
+
+/*
+ * ------------------------------------------------------------
+ * FINAL-PHASE COLUMN PRIORITY
+ *
+ * Approximate visual intent:
+ *
+ *   Asset context   ~22%
+ *   Network context ~20%
+ *   Address result  ~58%
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-dialog-content {
+  grid-template-columns:
+    minmax(235px, 0.58fr)
+    minmax(220px, 0.52fr)
+    minmax(620px, 1.55fr);
+
+  gap: 12px;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * COMPLETED ASSET CONTEXT
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type {
+  min-height: 0;
+
+  padding:
+    12px;
+
+  opacity: 0.68;
+
+  border-color:
+    rgba(72, 198, 153, 0.20);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 34, 26, 0.64),
+      rgba(3, 24, 19, 0.68)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(107, 241, 195, 0.02);
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-step-content h3 {
+  margin-bottom: 7px;
+
+  font-size: 0.76rem;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositCurrencySearch {
+  min-height: 35px;
+
+  padding:
+    6px
+    9px;
+
+  font-size: 0.72rem;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-favorites-row {
+  margin-top: 8px;
+
+  padding:
+    7px
+    8px;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-favorites {
+  gap: 4px;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-favorite {
+  min-height: 27px;
+
+  padding:
+    4px
+    7px;
+
+  font-size: 0.58rem;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-option-list {
+  max-height: 120px;
+
+  margin-top: 7px;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-hint {
+  margin-top: 7px;
+
+  font-size: 0.53rem;
+  line-height: 1.25;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * COMPLETED NETWORK CONTEXT
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep {
+  min-height: 0;
+
+  padding:
+    12px;
+
+  opacity: 0.72;
+
+  border-color:
+    rgba(74, 202, 156, 0.21);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 35, 27, 0.65),
+      rgba(3, 24, 19, 0.69)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(107, 241, 195, 0.02);
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep
+.deposit-step-content h3 {
+  margin-bottom: 7px;
+
+  font-size: 0.76rem;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep
+#depositNetworkList {
+  max-height: 150px;
+
+  margin-top: 0;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep
+.deposit-option {
+  min-height: 54px;
+
+  padding:
+    8px
+    9px;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep
+.deposit-option-main {
+  min-width: 0;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep
+.deposit-option-main small {
+  display: block;
+
+  max-width: 100%;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * ADDRESS RESULT — PRIMARY OPERATIONAL SURFACE
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositDetailsStep {
+  min-height: 0;
+
+  padding:
+    13px
+    14px
+    14px;
+
+  border-color:
+    rgba(85, 243, 184, 0.56);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(9, 60, 44, 0.82),
+      rgba(3, 30, 23, 0.87)
+    );
+
+  box-shadow:
+    inset 0 -2px 0 rgba(77, 240, 181, 0.18),
+    0 0 36px rgba(53, 226, 168, 0.05);
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositDetailsStep
+.deposit-step-content h3 {
+  margin-bottom: 9px;
+
+  color:
+    rgba(232, 255, 247, 0.96);
+
+  font-size: 0.84rem;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositDetails {
+  grid-template-columns:
+    180px
+    minmax(0, 1fr);
+
+  gap: 14px;
+}
+
+
+/*
+ * Preserve QR at the current useful size.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-qr-surface img {
+  width: 152px;
+  height: 152px;
+}
+
+
+/*
+ * Address identity header.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-selected-summary {
+  margin-bottom: 9px;
+
+  padding-bottom: 8px;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositSelectedAsset {
+  font-size: 1.08rem;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositSelectedNetwork {
+  font-size: 0.59rem;
+}
+
+
+/*
+ * Address is the most important copyable value.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-copy-row {
+  grid-template-columns:
+    minmax(0, 1fr)
+    70px;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-copy-row code {
+  min-height: 39px;
+
+  padding:
+    8px
+    10px;
+
+  font-size: 0.64rem;
+  line-height: 1.28;
+
+  overflow-wrap: anywhere;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-copy-row
+.button {
+  min-width: 70px;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * TELEMETRY MATRIX
+ *
+ * Three readable operational cells:
+ *   Contract | Minimum deposit | Confirmations
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1.70fr)
+    minmax(105px, 0.85fr)
+    minmax(88px, 0.65fr);
+
+  grid-template-rows:
+    auto
+    auto;
+
+  gap:
+    4px
+    0;
+
+  margin-top: 10px;
+
+  padding: 0;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(82, 223, 171, 0.15);
+
+  border-radius: 9px;
+
+  background:
+    rgba(2, 23, 18, 0.68);
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dt,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dd {
+  min-width: 0;
+
+  padding:
+    7px
+    9px;
+
+  margin: 0;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dt {
+  grid-row: 1;
+
+  color:
+    rgba(158, 199, 182, 0.58);
+
+  font-size: 0.50rem;
+  line-height: 1.15;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dd {
+  grid-row: 2;
+
+  color:
+    rgba(225, 251, 240, 0.88);
+
+  font-size: 0.60rem;
+  line-height: 1.22;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  overflow-wrap: anywhere;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dt:nth-of-type(1),
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dd:nth-of-type(1) {
+  grid-column: 1;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dt:nth-of-type(2),
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dd:nth-of-type(2) {
+  grid-column: 2;
+
+  border-left:
+    1px solid
+    rgba(82, 223, 171, 0.10);
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dt:nth-of-type(3),
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dd:nth-of-type(3) {
+  grid-column: 3;
+
+  border-left:
+    1px solid
+    rgba(82, 223, 171, 0.10);
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * SAFETY WARNING
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-warning {
+  margin-top: 10px;
+
+  padding:
+    9px
+    10px;
+
+  border-color:
+    rgba(228, 193, 91, 0.25);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(96, 73, 16, 0.20),
+      rgba(71, 54, 16, 0.11)
+    );
+
+  color:
+    rgba(238, 218, 155, 0.82);
+
+  font-size: 0.56rem;
+  line-height: 1.35;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * FINAL-PHASE RAIL HIERARCHY
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-flow-item:nth-child(1),
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-flow-item:nth-child(2) {
+  opacity: 0.57;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-flow-item:nth-child(3) {
+  opacity: 1;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(11, 72, 52, 0.80),
+      rgba(5, 39, 29, 0.48)
+    );
+
+  box-shadow:
+    inset 0 -2px 0 rgba(83, 242, 184, 0.34),
+    0 0 26px rgba(54, 224, 167, 0.05);
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * RESPONSIVE FALLBACK
+ * ------------------------------------------------------------
+ */
+
+@media (max-width: 1180px) {
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-dialog-content {
+    grid-template-columns:
+      1fr;
+  }
+
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-step:first-of-type,
+
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  #depositNetworkStep {
+    min-height: 0;
+  }
+
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  #depositDetails {
+    grid-template-columns:
+      minmax(180px, 0.62fr)
+      minmax(0, 1.38fr);
+  }
+}
+
+
+@media (max-width: 760px) {
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  #depositDetails {
+    grid-template-columns:
+      1fr;
+  }
+
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-definition-list {
+    grid-template-columns:
+      1fr;
+
+    grid-template-rows:
+      repeat(
+        6,
+        auto
+      );
+  }
+
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-definition-list
+  dt:nth-of-type(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-definition-list
+  dd:nth-of-type(1) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-definition-list
+  dt:nth-of-type(2) {
+    grid-column: 1;
+    grid-row: 3;
+
+    border-left: 0;
+  }
+
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-definition-list
+  dd:nth-of-type(2) {
+    grid-column: 1;
+    grid-row: 4;
+
+    border-left: 0;
+  }
+
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-definition-list
+  dt:nth-of-type(3) {
+    grid-column: 1;
+    grid-row: 5;
+
+    border-left: 0;
+  }
+
+  #walletDepositsWorkspace
+  #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+  .deposit-definition-list
+  dd:nth-of-type(3) {
+    grid-column: 1;
+    grid-row: 6;
+
+    border-left: 0;
+  }
+}
+
+
+/* ============================================================
+   AURORA A7C9 — COMPACT GATE-STYLE NETWORK SELECTOR
+
+   Presentation only.
+
+   Network choice should optimize for:
+     icon
+     readable network name
+     Gate chain code
+     deposit availability
+
+   Contract address belongs to Deposit details after selection.
+   ============================================================ */
+
+
+/*
+ * ------------------------------------------------------------
+ * NETWORK LIST DENSITY
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList.deposit-option-list {
+  display: grid;
+
+  gap: 4px;
+
+  max-height: 286px;
+
+  padding-right: 3px;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  scrollbar-gutter: stable;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * NETWORK ROW
+ *
+ * icon | network identity | chain / availability
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option {
+  display: grid;
+
+  grid-template-columns:
+    26px
+    minmax(0, 1fr)
+    auto;
+
+  column-gap: 8px;
+
+  align-items: center;
+
+  width: 100%;
+  min-width: 0;
+
+  min-height: 46px;
+
+  padding:
+    5px
+    8px;
+
+  border-radius: 8px;
+
+  text-align: left;
+}
+
+
+/*
+ * Existing symbol foundation owns the actual artwork.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-coin-mark {
+  grid-column: 1;
+
+  align-self: center;
+
+  margin: 0;
+}
+
+
+/*
+ * Network identity.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option-main {
+  display: block;
+
+  grid-column: 2;
+
+  min-width: 0;
+
+  overflow: hidden;
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option-main strong {
+  display: block;
+
+  max-width: 100%;
+
+  overflow: hidden;
+
+  color:
+    rgba(229, 251, 242, 0.89);
+
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.12;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/*
+ * Remove the old:
+ *
+ *   ETH · contract 0x...
+ *
+ * line entirely. The contract is already shown in Deposit
+ * details after a network has been chosen.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option-main small {
+  display: none !important;
+}
+
+
+/*
+ * Right-side operational cue.
+ *
+ * data-deposit-chain already comes from the existing Deposit
+ * renderer. No new state or financial calculation is created.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option::after {
+  grid-column: 3;
+
+  content:
+    attr(data-deposit-chain)
+    " · Available";
+
+  color:
+    rgba(119, 216, 181, 0.63);
+
+  font-size: 0.50rem;
+  font-weight: 560;
+  line-height: 1;
+
+  letter-spacing: 0.015em;
+
+  white-space: nowrap;
+}
+
+
+/*
+ * Defensive disabled representations.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option:disabled::after,
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option[aria-disabled="true"]::after,
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option.disabled::after {
+  content:
+    attr(data-deposit-chain)
+    " · Unavailable";
+
+  color:
+    rgba(164, 178, 171, 0.39);
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * ACTIVE / HOVER HIERARCHY
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option:hover:not(:disabled) {
+  border-color:
+    rgba(82, 227, 174, 0.32);
+
+  background:
+    rgba(12, 60, 45, 0.48);
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option.active,
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option[aria-pressed="true"] {
+  border-color:
+    rgba(83, 241, 182, 0.48);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(12, 69, 50, 0.70),
+      rgba(5, 41, 31, 0.56)
+    );
+
+  box-shadow:
+    inset 0 0 0 1px
+    rgba(89, 242, 185, 0.04);
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option:focus-visible {
+  outline:
+    1px solid
+    rgba(91, 244, 188, 0.72);
+
+  outline-offset: 1px;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * NETWORK-STAGE HEIGHT
+ *
+ * Keep the stage stable. More useful networks are visible
+ * inside the same footprint rather than making the page taller.
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkStep:not(.deposit-step-disabled)
+#depositNetworkList {
+  max-height: 286px;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * FINAL ADDRESS PHASE
+ *
+ * Once selected, Network is context. Keep the same compact row,
+ * but show only the chain code on the right; "Available" no
+ * longer needs to compete with the Address result.
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkList
+.deposit-option::after {
+  content:
+    attr(data-deposit-chain);
+
+  color:
+    rgba(134, 201, 177, 0.51);
+
+  font-size: 0.49rem;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep
+#depositNetworkList {
+  max-height: 150px;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * NARROW DESKTOP SAFETY
+ * ------------------------------------------------------------
+ */
+
+@media (max-width: 1320px) {
+  #walletDepositsWorkspace
+  #depositNetworkList
+  .deposit-option {
+    grid-template-columns:
+      24px
+      minmax(0, 1fr)
+      auto;
+
+    column-gap: 7px;
+  }
+
+  #walletDepositsWorkspace
+  #depositNetworkList
+  .deposit-option::after {
+    font-size: 0.47rem;
+  }
+}
+
+
+@media (max-width: 1180px) {
+  #walletDepositsWorkspace
+  #depositNetworkList
+  .deposit-option {
+    grid-template-columns:
+      26px
+      minmax(0, 1fr)
+      auto;
+  }
+}
+
+
+@media (max-width: 600px) {
+  #walletDepositsWorkspace
+  #depositNetworkList
+  .deposit-option {
+    grid-template-columns:
+      24px
+      minmax(0, 1fr);
+
+    row-gap: 2px;
+  }
+
+  #walletDepositsWorkspace
+  #depositNetworkList
+  .deposit-option::after {
+    grid-column:
+      2;
+
+    justify-self: start;
+  }
+}
+
+
+/* ============================================================
+   AURORA A7C10 — EXCHANGE-STYLE NETWORK LIST
+
+   Compact selector only.
+
+   One list surface.
+   Thin row separators.
+   Icon + network identity.
+   Gate chain code at right.
+
+   "Available" is deliberately not repeated on every selectable
+   row. An unavailable/disabled row is identified explicitly.
+   ============================================================ */
+
+
+/*
+ * ------------------------------------------------------------
+ * LIST SURFACE
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList.deposit-option-list {
+  display: block;
+
+  max-height: 286px;
+
+  margin-top: 0;
+  padding: 0 !important;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  border:
+    1px solid
+    rgba(80, 218, 166, 0.16);
+
+  border-radius: 10px;
+
+  background:
+    rgba(2, 24, 18, 0.58);
+
+  scrollbar-gutter: stable;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * ROW GEOMETRY
+ *
+ *  icon | network name | chain code
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option {
+  display: grid !important;
+
+  grid-template-columns:
+    26px
+    minmax(0, 1fr)
+    auto !important;
+
+  grid-template-rows:
+    1fr !important;
+
+  column-gap: 9px !important;
+
+  align-items: center !important;
+
+  width: 100%;
+
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+
+  margin: 0 !important;
+
+  padding:
+    0
+    10px !important;
+
+  overflow: hidden;
+
+  border: 0 !important;
+
+  border-bottom:
+    1px solid
+    rgba(78, 209, 159, 0.10) !important;
+
+  border-radius: 0 !important;
+
+  background:
+    transparent !important;
+
+  box-shadow:
+    none !important;
+
+  text-align: left;
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option:last-child {
+  border-bottom: 0 !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * SYMBOL
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-coin-mark {
+  grid-column: 1;
+  grid-row: 1;
+
+  align-self: center;
+  justify-self: center;
+
+  margin: 0 !important;
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-coin-mark
+.aurora-symbol {
+  --aurora-symbol-size: 24px;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * IDENTITY
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-option-main {
+  display: block !important;
+
+  grid-column: 2;
+  grid-row: 1;
+
+  align-self: center;
+
+  min-width: 0;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: hidden;
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-option-main
+strong {
+  display: block;
+
+  max-width: 100%;
+
+  margin: 0;
+
+  overflow: hidden;
+
+  color:
+    rgba(231, 252, 244, 0.91);
+
+  font-size: 0.69rem;
+  font-weight: 620;
+  line-height: 1.12;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/*
+ * Legacy contract line remains suppressed.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-option-main
+small {
+  display: none !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * EXISTING AVAILABILITY LABEL
+ *
+ * The application already renders "Available" separately.
+ * It is redundant on every selectable network, so hide that
+ * presentation element without touching application state.
+ *
+ * The exclusions make this safe even if the exact class changes.
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+> :last-child:not(.deposit-option-main):not(.deposit-coin-mark) {
+  display: none !important;
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-option-status,
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-option-availability,
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-option-side {
+  display: none !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * CHAIN CODE
+ *
+ * Keep only the useful Gate chain identifier on the right.
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option::after {
+  display: block !important;
+
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+
+  align-self: center;
+  justify-self: end;
+
+  content:
+    attr(data-deposit-chain) !important;
+
+  margin: 0 !important;
+
+  color:
+    rgba(126, 208, 179, 0.63) !important;
+
+  font-size: 0.50rem !important;
+  font-weight: 570;
+  line-height: 1 !important;
+
+  letter-spacing: 0.025em;
+
+  white-space: nowrap;
+}
+
+
+/*
+ * Only an actually disabled network needs an availability word.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option:disabled::after,
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option[aria-disabled="true"]::after,
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option.disabled::after {
+  content:
+    attr(data-deposit-chain)
+    " · Unavailable" !important;
+
+  color:
+    rgba(163, 178, 170, 0.45) !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * INTERACTION
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option:hover:not(:disabled) {
+  background:
+    rgba(13, 61, 46, 0.48) !important;
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option.active,
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option[aria-pressed="true"] {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(12, 71, 51, 0.72),
+      rgba(5, 42, 31, 0.48)
+    ) !important;
+
+  box-shadow:
+    inset 2px 0 0
+    rgba(83, 240, 182, 0.72) !important;
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option:focus-visible {
+  position: relative;
+
+  z-index: 1;
+
+  outline:
+    1px solid
+    rgba(91, 244, 188, 0.72);
+
+  outline-offset: -2px;
+}
+
+
+/*
+ * Six full rows fit comfortably, with the seventh partially
+ * visible as a natural scrolling cue.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkStep:not(.deposit-step-disabled)
+#depositNetworkList {
+  max-height: 286px;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * FINAL ADDRESS PHASE
+ *
+ * Network is now completed context. Preserve the compact form.
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep
+#depositNetworkList {
+  max-height: 132px;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkList
+.deposit-option {
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * RESPONSIVE
+ * ------------------------------------------------------------
+ */
+
+@media (max-width: 760px) {
+  #walletDepositsWorkspace
+  #depositNetworkList
+  .deposit-option {
+    grid-template-columns:
+      24px
+      minmax(0, 1fr)
+      auto !important;
+
+    column-gap: 7px !important;
+
+    padding:
+      0
+      8px !important;
+  }
+
+  #walletDepositsWorkspace
+  #depositNetworkList
+  .deposit-option::after {
+    grid-column: 3 !important;
+
+    font-size: 0.47rem !important;
+  }
+}
+
+
+/* ============================================================
+   AURORA A7C11 — INLINE NETWORK IDENTITY
+
+   Network row identity is one horizontal line:
+
+     [symbol] Network name                         CHAIN
+
+   Overrides A7C10 grid geometry only.
+   ============================================================ */
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option {
+  display: flex !important;
+
+  flex-direction: row !important;
+
+  align-items: center !important;
+
+  gap: 8px !important;
+}
+
+
+/*
+ * Symbol is physically inline with the network name.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-coin-mark {
+  display: inline-flex !important;
+
+  flex:
+    0 0
+    24px !important;
+
+  width: 24px !important;
+  height: 24px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+}
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-coin-mark
+.aurora-symbol {
+  --aurora-symbol-size: 24px;
+}
+
+
+/*
+ * Network name occupies remaining row width.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-option-main {
+  display: flex !important;
+
+  align-items: center !important;
+  gap: 8px !important;
+
+  flex:
+    1 1
+    auto !important;
+
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-option-main > span {
+  display: block;
+
+  flex:
+    1 1
+    auto;
+
+  min-width: 0;
+}
+
+
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-option-main
+strong {
+  display: block !important;
+
+  width: 100%;
+
+  margin: 0 !important;
+
+  overflow: hidden;
+
+  font-size: 0.69rem;
+  line-height: 1 !important;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/*
+ * Contract remains excluded from the selector.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option
+.deposit-option-main
+small {
+  display: none !important;
+}
+
+
+/*
+ * Gate chain code remains right aligned on the SAME line.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option::after {
+  display: block !important;
+
+  flex:
+    0 0
+    auto !important;
+
+  align-self: center !important;
+
+  margin:
+    0
+    0
+    0
+    auto !important;
+
+  content:
+    attr(data-deposit-chain) !important;
+
+  color:
+    rgba(128, 210, 181, 0.66) !important;
+
+  font-size: 0.50rem !important;
+  font-weight: 590;
+  line-height: 1 !important;
+
+  letter-spacing: 0.025em;
+
+  white-space: nowrap;
+}
+
+
+/*
+ * Disabled state keeps its explicit status.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option:disabled::after,
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option[aria-disabled="true"]::after,
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option.disabled::after {
+  content:
+    attr(data-deposit-chain)
+    " · Unavailable" !important;
+}
+
+
+/*
+ * Preserve A7C10 compact row height.
+ */
+
+#walletDepositsWorkspace
+#depositNetworkList
+.deposit-option {
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+
+  padding:
+    0
+    10px !important;
+}
+
+
+/*
+ * Completed Network context remains slightly tighter.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkList
+.deposit-option {
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+}
+
+
+/*
+ * Narrow-screen safety.
+ */
+
+@media (max-width: 600px) {
+  #walletDepositsWorkspace
+  #depositNetworkList
+  .deposit-option {
+    gap: 7px !important;
+
+    padding:
+      0
+      8px !important;
+  }
+
+  #walletDepositsWorkspace
+  #depositNetworkList
+  .deposit-option
+  .deposit-coin-mark {
+    flex-basis: 22px !important;
+
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  #walletDepositsWorkspace
+  #depositNetworkList
+  .deposit-option
+  .deposit-coin-mark
+  .aurora-symbol {
+    --aurora-symbol-size: 22px;
+  }
+}
+
+
+/* ============================================================
+   AURORA A7C17 — FINAL DEPOSIT CONTEXT / NETWORK EDITOR
+
+   Supersedes A7C14-R2 + A7C15-R1 final-phase presentation.
+
+   Asset:
+     consistent token-chip geometry
+     no redundant green selection dot
+
+   Network:
+     selected route only by default
+     selected row itself opens alternatives
+     application logic remains owner of real selection
+
+   Address remains dominant.
+   ============================================================ */
+
+
+/*
+ * ------------------------------------------------------------
+ * TOKEN CHOICE CONSISTENCY — ALL DEPOSIT PHASES
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace .deposit-favorite {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
+  min-height: 29px;
+
+  padding:
+    4px
+    9px;
+
+  border-radius: 999px;
+}
+
+
+#walletDepositsWorkspace .deposit-favorite::before {
+  display: none !important;
+
+  content: none !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * FINAL ADDRESS PHASE — COMPLETED CONTEXT
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep {
+  align-self: start !important;
+
+  height: auto !important;
+  min-height: 0 !important;
+
+  padding:
+    11px
+    12px !important;
+
+  opacity: 0.72;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * COMPLETED ASSET
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositCurrencySearch,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositCurrencyCount {
+  display: none !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency]:not(.active):not([aria-pressed="true"]),
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositCurrencyList
+[data-deposit-currency]:not(.active):not([aria-pressed="true"]) {
+  display: none !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type:has(
+  #depositFavorites
+  [data-deposit-currency].active
+)
+#depositCurrencyList,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type:has(
+  #depositFavorites
+  [data-deposit-currency][aria-pressed="true"]
+)
+#depositCurrencyList {
+  display: none !important;
+}
+
+
+/*
+ * Keep the Quick-assets surface geometrically deliberate instead
+ * of turning it into a different-shaped completed-state control.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites {
+  display: flex;
+
+  align-items: center;
+  flex-wrap: wrap;
+
+  min-height: 54px;
+
+  margin-top: 6px;
+
+  padding:
+    7px
+    8px;
+
+  gap: 6px;
+
+  border:
+    1px solid
+    rgba(83, 220, 169, 0.11);
+
+  border-radius: 10px;
+
+  background:
+    rgba(4, 29, 22, 0.56);
+}
+
+
+/*
+ * Selected favorite keeps the SAME pill language used before
+ * Address opens.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency].active,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency][aria-pressed="true"] {
+  display: inline-flex !important;
+
+  align-items: center;
+
+  width: auto;
+
+  min-height: 29px;
+
+  padding:
+    4px
+    9px;
+
+  gap: 6px;
+
+  border:
+    1px solid
+    rgba(82, 230, 174, 0.28);
+
+  border-radius: 999px;
+
+  background:
+    rgba(9, 51, 39, 0.48);
+}
+
+
+/*
+ * Non-favorite selected result remains a compact row.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositCurrencyList
+[data-deposit-currency].active,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositCurrencyList
+[data-deposit-currency][aria-pressed="true"] {
+  display: flex !important;
+
+  min-height: 38px;
+
+  margin:
+    6px
+    0
+    0;
+
+  padding:
+    5px
+    8px;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * FINAL-PHASE NETWORK — COLLAPSED BY DEFAULT
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkList {
+  display: block;
+
+  max-height: 40px !important;
+
+  margin-top: 6px;
+
+  padding: 0 !important;
+
+  overflow: hidden !important;
+
+  border:
+    1px solid
+    rgba(80, 218, 166, 0.16) !important;
+
+  border-radius:
+    9px !important;
+
+  background:
+    rgba(2, 27, 20, 0.46) !important;
+}
+
+
+/*
+ * Only the selected Network is visible until that selected row
+ * is explicitly opened.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option:not(.active):not([aria-pressed="true"]) {
+  display: none !important;
+}
+
+
+/*
+ * Selected Network is the Change-Network control.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkList
+.deposit-option.active,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkList
+.deposit-option[aria-pressed="true"] {
+  display: flex !important;
+
+  align-items: center !important;
+
+  width: 100%;
+
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+
+  margin: 0 !important;
+
+  padding:
+    0
+    9px !important;
+
+  gap: 7px !important;
+
+  border: 0 !important;
+
+  border-radius: 8px !important;
+
+  background:
+    rgba(9, 51, 39, 0.50) !important;
+
+  box-shadow:
+    none !important;
+
+  cursor: pointer;
+}
+
+
+/*
+ * Chain code + disclosure affordance.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active::after,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option[aria-pressed="true"]::after {
+  content:
+    attr(data-deposit-chain)
+    "  ▾";
+
+  color:
+    rgba(141, 225, 196, 0.82) !important;
+
+  font-size:
+    0.53rem !important;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * FINAL-PHASE NETWORK — EXPANDED EDITOR
+ * ------------------------------------------------------------
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep.aurora-network-edit-open
+#depositNetworkList {
+  max-height: 154px !important;
+
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+
+  scrollbar-gutter: stable;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep.aurora-network-edit-open
+#depositNetworkList
+.deposit-option {
+  display: flex !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep.aurora-network-edit-open
+#depositNetworkList
+.deposit-option.active::after,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep.aurora-network-edit-open
+#depositNetworkList
+.deposit-option[aria-pressed="true"]::after {
+  content:
+    attr(data-deposit-chain)
+    "  ▴";
+
+  color:
+    rgba(141, 225, 196, 0.82) !important;
+
+  font-size:
+    0.53rem !important;
+}
+
+
+/*
+ * Completed symbols remain recognizable but subordinate.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.aurora-symbol,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep
+.aurora-symbol {
+  --aurora-symbol-size:
+    21px;
+}
+
+
+/*
+ * Address stays visually dominant.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositDetailsStep {
+  opacity: 1;
+}
+
+
+/* ============================================================
+   AURORA A7C19 — COLLAPSED UNAVAILABLE NETWORK VISIBILITY
+
+   The Gate renderer places:
+     available Network rows
+     then <details class="deposit-unavailable-networks">
+
+   inside the same #depositNetworkList.
+
+   In Address phase:
+     collapsed chooser -> selected available Network only
+     expanded chooser  -> available Networks + unavailable section
+
+   Presentation only.
+   ============================================================ */
+
+
+/*
+ * CLOSED:
+ * do not let the unavailable-network summary occupy the
+ * 40px selected-Network viewport.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+> .deposit-unavailable-networks {
+  display: none !important;
+}
+
+
+/*
+ * OPEN:
+ * restore Gate's unavailable-network disclosure beneath
+ * the available Network choices.
+ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep.aurora-network-edit-open
+#depositNetworkList
+> .deposit-unavailable-networks {
+  display: block !important;
+}
+
+
+/* ============================================================
+   AURORA A7C20-R2 — FINAL ADDRESS VISUAL POLISH
+
+   Address phase only:
+     compact completed Asset context
+     obvious selected-Network change affordance
+     pale mint inline QR frame
+
+   Presentation only.
+   ============================================================ */
+
+
+/* ----- completed Asset ----- */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type {
+  align-self: start !important;
+
+  min-height: 0 !important;
+  height: auto !important;
+
+  padding: 9px 10px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites {
+  align-self: flex-start !important;
+
+  width: auto !important;
+  max-width: 100% !important;
+
+  min-height: 0 !important;
+  height: auto !important;
+
+  margin: 3px 0 0 !important;
+  padding: 4px !important;
+
+  gap: 0 !important;
+
+  border-radius: 10px !important;
+
+  background:
+    rgba(4, 31, 23, 0.42) !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency].active,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency][aria-pressed="true"] {
+  min-height: 32px !important;
+
+  margin: 0 !important;
+
+  padding:
+    4px
+    10px !important;
+
+  gap:
+    7px !important;
+
+  border-radius:
+    999px !important;
+}
+
+
+/* ----- completed Network ----- */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep {
+  align-self: start !important;
+
+  min-height: 0 !important;
+  height: auto !important;
+
+  padding:
+    9px
+    10px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList {
+  max-height:
+    42px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active {
+  position:
+    relative;
+
+  height:
+    42px !important;
+
+  min-height:
+    42px !important;
+
+  max-height:
+    42px !important;
+
+  padding-right:
+    42px !important;
+
+  border:
+    1px solid
+    rgba(83, 224, 172, 0.25) !important;
+
+  border-radius:
+    9px !important;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(9, 48, 36, 0.72),
+      rgba(6, 38, 29, 0.54)
+    ) !important;
+
+  cursor:
+    pointer !important;
+
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active:hover {
+  border-color:
+    rgba(91, 242, 184, 0.55) !important;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(11, 61, 45, 0.82),
+      rgba(7, 44, 33, 0.68)
+    ) !important;
+
+  box-shadow:
+    0 0 0 1px
+    rgba(80, 229, 173, 0.08),
+    0 0 18px
+    rgba(38, 223, 157, 0.07) !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active::after {
+  content:
+    "⌄" !important;
+
+  position:
+    absolute;
+
+  top:
+    50%;
+
+  right:
+    11px;
+
+  display:
+    grid !important;
+
+  width:
+    20px;
+
+  height:
+    20px;
+
+  place-items:
+    center;
+
+  transform:
+    translateY(-52%);
+
+  border:
+    1px solid
+    rgba(116, 226, 187, 0.18);
+
+  border-radius:
+    999px;
+
+  background:
+    rgba(22, 79, 59, 0.34);
+
+  color:
+    rgba(179, 239, 217, 0.92) !important;
+
+  font-size:
+    0.84rem !important;
+
+  line-height:
+    1 !important;
+
+  pointer-events:
+    none;
+}
+
+
+/* ----- inline QR frame ----- */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositQr {
+  box-sizing:
+    border-box !important;
+
+  padding:
+    8px !important;
+
+  border:
+    1px solid
+    rgba(174, 239, 215, 0.76) !important;
+
+  border-radius:
+    10px !important;
+
+  background:
+    #d9f2e8 !important;
+
+  box-shadow:
+    0 0 0 1px
+    rgba(87, 225, 173, 0.08),
+    0 10px 26px
+    rgba(0, 0, 0, 0.16) !important;
+}
+
+
+/* ============================================================
+   AURORA A7C21 — FINAL COMPLETED-CONTEXT DENSITY
+
+   Address phase only:
+     reduce completed Asset container weight
+     tighten selected Network context
+     refine inline QR frame
+
+   Presentation only.
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   COMPLETED ASSET — IDENTITY, NOT AN EMPTY FORM CARD
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type {
+  min-height: 0 !important;
+  height: auto !important;
+
+  padding: 7px 8px !important;
+
+  border-color:
+    rgba(55, 164, 124, 0.18) !important;
+
+  background:
+    rgba(2, 27, 20, 0.28) !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites {
+  width: max-content !important;
+  max-width: 100% !important;
+
+  min-height: 0 !important;
+  height: auto !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  border: 0 !important;
+
+  background:
+    transparent !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency].active,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency][aria-pressed="true"] {
+  min-height: 30px !important;
+
+  padding:
+    3px
+    9px !important;
+
+  border:
+    1px solid
+    rgba(63, 193, 145, 0.25) !important;
+
+  background:
+    rgba(5, 48, 35, 0.58) !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+/* ------------------------------------------------------------
+   COMPLETED NETWORK — KEEP THE AFFORDANCE, LOSE THE BULK
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep {
+  min-height: 0 !important;
+  height: auto !important;
+
+  padding: 7px 8px !important;
+
+  border-color:
+    rgba(55, 164, 124, 0.18) !important;
+
+  background:
+    rgba(2, 27, 20, 0.28) !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList {
+  max-height:
+    38px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active {
+  height:
+    38px !important;
+
+  min-height:
+    38px !important;
+
+  max-height:
+    38px !important;
+
+  padding-left:
+    8px !important;
+
+  padding-right:
+    40px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active::after {
+  right:
+    9px;
+
+  width:
+    18px;
+
+  height:
+    18px;
+
+  border-color:
+    rgba(116, 226, 187, 0.14);
+
+  background:
+    rgba(20, 72, 54, 0.28);
+
+  font-size:
+    0.76rem !important;
+}
+
+
+/* ------------------------------------------------------------
+   INLINE QR — THIN MINT FRAME, QR REMAINS THE FOCUS
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositQr {
+  padding:
+    4px !important;
+
+  border:
+    1px solid
+    rgba(157, 224, 200, 0.52) !important;
+
+  border-radius:
+    8px !important;
+
+  background:
+    #e2f3ec !important;
+
+  box-shadow:
+    0 0 0 1px
+    rgba(86, 210, 163, 0.05),
+    0 6px 18px
+    rgba(0, 0, 0, 0.11) !important;
+}
+
+
+/* ============================================================
+   AURORA A7C22 — COMPLETED CONTEXT CLEANUP
+
+   Final Address phase only:
+     remove leftover QUICK ASSETS presentation
+     simplify completed Asset context
+     simplify completed Network context
+
+   A7C22-R1:
+     use real .deposit-favorites-label sibling ownership
+     preserve Network interaction and QR exactly
+
+   Presentation only.
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   COMPLETED CONTEXT HEADINGS
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+:where(h2, h3, h4),
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep
+:where(h2, h3, h4) {
+  margin:
+    0 0 5px !important;
+
+  font-size:
+    0.68rem !important;
+
+  font-weight:
+    650 !important;
+
+  line-height:
+    1.1 !important;
+
+  letter-spacing:
+    0.045em !important;
+
+  text-transform:
+    uppercase !important;
+
+  color:
+    rgba(150, 193, 177, 0.64) !important;
+}
+
+
+/* ------------------------------------------------------------
+   ASSET CONTEXT — REMOVE QUICK-ASSETS WRAPPER WEIGHT
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-favorites-row {
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    flex-start !important;
+
+  width:
+    max-content !important;
+
+  max-width:
+    100% !important;
+
+  min-height:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  border:
+    0 !important;
+
+  border-radius:
+    0 !important;
+
+  background:
+    transparent !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-favorites-row
+> .deposit-favorites-label {
+  display:
+    none !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites {
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    flex-start !important;
+
+  gap:
+    0 !important;
+
+  width:
+    max-content !important;
+
+  max-width:
+    100% !important;
+
+  min-height:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  border:
+    0 !important;
+
+  background:
+    transparent !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency].active,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency][aria-pressed="true"] {
+  margin:
+    0 !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    30px !important;
+
+  height:
+    30px !important;
+
+  padding:
+    3px 10px !important;
+
+  border-radius:
+    999px !important;
+}
+
+
+/* ------------------------------------------------------------
+   NORMALIZE COMPLETED ROUTE-CONTEXT SHELLS
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep {
+  align-self:
+    start !important;
+
+  min-height:
+    64px !important;
+
+  height:
+    auto !important;
+
+  padding:
+    8px 10px !important;
+}
+
+
+/* ------------------------------------------------------------
+   NETWORK — KEEP SELECTED ROUTE AS STRONG INTERACTIVE ELEMENT
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList {
+  margin:
+    0 !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active {
+  margin:
+    0 !important;
+}
+
+
+/*
+   Intentionally untouched:
+     #depositQr
+     Network toggle controller
+     expanded chooser behavior
+     unavailable-Network behavior
+*/
+
+
+/* ============================================================
+   AURORA A7C23 — QR SINGLE FRAME / COMPLETED CONTEXT ALIGNMENT
+
+   Final Address phase only:
+     align completed Asset + Network shells
+     align their headings and selected controls
+     remove QR double-frame appearance
+
+   Presentation only.
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   COMPLETED ASSET SHELL — EXACT COLLAPSED GEOMETRY
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type {
+  box-sizing:
+    border-box !important;
+
+  height:
+    68px !important;
+
+  min-height:
+    68px !important;
+
+  max-height:
+    68px !important;
+
+  padding:
+    8px 10px !important;
+}
+
+
+/* ------------------------------------------------------------
+   COMPLETED NETWORK SHELL — MATCH ASSET WHILE COLLAPSED
+
+   Do NOT constrain the shell while the chooser is expanded.
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open) {
+  box-sizing:
+    border-box !important;
+
+  height:
+    68px !important;
+
+  min-height:
+    68px !important;
+
+  max-height:
+    68px !important;
+
+  padding:
+    8px 10px !important;
+}
+
+
+/* ------------------------------------------------------------
+   COMPLETED ASSET CONTENT — COMMON BASELINE
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+> .deposit-step-content {
+  display:
+    grid !important;
+
+  grid-template-rows:
+    14px 30px !important;
+
+  row-gap:
+    6px !important;
+
+  align-content:
+    start !important;
+
+  height:
+    50px !important;
+
+  min-height:
+    50px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+> .deposit-step-content
+> h3 {
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  height:
+    14px !important;
+
+  min-height:
+    14px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  line-height:
+    14px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-favorites-row {
+  align-self:
+    start !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  margin:
+    0 !important;
+}
+
+
+/* ------------------------------------------------------------
+   COMPLETED NETWORK CONTENT — SAME BASELINE
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+> .deposit-step-content {
+  display:
+    grid !important;
+
+  grid-template-rows:
+    14px 30px !important;
+
+  row-gap:
+    6px !important;
+
+  align-content:
+    start !important;
+
+  height:
+    50px !important;
+
+  min-height:
+    50px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+> .deposit-step-content
+> h3 {
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  height:
+    14px !important;
+
+  min-height:
+    14px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  line-height:
+    14px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList {
+  align-self:
+    start !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  max-height:
+    30px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  overflow:
+    hidden !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active {
+  box-sizing:
+    border-box !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  max-height:
+    30px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    3px 8px !important;
+}
+
+
+/* ------------------------------------------------------------
+   QR — ONE CLEAN FRAME ONLY
+
+   The QR image already contains the required white quiet zone.
+   Remove the additional mint slab/inset treatment around it.
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositDetailsStep
+.deposit-qr-surface {
+  padding:
+    0 !important;
+
+  border:
+    0 !important;
+
+  outline:
+    0 !important;
+
+  background:
+    transparent !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositDetailsStep
+#depositQr {
+  display:
+    block !important;
+
+  box-sizing:
+    border-box !important;
+
+  margin:
+    0 auto !important;
+
+  padding:
+    0 !important;
+
+  border:
+    1px solid rgba(159, 232, 209, 0.28) !important;
+
+  outline:
+    0 !important;
+
+  border-radius:
+    8px !important;
+
+  background:
+    #f7fffc !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+/*
+   A7C23 intentionally does NOT touch:
+
+     aurora-ui.js
+     Network toggle behavior
+     expanded Network chooser geometry
+     unavailable-Network handling
+     QR image content
+     QR dialog
+     Tether SVG
+     Deposit API/read model
+*/
+
+
+/* ============================================================
+   AURORA A7C24 — RESTORE COMPLETED ASSET / ALIGN CONTEXT CARDS
+
+   Repair only:
+     A7C23 fixed shell height exposed inherited Asset layout.
+     Remove completed-selection controls from flow explicitly.
+     Give Asset and collapsed Network identical simple geometry.
+
+   Final Address phase only.
+   Presentation only.
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   FINAL ASSET — ONLY HEADING + SELECTED TOKEN REMAIN IN FLOW
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-search,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositCurrencyList,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositCurrencyCount {
+  display:
+    none !important;
+}
+
+
+/* ------------------------------------------------------------
+   IDENTICAL COMPLETED SHELL GEOMETRY
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open) {
+  box-sizing:
+    border-box !important;
+
+  height:
+    68px !important;
+
+  min-height:
+    68px !important;
+
+  max-height:
+    68px !important;
+
+  padding:
+    8px 10px !important;
+
+  overflow:
+    visible !important;
+}
+
+
+/* ------------------------------------------------------------
+   IDENTICAL COMPLETED CONTENT FLOW
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+> .deposit-step-content,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+> .deposit-step-content {
+  display:
+    flex !important;
+
+  flex-direction:
+    column !important;
+
+  align-items:
+    stretch !important;
+
+  justify-content:
+    flex-start !important;
+
+  gap:
+    6px !important;
+
+  position:
+    static !important;
+
+  width:
+    100% !important;
+
+  height:
+    auto !important;
+
+  min-height:
+    0 !important;
+
+  max-height:
+    none !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  overflow:
+    visible !important;
+}
+
+
+/* ------------------------------------------------------------
+   IDENTICAL HEADING BASELINE
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+> .deposit-step-content
+> h3,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+> .deposit-step-content
+> h3 {
+  display:
+    flex !important;
+
+  flex:
+    0 0 14px !important;
+
+  align-items:
+    center !important;
+
+  position:
+    static !important;
+
+  height:
+    14px !important;
+
+  min-height:
+    14px !important;
+
+  max-height:
+    14px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  line-height:
+    14px !important;
+}
+
+
+/* ------------------------------------------------------------
+   ASSET SELECTED TOKEN — RESTORE FULL PILL
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-favorites-row {
+  display:
+    flex !important;
+
+  flex:
+    0 0 30px !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    flex-start !important;
+
+  position:
+    static !important;
+
+  inset:
+    auto !important;
+
+  transform:
+    none !important;
+
+  width:
+    max-content !important;
+
+  max-width:
+    100% !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  max-height:
+    30px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  overflow:
+    visible !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites {
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  position:
+    static !important;
+
+  transform:
+    none !important;
+
+  width:
+    max-content !important;
+
+  max-width:
+    100% !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  max-height:
+    30px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  overflow:
+    visible !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency].active,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency][aria-pressed="true"] {
+  box-sizing:
+    border-box !important;
+
+  position:
+    static !important;
+
+  transform:
+    none !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  max-height:
+    30px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    3px 10px !important;
+}
+
+
+/* ------------------------------------------------------------
+   COLLAPSED NETWORK — SAME 30PX CONTROL BASELINE
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList {
+  flex:
+    0 0 30px !important;
+
+  position:
+    static !important;
+
+  transform:
+    none !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  max-height:
+    30px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  overflow:
+    hidden !important;
+}
+
+
+/*
+   Intentionally unchanged:
+     QR presentation
+     Network chevron
+     Network toggle controller
+     expanded chooser
+     unavailable Network handling
+     Deposit renderer/API
+*/
+
+
+/* ============================================================
+   AURORA A7C25 — COMPLETED CONTEXT PARITY
+
+   Final Address phase only.
+
+   Make completed Asset + Network read as sibling components:
+     same identity-row footprint
+     same border/background/radius
+     same symbol/text baseline
+     slightly stronger section labels
+     clearer Network interaction affordance
+
+   QR / Deposit details untouched.
+   Presentation only.
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   COMPLETED SECTION LABELS
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+> .deposit-step-content
+> h3,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+> .deposit-step-content
+> h3 {
+  color:
+    rgba(174, 229, 213, 0.68) !important;
+
+  opacity:
+    1 !important;
+
+  font-size:
+    0.57rem !important;
+
+  font-weight:
+    700 !important;
+
+  letter-spacing:
+    0.13em !important;
+
+  text-transform:
+    uppercase !important;
+}
+
+
+/* ------------------------------------------------------------
+   COMPLETED ASSET — FULL-WIDTH IDENTITY ROW
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+.deposit-favorites-row {
+  width:
+    100% !important;
+
+  max-width:
+    none !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites {
+  width:
+    100% !important;
+
+  max-width:
+    none !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency].active,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency][aria-pressed="true"] {
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    flex-start !important;
+
+  gap:
+    7px !important;
+
+  box-sizing:
+    border-box !important;
+
+  width:
+    100% !important;
+
+  max-width:
+    none !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  max-height:
+    30px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    3px 9px !important;
+
+  border:
+    1px solid rgba(70, 198, 158, 0.26) !important;
+
+  border-radius:
+    8px !important;
+
+  background:
+    rgba(7, 48, 38, 0.40) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(62, 199, 157, 0.025) !important;
+
+  color:
+    rgba(210, 238, 229, 0.88) !important;
+
+  font-size:
+    0.67rem !important;
+
+  font-weight:
+    650 !important;
+
+  letter-spacing:
+    0.01em !important;
+
+  cursor:
+    pointer !important;
+}
+
+
+/* ------------------------------------------------------------
+   COMPLETED NETWORK — SAME IDENTITY-ROW VISUAL LANGUAGE
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active {
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  gap:
+    7px !important;
+
+  box-sizing:
+    border-box !important;
+
+  width:
+    100% !important;
+
+  max-width:
+    none !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  max-height:
+    30px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    3px 9px !important;
+
+  border:
+    1px solid rgba(70, 198, 158, 0.26) !important;
+
+  border-radius:
+    8px !important;
+
+  background:
+    rgba(7, 48, 38, 0.40) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(62, 199, 157, 0.025) !important;
+
+  color:
+    rgba(210, 238, 229, 0.88) !important;
+
+  cursor:
+    pointer !important;
+
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease !important;
+}
+
+
+/* ------------------------------------------------------------
+   MATCH SELECTED IDENTITY TYPOGRAPHY
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active
+.deposit-option-main {
+  min-width:
+    0 !important;
+
+  font-size:
+    0.67rem !important;
+
+  font-weight:
+    650 !important;
+
+  letter-spacing:
+    0.01em !important;
+}
+
+
+/* ------------------------------------------------------------
+   MATCH SYMBOL FOOTPRINT
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency]:is(.active, [aria-pressed="true"])
+.aurora-symbol,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active
+.aurora-symbol {
+  flex:
+    0 0 18px !important;
+
+  width:
+    18px !important;
+
+  height:
+    18px !important;
+}
+
+
+/* ------------------------------------------------------------
+   NETWORK — CLEARER CLICK AFFORDANCE
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active:hover {
+  border-color:
+    rgba(80, 234, 184, 0.52) !important;
+
+  background:
+    rgba(9, 66, 51, 0.56) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(90, 238, 189, 0.07),
+    0 0 12px rgba(42, 216, 160, 0.05) !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active:focus-visible {
+  outline:
+    1px solid rgba(91, 239, 192, 0.72) !important;
+
+  outline-offset:
+    2px !important;
+
+  border-color:
+    rgba(91, 239, 192, 0.62) !important;
+}
+
+
+/*
+   A7C25 intentionally does NOT touch:
+
+     QR
+     Deposit details
+     Deposit address
+     Network toggle controller
+     expanded Network chooser
+     unavailable-Network handling
+     Deposit renderer
+     Gate API/read model
+     aurora-ui.js
+*/
+
+
+/* ============================================================
+   AURORA A7C26 — HOVER PARITY / REMOVE NETWORK CHEVRON
+
+   Final Address phase only.
+
+   Network:
+     remove redundant disclosure chevron
+     hover/focus remains the interaction affordance
+
+   Asset:
+     give completed selected coin matching hover/focus response
+
+   Presentation only.
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   NETWORK — REMOVE REDUNDANT DISCLOSURE CHEVRON
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositNetworkStep:not(.aurora-network-edit-open)
+#depositNetworkList
+.deposit-option.active::after {
+  display:
+    none !important;
+
+  content:
+    none !important;
+}
+
+
+/* ------------------------------------------------------------
+   SELECTED COIN — MATCH NETWORK HOVER LANGUAGE
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency].active:hover,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency][aria-pressed="true"]:hover {
+  border-color:
+    rgba(80, 234, 184, 0.52) !important;
+
+  background:
+    rgba(9, 66, 51, 0.56) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(90, 238, 189, 0.07),
+    0 0 12px rgba(42, 216, 160, 0.05) !important;
+
+  color:
+    rgba(225, 249, 241, 0.96) !important;
+}
+
+
+/* ------------------------------------------------------------
+   SELECTED COIN — KEYBOARD FOCUS PARITY
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency].active:focus-visible,
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-step:first-of-type
+#depositFavorites
+[data-deposit-currency][aria-pressed="true"]:focus-visible {
+  outline:
+    1px solid rgba(91, 239, 192, 0.72) !important;
+
+  outline-offset:
+    2px !important;
+
+  border-color:
+    rgba(91, 239, 192, 0.62) !important;
+}
+
+
+/*
+   Intentionally untouched:
+
+     QR
+     Deposit details
+     Deposit address
+     Network expand/collapse controller
+     unavailable-Network handling
+     Deposit renderer
+     Gate API/read model
+     aurora-ui.js
+     shared app.js
+*/
+
+/* ============================================================
+   AURORA A7C30 — FINAL ADDRESS COMPOSITION BALANCE
+
+   Final Address phase only.
+
+   Diagnostic finding:
+     Deposit-details height is naturally driven by the QR column.
+     No artificial Details min-height is required.
+
+   Refinement:
+     slightly reduce QR-column vertical density
+     place QR actions side-by-side
+     stretch address telemetry to match QR-column height
+     use remaining height intentionally
+     preserve QR dimensions and all interaction behavior
+
+   Presentation only.
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   DETAILS GRID — LET BOTH INTERIOR SURFACES SHARE THE ROW
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositDetails {
+  align-items:
+    stretch !important;
+  gap:
+    12px !important;
+}
+
+
+/* ------------------------------------------------------------
+   DETAILS STAGE — SMALL OUTER DENSITY REDUCTION
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+#depositDetailsStep {
+  padding:
+    12px
+    13px
+    13px !important;
+}
+
+
+/* ------------------------------------------------------------
+   QR COLUMN — SAME QR SIZE, LESS VERTICAL CHROME
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-qr-card-head {
+  padding:
+    6px
+    8px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-qr-actions {
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr)) !important;
+  padding:
+    7px
+    8px !important;
+  gap:
+    6px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-qr-actions
+.button {
+  min-height:
+    29px !important;
+  padding:
+    5px
+    6px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-qr-card
+> small:not(.deposit-qr-safety) {
+  padding:
+    0
+    8px
+    3px !important;
+  line-height:
+    1.2 !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-qr-safety {
+  padding:
+    0
+    8px
+    6px !important;
+  line-height:
+    1.25 !important;
+}
+
+
+/* ------------------------------------------------------------
+   ADDRESS TELEMETRY — FILL THE MATCHING COLUMN INTENTIONALLY
+   ------------------------------------------------------------ */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-address-fields {
+  box-sizing:
+    border-box !important;
+  display:
+    flex !important;
+  flex-direction:
+    column !important;
+  justify-content:
+    flex-start !important;
+  align-self:
+    stretch !important;
+  min-height:
+    100% !important;
+  padding:
+    10px
+    11px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-address-fields
+> label {
+  margin:
+    8px
+    0
+    4px !important;
+}
+
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dt,
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-definition-list
+dd {
+  padding:
+    6px
+    8px !important;
+}
+
+
+/* The safety warning becomes the visual footer of the telemetry card. */
+
+#walletDepositsWorkspace
+#depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
+.deposit-warning {
+  margin-top:
+    9px !important;
+  padding:
+    8px
+    9px !important;
+}
+
+
+/*
+   Intentionally unchanged:
+     #depositQr width / height
+     QR image content
+     completed Select coin geometry
+     completed Select network geometry
+     completed-control hover/focus
+     Network expand/collapse
+     Network reselection
+     unavailable-Network handling
+     Deposit renderer/API
+     address-generation behavior
+     aurora-ui.js
+     Classic/Aurora app.js
+*/

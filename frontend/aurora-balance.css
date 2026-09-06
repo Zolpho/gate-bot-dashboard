@@ -1,0 +1,626 @@
+/* ============================================================
+   AURORA A7B — WALLET BALANCE MISSION CONTROL
+
+   Presentation only.
+
+   Financial values, account scope, refresh behavior and records
+   remain owned by the shared Classic/Aurora application logic.
+   ============================================================ */
+
+
+#walletBalanceWorkspace {
+  --aurora-balance-line: rgba(91, 244, 190, 0.26);
+  --aurora-balance-line-strong: rgba(91, 244, 190, 0.58);
+  --aurora-balance-surface: rgba(4, 27, 21, 0.78);
+  --aurora-balance-surface-soft: rgba(7, 38, 29, 0.64);
+  --aurora-balance-text-soft: rgba(194, 225, 213, 0.64);
+  --aurora-balance-glow: rgba(55, 235, 174, 0.12);
+
+  position: relative;
+}
+
+
+/* ------------------------------------------------------------
+   MAIN COMMAND SURFACE
+   ------------------------------------------------------------ */
+
+#walletBalanceWorkspace
+.private-balance-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+
+  border:
+    1px solid
+    var(--aurora-balance-line);
+
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(7, 38, 29, 0.90),
+      rgba(2, 18, 14, 0.96) 58%,
+      rgba(2, 14, 11, 0.98)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(116, 255, 210, 0.035),
+    0 22px 70px rgba(0, 0, 0, 0.20);
+}
+
+
+#walletBalanceWorkspace
+.private-balance-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+
+  background-image:
+    linear-gradient(
+      rgba(72, 229, 174, 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(72, 229, 174, 0.035) 1px,
+      transparent 1px
+    ),
+    radial-gradient(
+      circle at 78% 18%,
+      rgba(50, 236, 170, 0.12),
+      transparent 28%
+    );
+
+  background-size:
+    46px 46px,
+    46px 46px,
+    auto;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-panel::after {
+  content: "BALANCE TELEMETRY";
+
+  position: absolute;
+  top: 17px;
+  right: 22px;
+  z-index: -1;
+
+  color: rgba(105, 247, 197, 0.22);
+
+  font-size: 0.54rem;
+  font-weight: 700;
+  letter-spacing: 0.20em;
+  line-height: 1;
+}
+
+
+/* ------------------------------------------------------------
+   HEADER
+   ------------------------------------------------------------ */
+
+#walletBalanceWorkspace
+.private-balance-header {
+  position: relative;
+  z-index: 1;
+
+  align-items: center;
+  gap: 16px;
+
+  padding:
+    18px
+    20px
+    14px !important;
+
+  border-bottom:
+    1px solid
+    rgba(92, 238, 185, 0.13);
+}
+
+
+#walletBalanceWorkspace
+.private-balance-title-row {
+  min-width: 0;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-title-row::before {
+  content: "";
+
+  display: inline-block;
+
+  width: 7px;
+  height: 7px;
+
+  margin-right: 9px;
+
+  border-radius: 999px;
+
+  background: #59f2bd;
+
+  box-shadow:
+    0 0 0 4px rgba(89, 242, 189, 0.08),
+    0 0 16px rgba(89, 242, 189, 0.48);
+}
+
+
+#walletBalanceWorkspace
+#privateBalanceSubtitle {
+  margin-top: 4px;
+
+  color:
+    var(--aurora-balance-text-soft);
+}
+
+
+#walletBalanceWorkspace
+.private-balance-actions {
+  position: relative;
+  z-index: 2;
+}
+
+
+#walletBalanceWorkspace
+#refreshPrivateBalance {
+  min-height: 34px;
+
+  padding:
+    6px
+    12px;
+
+  border-color:
+    rgba(99, 236, 187, 0.24);
+
+  background:
+    rgba(7, 37, 29, 0.72);
+
+  box-shadow:
+    inset 0 1px 0 rgba(126, 255, 211, 0.035);
+}
+
+
+/* ------------------------------------------------------------
+   LOADING / ERROR / SELECT STATES
+   ------------------------------------------------------------ */
+
+#walletBalanceWorkspace
+.private-balance-message {
+  margin:
+    14px
+    18px;
+
+  border:
+    1px solid
+    rgba(95, 236, 187, 0.18);
+
+  border-radius: 12px;
+
+  background:
+    rgba(4, 28, 21, 0.76);
+}
+
+
+/* ------------------------------------------------------------
+   METRIC COMMAND DECK
+   ------------------------------------------------------------ */
+
+#walletBalanceWorkspace
+#privateBalanceContent {
+  position: relative;
+  z-index: 1;
+
+  padding:
+    15px
+    18px
+    17px;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      12,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+
+  align-items: stretch;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card {
+  position: relative;
+  overflow: hidden;
+
+  min-width: 0;
+  min-height: 116px;
+
+  padding:
+    15px
+    15px
+    13px;
+
+  border:
+    1px solid
+    rgba(80, 220, 169, 0.17);
+
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(8, 46, 35, 0.82),
+      rgba(4, 28, 22, 0.78)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(115, 255, 208, 0.025);
+
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background-color 150ms ease;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(1) {
+  grid-column: span 4;
+
+  border-color:
+    rgba(79, 239, 181, 0.50);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(12, 70, 52, 0.82),
+      rgba(4, 34, 26, 0.88)
+    );
+
+  box-shadow:
+    inset 0 -2px 0 rgba(73, 239, 179, 0.19),
+    0 0 32px rgba(49, 223, 164, 0.055);
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(2),
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(3),
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(4),
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(5) {
+  grid-column: span 2;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card:hover {
+  border-color:
+    rgba(91, 239, 185, 0.34);
+
+  box-shadow:
+    inset 0 1px 0 rgba(115, 255, 208, 0.04),
+    0 0 24px rgba(55, 229, 171, 0.045);
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card::after {
+  position: absolute;
+  right: 10px;
+  bottom: -11px;
+
+  color:
+    rgba(92, 237, 185, 0.065);
+
+  font-size: 4.6rem;
+  font-weight: 800;
+  line-height: 1;
+
+  pointer-events: none;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(1)::after {
+  content: "01";
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(2)::after {
+  content: "02";
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(3)::after {
+  content: "03";
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(4)::after {
+  content: "04";
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(5)::after {
+  content: "05";
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card strong {
+  display: block;
+
+  max-width: 100%;
+
+  margin-top: 5px;
+
+  color:
+    rgba(227, 255, 245, 0.95);
+
+  font-size: 1.27rem;
+  line-height: 1.08;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  overflow-wrap: anywhere;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card:nth-child(1)
+strong {
+  color: #62f2c2;
+
+  font-size: 1.90rem;
+  letter-spacing: -0.03em;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-card small {
+  display: block;
+
+  margin-top: 8px;
+
+  color:
+    rgba(172, 210, 196, 0.58);
+
+  font-size: 0.60rem;
+  line-height: 1.25;
+}
+
+
+/* ------------------------------------------------------------
+   STATUS / COVERAGE TELEMETRY
+   ------------------------------------------------------------ */
+
+#walletBalanceWorkspace
+.private-balance-meta {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 1px;
+
+  margin-top: 10px;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(87, 229, 176, 0.14);
+
+  border-radius: 10px;
+
+  background:
+    rgba(3, 24, 18, 0.72);
+}
+
+
+#walletBalanceWorkspace
+.private-balance-meta
+span {
+  min-width: 0;
+
+  padding:
+    7px
+    10px;
+
+  color:
+    rgba(178, 216, 201, 0.70);
+
+  font-size: 0.59rem;
+  line-height: 1.25;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+#walletBalanceWorkspace
+.private-balance-meta
+span + span {
+  border-left:
+    1px solid
+    rgba(87, 229, 176, 0.10);
+}
+
+
+#walletBalanceWorkspace
+.private-balance-footnote {
+  margin:
+    9px
+    2px
+    0;
+
+  color:
+    rgba(150, 192, 176, 0.52);
+
+  font-size: 0.57rem;
+  line-height: 1.35;
+}
+
+
+/* ------------------------------------------------------------
+   RECORDS / OWNERSHIP AUDIT
+   ------------------------------------------------------------ */
+
+#walletBalanceWorkspace
+#walletBalanceRecords {
+  margin-top: 12px;
+
+  border:
+    1px solid
+    rgba(79, 220, 167, 0.15);
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(5, 31, 24, 0.76),
+      rgba(3, 23, 18, 0.70)
+    );
+}
+
+
+#walletBalanceWorkspace
+#walletBalanceRecords
+.treasury-records-summary {
+  min-height: 44px;
+
+  padding:
+    8px
+    13px;
+}
+
+
+#walletBalanceWorkspace
+#walletBalanceRecords[open] {
+  border-color:
+    rgba(83, 231, 175, 0.28);
+
+  box-shadow:
+    0 0 28px rgba(51, 222, 164, 0.04);
+}
+
+
+#walletBalanceWorkspace
+#walletBalanceRecords
+.treasury-records-content {
+  border-top:
+    1px solid
+    rgba(85, 227, 174, 0.12);
+
+  background:
+    rgba(2, 20, 15, 0.54);
+}
+
+
+/* ------------------------------------------------------------
+   RESPONSIVE DENSITY
+   ------------------------------------------------------------ */
+
+@media (max-width: 1260px) {
+  #walletBalanceWorkspace
+  .private-balance-grid {
+    grid-template-columns:
+      repeat(
+        6,
+        minmax(0, 1fr)
+      );
+  }
+
+  #walletBalanceWorkspace
+  .private-balance-card:nth-child(1) {
+    grid-column: span 3;
+  }
+
+  #walletBalanceWorkspace
+  .private-balance-card:nth-child(2),
+
+  #walletBalanceWorkspace
+  .private-balance-card:nth-child(3),
+
+  #walletBalanceWorkspace
+  .private-balance-card:nth-child(4) {
+    grid-column: span 1;
+  }
+
+  #walletBalanceWorkspace
+  .private-balance-card:nth-child(5) {
+    grid-column: span 6;
+  }
+}
+
+
+@media (max-width: 920px) {
+  #walletBalanceWorkspace
+  .private-balance-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  #walletBalanceWorkspace
+  .private-balance-card:nth-child(n) {
+    grid-column: span 1;
+  }
+
+  #walletBalanceWorkspace
+  .private-balance-card:nth-child(1) {
+    grid-column:
+      1
+      /
+      -1;
+  }
+
+  #walletBalanceWorkspace
+  .private-balance-meta {
+    grid-template-columns: 1fr;
+  }
+
+  #walletBalanceWorkspace
+  .private-balance-meta
+  span + span {
+    border-left: 0;
+
+    border-top:
+      1px solid
+      rgba(87, 229, 176, 0.10);
+  }
+}
