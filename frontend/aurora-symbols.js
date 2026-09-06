@@ -568,12 +568,197 @@
     });
   }
 
+  /*
+   * Bots market artwork is presentation-only.
+   *
+   * app.js remains authoritative for table rows. Whenever
+   * it replaces either tbody, the existing MutationObserver
+   * schedules this decorator again.
+   */
+  function splitBotMarketAssets(value) {
+    const market = String(
+      value || ''
+    )
+      .trim();
+
+    if (!market) {
+      return [
+        '',
+        '',
+      ];
+    }
+
+    for (
+      const separator
+      of [
+        '_',
+        '/',
+        '-',
+      ]
+    ) {
+      const index =
+        market.lastIndexOf(
+          separator
+        );
+
+      if (
+        index > 0
+        && index < market.length - 1
+      ) {
+        return [
+          market
+            .slice(
+              0,
+              index
+            )
+            .trim(),
+          market
+            .slice(
+              index + 1
+            )
+            .trim(),
+        ];
+      }
+    }
+
+    return [
+      market,
+      '',
+    ];
+  }
+
+
+  function decorateBotsMarkets() {
+    document.querySelectorAll(
+      '#botsTableBody '
+      + '.strategy-cell small, '
+      + '#archivedBotsTableBody '
+      + '.strategy-cell small'
+    ).forEach(label => {
+      const storedMarket = String(
+        label.dataset
+          .auroraMarketValue
+        || ''
+      ).trim();
+
+      const renderedText = String(
+        label.textContent || ''
+      );
+
+      const market = (
+        storedMarket
+        || renderedText
+          .split('·')[0]
+          .trim()
+      );
+
+      if (!market) {
+        return;
+      }
+
+      const [
+        base,
+        quote,
+      ] = splitBotMarketAssets(
+        market
+      );
+
+      if (!base) {
+        return;
+      }
+
+      const decorationKey = (
+        `${base}|${quote}`
+      );
+
+      const existing =
+        label.querySelector(
+          ':scope > '
+          + '.aurora-market-symbols'
+        );
+
+      if (
+        existing
+        && existing.dataset
+          .auroraMarket
+          === decorationKey
+      ) {
+        label.dataset
+          .auroraMarketValue = market;
+
+        return;
+      }
+
+      existing?.remove();
+
+      const group =
+        document.createElement(
+          'span'
+        );
+
+      group.className =
+        'aurora-market-symbols';
+
+      group.dataset
+        .auroraMarket =
+          decorationKey;
+
+      group.setAttribute(
+        'aria-hidden',
+        'true',
+      );
+
+      group.setAttribute(
+        'title',
+        quote
+          ? `${base} / ${quote}`
+          : base,
+      );
+
+      [
+        base,
+        quote,
+      ]
+        .filter(Boolean)
+        .forEach(symbol => {
+          const host =
+            document.createElement(
+              'span'
+            );
+
+          host.className =
+            'aurora-market-symbol-slot';
+
+          prependSymbol(
+            host,
+            'asset',
+            symbol,
+            symbol,
+            'aurora-market-symbol-inline',
+          );
+
+          group.append(
+            host
+          );
+        });
+
+      label.dataset
+        .auroraMarketValue = market;
+
+      label.prepend(
+        group
+      );
+    });
+  }
+
+
   function decorate() {
     decorateDepositOptions();
     decorateDepositFavorites();
     decorateDepositResult();
     decorateDepositHistory();
     decorateBalance();
+    decorateBotsMarkets();
   }
 
   let scheduled = false;
