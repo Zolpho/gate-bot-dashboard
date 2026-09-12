@@ -75,4 +75,33 @@
     max-width:
       100% !important;
   }
+
+
+  /*
+   * Historical phase layouts pin the three stages to row 1,
+   * columns 1 / 2 / 3. With a one-column tablet template that
+   * forces Safari to create implicit columns.
+   *
+   * Reset placement here so auto-placement produces one column
+   * with Destination, Safety and Request on sequential rows.
+   */
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-destination,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-safety,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-request {
+
+    grid-area:
+      auto !important;
+
+    grid-column:
+      1 / -1 !important;
+
+    grid-row:
+      auto !important;
+  }
 }

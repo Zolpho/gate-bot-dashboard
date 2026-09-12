@@ -30,7 +30,7 @@ MOTION = (
 )
 
 LAYOUT_CACHE = (
-    "20260912-aurora-wallet-tablet-layout-a7c303-v1"
+    "20260912-aurora-wallet-tablet-layout-a7c312-v2"
 )
 
 MOTION_CACHE = (
@@ -238,3 +238,41 @@ def test_updated_motion_cache_reference_is_exact():
     )
 
     assert "disabled" in attrs
+
+
+def test_withdrawal_tablet_stage_placement_returns_to_normal_flow():
+    phase_selector = (
+        "#treasuryWithdrawalAction[data-aurora-phase]"
+    )
+
+    for stage in (
+        ".aurora-withdrawal-stage-destination",
+        ".aurora-withdrawal-stage-safety",
+        ".aurora-withdrawal-stage-request",
+    ):
+        assert (
+            phase_selector
+            in LAYOUT
+        )
+
+        assert stage in LAYOUT
+
+    assert re.search(
+        r"#treasuryWithdrawalAction\[data-aurora-phase\]"
+        r"\s*\.aurora-withdrawal-stage-destination,"
+        r".*?"
+        r"#treasuryWithdrawalAction\[data-aurora-phase\]"
+        r"\s*\.aurora-withdrawal-stage-safety,"
+        r".*?"
+        r"#treasuryWithdrawalAction\[data-aurora-phase\]"
+        r"\s*\.aurora-withdrawal-stage-request"
+        r"\s*\{"
+        r"[^}]*"
+        r"grid-area\s*:\s*auto\s*!important"
+        r"[^}]*"
+        r"grid-column\s*:\s*1\s*/\s*-1\s*!important"
+        r"[^}]*"
+        r"grid-row\s*:\s*auto\s*!important",
+        LAYOUT,
+        flags=re.S,
+    )
