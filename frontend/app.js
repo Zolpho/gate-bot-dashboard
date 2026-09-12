@@ -2762,6 +2762,153 @@ function renderBotControlReconciliationHistory(
   }).join('');
 }
 
+function botControlGateWriteEvidence(
+  detail,
+) {
+  const response = (
+    detail?.response
+    || {}
+  );
+
+  const status = String(
+    detail?.status
+    || ''
+  ).toLowerCase();
+
+  const error = String(
+    detail?.error
+    || ''
+  ).toLowerCase();
+
+  const explicitWrite = (
+    Object.prototype.hasOwnProperty.call(
+      response,
+      'write_performed',
+    )
+      ? response.write_performed
+      : null
+  );
+
+  const simulation = Boolean(
+    status === 'simulated'
+    || response.simulation === true
+  );
+
+  const knownLockConflict = Boolean(
+    status === 'blocked'
+    && (
+      error.includes(
+        'already locked by another bot control operation'
+      )
+      || error.includes(
+        'already protected by another bot control request'
+      )
+    )
+  );
+
+  if (explicitWrite === true) {
+    return {
+      key: 'confirmed',
+      statusClass: 'success',
+      label: 'CONFIRMED',
+      detail: (
+        'The durable Bot Control response records '
+        + 'write_performed=true. Gate accepted the '
+        + 'live submission.'
+      ),
+    };
+  }
+
+  if (simulation) {
+    return {
+      key: 'not-performed',
+      statusClass: '',
+      label: 'NOT PERFORMED',
+      detail: (
+        'Simulation completed before any Gate write '
+        + 'request was sent.'
+      ),
+    };
+  }
+
+  if (knownLockConflict) {
+    return {
+      key: 'not-performed',
+      statusClass: '',
+      label: 'NOT PERFORMED',
+      detail: (
+        'The operation was blocked by the Bot Control '
+        + 'lock before the Gate submission boundary.'
+      ),
+    };
+  }
+
+  if (
+    status === 'rejected'
+    && detail?.gate_status_code !== null
+    && detail?.gate_status_code !== undefined
+  ) {
+    return {
+      key: 'attempted',
+      statusClass: 'danger',
+      label: 'ATTEMPTED · REJECTED',
+      detail: (
+        'A live Gate request reached Gate and Gate '
+        + 'returned an explicit rejection.'
+      ),
+    };
+  }
+
+  if (status === 'uncertain') {
+    return {
+      key: 'uncertain',
+      statusClass: 'warning',
+      label: 'UNCERTAIN',
+      detail: (
+        'The durable audit record cannot prove the '
+        + 'final Gate write outcome. Do not infer '
+        + 'NOT PERFORMED and do not retry automatically.'
+      ),
+    };
+  }
+
+  if (status === 'submitting') {
+    return {
+      key: 'pending',
+      statusClass: 'warning',
+      label: 'SUBMISSION STATE',
+      detail: (
+        'The request entered the submission phase, '
+        + 'but the durable record does not yet prove '
+        + 'the final Gate write outcome.'
+      ),
+    };
+  }
+
+  if (status === 'reserved') {
+    return {
+      key: 'pending',
+      statusClass: 'warning',
+      label: 'RESERVED',
+      detail: (
+        'The request is reserved. No durable Gate '
+        + 'submission result is available yet.'
+      ),
+    };
+  }
+
+  return {
+    key: 'unknown',
+    statusClass: '',
+    label: 'UNKNOWN',
+    detail: (
+      'This historical record does not contain enough '
+      + 'durable evidence to classify the Gate write.'
+    ),
+  };
+}
+
+
 function renderBotControlRequestDetail(
   detail,
 ) {
@@ -2854,6 +3001,12 @@ function renderBotControlRequestDetail(
     || latestGateStatus === 'running'
   );
 
+  const writeEvidence = (
+    botControlGateWriteEvidence(
+      detail
+    )
+  );
+
   $('#botControlRequestSummary').innerHTML = `
     <section class="bot-control-request-card">
       <div class="bot-control-request-heading">
@@ -2944,6 +3097,28 @@ function renderBotControlRequestDetail(
             : ''
         }
       </div>
+    </section>
+
+    <section
+      class="bot-control-write-evidence ${escapeHtml(
+        writeEvidence.key
+      )}"
+    >
+      <div class="bot-control-write-evidence-heading">
+        <span>Gate write evidence</span>
+
+        <strong
+          class="bot-control-request-status ${escapeHtml(
+            writeEvidence.statusClass
+          )}"
+        >
+          ${escapeHtml(writeEvidence.label)}
+        </strong>
+      </div>
+
+      <p>
+        ${escapeHtml(writeEvidence.detail)}
+      </p>
     </section>
 
     <section class="bot-control-request-times">
@@ -3975,10 +4150,10 @@ function renderBotControlCreateState() {
     }
 
   } else if (liveForAccount) {
-    badge.textContent = 'LIVE';
+    badge.textContent = 'LIVE WRITE';
 
     if (detail) {
-      detail.textContent = 'Armed';
+      detail.textContent = 'Real Gate create enabled';
     }
 
   } else if (liveGloballyEnabled) {
@@ -4770,8 +4945,8 @@ function openSpotGridConfirmation() {
 
   notice.textContent = live
     ? (
-      'LIVE Bot creation is ENABLED. Submitting this '
-      + 'confirmation can create a real Gate Spot Grid.'
+      'LIVE GATE WRITE ENABLED. Submitting this '
+      + 'confirmation sends a real Spot Grid creation request to Gate and can place live orders.'
     )
     : simulation
       ? (
@@ -4837,7 +5012,9 @@ function updateSpotGridConfirmButton() {
   button.textContent = botCreationSimulation()
     && !botCreationEnabled()
       ? 'Simulate Spot Grid'
-      : 'Create Spot Grid';
+      : botCreationLive()
+        ? 'Create live Spot Grid'
+        : 'Create Spot Grid';
 }
 
 function generateBotControlRequestId(prefix = 'bot-control') {
@@ -17158,8 +17335,8 @@ function updateBotAdminControls(bot) {
     )
   ) {
     message.textContent = (
-      'LIVE Bot Stop is enabled. A final typed '
-      + 'confirmation is required.'
+      'LIVE Gate Stop is enabled. The final typed '
+      + 'confirmation sends a real Stop request to Gate.'
     );
 
   } else if (botStopLive()) {
@@ -17583,8 +17760,8 @@ function renderBotStopConfirmation(prepared) {
 
   notice.textContent = live
     ? (
-      'LIVE BOT STOP IS ENABLED. Submitting this '
-      + 'confirmation can stop the live Gate strategy.'
+      'LIVE GATE WRITE ENABLED. Submitting this '
+      + 'confirmation sends a real Stop request to Gate for this live strategy.'
     )
     : botStopSimulation()
       ? (
@@ -17639,7 +17816,9 @@ function updateBotStopConfirmButton() {
     botStopSimulation()
     && !botStopEnabled()
       ? 'Simulate Stop'
-      : 'Stop Bot'
+      : botStopLive()
+        ? 'Stop live bot'
+        : 'Stop Bot'
   );
 }
 

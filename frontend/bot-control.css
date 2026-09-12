@@ -1675,3 +1675,51 @@
 }
 
 /* End 3J13 Bot Control final symmetry tweak v3 */
+
+
+/*
+ * A7C240 — conservative Gate-write evidence.
+ *
+ * Request status describes the audit workflow.
+ * This panel separately describes durable evidence at the Gate
+ * write boundary.
+ */
+.bot-control-write-evidence {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.bot-control-write-evidence-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bot-control-write-evidence-heading > span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.bot-control-write-evidence p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.bot-control-write-evidence.not-performed,
+.bot-control-write-evidence.unknown {
+  border-style: dashed;
+}
+
+@media (max-width: 620px) {
+  .bot-control-write-evidence-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -345,7 +345,7 @@ def test_alerts_assets_are_versioned():
     )
 
     assert (
-        './app.js?v=20260912-out-of-range-a7c227-v1'
+        './app.js?v=20260912-bot-control-live-ux-a7c240-v1'
         in HTML
     )
 

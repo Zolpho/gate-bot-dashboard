@@ -144,15 +144,20 @@ def test_raw_gate_status_labels_remain_present() -> None:
     )
 
 def test_out_of_range_assets_have_current_cache_version() -> None:
-    version = "20260912-out-of-range-a7c227-v1"
+    range_version = "20260912-out-of-range-a7c227-v1"
+    app_version = "20260912-bot-control-live-ux-a7c240-v1"
+
+    assert (
+        f"./app.js?v={app_version}"
+        in HTML
+    )
 
     for asset in (
-        "app.js",
         "styles.css",
         "aurora-bots.css",
     ):
         assert (
-            f"./{asset}?v={version}"
+            f"./{asset}?v={range_version}"
             in HTML
         )
 

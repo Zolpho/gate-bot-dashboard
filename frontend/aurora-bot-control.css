@@ -2235,3 +2235,123 @@
     flex-direction: column;
   }
 }
+
+
+/*
+ * A7C240 — Bot Control live-write evidence and market-symbol polish.
+ */
+
+#botControlRequestDialog .bot-control-write-evidence {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--aurora-line);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0.012)
+    );
+}
+
+#botControlRequestDialog
+.bot-control-write-evidence-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+#botControlRequestDialog
+.bot-control-write-evidence-heading > span {
+  color: var(--aurora-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#botControlRequestDialog
+.bot-control-write-evidence p {
+  margin: 0;
+  color: var(--aurora-muted);
+  line-height: 1.5;
+}
+
+#botControlRequestDialog
+.bot-control-write-evidence.confirmed {
+  box-shadow:
+    inset 3px 0 0 rgba(98, 221, 170, 0.72);
+}
+
+#botControlRequestDialog
+.bot-control-write-evidence.attempted {
+  box-shadow:
+    inset 3px 0 0 rgba(255, 124, 124, 0.78);
+}
+
+#botControlRequestDialog
+.bot-control-write-evidence.uncertain,
+#botControlRequestDialog
+.bot-control-write-evidence.pending {
+  box-shadow:
+    inset 3px 0 0 rgba(255, 184, 92, 0.8);
+}
+
+#botControlRequestDialog
+.bot-control-write-evidence.not-performed,
+#botControlRequestDialog
+.bot-control-write-evidence.unknown {
+  border-style: dashed;
+}
+
+#tab-bot-control
+.bot-control-create-state
+.status-badge.warning {
+  letter-spacing: 0.08em;
+}
+
+/*
+ * Artwork remains presentation-only and continues to come from the
+ * existing Aurora symbol pipeline. These overrides remove overlap
+ * so base and quote read as two adjacent token marks.
+ */
+#tab-bot-control .aurora-bot-control-market-symbols,
+#spotGridConfirmDialog .aurora-bot-control-market-symbols,
+#stopBotConfirmDialog .aurora-bot-control-market-symbols {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+#tab-bot-control .aurora-bot-control-market-symbol-slot,
+#spotGridConfirmDialog .aurora-bot-control-market-symbol-slot,
+#stopBotConfirmDialog .aurora-bot-control-market-symbol-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  transform: none;
+}
+
+#tab-bot-control
+.aurora-bot-control-market-symbol-slot
++ .aurora-bot-control-market-symbol-slot,
+#spotGridConfirmDialog
+.aurora-bot-control-market-symbol-slot
++ .aurora-bot-control-market-symbol-slot,
+#stopBotConfirmDialog
+.aurora-bot-control-market-symbol-slot
++ .aurora-bot-control-market-symbol-slot {
+  margin-left: 0;
+}
+
+@media (max-width: 620px) {
+  #botControlRequestDialog
+  .bot-control-write-evidence-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

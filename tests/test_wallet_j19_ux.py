@@ -238,7 +238,7 @@ def test_j19_does_not_change_withdrawal_api_contract():
 
 def test_j21_cache_keys_follow_changed_wallet_assets():
     wallet_j21_key = "20260830-wallet-ux-j21-v2"
-    app_key = "20260912-out-of-range-a7c227-v1"
+    app_key = "20260912-bot-control-live-ux-a7c240-v1"
     unchanged_key = "20260830-wallet-ux-j19-v2"
 
     assert (

@@ -185,7 +185,7 @@ def test_amount_safety_workspace_is_two_column_desktop():
 
 def test_app_cache_key_tracks_j21_behavior_change():
     assert (
-        './app.js?v=20260912-out-of-range-a7c227-v1'
+        './app.js?v=20260912-bot-control-live-ux-a7c240-v1'
         in HTML
     )
 

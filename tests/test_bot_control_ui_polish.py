@@ -76,8 +76,8 @@ def test_single_bot_control_account_has_static_surface():
 
 
 def test_bot_control_live_state_is_compact():
-    assert "badge.textContent = 'LIVE'" in APP
-    assert "detail.textContent = 'Armed'" in APP
+    assert "badge.textContent = 'LIVE WRITE'" in APP
+    assert "detail.textContent = 'Real Gate create enabled'" in APP
 
     assert "LIVE creation enabled" not in APP
 
@@ -204,12 +204,12 @@ def test_preflight_panel_is_compact():
 def test_bot_control_asset_versions_are_bumped():
     assert (
         "./bot-control.css?"
-        "v=20260823-bot-control-final-v3"
+        "v=20260912-bot-control-live-ux-a7c240-v1"
         in HTML
     )
 
     assert (
-        './app.js?v=20260912-out-of-range-a7c227-v1'
+        './app.js?v=20260912-bot-control-live-ux-a7c240-v1'
         in HTML
     )
 
@@ -453,7 +453,7 @@ def test_create_card_uses_natural_height():
 
 def test_live_creation_state_is_horizontal_and_compact():
     assert (
-        "detail.textContent = 'Armed'"
+        "detail.textContent = 'Real Gate create enabled'"
         in APP
     )
 
