@@ -896,11 +896,12 @@ select:hover {
 }
 /* End A7C162 shared Aurora topbar consistency */
 
-/* A7C177 Aurora soft 3D raised capsules
-   - retain accepted wide-desktop composition
-   - use dimensional raised capsule surfaces instead of recessed wells
-   - unify selectors, status badges and secondary actions
-   - keep Sync Gate as the strongest primary control
+/* A7C182 Aurora satin 3D capsules
+   - preserve the accepted wide-desktop composition
+   - move deliberately closer to the visual concept
+   - use brighter satin faces, luminous rims and a visible underside
+   - unify selectors, status capsules and secondary actions
+   - keep Sync Gate as the hero mint capsule
 */
 @media (min-width: 1460px) {
   html[data-dashboard-ui="aurora"] .topbar {
@@ -927,21 +928,21 @@ select:hover {
     min-width: 0;
     flex-wrap: nowrap;
     justify-content: flex-end;
-    gap: 8px;
+    gap: 9px;
   }
 
   html[data-dashboard-ui="aurora"]
   .top-actions
   .account-selector {
-    flex: 0 0 144px;
-    min-width: 132px;
+    flex: 0 0 146px;
+    min-width: 134px;
   }
 
   html[data-dashboard-ui="aurora"]
   .top-actions
   .account-selector
   select {
-    min-width: 132px;
+    min-width: 134px;
   }
 }
 
@@ -958,14 +959,15 @@ html[data-dashboard-ui="aurora"]
 html[data-dashboard-ui="aurora"]
 .top-actions
 .admin-identity {
-  min-height: 41px;
+  min-height: 42px;
   border-radius: 999px;
+  font-weight: 650;
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button {
-  padding: 9px 15px;
+  padding: 9px 16px;
 }
 
 html[data-dashboard-ui="aurora"]
@@ -981,24 +983,27 @@ html[data-dashboard-ui="aurora"]
 html[data-dashboard-ui="aurora"]
 .top-actions
 .admin-identity {
-  border-color: rgba(105, 244, 198, 0.34);
+  border: 1px solid rgba(128, 255, 210, 0.48);
   background:
     linear-gradient(
       180deg,
-      rgba(27, 66, 50, 0.98) 0%,
-      rgba(15, 45, 34, 0.99) 42%,
-      rgba(7, 28, 21, 1) 74%,
-      rgba(3, 19, 14, 1) 100%
+      rgba(73, 137, 108, 0.96) 0%,
+      rgba(45, 103, 79, 0.98) 16%,
+      rgba(27, 73, 54, 0.99) 38%,
+      rgba(15, 47, 35, 1) 67%,
+      rgba(7, 29, 21, 1) 100%
     );
   box-shadow:
-    inset 0 1px 0 rgba(218, 255, 242, 0.13),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.46),
-    0 1px 0 rgba(102, 244, 197, 0.10),
-    0 3px 0 rgba(1, 23, 17, 0.94),
-    0 7px 16px rgba(0, 0, 0, 0.25),
-    0 0 15px rgba(88, 240, 189, 0.065);
+    inset 0 1px 0 rgba(235, 255, 248, 0.24),
+    inset 0 2px 5px rgba(213, 255, 239, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.50),
+    0 1px 0 rgba(179, 255, 230, 0.18),
+    0 4px 0 rgba(1, 33, 23, 0.98),
+    0 9px 20px rgba(0, 0, 0, 0.31),
+    0 0 20px rgba(88, 240, 189, 0.12);
+  color: rgba(232, 255, 247, 0.93);
   text-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.48);
+    0 1px 1px rgba(0, 0, 0, 0.62);
 }
 
 html[data-dashboard-ui="aurora"]
@@ -1009,95 +1014,117 @@ html[data-dashboard-ui="aurora"]
 .account-selector
 select:hover {
   transform: translateY(-1px);
-  border-color: rgba(111, 255, 207, 0.58);
+  border-color: rgba(163, 255, 222, 0.72);
   background:
     linear-gradient(
       180deg,
-      rgba(34, 79, 60, 0.99) 0%,
-      rgba(18, 53, 40, 1) 44%,
-      rgba(8, 32, 24, 1) 76%,
-      rgba(4, 21, 16, 1) 100%
+      rgba(88, 159, 125, 0.98) 0%,
+      rgba(52, 119, 90, 0.99) 16%,
+      rgba(30, 82, 60, 1) 40%,
+      rgba(16, 52, 38, 1) 68%,
+      rgba(8, 32, 23, 1) 100%
     );
   box-shadow:
-    inset 0 1px 0 rgba(229, 255, 247, 0.17),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.42),
-    0 1px 0 rgba(126, 255, 215, 0.14),
-    0 4px 0 rgba(1, 25, 18, 0.92),
-    0 9px 19px rgba(0, 0, 0, 0.28),
-    0 0 20px rgba(88, 240, 189, 0.13);
+    inset 0 1px 0 rgba(244, 255, 251, 0.31),
+    inset 0 2px 6px rgba(218, 255, 241, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(198, 255, 236, 0.22),
+    0 5px 0 rgba(1, 35, 25, 0.98),
+    0 11px 24px rgba(0, 0, 0, 0.34),
+    0 0 27px rgba(88, 240, 189, 0.18);
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.secondary:active:not(:disabled) {
-  transform: translateY(2px);
+  transform: translateY(3px);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(42, 96, 72, 0.98) 0%,
+      rgba(24, 67, 49, 1) 42%,
+      rgba(11, 39, 28, 1) 100%
+    );
   box-shadow:
-    inset 0 1px 3px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(215, 255, 241, 0.08),
-    0 1px 0 rgba(1, 24, 17, 0.95),
-    0 3px 8px rgba(0, 0, 0, 0.20),
-    0 0 10px rgba(88, 240, 189, 0.05);
+    inset 0 2px 5px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(220, 255, 243, 0.08),
+    0 1px 0 rgba(1, 32, 22, 0.98),
+    0 4px 10px rgba(0, 0, 0, 0.24),
+    0 0 12px rgba(88, 240, 189, 0.07);
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.primary {
   border-radius: 999px;
-  border-color: rgba(207, 255, 241, 0.94);
+  border: 1px solid rgba(228, 255, 247, 0.98);
   background:
     linear-gradient(
       180deg,
-      #a5ffe4 0%,
-      #72f5ce 30%,
-      #50e8ba 58%,
-      #35d6a4 78%,
-      #27bc8d 100%
+      #d2fff1 0%,
+      #a7ffe3 14%,
+      #78f8d0 34%,
+      #52eabc 58%,
+      #38d7a5 79%,
+      #22b985 100%
     );
-  color: #03281d;
+  color: #02261b;
+  font-weight: 760;
   text-shadow:
-    0 1px rgba(255, 255, 255, 0.30);
+    0 1px rgba(255, 255, 255, 0.38);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    inset 0 -1px 0 rgba(2, 98, 71, 0.36),
-    0 1px 0 rgba(197, 255, 237, 0.32),
-    0 4px 0 rgba(13, 116, 83, 0.96),
-    0 8px 18px rgba(0, 0, 0, 0.27),
-    0 0 23px rgba(88, 240, 189, 0.26);
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 2px 5px rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(3, 93, 67, 0.42),
+    0 1px 0 rgba(228, 255, 247, 0.52),
+    0 5px 0 rgba(9, 113, 79, 0.98),
+    0 10px 22px rgba(0, 0, 0, 0.32),
+    0 0 30px rgba(88, 240, 189, 0.34);
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  border-color: rgba(229, 255, 248, 1);
+  border-color: rgba(244, 255, 252, 1);
   background:
     linear-gradient(
       180deg,
-      #c0ffec 0%,
-      #88fbd8 30%,
-      #5df0c2 58%,
-      #40dfaC 78%,
-      #2ac594 100%
+      #e8fff8 0%,
+      #bbffea 14%,
+      #8effd8 34%,
+      #61f2c4 58%,
+      #43dfaD 79%,
+      #29c28f 100%
     );
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.82),
-    inset 0 -1px 0 rgba(2, 98, 71, 0.30),
-    0 1px 0 rgba(218, 255, 245, 0.40),
-    0 5px 0 rgba(13, 116, 83, 0.96),
-    0 10px 21px rgba(0, 0, 0, 0.28),
-    0 0 29px rgba(88, 240, 189, 0.34);
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 2px 6px rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(3, 93, 67, 0.36),
+    0 1px 0 rgba(239, 255, 250, 0.60),
+    0 6px 0 rgba(9, 113, 79, 0.98),
+    0 12px 25px rgba(0, 0, 0, 0.34),
+    0 0 38px rgba(88, 240, 189, 0.42);
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.primary:active:not(:disabled) {
-  transform: translateY(2px);
+  transform: translateY(3px);
+  background:
+    linear-gradient(
+      180deg,
+      #8efbd8 0%,
+      #63edc1 38%,
+      #3fdba9 72%,
+      #25bd89 100%
+    );
   box-shadow:
-    inset 0 1px 4px rgba(1, 87, 62, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    0 1px 0 rgba(13, 116, 83, 0.98),
-    0 3px 9px rgba(0, 0, 0, 0.22),
-    0 0 16px rgba(88, 240, 189, 0.18);
+    inset 0 2px 5px rgba(2, 92, 65, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.43),
+    0 1px 0 rgba(9, 113, 79, 0.98),
+    0 4px 10px rgba(0, 0, 0, 0.24),
+    0 0 19px rgba(88, 240, 189, 0.22);
 }
 
 html[data-dashboard-ui="aurora"]
@@ -1118,4 +1145,4 @@ select {
     flex-wrap: wrap;
   }
 }
-/* End A7C177 Aurora soft 3D raised capsules */
+/* End A7C182 Aurora satin 3D capsules */
