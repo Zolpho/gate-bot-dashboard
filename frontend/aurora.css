@@ -896,18 +896,19 @@ select:hover {
 }
 /* End A7C162 shared Aurora topbar consistency */
 
-/* A7C199 Aurora socketed inset-luminous command row
-   Wide visual hierarchy:
+/* A7C203 Aurora high-contrast luminous recess command row
+   Accepted visual hierarchy is frozen:
    All accounts -> Change password -> Lock account -> Sync Gate
    -> Aurora | LIVE -> operator
 
    Physical model:
-   - near-black socket around each interactive control
-   - luminous inner surface recessed inside that socket
-   - mint/jade light concentrated at the internal upper edge
-   - deep black center produces actual cavity depth
-   - no green-outline-pill treatment
-   - LIVE/operator remain small passive jewels
+   - deep near-black cavity
+   - very bright INTERNAL upper mint edge
+   - secondary mint reflection immediately below that edge
+   - dark center creates separation from the topbar
+   - jade reflection returns at the lower inner edge
+   - essentially no luminous outer halo
+   - status/identity remain compact passive jewels
 */
 
 @media (min-width: 1460px) {
@@ -939,8 +940,7 @@ select:hover {
   }
 }
 
-/* Account is deliberately first because it must remain
-   the first persistent command-row control on every page. */
+/* Accepted order: do not reorder during this visual pass. */
 html[data-dashboard-ui="aurora"]
 #globalAccountSelector {
   order: 10;
@@ -983,12 +983,13 @@ html[data-dashboard-ui="aurora"]
   display: none;
 }
 
-/* Account selector remains comfortably readable. */
+/* Account selector gets more text room than the previous pass.
+   The final 38px is reserved for the browser-native chevron. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .account-selector {
-  flex: 0 0 138px;
-  min-width: 138px;
+  flex: 0 0 154px;
+  min-width: 154px;
   gap: 0;
 }
 
@@ -996,16 +997,16 @@ html[data-dashboard-ui="aurora"]
 .top-actions
 .account-selector
 select {
-  width: 138px;
-  min-width: 138px;
+  width: 154px;
+  min-width: 154px;
   padding:
     6px
-    34px
+    38px
     6px
-    14px;
+    15px;
 }
 
-/* Shared compact geometry. */
+/* Compact dimensions remain unchanged. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button,
@@ -1027,9 +1028,8 @@ html[data-dashboard-ui="aurora"]
   padding: 6px 12px;
 }
 
-/* SOCKETED SECONDARY CONTROL
-   The outer edge is intentionally dark rather than green.
-   Depth comes from internal light/shadow, not an outline. */
+/* HIGH-CONTRAST LUMINOUS RECESS.
+   The visible mint belongs to the INNER wall, never the outside. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.secondary,
@@ -1039,51 +1039,56 @@ html[data-dashboard-ui="aurora"]
 select {
   border:
     1px solid
-    rgba(0, 8, 5, 0.98);
+    rgba(0, 7, 4, 1);
 
   background:
     radial-gradient(
-      100% 78% at 50% 2%,
-      rgba(176, 255, 222, 0.42) 0%,
-      rgba(93, 239, 179, 0.24) 15%,
-      rgba(38, 136, 93, 0.10) 31%,
-      rgba(9, 43, 28, 0.01) 51%,
-      rgba(2, 14, 9, 0) 65%
+      112% 66% at 50% -2%,
+      rgba(210, 255, 237, 0.60) 0%,
+      rgba(126, 255, 201, 0.40) 11%,
+      rgba(58, 215, 148, 0.22) 23%,
+      rgba(17, 105, 68, 0.07) 36%,
+      rgba(2, 18, 11, 0) 54%
     ),
     linear-gradient(
       180deg,
-      rgba(13, 50, 34, 1) 0%,
-      rgba(5, 27, 18, 1) 16%,
-      rgba(2, 15, 10, 1) 43%,
-      rgba(1, 10, 6, 1) 72%,
-      rgba(4, 24, 16, 1) 100%
+      rgba(8, 39, 25, 1) 0%,
+      rgba(3, 21, 13, 1) 18%,
+      rgba(1, 11, 7, 1) 46%,
+      rgba(0, 7, 4, 1) 70%,
+      rgba(3, 21, 13, 1) 100%
     );
 
   color:
-    rgba(229, 248, 240, 0.95);
+    rgba(233, 250, 243, 0.96);
 
   text-shadow:
     0 1px 1px
-    rgba(0, 0, 0, 0.78);
+    rgba(0, 0, 0, 0.82);
 
   box-shadow:
+    /* black socket */
     0 0 0 2px
-      rgba(0, 9, 6, 0.72),
+      rgba(0, 5, 3, 0.82),
 
+    /* razor-bright inner lip */
     inset 0 1px 0
-      rgba(190, 255, 228, 0.50),
+      rgba(220, 255, 241, 0.80),
 
-    inset 0 3px 0
-      rgba(54, 168, 116, 0.28),
+    /* mint wall below lip */
+    inset 0 2px 0
+      rgba(112, 255, 192, 0.42),
 
-    inset 0 7px 13px
-      rgba(0, 0, 0, 0.64),
+    /* deep center */
+    inset 0 7px 14px
+      rgba(0, 0, 0, 0.78),
 
+    /* lower jade reflection */
     inset 0 -1px 0
-      rgba(86, 228, 165, 0.25),
+      rgba(105, 244, 180, 0.34),
 
-    inset 0 -5px 9px
-      rgba(22, 114, 76, 0.12);
+    inset 0 -4px 8px
+      rgba(21, 125, 80, 0.15);
 
   outline: none;
 }
@@ -1097,40 +1102,40 @@ html[data-dashboard-ui="aurora"]
 select:hover {
   background:
     radial-gradient(
-      100% 80% at 50% 2%,
-      rgba(195, 255, 231, 0.51) 0%,
-      rgba(105, 255, 190, 0.31) 16%,
-      rgba(42, 157, 105, 0.13) 33%,
-      rgba(9, 47, 31, 0.01) 52%,
-      rgba(2, 14, 9, 0) 66%
+      112% 68% at 50% -2%,
+      rgba(225, 255, 243, 0.70) 0%,
+      rgba(143, 255, 211, 0.48) 11%,
+      rgba(66, 232, 159, 0.27) 24%,
+      rgba(19, 121, 77, 0.08) 38%,
+      rgba(2, 19, 12, 0) 55%
     ),
     linear-gradient(
       180deg,
-      rgba(15, 58, 39, 1) 0%,
-      rgba(6, 31, 21, 1) 17%,
-      rgba(2, 17, 11, 1) 44%,
-      rgba(1, 11, 7, 1) 72%,
-      rgba(5, 28, 18, 1) 100%
+      rgba(9, 46, 29, 1) 0%,
+      rgba(3, 24, 15, 1) 18%,
+      rgba(1, 12, 7, 1) 46%,
+      rgba(0, 8, 5, 1) 70%,
+      rgba(4, 24, 15, 1) 100%
     );
 
   box-shadow:
     0 0 0 2px
-      rgba(0, 10, 7, 0.72),
+      rgba(0, 5, 3, 0.82),
 
     inset 0 1px 0
-      rgba(207, 255, 235, 0.59),
+      rgba(235, 255, 247, 0.88),
 
-    inset 0 3px 0
-      rgba(64, 194, 132, 0.34),
+    inset 0 2px 0
+      rgba(132, 255, 202, 0.50),
 
-    inset 0 7px 13px
-      rgba(0, 0, 0, 0.59),
+    inset 0 7px 14px
+      rgba(0, 0, 0, 0.73),
 
     inset 0 -1px 0
-      rgba(102, 245, 178, 0.29),
+      rgba(119, 255, 192, 0.39),
 
-    inset 0 -6px 10px
-      rgba(26, 137, 91, 0.15);
+    inset 0 -4px 9px
+      rgba(25, 145, 91, 0.18);
 }
 
 html[data-dashboard-ui="aurora"]
@@ -1140,32 +1145,32 @@ html[data-dashboard-ui="aurora"]
 
   background:
     radial-gradient(
-      95% 70% at 50% 1%,
-      rgba(117, 231, 183, 0.23) 0%,
-      rgba(25, 99, 67, 0.07) 35%,
-      rgba(2, 14, 9, 0) 62%
+      105% 55% at 50% -2%,
+      rgba(145, 244, 200, 0.26) 0%,
+      rgba(35, 131, 88, 0.08) 30%,
+      rgba(1, 12, 7, 0) 54%
     ),
     linear-gradient(
       180deg,
-      rgba(4, 25, 17, 1) 0%,
-      rgba(1, 11, 7, 1) 100%
+      rgba(3, 22, 14, 1) 0%,
+      rgba(0, 8, 5, 1) 100%
     );
 
   box-shadow:
     0 0 0 2px
-      rgba(0, 8, 5, 0.78),
+      rgba(0, 4, 2, 0.88),
 
     inset 0 1px 0
-      rgba(102, 220, 167, 0.19),
+      rgba(113, 224, 174, 0.24),
 
-    inset 0 8px 15px
-      rgba(0, 0, 0, 0.78),
+    inset 0 9px 16px
+      rgba(0, 0, 0, 0.88),
 
     inset 0 -1px 0
-      rgba(63, 187, 134, 0.13);
+      rgba(71, 191, 137, 0.16);
 }
 
-/* Sync Gate = same socket physics, but brighter internal energy. */
+/* Sync Gate: same recessed construction, with much higher internal energy. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.primary {
@@ -1179,29 +1184,29 @@ html[data-dashboard-ui="aurora"]
 
   border:
     1px solid
-    rgba(0, 18, 11, 0.98);
+    rgba(0, 13, 8, 1);
 
   background:
     radial-gradient(
-      102% 84% at 50% 1%,
-      rgba(244, 255, 187, 0.55) 0%,
-      rgba(185, 255, 222, 0.59) 13%,
-      rgba(91, 255, 185, 0.43) 29%,
-      rgba(34, 181, 119, 0.23) 47%,
-      rgba(7, 70, 45, 0.02) 65%,
-      rgba(4, 42, 28, 0) 73%
+      112% 70% at 50% -2%,
+      rgba(250, 255, 205, 0.73) 0%,
+      rgba(212, 255, 234, 0.77) 9%,
+      rgba(128, 255, 202, 0.58) 21%,
+      rgba(54, 230, 151, 0.35) 35%,
+      rgba(18, 136, 85, 0.13) 49%,
+      rgba(4, 50, 31, 0) 65%
     ),
     linear-gradient(
       180deg,
-      rgba(31, 147, 99, 1) 0%,
-      rgba(15, 102, 68, 1) 20%,
-      rgba(7, 65, 43, 1) 49%,
-      rgba(3, 41, 27, 1) 76%,
-      rgba(7, 67, 43, 1) 100%
+      rgba(24, 137, 89, 1) 0%,
+      rgba(10, 87, 56, 1) 20%,
+      rgba(4, 53, 34, 1) 48%,
+      rgba(1, 29, 18, 1) 72%,
+      rgba(5, 62, 39, 1) 100%
     );
 
   color:
-    rgba(234, 255, 246, 0.99);
+    rgba(238, 255, 248, 0.99);
 
   font-size: 11.5px;
   font-weight: 760;
@@ -1209,29 +1214,26 @@ html[data-dashboard-ui="aurora"]
 
   text-shadow:
     0 1px 1px
-    rgba(0, 40, 25, 0.80);
+    rgba(0, 36, 22, 0.82);
 
   box-shadow:
     0 0 0 2px
-      rgba(0, 17, 11, 0.72),
+      rgba(0, 11, 7, 0.80),
 
     inset 0 1px 0
-      rgba(225, 255, 241, 0.66),
+      rgba(240, 255, 249, 0.88),
 
-    inset 0 3px 0
-      rgba(126, 255, 199, 0.35),
+    inset 0 2px 0
+      rgba(159, 255, 215, 0.55),
 
-    inset 0 7px 13px
-      rgba(0, 42, 25, 0.53),
+    inset 0 7px 14px
+      rgba(0, 33, 20, 0.66),
 
     inset 0 -1px 0
-      rgba(135, 255, 200, 0.34),
+      rgba(146, 255, 204, 0.45),
 
-    inset 0 -6px 11px
-      rgba(31, 190, 121, 0.21),
-
-    0 0 9px
-      rgba(73, 236, 164, 0.08);
+    inset 0 -5px 10px
+      rgba(27, 181, 112, 0.24);
 }
 
 html[data-dashboard-ui="aurora"]
@@ -1239,47 +1241,44 @@ html[data-dashboard-ui="aurora"]
 .button.primary:hover:not(:disabled) {
   background:
     radial-gradient(
-      102% 84% at 50% 1%,
-      rgba(250, 255, 203, 0.63) 0%,
-      rgba(202, 255, 231, 0.67) 14%,
-      rgba(103, 255, 193, 0.48) 30%,
-      rgba(38, 199, 130, 0.26) 48%,
-      rgba(8, 76, 49, 0.02) 66%,
-      rgba(4, 44, 29, 0) 74%
+      112% 70% at 50% -2%,
+      rgba(255, 255, 219, 0.81) 0%,
+      rgba(225, 255, 241, 0.84) 9%,
+      rgba(143, 255, 211, 0.65) 21%,
+      rgba(63, 246, 164, 0.41) 35%,
+      rgba(21, 151, 94, 0.16) 50%,
+      rgba(4, 55, 34, 0) 66%
     ),
     linear-gradient(
       180deg,
-      rgba(35, 161, 108, 1) 0%,
-      rgba(17, 113, 75, 1) 21%,
-      rgba(8, 72, 48, 1) 50%,
-      rgba(3, 45, 30, 1) 76%,
-      rgba(8, 74, 48, 1) 100%
+      rgba(27, 153, 99, 1) 0%,
+      rgba(11, 97, 63, 1) 20%,
+      rgba(4, 59, 38, 1) 48%,
+      rgba(1, 32, 20, 1) 72%,
+      rgba(6, 69, 44, 1) 100%
     );
 
   box-shadow:
     0 0 0 2px
-      rgba(0, 18, 12, 0.72),
+      rgba(0, 12, 7, 0.80),
 
     inset 0 1px 0
-      rgba(235, 255, 246, 0.73),
+      rgba(248, 255, 251, 0.94),
 
-    inset 0 3px 0
-      rgba(141, 255, 208, 0.41),
+    inset 0 2px 0
+      rgba(176, 255, 224, 0.62),
 
-    inset 0 7px 13px
-      rgba(0, 40, 24, 0.49),
+    inset 0 7px 14px
+      rgba(0, 31, 19, 0.61),
 
     inset 0 -1px 0
-      rgba(151, 255, 211, 0.37),
+      rgba(161, 255, 214, 0.50),
 
-    inset 0 -6px 12px
-      rgba(36, 210, 132, 0.24),
-
-    0 0 11px
-      rgba(82, 244, 173, 0.10);
+    inset 0 -5px 11px
+      rgba(32, 204, 126, 0.28);
 }
 
-/* LIVE stays yellow/chartreuse and visually passive. */
+/* LIVE remains the chartreuse active-state jewel. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .mode-badge {
@@ -1352,7 +1351,7 @@ html[data-dashboard-ui="aurora"]
       rgba(217, 237, 98, 0.68);
 }
 
-/* Operator remains a jade passive identity jewel. */
+/* Operator remains a compact jade identity jewel. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .admin-identity {
@@ -1438,7 +1437,7 @@ html[data-dashboard-ui="aurora"]
 .dashboard-ui-select:focus-visible {
   outline:
     2px solid
-    rgba(93, 235, 181, 0.27);
+    rgba(98, 244, 187, 0.31);
 
   outline-offset: 3px;
 }
@@ -1465,8 +1464,8 @@ html[data-dashboard-ui="aurora"]
   html[data-dashboard-ui="aurora"]
   .top-actions
   .account-selector {
-    flex: 1 1 138px;
+    flex: 1 1 154px;
   }
 }
 
-/* End A7C199 Aurora socketed inset-luminous command row */
+/* End A7C203 Aurora high-contrast luminous recess command row */

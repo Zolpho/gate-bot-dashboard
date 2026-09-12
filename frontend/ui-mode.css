@@ -98,7 +98,7 @@ html[data-dashboard-ui="aurora"]
 }
 /* End A7C162 Aurora Interface control presentation */
 
-/* A7C199 Aurora socketed Interface control */
+/* A7C203 Aurora high-contrast luminous Interface recess */
 html[data-dashboard-ui="aurora"]
 .dashboard-ui-switcher {
   flex: 0 0 auto;
@@ -114,15 +114,15 @@ html[data-dashboard-ui="aurora"]
 
 html[data-dashboard-ui="aurora"]
 .dashboard-ui-select {
-  width: 112px;
-  min-width: 112px;
+  width: 116px;
+  min-width: 116px;
 
   min-height: 34px;
   height: 34px;
 
   padding:
     6px
-    34px
+    36px
     6px
     14px;
 
@@ -130,28 +130,28 @@ html[data-dashboard-ui="aurora"]
 
   border:
     1px solid
-    rgba(0, 8, 5, 0.98);
+    rgba(0, 7, 4, 1);
 
   background:
     radial-gradient(
-      100% 78% at 50% 2%,
-      rgba(176, 255, 222, 0.42) 0%,
-      rgba(93, 239, 179, 0.24) 15%,
-      rgba(38, 136, 93, 0.10) 31%,
-      rgba(9, 43, 28, 0.01) 51%,
-      rgba(2, 14, 9, 0) 65%
+      112% 66% at 50% -2%,
+      rgba(210, 255, 237, 0.60) 0%,
+      rgba(126, 255, 201, 0.40) 11%,
+      rgba(58, 215, 148, 0.22) 23%,
+      rgba(17, 105, 68, 0.07) 36%,
+      rgba(2, 18, 11, 0) 54%
     ),
     linear-gradient(
       180deg,
-      rgba(13, 50, 34, 1) 0%,
-      rgba(5, 27, 18, 1) 16%,
-      rgba(2, 15, 10, 1) 43%,
-      rgba(1, 10, 6, 1) 72%,
-      rgba(4, 24, 16, 1) 100%
+      rgba(8, 39, 25, 1) 0%,
+      rgba(3, 21, 13, 1) 18%,
+      rgba(1, 11, 7, 1) 46%,
+      rgba(0, 7, 4, 1) 70%,
+      rgba(3, 21, 13, 1) 100%
     );
 
   color:
-    rgba(229, 248, 240, 0.95);
+    rgba(233, 250, 243, 0.96);
 
   font-size: 11.5px;
   font-weight: 650;
@@ -159,66 +159,66 @@ html[data-dashboard-ui="aurora"]
 
   text-shadow:
     0 1px 1px
-    rgba(0, 0, 0, 0.78);
+    rgba(0, 0, 0, 0.82);
 
   box-shadow:
     0 0 0 2px
-      rgba(0, 9, 6, 0.72),
+      rgba(0, 5, 3, 0.82),
 
     inset 0 1px 0
-      rgba(190, 255, 228, 0.50),
+      rgba(220, 255, 241, 0.80),
 
-    inset 0 3px 0
-      rgba(54, 168, 116, 0.28),
+    inset 0 2px 0
+      rgba(112, 255, 192, 0.42),
 
-    inset 0 7px 13px
-      rgba(0, 0, 0, 0.64),
+    inset 0 7px 14px
+      rgba(0, 0, 0, 0.78),
 
     inset 0 -1px 0
-      rgba(86, 228, 165, 0.25),
+      rgba(105, 244, 180, 0.34),
 
-    inset 0 -5px 9px
-      rgba(22, 114, 76, 0.12);
+    inset 0 -4px 8px
+      rgba(21, 125, 80, 0.15);
 }
 
 html[data-dashboard-ui="aurora"]
 .dashboard-ui-select:hover {
   background:
     radial-gradient(
-      100% 80% at 50% 2%,
-      rgba(195, 255, 231, 0.51) 0%,
-      rgba(105, 255, 190, 0.31) 16%,
-      rgba(42, 157, 105, 0.13) 33%,
-      rgba(9, 47, 31, 0.01) 52%,
-      rgba(2, 14, 9, 0) 66%
+      112% 68% at 50% -2%,
+      rgba(225, 255, 243, 0.70) 0%,
+      rgba(143, 255, 211, 0.48) 11%,
+      rgba(66, 232, 159, 0.27) 24%,
+      rgba(19, 121, 77, 0.08) 38%,
+      rgba(2, 19, 12, 0) 55%
     ),
     linear-gradient(
       180deg,
-      rgba(15, 58, 39, 1) 0%,
-      rgba(6, 31, 21, 1) 17%,
-      rgba(2, 17, 11, 1) 44%,
-      rgba(1, 11, 7, 1) 72%,
-      rgba(5, 28, 18, 1) 100%
+      rgba(9, 46, 29, 1) 0%,
+      rgba(3, 24, 15, 1) 18%,
+      rgba(1, 12, 7, 1) 46%,
+      rgba(0, 8, 5, 1) 70%,
+      rgba(4, 24, 15, 1) 100%
     );
 
   box-shadow:
     0 0 0 2px
-      rgba(0, 10, 7, 0.72),
+      rgba(0, 5, 3, 0.82),
 
     inset 0 1px 0
-      rgba(207, 255, 235, 0.59),
+      rgba(235, 255, 247, 0.88),
 
-    inset 0 3px 0
-      rgba(64, 194, 132, 0.34),
+    inset 0 2px 0
+      rgba(132, 255, 202, 0.50),
 
-    inset 0 7px 13px
-      rgba(0, 0, 0, 0.59),
+    inset 0 7px 14px
+      rgba(0, 0, 0, 0.73),
 
     inset 0 -1px 0
-      rgba(102, 245, 178, 0.29),
+      rgba(119, 255, 192, 0.39),
 
-    inset 0 -6px 10px
-      rgba(26, 137, 91, 0.15);
+    inset 0 -4px 9px
+      rgba(25, 145, 91, 0.18);
 }
 
-/* End A7C199 Aurora socketed Interface control */
+/* End A7C203 Aurora high-contrast luminous Interface recess */
