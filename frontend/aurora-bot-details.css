@@ -63,8 +63,14 @@
    ========================================================= */
 
 #botDialog .dialog-header {
-  position: sticky;
-  top: 0;
+  /*
+   * The dialog shell clips, while .dialog-content owns
+   * vertical scrolling. Keep this header positioned so
+   * its decorative ::before remains locally anchored,
+   * but do not make it sticky: sticky positioning lets
+   * it overlay section headings in the inner scroller.
+   */
+  position: relative;
   z-index: 5;
   display: flex;
   gap: 18px;
