@@ -1,0 +1,205 @@
+/*
+ * Aurora Wallet Motion Contract — A7C294
+ *
+ * Purpose:
+ * - preserve existing desktop Deposit / Withdrawal presentation;
+ * - give stacked tablet layouts intentional motion rather than
+ *   letting historical responsive overrides disable it completely;
+ * - keep motion presentation-only;
+ * - respect reduced-motion preferences.
+ *
+ * This file is intentionally loaded after aurora-deposit.css and
+ * aurora-withdrawal.css so motion semantics have one clear owner.
+ */
+
+
+/* ============================================================
+   TABLET / NARROW DESKTOP
+   Keep the established one-column geometry.
+   Animate state changes inside that geometry.
+   ============================================================ */
+
+@media (max-width: 1180px) {
+
+  /*
+   * ----------------------------------------------------------
+   * DEPOSIT
+   *
+   * Deposit stages are already physically present. app.js
+   * changes deposit-step-disabled as Asset -> Network ->
+   * Address becomes available.
+   *
+   * Historical Aurora rules animate visual properties only.
+   * Add a small vertical progression so a newly-enabled stage
+   * visibly settles into place on tablet layouts.
+   * ----------------------------------------------------------
+   */
+
+  #walletDepositsWorkspace
+  .deposit-step {
+    transition:
+      transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      background-color 180ms ease !important;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-step.deposit-step-disabled {
+    transform:
+      translateY(8px) !important;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-step:not(.deposit-step-disabled) {
+    transform:
+      translateY(0) !important;
+  }
+
+
+  /*
+   * The completed Network selector changes between the compact
+   * selected-route view and the expanded chooser.
+   *
+   * Existing CSS owns the actual collapsed/expanded heights.
+   * This layer only gives that max-height change a transition.
+   */
+
+  #walletDepositsWorkspace
+  #depositDialog:has(
+    #depositDetailsStep:not(.deposit-step-disabled)
+  )
+  #depositNetworkList {
+    transition:
+      max-height 190ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      border-color 160ms ease,
+      background-color 160ms ease,
+      box-shadow 160ms ease !important;
+  }
+
+
+  /*
+   * ----------------------------------------------------------
+   * WITHDRAWAL
+   *
+   * At <=1180px the established responsive design intentionally
+   * stacks Destination / Safety / Request into one column.
+   *
+   * Historical responsive layers also force every stage transform
+   * to none, which removes the desktop sense of progression.
+   *
+   * Preserve the one-column layout. Restore only restrained
+   * vertical movement as the projected data-aurora-phase changes.
+   * No perspective or 3D movement is reintroduced on tablet.
+   * ----------------------------------------------------------
+   */
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage {
+    transition:
+      transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      background-color 180ms ease !important;
+  }
+
+
+  /* Route is current. */
+
+  #treasuryWithdrawalAction[data-aurora-phase="route"]
+  .aurora-withdrawal-stage-destination {
+    transform:
+      translateY(-4px) !important;
+  }
+
+  #treasuryWithdrawalAction[data-aurora-phase="route"]
+  .aurora-withdrawal-stage-safety {
+    transform:
+      translateY(6px) !important;
+  }
+
+  #treasuryWithdrawalAction[data-aurora-phase="route"]
+  .aurora-withdrawal-stage-request {
+    transform:
+      translateY(10px) !important;
+  }
+
+
+  /* Safety / preflight is current. */
+
+  #treasuryWithdrawalAction[data-aurora-phase="safety"]
+  .aurora-withdrawal-stage-destination {
+    transform:
+      translateY(0) !important;
+  }
+
+  #treasuryWithdrawalAction[data-aurora-phase="safety"]
+  .aurora-withdrawal-stage-safety {
+    transform:
+      translateY(-4px) !important;
+  }
+
+  #treasuryWithdrawalAction[data-aurora-phase="safety"]
+  .aurora-withdrawal-stage-request {
+    transform:
+      translateY(6px) !important;
+  }
+
+
+  /* Request is current. */
+
+  #treasuryWithdrawalAction[data-aurora-phase="request"]
+  .aurora-withdrawal-stage-destination,
+  #treasuryWithdrawalAction[data-aurora-phase="request"]
+  .aurora-withdrawal-stage-safety {
+    transform:
+      translateY(0) !important;
+  }
+
+  #treasuryWithdrawalAction[data-aurora-phase="request"]
+  .aurora-withdrawal-stage-request {
+    transform:
+      translateY(-4px) !important;
+  }
+}
+
+
+/* ============================================================
+   REDUCED MOTION
+   This must remain authoritative even on tablet.
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+
+  #walletDepositsWorkspace
+  .deposit-step,
+
+  #walletDepositsWorkspace
+  #depositDialog:has(
+    #depositDetailsStep:not(.deposit-step-disabled)
+  )
+  #depositNetworkList,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage {
+    transition:
+      none !important;
+  }
+
+  #walletDepositsWorkspace
+  .deposit-step,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-destination,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-safety,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-request {
+    transform:
+      none !important;
+  }
+}
