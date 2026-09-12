@@ -170,7 +170,7 @@ def test_market_symbol_slots_remain_inline_flex():
 
 def test_new_aurora_cache_key_is_served_once():
     version = (
-        "20260912-aurora-bot-control-market-symbols-a7c273-v1"
+        "20260912-aurora-bot-control-live-warning-a7c282-v1"
     )
 
     assert (

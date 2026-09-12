@@ -1006,7 +1006,7 @@
 
 #spotGridConfirmDialog {
   width: min(
-    46rem,
+    52rem,
     calc(100vw - 2rem)
   );
   max-height:
@@ -1148,6 +1148,17 @@
   box-shadow:
     inset 3px 0 0
       rgba(247, 188, 75, 0.48);
+}
+
+/*
+ * Keep the live-write warning as a single desktop sentence.
+ * Narrow layouts retain normal wrapping.
+ */
+@media (min-width: 860px) {
+  #spotGridConfirmDialog
+  #botCreateDisabledNotice.enabled {
+    white-space: nowrap;
+  }
 }
 
 #spotGridConfirmDialog .bot-control-confirm-input {

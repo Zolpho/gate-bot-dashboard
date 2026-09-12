@@ -263,7 +263,7 @@ def test_changed_assets_use_new_cache_key():
         "20260912-bot-control-live-ux-a7c240-v1"
     )
     aurora_scroll_version = (
-        "20260912-aurora-bot-control-market-symbols-a7c273-v1"
+        "20260912-aurora-bot-control-live-warning-a7c282-v1"
     )
 
     for asset in (
