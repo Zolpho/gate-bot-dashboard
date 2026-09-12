@@ -98,56 +98,61 @@ html[data-dashboard-ui="aurora"]
 }
 /* End A7C162 Aurora Interface control presentation */
 
-/* A7C182 Aurora Interface satin 3D capsule */
+/* A7C187 Aurora compact premium Interface control */
 html[data-dashboard-ui="aurora"]
 .dashboard-ui-select {
-  min-height: 42px;
+  min-height: 35px;
+  height: 35px;
   border-radius: 999px;
-  border: 1px solid rgba(128, 255, 210, 0.48);
+  border: 1px solid rgba(99, 217, 171, 0.34);
   background:
     linear-gradient(
       180deg,
-      rgba(73, 137, 108, 0.96) 0%,
-      rgba(45, 103, 79, 0.98) 16%,
-      rgba(27, 73, 54, 0.99) 38%,
-      rgba(15, 47, 35, 1) 67%,
-      rgba(7, 29, 21, 1) 100%
+      rgba(48, 82, 65, 0.98) 0%,
+      rgba(27, 55, 43, 0.99) 17%,
+      rgba(17, 39, 30, 1) 52%,
+      rgba(8, 25, 19, 1) 100%
     );
-  box-shadow:
-    inset 0 1px 0 rgba(235, 255, 248, 0.24),
-    inset 0 2px 5px rgba(213, 255, 239, 0.05),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.50),
-    0 1px 0 rgba(179, 255, 230, 0.18),
-    0 4px 0 rgba(1, 33, 23, 0.98),
-    0 9px 20px rgba(0, 0, 0, 0.31),
-    0 0 20px rgba(88, 240, 189, 0.12);
-  color: rgba(232, 255, 247, 0.93);
+  color: rgba(233, 250, 243, 0.91);
+  font-size: 12px;
   font-weight: 650;
+  line-height: 1;
   text-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.62);
+    0 1px 1px rgba(0, 0, 0, 0.56);
+  box-shadow:
+    inset 0 1px 0 rgba(220, 255, 241, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.48),
+    0 1px 0 rgba(128, 238, 194, 0.10),
+    0 2px 0 rgba(2, 21, 15, 0.96),
+    0 5px 12px rgba(0, 0, 0, 0.24),
+    0 0 11px rgba(88, 240, 189, 0.055);
 }
 
 html[data-dashboard-ui="aurora"]
 .dashboard-ui-select:hover {
   transform: translateY(-1px);
-  border-color: rgba(163, 255, 222, 0.72);
+  border-color: rgba(125, 237, 194, 0.50);
   background:
     linear-gradient(
       180deg,
-      rgba(88, 159, 125, 0.98) 0%,
-      rgba(52, 119, 90, 0.99) 16%,
-      rgba(30, 82, 60, 1) 40%,
-      rgba(16, 52, 38, 1) 68%,
-      rgba(8, 32, 23, 1) 100%
+      rgba(56, 95, 75, 0.99) 0%,
+      rgba(31, 64, 49, 1) 19%,
+      rgba(19, 44, 34, 1) 54%,
+      rgba(9, 28, 21, 1) 100%
     );
   box-shadow:
-    inset 0 1px 0 rgba(244, 255, 251, 0.31),
-    inset 0 2px 6px rgba(218, 255, 241, 0.07),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-    0 1px 0 rgba(198, 255, 236, 0.22),
-    0 5px 0 rgba(1, 35, 25, 0.98),
-    0 11px 24px rgba(0, 0, 0, 0.34),
-    0 0 27px rgba(88, 240, 189, 0.18);
+    inset 0 1px 0 rgba(230, 255, 246, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.43),
+    0 1px 0 rgba(155, 246, 210, 0.12),
+    0 3px 0 rgba(2, 23, 16, 0.96),
+    0 7px 14px rgba(0, 0, 0, 0.26),
+    0 0 14px rgba(88, 240, 189, 0.08);
+}
+
+html[data-dashboard-ui="aurora"]
+.dashboard-ui-switcher
+> :not(.dashboard-ui-select) {
+  display: none;
 }
 
 @media (min-width: 1460px) {
@@ -159,8 +164,8 @@ html[data-dashboard-ui="aurora"]
 
   html[data-dashboard-ui="aurora"]
   .dashboard-ui-select {
-    width: 106px;
-    min-width: 106px;
+    width: 96px;
+    min-width: 96px;
   }
 }
-/* End A7C182 Aurora Interface satin 3D capsule */
+/* End A7C187 Aurora compact premium Interface control */

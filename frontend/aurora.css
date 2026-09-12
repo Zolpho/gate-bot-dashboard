@@ -896,22 +896,23 @@ select:hover {
 }
 /* End A7C162 shared Aurora topbar consistency */
 
-/* A7C182 Aurora satin 3D capsules
-   - preserve the accepted wide-desktop composition
-   - move deliberately closer to the visual concept
-   - use brighter satin faces, luminous rims and a visible underside
-   - unify selectors, status capsules and secondary actions
-   - keep Sync Gate as the hero mint capsule
+/* A7C187 Aurora compact premium topbar
+   Direction:
+   - smaller controls and less visual mass
+   - dark sculpted emerald/graphite surfaces
+   - mint edge light with restrained chartreuse/yellow accents
+   - LIVE becomes a micro status jewel, not an action
+   - Sync Gate remains the compact hero action
 */
 @media (min-width: 1460px) {
   html[data-dashboard-ui="aurora"] .topbar {
     display: grid;
     grid-template-columns:
-      minmax(190px, 1fr)
+      minmax(205px, 1fr)
       auto
       auto;
     align-items: start;
-    column-gap: 12px;
+    column-gap: 10px;
     row-gap: 0;
   }
 
@@ -928,82 +929,74 @@ select:hover {
     min-width: 0;
     flex-wrap: nowrap;
     justify-content: flex-end;
-    gap: 9px;
+    align-items: center;
+    gap: 7px;
   }
 
   html[data-dashboard-ui="aurora"]
   .top-actions
   .account-selector {
-    flex: 0 0 146px;
-    min-width: 134px;
+    flex: 0 0 128px;
+    min-width: 118px;
   }
 
   html[data-dashboard-ui="aurora"]
   .top-actions
   .account-selector
   select {
-    min-width: 134px;
+    min-width: 118px;
   }
 }
 
+/* Shared compact action geometry */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button,
 html[data-dashboard-ui="aurora"]
 .top-actions
 .account-selector
-select,
-html[data-dashboard-ui="aurora"]
-.top-actions
-.mode-badge,
-html[data-dashboard-ui="aurora"]
-.top-actions
-.admin-identity {
-  min-height: 42px;
+select {
+  min-height: 35px;
+  height: 35px;
   border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
   font-weight: 650;
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button {
-  padding: 9px 16px;
+  padding: 7px 13px;
 }
 
+/* Compact dark sculpted body */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.secondary,
 html[data-dashboard-ui="aurora"]
 .top-actions
 .account-selector
-select,
-html[data-dashboard-ui="aurora"]
-.top-actions
-.mode-badge,
-html[data-dashboard-ui="aurora"]
-.top-actions
-.admin-identity {
-  border: 1px solid rgba(128, 255, 210, 0.48);
+select {
+  border: 1px solid rgba(99, 217, 171, 0.34);
   background:
     linear-gradient(
       180deg,
-      rgba(73, 137, 108, 0.96) 0%,
-      rgba(45, 103, 79, 0.98) 16%,
-      rgba(27, 73, 54, 0.99) 38%,
-      rgba(15, 47, 35, 1) 67%,
-      rgba(7, 29, 21, 1) 100%
+      rgba(48, 82, 65, 0.98) 0%,
+      rgba(27, 55, 43, 0.99) 17%,
+      rgba(17, 39, 30, 1) 52%,
+      rgba(8, 25, 19, 1) 100%
     );
-  box-shadow:
-    inset 0 1px 0 rgba(235, 255, 248, 0.24),
-    inset 0 2px 5px rgba(213, 255, 239, 0.05),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.50),
-    0 1px 0 rgba(179, 255, 230, 0.18),
-    0 4px 0 rgba(1, 33, 23, 0.98),
-    0 9px 20px rgba(0, 0, 0, 0.31),
-    0 0 20px rgba(88, 240, 189, 0.12);
-  color: rgba(232, 255, 247, 0.93);
+  color: rgba(233, 250, 243, 0.91);
   text-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.62);
+    0 1px 1px rgba(0, 0, 0, 0.56);
+  box-shadow:
+    inset 0 1px 0 rgba(220, 255, 241, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.48),
+    0 1px 0 rgba(128, 238, 194, 0.10),
+    0 2px 0 rgba(2, 21, 15, 0.96),
+    0 5px 12px rgba(0, 0, 0, 0.24),
+    0 0 11px rgba(88, 240, 189, 0.055);
 }
 
 html[data-dashboard-ui="aurora"]
@@ -1014,124 +1007,216 @@ html[data-dashboard-ui="aurora"]
 .account-selector
 select:hover {
   transform: translateY(-1px);
-  border-color: rgba(163, 255, 222, 0.72);
+  border-color: rgba(125, 237, 194, 0.50);
   background:
     linear-gradient(
       180deg,
-      rgba(88, 159, 125, 0.98) 0%,
-      rgba(52, 119, 90, 0.99) 16%,
-      rgba(30, 82, 60, 1) 40%,
-      rgba(16, 52, 38, 1) 68%,
-      rgba(8, 32, 23, 1) 100%
+      rgba(56, 95, 75, 0.99) 0%,
+      rgba(31, 64, 49, 1) 19%,
+      rgba(19, 44, 34, 1) 54%,
+      rgba(9, 28, 21, 1) 100%
     );
   box-shadow:
-    inset 0 1px 0 rgba(244, 255, 251, 0.31),
-    inset 0 2px 6px rgba(218, 255, 241, 0.07),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-    0 1px 0 rgba(198, 255, 236, 0.22),
-    0 5px 0 rgba(1, 35, 25, 0.98),
-    0 11px 24px rgba(0, 0, 0, 0.34),
-    0 0 27px rgba(88, 240, 189, 0.18);
+    inset 0 1px 0 rgba(230, 255, 246, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.43),
+    0 1px 0 rgba(155, 246, 210, 0.12),
+    0 3px 0 rgba(2, 23, 16, 0.96),
+    0 7px 14px rgba(0, 0, 0, 0.26),
+    0 0 14px rgba(88, 240, 189, 0.08);
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.secondary:active:not(:disabled) {
-  transform: translateY(3px);
+  transform: translateY(2px);
   background:
     linear-gradient(
       180deg,
-      rgba(42, 96, 72, 0.98) 0%,
-      rgba(24, 67, 49, 1) 42%,
-      rgba(11, 39, 28, 1) 100%
+      rgba(31, 61, 48, 0.98) 0%,
+      rgba(18, 42, 32, 1) 52%,
+      rgba(9, 28, 21, 1) 100%
     );
   box-shadow:
-    inset 0 2px 5px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(220, 255, 243, 0.08),
-    0 1px 0 rgba(1, 32, 22, 0.98),
-    0 4px 10px rgba(0, 0, 0, 0.24),
-    0 0 12px rgba(88, 240, 189, 0.07);
+    inset 0 2px 4px rgba(0, 0, 0, 0.27),
+    inset 0 1px 0 rgba(220, 255, 242, 0.07),
+    0 1px 0 rgba(2, 21, 15, 0.96),
+    0 3px 7px rgba(0, 0, 0, 0.20);
+}
+
+/* Account selector remains visually captionless in Aurora */
+html[data-dashboard-ui="aurora"]
+.top-actions
+.account-selector-label {
+  display: none;
+}
+
+/* Operator identity is quieter and smaller than actions */
+html[data-dashboard-ui="aurora"]
+.top-actions
+.admin-identity {
+  min-height: 31px;
+  height: 31px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(91, 199, 157, 0.27);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(31, 63, 49, 0.94) 0%,
+      rgba(17, 40, 30, 0.98) 48%,
+      rgba(8, 27, 20, 1) 100%
+    );
+  color: rgba(182, 226, 207, 0.88);
+  font-size: 11px;
+  font-weight: 620;
+  line-height: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(216, 255, 239, 0.12),
+    0 1px 0 rgba(99, 220, 174, 0.08),
+    0 2px 0 rgba(2, 20, 14, 0.90),
+    0 4px 10px rgba(0, 0, 0, 0.18);
+}
+
+/* LIVE is status, not a button */
+html[data-dashboard-ui="aurora"]
+.top-actions
+.mode-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  height: 24px;
+  padding: 0 8px 0 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(199, 231, 104, 0.34);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(34, 52, 38, 0.98) 0%,
+      rgba(18, 31, 22, 1) 58%,
+      rgba(8, 19, 13, 1) 100%
+    );
+  color: rgba(226, 244, 171, 0.92);
+  font-size: 9px;
+  font-weight: 760;
+  line-height: 1;
+  letter-spacing: 0.065em;
+  text-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.58);
+  box-shadow:
+    inset 0 1px 0 rgba(238, 255, 196, 0.12),
+    0 1px 0 rgba(196, 228, 98, 0.12),
+    0 2px 0 rgba(2, 18, 11, 0.92),
+    0 0 9px rgba(211, 239, 98, 0.055);
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
+.mode-badge::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: #d7ee66;
+  box-shadow:
+    0 0 0 1px rgba(243, 217, 107, 0.18),
+    0 0 7px rgba(215, 238, 102, 0.65);
+}
+
+/* Compact hero action:
+   mint/emerald body with a small chartreuse aurora glint */
+html[data-dashboard-ui="aurora"]
+.top-actions
 .button.primary {
+  min-height: 35px;
+  height: 35px;
+  padding: 7px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(228, 255, 247, 0.98);
+  border: 1px solid rgba(224, 255, 240, 0.93);
   background:
     linear-gradient(
       180deg,
-      #d2fff1 0%,
-      #a7ffe3 14%,
-      #78f8d0 34%,
-      #52eabc 58%,
-      #38d7a5 79%,
-      #22b985 100%
+      #efffb2 0%,
+      #b6f8c8 9%,
+      #89f1bd 26%,
+      #58dda7 58%,
+      #35c58e 80%,
+      #24a978 100%
     );
-  color: #02261b;
+  color: #062419;
+  font-size: 12px;
   font-weight: 760;
+  line-height: 1;
   text-shadow:
-    0 1px rgba(255, 255, 255, 0.38);
+    0 1px rgba(255, 255, 255, 0.34);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    inset 0 2px 5px rgba(255, 255, 255, 0.22),
-    inset 0 -1px 0 rgba(3, 93, 67, 0.42),
-    0 1px 0 rgba(228, 255, 247, 0.52),
-    0 5px 0 rgba(9, 113, 79, 0.98),
-    0 10px 22px rgba(0, 0, 0, 0.32),
-    0 0 30px rgba(88, 240, 189, 0.34);
+    inset 0 1px 0 rgba(255, 255, 255, 0.79),
+    inset 0 -1px 0 rgba(3, 87, 61, 0.36),
+    0 1px 0 rgba(234, 255, 243, 0.37),
+    0 3px 0 rgba(8, 91, 63, 0.96),
+    0 7px 15px rgba(0, 0, 0, 0.27),
+    0 0 18px rgba(88, 240, 189, 0.22),
+    0 0 8px rgba(215, 238, 102, 0.08);
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  border-color: rgba(244, 255, 252, 1);
+  border-color: rgba(241, 255, 247, 1);
   background:
     linear-gradient(
       180deg,
-      #e8fff8 0%,
-      #bbffea 14%,
-      #8effd8 34%,
-      #61f2c4 58%,
-      #43dfaD 79%,
-      #29c28f 100%
+      #f5ffbe 0%,
+      #c3ffd3 9%,
+      #94f9c5 26%,
+      #63e9b1 58%,
+      #3fd399 80%,
+      #28b581 100%
     );
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 2px 6px rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(3, 93, 67, 0.36),
-    0 1px 0 rgba(239, 255, 250, 0.60),
-    0 6px 0 rgba(9, 113, 79, 0.98),
-    0 12px 25px rgba(0, 0, 0, 0.34),
-    0 0 38px rgba(88, 240, 189, 0.42);
+    inset 0 1px 0 rgba(255, 255, 255, 0.90),
+    inset 0 -1px 0 rgba(3, 87, 61, 0.31),
+    0 1px 0 rgba(240, 255, 247, 0.45),
+    0 4px 0 rgba(8, 91, 63, 0.96),
+    0 9px 18px rgba(0, 0, 0, 0.29),
+    0 0 22px rgba(88, 240, 189, 0.28),
+    0 0 10px rgba(215, 238, 102, 0.11);
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.primary:active:not(:disabled) {
-  transform: translateY(3px);
+  transform: translateY(2px);
   background:
     linear-gradient(
       180deg,
-      #8efbd8 0%,
-      #63edc1 38%,
-      #3fdba9 72%,
-      #25bd89 100%
+      #a8f5c7 0%,
+      #70e4af 40%,
+      #41cc96 72%,
+      #27ae7c 100%
     );
   box-shadow:
-    inset 0 2px 5px rgba(2, 92, 65, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.43),
-    0 1px 0 rgba(9, 113, 79, 0.98),
-    0 4px 10px rgba(0, 0, 0, 0.24),
-    0 0 19px rgba(88, 240, 189, 0.22);
+    inset 0 2px 4px rgba(2, 76, 53, 0.23),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 0 rgba(8, 91, 63, 0.96),
+    0 3px 7px rgba(0, 0, 0, 0.20),
+    0 0 12px rgba(88, 240, 189, 0.14);
 }
 
 html[data-dashboard-ui="aurora"]
 .top-actions
 .account-selector
-select {
-  border-radius: 999px;
+select:focus-visible,
+html[data-dashboard-ui="aurora"]
+.top-actions
+.button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(88, 240, 189, 0.19),
+    0 0 0 4px rgba(215, 238, 102, 0.075);
 }
 
 @media (max-width: 1459px) {
@@ -1143,6 +1228,7 @@ select {
   html[data-dashboard-ui="aurora"] .top-actions {
     flex: 1 1 100%;
     flex-wrap: wrap;
+    gap: 7px;
   }
 }
-/* End A7C182 Aurora satin 3D capsules */
+/* End A7C187 Aurora compact premium topbar */
