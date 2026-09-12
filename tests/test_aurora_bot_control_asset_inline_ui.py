@@ -197,7 +197,7 @@ def test_stop_return_host_remains_flexible_amount_row():
 
 def test_new_aurora_cache_key_is_served_once():
     version = (
-        "20260912-aurora-bot-control-asset-inline-a7c264-v1"
+        "20260912-aurora-bot-control-market-symbols-a7c273-v1"
     )
 
     assert (

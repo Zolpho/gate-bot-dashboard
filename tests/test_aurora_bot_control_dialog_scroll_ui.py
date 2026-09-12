@@ -296,7 +296,7 @@ def test_only_aurora_bot_control_cache_key_changed():
     )
 
     new_version = (
-        "20260912-aurora-bot-control-asset-inline-a7c264-v1"
+        "20260912-aurora-bot-control-market-symbols-a7c273-v1"
     )
 
     assert (
