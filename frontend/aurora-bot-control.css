@@ -546,7 +546,7 @@
 
 #tab-bot-control .aurora-bot-control-market-symbol-slot
 .aurora-symbol,
-#tab-bot-control .aurora-bot-control-asset-inline {
+#tab-bot-control .aurora-bot-control-asset-inline > .aurora-symbol {
   width: 0.98rem;
   height: 0.98rem;
 }
@@ -1121,7 +1121,7 @@
 
 #spotGridConfirmDialog .aurora-bot-control-market-symbol-slot
 .aurora-symbol,
-#spotGridConfirmDialog .aurora-bot-control-asset-inline {
+#spotGridConfirmDialog .aurora-bot-control-asset-inline > .aurora-symbol {
   width: 1rem;
   height: 1rem;
 }
@@ -1382,7 +1382,7 @@
 
 #stopBotConfirmDialog .aurora-bot-control-market-symbol-slot
 .aurora-symbol,
-#stopBotConfirmDialog .aurora-bot-control-asset-inline {
+#stopBotConfirmDialog .aurora-bot-control-asset-inline > .aurora-symbol {
   width: 1rem;
   height: 1rem;
 }
