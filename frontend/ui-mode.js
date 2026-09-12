@@ -93,7 +93,9 @@
 
     const host =
       document.querySelector(
-        '.topbar'
+        mode === 'aurora'
+          ? '.top-actions'
+          : '.topbar'
       );
 
     if (!host) {
