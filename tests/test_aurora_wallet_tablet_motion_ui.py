@@ -21,7 +21,7 @@ HTML = (
 )
 
 CACHE = (
-    "20260912-aurora-wallet-tablet-motion-a7c294-v1"
+    "20260912-aurora-wallet-tablet-motion-a7c303-v2"
 )
 
 
@@ -48,7 +48,7 @@ def test_motion_stylesheet_loads_after_withdrawal_css():
 
 def test_tablet_contract_preserves_existing_geometry():
     assert (
-        "@media (max-width: 1180px)"
+        "@media (max-width: 1320px)"
         in CSS
     )
 

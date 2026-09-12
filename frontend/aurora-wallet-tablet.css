@@ -1,0 +1,78 @@
+/* ============================================================
+   AURORA WALLET — TABLET GEOMETRY BRIDGE
+
+   Presentation only.
+
+   The historical Deposit / Withdrawal Aurora styles use
+   desktop multi-column minimums above 1180px. Real iPad Safari
+   can expose a 1210 CSS-pixel viewport, where those minimums
+   exceed the Wallet content column and cause clipping /
+   document-width overflow.
+
+   This layer owns responsive geometry only.
+
+   Motion remains owned by aurora-wallet-motion.css.
+   Shared application behavior remains untouched.
+   ============================================================ */
+
+@media (max-width: 1320px) {
+
+  /* ----------------------------------------------------------
+     DEPOSIT
+
+     Stack Asset / Network / Address vertically before the
+     final Address column's desktop minimum can force overflow.
+
+     !important is deliberate: several late historical
+     final-phase selectors have greater specificity.
+     ---------------------------------------------------------- */
+
+  #walletDepositsWorkspace
+  .deposit-dialog-content {
+
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      100% !important;
+  }
+
+
+  /* ----------------------------------------------------------
+     WITHDRAWAL
+
+     Phase-specific historical rules use !important three-column
+     minimums. Match their phase specificity and win by being the
+     final Aurora Wallet geometry layer.
+
+     Keep every stage present, but stack them vertically.
+     ---------------------------------------------------------- */
+
+  #treasuryWithdrawalAction
+  .aurora-withdrawal-stage-grid,
+
+  #treasuryWithdrawalAction[data-aurora-phase]
+  .aurora-withdrawal-stage-grid {
+
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+
+    grid-template-rows:
+      auto !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      100% !important;
+  }
+}
