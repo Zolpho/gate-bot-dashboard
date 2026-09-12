@@ -896,21 +896,20 @@ select:hover {
 }
 /* End A7C162 shared Aurora topbar consistency */
 
-/* A7C195 Aurora deep inset-luminous command row
-   Hierarchy:
-   actions/selectors -> Interface -> passive status/identity jewels
-
-   Wide authenticated visual order:
-   Change password -> All accounts -> Lock account -> Sync Gate
+/* A7C199 Aurora socketed inset-luminous command row
+   Wide visual hierarchy:
+   All accounts -> Change password -> Lock account -> Sync Gate
    -> Aurora | LIVE -> operator
 
    Physical model:
-   - secondary controls are recessed wells cut into the topbar
-   - near-black outer perimeter defines the cavity
-   - bright mint/jade light lives INSIDE the upper rim
-   - lower inner reflection adds dimensional depth
-   - secondary controls have no visible external glow
+   - near-black socket around each interactive control
+   - luminous inner surface recessed inside that socket
+   - mint/jade light concentrated at the internal upper edge
+   - deep black center produces actual cavity depth
+   - no green-outline-pill treatment
+   - LIVE/operator remain small passive jewels
 */
+
 @media (min-width: 1460px) {
   html[data-dashboard-ui="aurora"] .topbar {
     display: grid;
@@ -940,15 +939,15 @@ select:hover {
   }
 }
 
-/* Explicit Aurora order.
-   Hidden controls simply drop out without disturbing the sequence. */
+/* Account is deliberately first because it must remain
+   the first persistent command-row control on every page. */
 html[data-dashboard-ui="aurora"]
-#changePasswordButton {
+#globalAccountSelector {
   order: 10;
 }
 
 html[data-dashboard-ui="aurora"]
-#globalAccountSelector {
+#changePasswordButton {
   order: 20;
 }
 
@@ -970,6 +969,7 @@ html[data-dashboard-ui="aurora"]
 html[data-dashboard-ui="aurora"]
 #modeBadge {
   order: 60;
+  margin-left: 5px;
 }
 
 html[data-dashboard-ui="aurora"]
@@ -977,26 +977,18 @@ html[data-dashboard-ui="aurora"]
   order: 70;
 }
 
-/* Give the passive cluster breathing room from the controls. */
-html[data-dashboard-ui="aurora"]
-#modeBadge {
-  margin-left: 5px;
-}
-
-/* Visually hide the Account caption but retain the select's aria label. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .account-selector-label {
   display: none;
 }
 
-/* Restore selector readability.
-   Native select chevrons need real right-side room. */
+/* Account selector remains comfortably readable. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .account-selector {
-  flex: 0 0 136px;
-  min-width: 136px;
+  flex: 0 0 138px;
+  min-width: 138px;
   gap: 0;
 }
 
@@ -1004,16 +996,16 @@ html[data-dashboard-ui="aurora"]
 .top-actions
 .account-selector
 select {
-  width: 136px;
-  min-width: 136px;
+  width: 138px;
+  min-width: 138px;
   padding:
     6px
-    32px
+    34px
     6px
-    13px;
+    14px;
 }
 
-/* Shared compact control geometry. */
+/* Shared compact geometry. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button,
@@ -1035,8 +1027,9 @@ html[data-dashboard-ui="aurora"]
   padding: 6px 12px;
 }
 
-/* DEEP INSET WELL.
-   The cavity edge is near-black; all useful luminosity is internal. */
+/* SOCKETED SECONDARY CONTROL
+   The outer edge is intentionally dark rather than green.
+   Depth comes from internal light/shadow, not an outline. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .button.secondary,
@@ -1046,47 +1039,53 @@ html[data-dashboard-ui="aurora"]
 select {
   border:
     1px solid
-    rgba(2, 16, 11, 0.98);
+    rgba(0, 8, 5, 0.98);
 
   background:
     radial-gradient(
-      105% 92% at 50% 0%,
-      rgba(132, 255, 204, 0.30) 0%,
-      rgba(72, 215, 158, 0.17) 22%,
-      rgba(22, 80, 55, 0.05) 48%,
-      rgba(5, 21, 14, 0) 67%
+      100% 78% at 50% 2%,
+      rgba(176, 255, 222, 0.42) 0%,
+      rgba(93, 239, 179, 0.24) 15%,
+      rgba(38, 136, 93, 0.10) 31%,
+      rgba(9, 43, 28, 0.01) 51%,
+      rgba(2, 14, 9, 0) 65%
     ),
     linear-gradient(
       180deg,
-      rgba(8, 31, 21, 1) 0%,
-      rgba(4, 20, 13, 1) 43%,
-      rgba(2, 14, 9, 1) 100%
+      rgba(13, 50, 34, 1) 0%,
+      rgba(5, 27, 18, 1) 16%,
+      rgba(2, 15, 10, 1) 43%,
+      rgba(1, 10, 6, 1) 72%,
+      rgba(4, 24, 16, 1) 100%
     );
 
   color:
-    rgba(225, 246, 237, 0.94);
+    rgba(229, 248, 240, 0.95);
 
   text-shadow:
     0 1px 1px
-    rgba(0, 0, 0, 0.68);
+    rgba(0, 0, 0, 0.78);
 
   box-shadow:
-    inset 0 0 0 1px
-      rgba(86, 218, 165, 0.20),
-    inset 0 2px 0
-      rgba(168, 255, 220, 0.22),
-    inset 0 5px 10px
-      rgba(0, 0, 0, 0.48),
+    0 0 0 2px
+      rgba(0, 9, 6, 0.72),
+
+    inset 0 1px 0
+      rgba(190, 255, 228, 0.50),
+
+    inset 0 3px 0
+      rgba(54, 168, 116, 0.28),
+
+    inset 0 7px 13px
+      rgba(0, 0, 0, 0.64),
+
     inset 0 -1px 0
-      rgba(76, 196, 145, 0.16),
-    inset 0 -5px 10px
-      rgba(25, 102, 72, 0.055);
+      rgba(86, 228, 165, 0.25),
 
-  outline:
-    1px solid
-    rgba(37, 107, 78, 0.17);
+    inset 0 -5px 9px
+      rgba(22, 114, 76, 0.12);
 
-  outline-offset: -2px;
+  outline: none;
 }
 
 html[data-dashboard-ui="aurora"]
@@ -1096,38 +1095,42 @@ html[data-dashboard-ui="aurora"]
 .top-actions
 .account-selector
 select:hover {
-  border-color:
-    rgba(4, 23, 16, 0.98);
-
   background:
     radial-gradient(
-      105% 92% at 50% 0%,
-      rgba(153, 255, 216, 0.38) 0%,
-      rgba(77, 235, 169, 0.22) 24%,
-      rgba(22, 91, 62, 0.07) 50%,
-      rgba(5, 22, 15, 0) 68%
+      100% 80% at 50% 2%,
+      rgba(195, 255, 231, 0.51) 0%,
+      rgba(105, 255, 190, 0.31) 16%,
+      rgba(42, 157, 105, 0.13) 33%,
+      rgba(9, 47, 31, 0.01) 52%,
+      rgba(2, 14, 9, 0) 66%
     ),
     linear-gradient(
       180deg,
-      rgba(9, 37, 25, 1) 0%,
-      rgba(4, 23, 15, 1) 44%,
-      rgba(2, 15, 10, 1) 100%
+      rgba(15, 58, 39, 1) 0%,
+      rgba(6, 31, 21, 1) 17%,
+      rgba(2, 17, 11, 1) 44%,
+      rgba(1, 11, 7, 1) 72%,
+      rgba(5, 28, 18, 1) 100%
     );
 
   box-shadow:
-    inset 0 0 0 1px
-      rgba(101, 236, 181, 0.27),
-    inset 0 2px 0
-      rgba(188, 255, 227, 0.28),
-    inset 0 5px 10px
-      rgba(0, 0, 0, 0.43),
-    inset 0 -1px 0
-      rgba(89, 215, 158, 0.19),
-    inset 0 -5px 11px
-      rgba(31, 123, 85, 0.075);
+    0 0 0 2px
+      rgba(0, 10, 7, 0.72),
 
-  outline-color:
-    rgba(44, 130, 93, 0.20);
+    inset 0 1px 0
+      rgba(207, 255, 235, 0.59),
+
+    inset 0 3px 0
+      rgba(64, 194, 132, 0.34),
+
+    inset 0 7px 13px
+      rgba(0, 0, 0, 0.59),
+
+    inset 0 -1px 0
+      rgba(102, 245, 178, 0.29),
+
+    inset 0 -6px 10px
+      rgba(26, 137, 91, 0.15);
 }
 
 html[data-dashboard-ui="aurora"]
@@ -1137,27 +1140,146 @@ html[data-dashboard-ui="aurora"]
 
   background:
     radial-gradient(
-      105% 86% at 50% 0%,
-      rgba(108, 224, 174, 0.18) 0%,
-      rgba(21, 83, 57, 0.04) 48%,
-      rgba(3, 18, 12, 0) 67%
+      95% 70% at 50% 1%,
+      rgba(117, 231, 183, 0.23) 0%,
+      rgba(25, 99, 67, 0.07) 35%,
+      rgba(2, 14, 9, 0) 62%
     ),
     linear-gradient(
       180deg,
-      rgba(4, 22, 15, 1) 0%,
-      rgba(2, 14, 9, 1) 100%
+      rgba(4, 25, 17, 1) 0%,
+      rgba(1, 11, 7, 1) 100%
     );
 
   box-shadow:
-    inset 0 0 0 1px
-      rgba(72, 197, 147, 0.14),
-    inset 0 6px 12px
-      rgba(0, 0, 0, 0.67),
+    0 0 0 2px
+      rgba(0, 8, 5, 0.78),
+
+    inset 0 1px 0
+      rgba(102, 220, 167, 0.19),
+
+    inset 0 8px 15px
+      rgba(0, 0, 0, 0.78),
+
     inset 0 -1px 0
-      rgba(67, 178, 132, 0.10);
+      rgba(63, 187, 134, 0.13);
 }
 
-/* LIVE remains the chartreuse/yellow-green active-status jewel. */
+/* Sync Gate = same socket physics, but brighter internal energy. */
+html[data-dashboard-ui="aurora"]
+.top-actions
+.button.primary {
+  min-height: 34px;
+  height: 34px;
+
+  padding:
+    6px 13px;
+
+  border-radius: 999px;
+
+  border:
+    1px solid
+    rgba(0, 18, 11, 0.98);
+
+  background:
+    radial-gradient(
+      102% 84% at 50% 1%,
+      rgba(244, 255, 187, 0.55) 0%,
+      rgba(185, 255, 222, 0.59) 13%,
+      rgba(91, 255, 185, 0.43) 29%,
+      rgba(34, 181, 119, 0.23) 47%,
+      rgba(7, 70, 45, 0.02) 65%,
+      rgba(4, 42, 28, 0) 73%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(31, 147, 99, 1) 0%,
+      rgba(15, 102, 68, 1) 20%,
+      rgba(7, 65, 43, 1) 49%,
+      rgba(3, 41, 27, 1) 76%,
+      rgba(7, 67, 43, 1) 100%
+    );
+
+  color:
+    rgba(234, 255, 246, 0.99);
+
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 1;
+
+  text-shadow:
+    0 1px 1px
+    rgba(0, 40, 25, 0.80);
+
+  box-shadow:
+    0 0 0 2px
+      rgba(0, 17, 11, 0.72),
+
+    inset 0 1px 0
+      rgba(225, 255, 241, 0.66),
+
+    inset 0 3px 0
+      rgba(126, 255, 199, 0.35),
+
+    inset 0 7px 13px
+      rgba(0, 42, 25, 0.53),
+
+    inset 0 -1px 0
+      rgba(135, 255, 200, 0.34),
+
+    inset 0 -6px 11px
+      rgba(31, 190, 121, 0.21),
+
+    0 0 9px
+      rgba(73, 236, 164, 0.08);
+}
+
+html[data-dashboard-ui="aurora"]
+.top-actions
+.button.primary:hover:not(:disabled) {
+  background:
+    radial-gradient(
+      102% 84% at 50% 1%,
+      rgba(250, 255, 203, 0.63) 0%,
+      rgba(202, 255, 231, 0.67) 14%,
+      rgba(103, 255, 193, 0.48) 30%,
+      rgba(38, 199, 130, 0.26) 48%,
+      rgba(8, 76, 49, 0.02) 66%,
+      rgba(4, 44, 29, 0) 74%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(35, 161, 108, 1) 0%,
+      rgba(17, 113, 75, 1) 21%,
+      rgba(8, 72, 48, 1) 50%,
+      rgba(3, 45, 30, 1) 76%,
+      rgba(8, 74, 48, 1) 100%
+    );
+
+  box-shadow:
+    0 0 0 2px
+      rgba(0, 18, 12, 0.72),
+
+    inset 0 1px 0
+      rgba(235, 255, 246, 0.73),
+
+    inset 0 3px 0
+      rgba(141, 255, 208, 0.41),
+
+    inset 0 7px 13px
+      rgba(0, 40, 24, 0.49),
+
+    inset 0 -1px 0
+      rgba(151, 255, 211, 0.37),
+
+    inset 0 -6px 12px
+      rgba(36, 210, 132, 0.24),
+
+    0 0 11px
+      rgba(82, 244, 173, 0.10);
+}
+
+/* LIVE stays yellow/chartreuse and visually passive. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .mode-badge {
@@ -1177,22 +1299,22 @@ html[data-dashboard-ui="aurora"]
 
   border:
     1px solid
-    rgba(205, 231, 99, 0.29);
+    rgba(204, 229, 96, 0.30);
 
   background:
     radial-gradient(
-      115% 150% at 50% -35%,
-      rgba(230, 247, 113, 0.18) 0%,
-      rgba(70, 83, 28, 0.02) 57%
+      110% 130% at 50% -25%,
+      rgba(232, 247, 115, 0.20) 0%,
+      rgba(58, 72, 23, 0) 60%
     ),
     linear-gradient(
       180deg,
-      rgba(16, 28, 17, 0.99) 0%,
-      rgba(7, 17, 10, 1) 100%
+      rgba(16, 27, 17, 0.99) 0%,
+      rgba(7, 16, 10, 1) 100%
     );
 
   color:
-    rgba(234, 246, 178, 0.94);
+    rgba(234, 246, 178, 0.95);
 
   font-size: 9px;
   font-weight: 760;
@@ -1201,15 +1323,13 @@ html[data-dashboard-ui="aurora"]
 
   text-shadow:
     0 1px 1px
-    rgba(0, 0, 0, 0.60);
+    rgba(0, 0, 0, 0.62);
 
   box-shadow:
     inset 0 2px 5px
       rgba(0, 0, 0, 0.50),
     inset 0 -1px 0
-      rgba(224, 242, 122, 0.10),
-    inset 0 0 8px
-      rgba(218, 238, 98, 0.045);
+      rgba(224, 242, 122, 0.10);
 }
 
 html[data-dashboard-ui="aurora"]
@@ -1232,7 +1352,7 @@ html[data-dashboard-ui="aurora"]
       rgba(217, 237, 98, 0.68);
 }
 
-/* Operator stays passive and becomes visually paired with LIVE. */
+/* Operator remains a jade passive identity jewel. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .admin-identity {
@@ -1258,9 +1378,9 @@ html[data-dashboard-ui="aurora"]
 
   background:
     radial-gradient(
-      115% 150% at 50% -35%,
-      rgba(91, 224, 170, 0.16) 0%,
-      rgba(22, 69, 49, 0.02) 57%
+      110% 130% at 50% -25%,
+      rgba(91, 224, 170, 0.17) 0%,
+      rgba(22, 69, 49, 0) 60%
     ),
     linear-gradient(
       180deg,
@@ -1269,7 +1389,7 @@ html[data-dashboard-ui="aurora"]
     );
 
   color:
-    rgba(169, 226, 202, 0.92);
+    rgba(169, 226, 202, 0.93);
 
   font-size: 9px;
   font-weight: 680;
@@ -1284,9 +1404,7 @@ html[data-dashboard-ui="aurora"]
     inset 0 2px 5px
       rgba(0, 0, 0, 0.48),
     inset 0 -1px 0
-      rgba(113, 233, 184, 0.09),
-    inset 0 0 8px
-      rgba(70, 207, 152, 0.04);
+      rgba(113, 233, 184, 0.09);
 }
 
 html[data-dashboard-ui="aurora"]
@@ -1309,127 +1427,6 @@ html[data-dashboard-ui="aurora"]
       rgba(101, 221, 176, 0.50);
 }
 
-/* Sync Gate uses the same recessed physics,
-   but carries more internal mint energy. */
-html[data-dashboard-ui="aurora"]
-.top-actions
-.button.primary {
-  min-height: 34px;
-  height: 34px;
-
-  padding:
-    6px 13px;
-
-  border-radius: 999px;
-
-  border:
-    1px solid
-    rgba(9, 55, 38, 0.98);
-
-  background:
-    radial-gradient(
-      110% 100% at 50% 0%,
-      rgba(235, 255, 174, 0.38) 0%,
-      rgba(164, 255, 210, 0.46) 17%,
-      rgba(76, 238, 170, 0.30) 39%,
-      rgba(18, 105, 71, 0.08) 60%,
-      rgba(8, 56, 38, 0) 70%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(18, 112, 77, 1) 0%,
-      rgba(10, 78, 53, 1) 46%,
-      rgba(5, 45, 30, 1) 100%
-    );
-
-  color:
-    rgba(230, 255, 244, 0.98);
-
-  font-size: 11.5px;
-  font-weight: 760;
-  line-height: 1;
-
-  text-shadow:
-    0 1px 1px
-    rgba(0, 35, 23, 0.68);
-
-  box-shadow:
-    inset 0 0 0 1px
-      rgba(146, 255, 207, 0.25),
-    inset 0 2px 0
-      rgba(210, 255, 235, 0.35),
-    inset 0 5px 10px
-      rgba(0, 45, 29, 0.46),
-    inset 0 -1px 0
-      rgba(135, 246, 194, 0.22),
-    inset 0 -7px 13px
-      rgba(24, 173, 113, 0.10),
-    0 0 8px
-      rgba(69, 231, 163, 0.08);
-}
-
-html[data-dashboard-ui="aurora"]
-.top-actions
-.button.primary:hover:not(:disabled) {
-  background:
-    radial-gradient(
-      110% 100% at 50% 0%,
-      rgba(243, 255, 189, 0.45) 0%,
-      rgba(184, 255, 222, 0.52) 18%,
-      rgba(87, 251, 180, 0.35) 40%,
-      rgba(19, 118, 79, 0.09) 61%,
-      rgba(8, 61, 41, 0) 71%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(20, 126, 86, 1) 0%,
-      rgba(11, 88, 59, 1) 46%,
-      rgba(5, 50, 34, 1) 100%
-    );
-
-  box-shadow:
-    inset 0 0 0 1px
-      rgba(164, 255, 218, 0.31),
-    inset 0 2px 0
-      rgba(222, 255, 240, 0.41),
-    inset 0 5px 10px
-      rgba(0, 44, 28, 0.42),
-    inset 0 -1px 0
-      rgba(149, 255, 205, 0.25),
-    inset 0 -7px 14px
-      rgba(30, 194, 126, 0.13),
-    0 0 10px
-      rgba(75, 238, 169, 0.10);
-}
-
-html[data-dashboard-ui="aurora"]
-.top-actions
-.button.primary:active:not(:disabled) {
-  transform: translateY(1px);
-
-  background:
-    radial-gradient(
-      105% 90% at 50% 0%,
-      rgba(175, 255, 216, 0.26) 0%,
-      rgba(42, 171, 116, 0.12) 44%,
-      rgba(8, 66, 45, 0) 66%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(11, 81, 55, 1) 0%,
-      rgba(5, 47, 32, 1) 100%
-    );
-
-  box-shadow:
-    inset 0 0 0 1px
-      rgba(128, 236, 189, 0.18),
-    inset 0 7px 13px
-      rgba(0, 38, 24, 0.62),
-    inset 0 -1px 0
-      rgba(118, 227, 177, 0.15);
-}
-
-/* Focus remains luminous but bounded inside the command row. */
 html[data-dashboard-ui="aurora"]
 .top-actions
 .account-selector
@@ -1441,12 +1438,11 @@ html[data-dashboard-ui="aurora"]
 .dashboard-ui-select:focus-visible {
   outline:
     2px solid
-    rgba(85, 226, 170, 0.26);
+    rgba(93, 235, 181, 0.27);
 
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
-/* Wrapped layouts keep the same semantic visual order. */
 @media (max-width: 1459px) {
   html[data-dashboard-ui="aurora"] .topbar {
     display: flex;
@@ -1469,7 +1465,8 @@ html[data-dashboard-ui="aurora"]
   html[data-dashboard-ui="aurora"]
   .top-actions
   .account-selector {
-    flex: 1 1 136px;
+    flex: 1 1 138px;
   }
 }
-/* End A7C195 Aurora deep inset-luminous command row */
+
+/* End A7C199 Aurora socketed inset-luminous command row */
