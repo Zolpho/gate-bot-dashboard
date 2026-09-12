@@ -14266,6 +14266,7 @@ function renderOverview() {
   setMetric('#gridProfit', totals.grid_profit, fmtMoney, totals.grid_profit);
   const displayCounts = {
     running: 0,
+    outOfRange: 0,
     waiting: 0,
     paused: 0,
     stopped: 0,
@@ -14277,6 +14278,8 @@ function renderOverview() {
 
     if (displayStatus === 'running') {
       displayCounts.running += 1;
+    } else if (displayStatus === 'out-of-range') {
+      displayCounts.outOfRange += 1;
     } else if (displayStatus === 'waiting-trigger') {
       displayCounts.waiting += 1;
     } else if (
@@ -14304,6 +14307,12 @@ function renderOverview() {
   const activeSummary = [
     `${displayCounts.running} running`,
   ];
+
+  if (displayCounts.outOfRange > 0) {
+    activeSummary.push(
+      `${displayCounts.outOfRange} out of range`,
+    );
+  }
 
   if (displayCounts.waiting > 0) {
     activeSummary.push(
@@ -14349,8 +14358,12 @@ function renderOverview() {
   const runDegrees =
     displayCounts.running / ringTotal * 360;
 
-  const waitDegrees =
+  const rangeDegrees =
     runDegrees
+    + displayCounts.outOfRange / ringTotal * 360;
+
+  const waitDegrees =
+    rangeDegrees
     + displayCounts.waiting / ringTotal * 360;
 
   const pauseDegrees =
@@ -14366,6 +14379,11 @@ function renderOverview() {
   statusRing.style.setProperty(
     '--run',
     `${runDegrees}deg`,
+  );
+
+  statusRing.style.setProperty(
+    '--range',
+    `${rangeDegrees}deg`,
   );
 
   statusRing.style.setProperty(
@@ -14388,6 +14406,11 @@ function renderOverview() {
       'Running',
       displayCounts.running,
       'var(--positive)',
+    ],
+    [
+      'Out of range',
+      displayCounts.outOfRange,
+      '#ff9f6e',
     ],
     [
       'Waiting',
@@ -14425,7 +14448,10 @@ function renderOverview() {
 
   const leaders = [...state.bots]
     .filter(
-      bot => botDisplayStatus(bot).key === 'running'
+      bot => (
+        botDisplayStatus(bot).key === 'running'
+        || botDisplayStatus(bot).key === 'out-of-range'
+      )
     )
     .sort(
       (a, b) => (
@@ -14474,7 +14500,7 @@ function renderOverview() {
         </button>
       `;
     }).join('')
-    : '<div class="empty-state">No running bots yet.</div>';
+    : '<div class="empty-state">No active bots yet.</div>';
 
   renderSidebarSyncScope(
     latest
@@ -15214,7 +15240,19 @@ function applyBotFilters() {
           )
           && (
             !status
-            || bot.status === status
+            || (
+              status === 'out-of-range'
+              && botDisplayStatus(bot).key === 'out-of-range'
+            )
+            || (
+              status === 'waiting-trigger'
+              && botDisplayStatus(bot).key === 'waiting-trigger'
+            )
+            || (
+              status !== 'out-of-range'
+              && status !== 'waiting-trigger'
+              && bot.status === status
+            )
           )
           && (
             !type
@@ -15312,6 +15350,37 @@ function botDisplayStatusOriginal(bot) {
     ?? bot?.status
     ?? ''
   ).trim().toLowerCase();
+
+  const rangeState = String(
+    bot?.range_state
+    ?? ''
+  ).trim().toLowerCase();
+
+  /*
+   * Gate may continue to report an active Spot Grid as
+   * "running" when the current market price is outside
+   * the configured grid. range_state is derived by the
+   * backend from fresh ticker evidence while preserving
+   * Gate source_status unchanged.
+   *
+   * This stronger price-backed state takes precedence over
+   * the position-based trigger-waiting inference below.
+   */
+  if (
+    bot?.strategy_type === 'spot_grid'
+    && sourceStatus === 'running'
+    && rangeState === 'out_of_range'
+  ) {
+    return {
+      key: 'out-of-range',
+      label: 'Out of range',
+      inferred: true,
+      title: (
+        'Gate reports running, but the current market price '
+        + 'is outside the configured grid range.'
+      ),
+    };
+  }
 
   const positionAmount = numericValue(
     bot?.position_amount

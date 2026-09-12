@@ -968,6 +968,16 @@ def migrate_database(engine: Engine) -> None:
                 logger.info("Migrating bots table to account-aware uniqueness")
                 _rebuild_table(raw, engine, Bot.__table__, fill_expressions={"account_id": "'legacy'"})
             else:
+                if "current_market_price" not in bot_columns:
+                    logger.info(
+                        "Adding bots.current_market_price "
+                        "for Spot Grid range-state evidence"
+                    )
+                    raw.execute(
+                        "ALTER TABLE bots "
+                        "ADD COLUMN current_market_price DECIMAL"
+                    )
+
                 raw.execute("UPDATE bots SET account_id='legacy' WHERE account_id IS NULL OR account_id='' ")
 
         if (

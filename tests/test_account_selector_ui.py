@@ -112,6 +112,6 @@ def test_account_selector_remains_responsive():
 def test_stylesheet_cache_version_is_bumped():
     assert (
         "./styles.css?"
-        "v=20260823-account-selector-wide-v1"
+        "v=20260912-out-of-range-a7c227-v1"
         in HTML
     )

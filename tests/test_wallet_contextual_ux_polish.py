@@ -450,16 +450,21 @@ def test_critical_ids_remain_unique():
         ) == 1
 
 def test_j21_cache_keys_follow_changed_wallet_assets():
-    current_key = "20260830-wallet-ux-j21-v2"
+    wallet_j21_key = "20260830-wallet-ux-j21-v2"
+    app_key = "20260912-out-of-range-a7c227-v1"
     unchanged_key = "20260830-wallet-ux-j19-v2"
 
+    assert (
+        f"./app.js?v={app_key}"
+        in HTML
+    )
+
     for asset in (
-        "app.js",
         "deposit.css",
         "treasury.css",
     ):
         assert (
-            f"./{asset}?v={current_key}"
+            f"./{asset}?v={wallet_j21_key}"
             in HTML
         )
 

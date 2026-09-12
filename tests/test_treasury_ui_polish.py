@@ -23,7 +23,7 @@ def test_treasury_assets_are_versioned():
     )
 
     assert (
-        './app.js?v=20260830-wallet-ux-j21-v2'
+        './app.js?v=20260912-out-of-range-a7c227-v1'
         in HTML
     )
 
@@ -1184,7 +1184,7 @@ def test_treasury_css_version_marks_withdraw_polish():
 
 def test_app_version_marks_withdraw_polish():
     assert (
-        './app.js?v=20260830-wallet-ux-j21-v2'
+        './app.js?v=20260912-out-of-range-a7c227-v1'
         in HTML
     )
 

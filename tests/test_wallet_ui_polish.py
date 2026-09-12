@@ -40,7 +40,7 @@ def test_wallet_balance_assets_are_versioned():
     )
 
     assert (
-        './app.js?v=20260830-wallet-ux-j21-v2'
+        './app.js?v=20260912-out-of-range-a7c227-v1'
         in HTML
     )
 

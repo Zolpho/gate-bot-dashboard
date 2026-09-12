@@ -85,6 +85,7 @@ class Bot(Base):
     runtime_seconds: Mapped[Optional[int]] = mapped_column(Integer)
 
     price_range: Mapped[str] = mapped_column(String(255), default="")
+    current_market_price: Mapped[Optional[Decimal]] = mapped_column(DECIMAL)
     price_floor: Mapped[Optional[Decimal]] = mapped_column(DECIMAL)
     avg_cost: Mapped[Optional[Decimal]] = mapped_column(DECIMAL)
     take_profit_price: Mapped[Optional[Decimal]] = mapped_column(DECIMAL)

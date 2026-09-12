@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b1110">
   <title>Gate Bot Dashboard</title>
-  <link rel="stylesheet" href="./styles.css?v=20260823-account-selector-wide-v1">
+  <link rel="stylesheet" href="./styles.css?v=20260912-out-of-range-a7c227-v1">
   <link rel="stylesheet" href="./alerts.css?v=20260823-overview-incidents-v1">
   <link rel="stylesheet" href="./private-balance.css?v=20260823-wallet-card-depth-v1">
   <link rel="stylesheet" href="./deposit.css?v=20260830-wallet-ux-j21-v2">
@@ -51,7 +51,7 @@
   >
   <link
     rel="stylesheet"
-    href="./aurora-bots.css?v=20260906-aurora-a7c70-v1"
+    href="./aurora-bots.css?v=20260912-out-of-range-a7c227-v1"
     data-dashboard-ui-stylesheet="aurora"
     disabled
   >
@@ -2024,7 +2024,7 @@
         <article class="panel toolbar-panel">
           <div class="filters">
             <label>Search<input id="botSearch" type="search" placeholder="Name, market or ID"></label>
-            <label>Status<select id="statusFilter"><option value="">All statuses</option><option value="running">Running</option><option value="paused">Paused</option><option value="stopped">Stopped</option><option value="error">Error</option></select></label>
+            <label>Status<select id="statusFilter"><option value="">All statuses</option><option value="running">Running</option><option value="out-of-range">Out of range</option><option value="waiting-trigger">To be triggered</option><option value="paused">Paused</option><option value="stopped">Stopped</option><option value="error">Error</option></select></label>
             <label>Type<select id="typeFilter"><option value="">All types</option></select></label>
             <label>Market<select id="marketFilter"><option value="">All markets</option></select></label>
             <label>Sort<select id="sortFilter"><option value="pnl">PnL</option><option value="roi">ROI</option><option value="updated">Last update</option><option value="name">Name</option><option value="market">Market</option></select></label>
@@ -3045,7 +3045,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260906-aurora-a7c148-v1"></script>
   <script
-    src="./app.js?v=20260830-wallet-ux-j21-v2"
+    src="./app.js?v=20260912-out-of-range-a7c227-v1"
     defer
   ></script>
   <script

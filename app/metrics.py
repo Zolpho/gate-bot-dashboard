@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
 
 from sqlalchemy import func, select
@@ -77,6 +77,99 @@ def account_to_dict(
     return result
 
 
+def _bot_price_range_bounds(
+    value: str | None,
+) -> tuple[Decimal, Decimal] | None:
+    text = str(
+        value or ""
+    ).strip()
+
+    if text.count("-") != 1:
+        return None
+
+    low_text, high_text = (
+        part.strip()
+        for part in text.split(
+            "-",
+            1,
+        )
+    )
+
+    try:
+        low = Decimal(low_text)
+        high = Decimal(high_text)
+    except (
+        InvalidOperation,
+        ValueError,
+    ):
+        return None
+
+    if (
+        not low.is_finite()
+        or not high.is_finite()
+        or low <= 0
+        or high <= 0
+        or low > high
+    ):
+        return None
+
+    return low, high
+
+
+def bot_range_state(
+    bot: Bot,
+) -> str:
+    if (
+        str(
+            bot.status or ""
+        ).strip().lower()
+        != "running"
+        or str(
+            bot.strategy_type or ""
+        ).strip().lower()
+        != "spot_grid"
+    ):
+        return "not_applicable"
+
+    bounds = _bot_price_range_bounds(
+        bot.price_range
+    )
+
+    if (
+        bounds is None
+        or bot.current_market_price is None
+    ):
+        return "unknown"
+
+    try:
+        current = Decimal(
+            str(
+                bot.current_market_price
+            )
+        )
+    except (
+        InvalidOperation,
+        ValueError,
+    ):
+        return "unknown"
+
+    if (
+        not current.is_finite()
+        or current <= 0
+    ):
+        return "unknown"
+
+    low, high = bounds
+
+    if (
+        current < low
+        or current > high
+    ):
+        return "out_of_range"
+
+    return "in_range"
+
+
 def bot_to_dict(bot: Bot, *, include_raw: bool = False) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     last_seen = as_utc(bot.last_seen_at)
@@ -129,6 +222,10 @@ def bot_to_dict(bot: Bot, *, include_raw: bool = False) -> dict[str, Any]:
         "finished_rounds": bot.finished_rounds,
         "runtime_seconds": bot.runtime_seconds,
         "price_range": bot.price_range,
+        "current_market_price": decimal_to_float(
+            bot.current_market_price
+        ),
+        "range_state": bot_range_state(bot),
         "price_floor": decimal_to_float(bot.price_floor),
         "avg_cost": decimal_to_float(bot.avg_cost),
         "take_profit_price": decimal_to_float(bot.take_profit_price),

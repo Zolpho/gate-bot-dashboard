@@ -776,3 +776,14 @@ tbody tr:hover {
     max-width: none;
   }
 }
+
+/* Derived Spot Grid state: Gate remains running while price
+ * is outside the configured grid range. */
+#tab-bots .status-badge.out-of-range {
+  border-color:
+    rgba(255, 159, 110, 0.30);
+  background:
+    rgba(107, 55, 28, 0.24);
+  color:
+    #ffb080;
+}

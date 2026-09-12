@@ -53,6 +53,7 @@ def test_v1_sqlite_schema_migrates_to_account_aware_schema(tmp_path) -> None:  #
         connection.exec_driver_sql("INSERT INTO bot_snapshots(id, bot_id) VALUES (1, 1)")
 
     migrate_database(engine)
+    migrate_database(engine)
 
     # Built-in migration must create the review table even for an
     # existing production database, before create_all is needed.
@@ -65,7 +66,12 @@ def test_v1_sqlite_schema_migrates_to_account_aware_schema(tmp_path) -> None:  #
     Base.metadata.create_all(engine)
 
     inspector = inspect(engine)
-    assert "account_id" in {column["name"] for column in inspector.get_columns("bots")}
+    bot_columns = {
+        column["name"]
+        for column in inspector.get_columns("bots")
+    }
+    assert "account_id" in bot_columns
+    assert "current_market_price" in bot_columns
     assert "trigger" in {column["name"] for column in inspector.get_columns("sync_runs")}
 
     with engine.begin() as connection:

@@ -39,6 +39,7 @@ class NormalizedBot:
     finished_rounds: int | None = None
     runtime_seconds: int | None = None
     price_range: str = ""
+    current_market_price: Decimal | None = None
     price_floor: Decimal | None = None
     avg_cost: Decimal | None = None
     take_profit_price: Decimal | None = None

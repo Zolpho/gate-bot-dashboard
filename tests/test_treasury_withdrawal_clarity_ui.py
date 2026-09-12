@@ -243,6 +243,6 @@ def test_j21_cache_keys_mark_current_wallet_assets():
     )
 
     assert (
-        './app.js?v=20260830-wallet-ux-j21-v2'
+        './app.js?v=20260912-out-of-range-a7c227-v1'
         in HTML
     )

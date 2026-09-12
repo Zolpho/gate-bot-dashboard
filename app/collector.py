@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, select
 
 from .accounts import AccountConfigError, GateAccountConfig, enabled_gate_accounts, load_gate_accounts
 from .alerts import evaluate_alerts
-from .bot_adapter import NormalizedBot, dumps_json, normalize_bot
+from .bot_adapter import NormalizedBot, decimal_or_none, dumps_json, normalize_bot
 from .config import Settings, get_settings
 from .db import session_scope
 from .demo import advance_demo_data
@@ -318,7 +318,148 @@ class BotCollector:
 
             results = await asyncio.gather(*(fetch_detail(item) for item in list_items))
 
-        normalized = [normalize_bot(item, detail) for item, detail in results]
+            normalized = [
+                normalize_bot(
+                    item,
+                    detail,
+                )
+                for item, detail in results
+            ]
+
+            running_spot_grid_markets = sorted(
+                {
+                    str(
+                        bot_data.market or ""
+                    ).strip().upper()
+                    for bot_data in normalized
+                    if (
+                        str(
+                            bot_data.status or ""
+                        ).strip().lower()
+                        == "running"
+                        and str(
+                            bot_data.strategy_type or ""
+                        ).strip().lower()
+                        == "spot_grid"
+                        and str(
+                            bot_data.market or ""
+                        ).strip()
+                    )
+                }
+            )
+
+            async def fetch_market_price(
+                market: str,
+            ):
+                try:
+                    async with semaphore:
+                        response = (
+                            await client.list_spot_tickers(
+                                market
+                            )
+                        )
+                except GateAPIError as exc:
+                    logger.warning(
+                        "Gate ticker read failed "
+                        "for account=%s market=%s: %s",
+                        account.id,
+                        market,
+                        exc,
+                    )
+                    return market, None
+
+                payload = response.data
+
+                if isinstance(payload, list):
+                    rows = [
+                        item
+                        for item in payload
+                        if isinstance(
+                            item,
+                            dict,
+                        )
+                    ]
+                elif isinstance(payload, dict):
+                    rows = [payload]
+                else:
+                    rows = []
+
+                ticker = next(
+                    (
+                        item
+                        for item in rows
+                        if str(
+                            item.get(
+                                "currency_pair",
+                                "",
+                            )
+                        ).strip().upper()
+                        == market
+                    ),
+                    rows[0]
+                    if len(rows) == 1
+                    else None,
+                )
+
+                price = (
+                    decimal_or_none(
+                        ticker.get("last")
+                    )
+                    if ticker is not None
+                    else None
+                )
+
+                if (
+                    price is None
+                    or not price.is_finite()
+                    or price <= 0
+                ):
+                    logger.warning(
+                        "Gate ticker has no usable "
+                        "last price for "
+                        "account=%s market=%s",
+                        account.id,
+                        market,
+                    )
+                    return market, None
+
+                return market, price
+
+            ticker_prices = dict(
+                await asyncio.gather(
+                    *(
+                        fetch_market_price(
+                            market
+                        )
+                        for market
+                        in running_spot_grid_markets
+                    )
+                )
+            )
+
+            for bot_data in normalized:
+                market = str(
+                    bot_data.market or ""
+                ).strip().upper()
+
+                if (
+                    str(
+                        bot_data.status or ""
+                    ).strip().lower()
+                    == "running"
+                    and str(
+                        bot_data.strategy_type or ""
+                    ).strip().lower()
+                    == "spot_grid"
+                ):
+                    bot_data.current_market_price = (
+                        ticker_prices.get(
+                            market
+                        )
+                    )
+                else:
+                    bot_data.current_market_price = None
+
         with session_scope() as session:
             seen_keys: set[tuple[str, str]] = set()
             for bot_data in normalized:
@@ -332,6 +473,9 @@ class BotCollector:
                 if (bot.strategy_id, bot.strategy_type) in seen_keys:
                     continue
                 if bot.status == "running":
+                    # A bot missing from this collector result has
+                    # no fresh ticker evidence for this sync.
+                    bot.current_market_price = None
                     bot.missing_syncs += 1
                     if bot.missing_syncs >= self.settings.missing_bot_grace_syncs:
                         bot.status = "stopped"
@@ -391,6 +535,7 @@ class BotCollector:
             "finished_rounds",
             "runtime_seconds",
             "price_range",
+            "current_market_price",
             "price_floor",
             "avg_cost",
             "take_profit_price",
@@ -406,7 +551,25 @@ class BotCollector:
             "created_at_gate",
         ]
         for field in fields:
-            setattr(bot, field, getattr(data, field))
+            if field == "current_market_price":
+                setattr(
+                    bot,
+                    field,
+                    getattr(
+                        data,
+                        field,
+                        None,
+                    ),
+                )
+            else:
+                setattr(
+                    bot,
+                    field,
+                    getattr(
+                        data,
+                        field,
+                    ),
+                )
         bot.last_seen_at = now
         bot.updated_at = now
         bot.missing_syncs = 0
