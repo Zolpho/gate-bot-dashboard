@@ -1014,7 +1014,7 @@
       88vh,
       52rem
     );
-  overflow: auto;
+  overflow: hidden;
   border:
     1px solid
     rgba(82, 233, 186, 0.22);
@@ -1041,9 +1041,14 @@
 }
 
 #spotGridConfirmDialog > .dialog-header {
-  position: sticky;
+  /*
+   * The dialog shell clips while the canonical
+   * inner content owns scrolling. Keep the header
+   * positioned for its local stacking context,
+   * but do not make it sticky over that scroller.
+   */
+  position: relative;
   z-index: 4;
-  top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1213,7 +1218,7 @@
       90vh,
       58rem
     );
-  overflow: auto;
+  overflow: hidden;
   border:
     1px solid
     rgba(91, 220, 178, 0.2);
@@ -1238,9 +1243,14 @@
 }
 
 #stopBotConfirmDialog > .dialog-header {
-  position: sticky;
+  /*
+   * The dialog shell clips while the canonical
+   * inner content owns scrolling. Keep the header
+   * positioned for its local stacking context,
+   * but do not make it sticky over that scroller.
+   */
+  position: relative;
   z-index: 4;
-  top: 0;
   border-bottom:
     1px solid
     rgba(78, 219, 175, 0.13);
@@ -1690,7 +1700,7 @@
       91vh,
       62rem
     );
-  overflow: auto;
+  overflow: hidden;
   border:
     1px solid
     rgba(82, 229, 184, 0.2);
@@ -1715,9 +1725,14 @@
 }
 
 #botControlRequestDialog > .dialog-header {
-  position: sticky;
+  /*
+   * The dialog shell clips while the canonical
+   * inner content owns scrolling. Keep the header
+   * positioned for its local stacking context,
+   * but do not make it sticky over that scroller.
+   */
+  position: relative;
   z-index: 4;
-  top: 0;
   border-bottom:
     1px solid
     rgba(77, 215, 173, 0.13);

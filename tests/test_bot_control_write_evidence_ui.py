@@ -259,18 +259,28 @@ def test_pair_marks_are_adjacent_not_overlapped():
 
 
 def test_changed_assets_use_new_cache_key():
-    version = (
+    unchanged_version = (
         "20260912-bot-control-live-ux-a7c240-v1"
+    )
+    aurora_scroll_version = (
+        "20260912-aurora-bot-control-scroll-a7c256-v1"
     )
 
     for asset in (
         "bot-control.css",
-        "aurora-bot-control.css",
         "app.js",
     ):
         assert (
             INDEX.count(
-                f"./{asset}?v={version}"
+                f"./{asset}?v={unchanged_version}"
             )
             == 1
         )
+
+    assert (
+        INDEX.count(
+            "./aurora-bot-control.css?"
+            f"v={aurora_scroll_version}"
+        )
+        == 1
+    )
