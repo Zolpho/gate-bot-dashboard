@@ -332,6 +332,11 @@ class FakeGateClient:
 def clean_state(
     monkeypatch,
 ):
+    monkeypatch.setattr(
+        "app.trading_order_amend.require_account_action_allowed",
+        lambda **_kwargs: None,
+    )
+
     def clear():
         with session_scope() as db:
             db.execute(
@@ -839,4 +844,212 @@ async def test_ambiguous_terminal_old_price_is_not_applied():
             "request-a"
         )
         is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_trading_policy_denial_blocks_new_amend_attempt(
+    monkeypatch,
+):
+    from app.account_action_policy import (
+        AccountActionPolicyDenied,
+    )
+
+    create_source_order()
+
+    policy_calls = []
+
+    def deny_policy(
+        *,
+        account_id,
+        capability,
+    ):
+        policy_calls.append(
+            (
+                account_id,
+                capability,
+            )
+        )
+
+        raise AccountActionPolicyDenied(
+            account_id=account_id,
+            capability=capability,
+        )
+
+    monkeypatch.setattr(
+        amend,
+        "require_account_action_allowed",
+        deny_policy,
+    )
+
+    async def forbidden_gate_read(
+        *_args,
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Trading policy denial reached "
+            "fresh Gate order read"
+        )
+
+    monkeypatch.setattr(
+        amend,
+        "_read_gate_order",
+        forbidden_gate_read,
+    )
+
+    def forbidden_reservation(
+        *_args,
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Trading policy denial reached "
+            "amendment reservation"
+        )
+
+    monkeypatch.setattr(
+        amend,
+        "reserve_order_amendment",
+        forbidden_reservation,
+    )
+
+    with pytest.raises(
+        AccountActionPolicyDenied
+    ) as captured:
+        await do_amend(
+            amend_request_id=(
+                "policy-denied-amend"
+            ),
+        )
+
+    assert (
+        captured.value.account_id
+        == "arnold"
+    )
+
+    assert (
+        captured.value.capability
+        == "trading"
+    )
+
+    assert policy_calls == [
+        (
+            "arnold",
+            "trading",
+        )
+    ]
+
+    assert (
+        FakeGateClient.get_calls
+        == 0
+    )
+
+    assert (
+        FakeGateClient.pair_calls
+        == 0
+    )
+
+    assert (
+        FakeGateClient.book_calls
+        == 0
+    )
+
+    assert (
+        FakeGateClient.patch_calls
+        == []
+    )
+
+    assert (
+        get_order_amendment(
+            "policy-denied-amend"
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_trading_policy_off_preserves_amend_replay(
+    monkeypatch,
+):
+    from app.account_action_policy import (
+        AccountActionPolicyDenied,
+    )
+
+    create_source_order()
+
+    amend_request_id = (
+        "policy-replay-amend"
+    )
+
+    first = await do_amend(
+        amend_request_id=(
+            amend_request_id
+        ),
+    )
+
+    assert (
+        first["status"]
+        == "amended"
+    )
+
+    counts = (
+        FakeGateClient.get_calls,
+        FakeGateClient.pair_calls,
+        FakeGateClient.book_calls,
+        len(
+            FakeGateClient.patch_calls
+        ),
+    )
+
+    policy_calls = []
+
+    def deny_policy(
+        *,
+        account_id,
+        capability,
+    ):
+        policy_calls.append(
+            (
+                account_id,
+                capability,
+            )
+        )
+
+        raise AccountActionPolicyDenied(
+            account_id=account_id,
+            capability=capability,
+        )
+
+    monkeypatch.setattr(
+        amend,
+        "require_account_action_allowed",
+        deny_policy,
+    )
+
+    second = await do_amend(
+        amend_request_id=(
+            amend_request_id
+        ),
+    )
+
+    assert (
+        second["status"]
+        == "idempotent_replay"
+    )
+
+    assert second[
+        "gate_write_performed"
+    ] is False
+
+    assert policy_calls == []
+
+    assert (
+        (
+            FakeGateClient.get_calls,
+            FakeGateClient.pair_calls,
+            FakeGateClient.book_calls,
+            len(
+                FakeGateClient.patch_calls
+            ),
+        )
+        == counts
     )

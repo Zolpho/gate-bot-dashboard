@@ -13,6 +13,9 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
+from ..account_action_policy import (
+    AccountActionPolicyDenied,
+)
 from ..accounts import (
     AccountConfigError,
     get_gate_account,
@@ -34,13 +37,6 @@ from ..trading_open_orders import (
     merge_account_open_spot_orders,
     merge_open_spot_orders,
 )
-from ..trading_order_audit import (
-    find_order_requests_by_gate_identity,
-    get_order_request,
-    list_order_reconciliations,
-    list_order_requests,
-    list_order_requests_for_market,
-)
 from ..trading_order_amend import (
     TradingOrderAmendDenied,
     amend_limit_order_price,
@@ -50,6 +46,13 @@ from ..trading_order_amend_audit import (
     get_active_order_amendment,
     list_order_amendments,
     list_order_amendments_for_requests,
+)
+from ..trading_order_audit import (
+    find_order_requests_by_gate_identity,
+    get_order_request,
+    list_order_reconciliations,
+    list_order_requests,
+    list_order_requests_for_market,
 )
 from ..trading_order_cancel import (
     TradingOrderCancelDenied,
@@ -69,11 +72,11 @@ from ..trading_order_reconcile import (
 from ..trading_order_state import (
     derive_trading_order_state,
 )
-from ..trading_recent_orders import (
-    build_recent_spot_orders,
-)
 from ..trading_rate_limit import (
     TradingRateLimitExceeded,
+)
+from ..trading_recent_orders import (
+    build_recent_spot_orders,
 )
 
 router = APIRouter(
@@ -1587,6 +1590,16 @@ async def execute_trading_limit_order(
             ),
         )
 
+    except AccountActionPolicyDenied as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                **exc.safe_dict(operation="limit_order_create"),
+                "gate_write_performed": False,
+                "write_performed": False,
+            },
+        ) from exc
+
     except TradingExecutionDenied as exc:
         raise HTTPException(
             status_code=(
@@ -1832,6 +1845,16 @@ async def amend_trading_limit_order(
                 request.confirmation
             ),
         )
+
+    except AccountActionPolicyDenied as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                **exc.safe_dict(operation="limit_order_amend"),
+                "gate_write_performed": False,
+                "write_performed": False,
+            },
+        ) from exc
 
     except TradingOrderAmendDenied as exc:
         raise HTTPException(

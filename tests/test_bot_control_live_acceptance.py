@@ -258,6 +258,11 @@ def assert_rejected_without_write(
 def route_env(
     monkeypatch,
 ):
+    monkeypatch.setattr(
+        "app.api.bot_control.require_account_action_allowed",
+        lambda **_kwargs: None,
+    )
+
     FakeGateClient.create_calls = []
     FakeGateClient.stop_calls = []
 
@@ -1508,4 +1513,393 @@ def test_duplicate_stop_lock_blocks_write(
 
     assert_rejected_without_write(
         response
+    )
+
+
+def test_trading_policy_denial_blocks_live_spot_grid_create(
+    client,
+    route_env,
+    monkeypatch,
+):
+    from app.account_action_policy import (
+        AccountActionPolicyDenied,
+    )
+
+    configure_create(
+        monkeypatch,
+        simulation=False,
+        allow=True,
+        armed=True,
+        accounts="zolnode",
+    )
+
+    events = []
+
+    def record_rate_limit(
+        **_kwargs,
+    ):
+        events.append(
+            "rate_limit"
+        )
+
+    monkeypatch.setattr(
+        bc,
+        "_enforce_bot_control_rate_limit",
+        record_rate_limit,
+    )
+
+    real_live_policy = (
+        bc.evaluate_live_create_policy
+    )
+
+    def traced_live_policy(
+        *args,
+        **kwargs,
+    ):
+        events.append(
+            "live_policy"
+        )
+
+        return real_live_policy(
+            *args,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(
+        bc,
+        "evaluate_live_create_policy",
+        traced_live_policy,
+    )
+
+    policy_calls = []
+
+    def deny_policy(
+        *,
+        account_id,
+        capability,
+    ):
+        events.append(
+            "trading_policy"
+        )
+
+        policy_calls.append(
+            (
+                account_id,
+                capability,
+            )
+        )
+
+        raise AccountActionPolicyDenied(
+            account_id=account_id,
+            capability=capability,
+        )
+
+    monkeypatch.setattr(
+        bc,
+        "require_account_action_allowed",
+        deny_policy,
+    )
+
+    def forbidden_credentials(
+        *_args,
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Trading policy denial reached "
+            "Bot Control credentials"
+        )
+
+    monkeypatch.setattr(
+        bc,
+        "get_bot_control_account",
+        forbidden_credentials,
+    )
+
+    def forbidden_reservation(
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Trading policy denial reached "
+            "Bot Control reservation"
+        )
+
+    monkeypatch.setattr(
+        bc,
+        "reserve_request",
+        forbidden_reservation,
+    )
+
+    def forbidden_lock(
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Trading policy denial reached "
+            "Bot Control operation lock"
+        )
+
+    monkeypatch.setattr(
+        bc,
+        "acquire_operation_lock",
+        forbidden_lock,
+    )
+
+    response = client.post(
+        "/api/bot-control/spot-grid/create",
+        headers=auth(),
+        json=create_body(
+            request_id=(
+                "policy-denied-grid-001"
+            ),
+            confirmation=(
+                "LIVE CREATE"
+            ),
+        ),
+    )
+
+    assert (
+        response.status_code
+        == 403
+    )
+
+    detail = response.json()[
+        "detail"
+    ]
+
+    assert detail == {
+        "reason": (
+            "trading_disabled_by_account_policy"
+        ),
+        "message": (
+            "The Trading capability is disabled "
+            "for Wallet account zolnode"
+        ),
+        "account_id": "zolnode",
+        "capability": "trading",
+        "operation": (
+            "spot_grid_create"
+        ),
+        "gate_write_performed": False,
+        "write_performed": False,
+    }
+
+    assert events == [
+        "rate_limit",
+        "live_policy",
+        "trading_policy",
+    ]
+
+    assert policy_calls == [
+        (
+            "zolnode",
+            "trading",
+        )
+    ]
+
+    assert_no_fake_gate_write()
+
+
+def test_trading_policy_off_preserves_spot_grid_simulation(
+    client,
+    route_env,
+    monkeypatch,
+):
+    def forbidden_policy(
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Spot Grid simulation reached "
+            "Trading account policy"
+        )
+
+    monkeypatch.setattr(
+        bc,
+        "require_account_action_allowed",
+        forbidden_policy,
+    )
+
+    configure_create(
+        monkeypatch,
+        simulation=True,
+        allow=False,
+        armed=False,
+    )
+
+    response = client.post(
+        "/api/bot-control/spot-grid/create",
+        headers=auth(),
+        json=create_body(
+            request_id=(
+                "policy-sim-grid-001"
+            ),
+            confirmation="CREATE",
+        ),
+    )
+
+    assert (
+        response.status_code
+        == 200
+    )
+
+    data = response.json()
+
+    assert (
+        data["status"]
+        == "simulated"
+    )
+
+    assert (
+        data["simulation"]
+        is True
+    )
+
+    assert (
+        data["write_performed"]
+        is False
+    )
+
+    assert_no_fake_gate_write()
+
+
+def test_trading_policy_off_preserves_spot_grid_replay(
+    client,
+    route_env,
+    monkeypatch,
+):
+    def forbidden_policy(
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Spot Grid idempotent replay reached "
+            "Trading account policy"
+        )
+
+    monkeypatch.setattr(
+        bc,
+        "require_account_action_allowed",
+        forbidden_policy,
+    )
+
+    configure_create(
+        monkeypatch,
+        simulation=False,
+        allow=True,
+        armed=False,
+    )
+
+    monkeypatch.setattr(
+        bc,
+        "find_matching_request",
+        lambda **kwargs: {
+            "request_id": (
+                kwargs["request_id"]
+            ),
+            "status": "succeeded",
+            "response": {
+                "status": "submitted",
+                "write_performed": True,
+                "simulation": False,
+                "strategy": {
+                    "strategy_id": (
+                        "OLD-POLICY-GRID"
+                    ),
+                },
+            },
+        },
+    )
+
+    response = client.post(
+        "/api/bot-control/spot-grid/create",
+        headers=auth(),
+        json=create_body(
+            request_id=(
+                "policy-replay-grid-001"
+            ),
+            confirmation=(
+                "LIVE CREATE"
+            ),
+        ),
+    )
+
+    assert (
+        response.status_code
+        == 200
+    )
+
+    data = response.json()
+
+    assert (
+        data["idempotent_replay"]
+        is True
+    )
+
+    assert_no_fake_gate_write()
+
+
+def test_trading_policy_off_preserves_bot_stop(
+    client,
+    route_env,
+    monkeypatch,
+):
+    def forbidden_policy(
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Bot Stop reached Trading "
+            "account policy"
+        )
+
+    monkeypatch.setattr(
+        bc,
+        "require_account_action_allowed",
+        forbidden_policy,
+    )
+
+    configure_stop(
+        monkeypatch,
+        simulation=False,
+        allow=True,
+        armed=True,
+        accounts="zolnode",
+    )
+
+    response = client.post(
+        "/api/bot-control/bots/900001/stop",
+        headers=auth(),
+        json=stop_body(
+            request_id=(
+                "policy-stop-001"
+            ),
+            confirmation=(
+                "LIVE STOP"
+            ),
+        ),
+    )
+
+    assert (
+        response.status_code
+        == 200
+    )
+
+    data = response.json()
+
+    assert (
+        data["write_performed"]
+        is True
+    )
+
+    assert (
+        data["simulation"]
+        is False
+    )
+
+    assert FakeGateClient.stop_calls == [
+        (
+            "FAKE-STOP-STRATEGY",
+            "spot_grid",
+        )
+    ]
+
+    assert (
+        FakeGateClient.create_calls
+        == []
     )

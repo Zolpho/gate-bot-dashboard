@@ -313,6 +313,11 @@ class FakeGateClient:
 def clean_state(
     monkeypatch,
 ):
+    monkeypatch.setattr(
+        "app.trading_execution.require_account_action_allowed",
+        lambda **_kwargs: None,
+    )
+
     def clear():
         with session_scope() as db:
             db.execute(
@@ -838,3 +843,204 @@ async def test_network_ambiguity_found_by_text_reconciles_without_retry():
         )
         is None
     )
+
+
+@pytest.mark.asyncio
+async def test_trading_policy_denial_blocks_new_limit_order_attempt(
+    monkeypatch,
+):
+    from app.account_action_policy import (
+        AccountActionPolicyDenied,
+    )
+
+    policy_calls = []
+
+    def deny_policy(
+        *,
+        account_id,
+        capability,
+    ):
+        policy_calls.append(
+            (
+                account_id,
+                capability,
+            )
+        )
+
+        raise AccountActionPolicyDenied(
+            account_id=account_id,
+            capability=capability,
+        )
+
+    monkeypatch.setattr(
+        execution,
+        "require_account_action_allowed",
+        deny_policy,
+    )
+
+    def forbidden_rate_limit(
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Trading policy denial reached "
+            "the rate limiter"
+        )
+
+    monkeypatch.setattr(
+        execution,
+        "enforce_trading_rate_limit",
+        forbidden_rate_limit,
+    )
+
+    async def forbidden_preflight(
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Trading policy denial reached "
+            "fresh order preflight"
+        )
+
+    monkeypatch.setattr(
+        execution,
+        "fresh_limit_order_preflight",
+        forbidden_preflight,
+    )
+
+    def forbidden_lock(
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Trading policy denial reached "
+            "the trading lock"
+        )
+
+    monkeypatch.setattr(
+        execution,
+        "acquire_trading_lock",
+        forbidden_lock,
+    )
+
+    with pytest.raises(
+        AccountActionPolicyDenied
+    ) as captured:
+        await call_execute(
+            request_id=(
+                "policy-denied-create"
+            ),
+        )
+
+    assert (
+        captured.value.account_id
+        == "arnold"
+    )
+
+    assert (
+        captured.value.capability
+        == "trading"
+    )
+
+    assert policy_calls == [
+        (
+            "arnold",
+            "trading",
+        )
+    ]
+
+    assert (
+        FakeGateClient.post_calls
+        == []
+    )
+
+    saved = get_order_request(
+        "policy-denied-create"
+    )
+
+    assert saved is not None
+
+    assert (
+        saved["write_performed"]
+        is False
+    )
+
+    assert (
+        get_trading_lock_for_request(
+            "policy-denied-create"
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_trading_policy_off_preserves_limit_order_replay(
+    monkeypatch,
+):
+    from app.account_action_policy import (
+        AccountActionPolicyDenied,
+    )
+
+    request_id = (
+        "policy-replay-create"
+    )
+
+    first = await call_execute(
+        request_id=request_id,
+    )
+
+    assert (
+        first["status"]
+        == "submitted"
+    )
+
+    assert len(
+        FakeGateClient.post_calls
+    ) == 1
+
+    policy_calls = []
+
+    def deny_policy(
+        *,
+        account_id,
+        capability,
+    ):
+        policy_calls.append(
+            (
+                account_id,
+                capability,
+            )
+        )
+
+        raise AccountActionPolicyDenied(
+            account_id=account_id,
+            capability=capability,
+        )
+
+    monkeypatch.setattr(
+        execution,
+        "require_account_action_allowed",
+        deny_policy,
+    )
+
+    second = await call_execute(
+        request_id=request_id,
+    )
+
+    assert (
+        second["status"]
+        == "idempotent_replay"
+    )
+
+    assert (
+        second["gate_write_performed"]
+        is False
+    )
+
+    assert (
+        second["original_write_performed"]
+        is True
+    )
+
+    assert policy_calls == []
+
+    assert len(
+        FakeGateClient.post_calls
+    ) == 1

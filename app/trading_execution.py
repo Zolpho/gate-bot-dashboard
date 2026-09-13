@@ -9,6 +9,9 @@ from decimal import (
 )
 from typing import Any
 
+from .account_action_policy import (
+    require_account_action_allowed,
+)
 from .accounts import (
     AccountConfigError,
     get_gate_account,
@@ -39,7 +42,6 @@ from .trading_rate_limit import (
     TradingRateLimitExceeded,
     enforce_trading_rate_limit,
 )
-
 
 _PAIR_RE = re.compile(
     r"^[A-Z0-9]+_[A-Z0-9]+$"
@@ -1405,6 +1407,11 @@ async def execute_limit_order(
                 )
             ),
         )
+
+    require_account_action_allowed(
+        account_id=normalized_account,
+        capability="trading",
+    )
 
     try:
         rate_limit = (

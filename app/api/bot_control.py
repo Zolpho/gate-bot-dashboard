@@ -8,13 +8,31 @@ from fastapi import (
     Depends,
     HTTPException,
 )
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from fastapi.responses import Response
-
+from ..account_action_policy import (
+    AccountActionPolicyDenied,
+    require_account_action_allowed,
+)
 from ..accounts import (
     AccountConfigError,
     get_gate_account,
+)
+from ..bot_control import (
+    BotControlConfigError,
+    get_bot_control_account,
+)
+from ..bot_control_audit import (
+    IdempotencyConflict,
+    count_requests,
+    find_matching_request,
+    get_request,
+    list_reconciliations,
+    list_requests,
+    mark_request,
+    record_reconciliation,
+    reserve_request,
 )
 from ..bot_control_export import (
     build_bot_control_csv,
@@ -22,22 +40,10 @@ from ..bot_control_export import (
     build_bot_control_json,
     export_filename,
 )
-from ..bot_control_audit import (
-    IdempotencyConflict,
-    count_requests,
-    find_matching_request,
-    get_request,
-    list_requests,
-    list_reconciliations,
-    record_reconciliation,
-    mark_request,
-    reserve_request,
+from ..bot_control_live_policy import (
+    evaluate_live_create_policy,
+    evaluate_live_stop_policy,
 )
-from ..bot_control import (
-    BotControlConfigError,
-    get_bot_control_account,
-)
-from ..bot_control_reconcile import reconcile_request_against_gate
 from ..bot_control_lock_resolution import (
     LockNotFound,
     LockResolutionError,
@@ -45,11 +51,6 @@ from ..bot_control_lock_resolution import (
     list_lock_resolutions,
     manual_release_operation_lock,
 )
-from ..bot_control_live_policy import (
-    evaluate_live_create_policy,
-    evaluate_live_stop_policy,
-)
-from ..bot_stop_estimate import estimate_stop_return
 from ..bot_control_locks import (
     OperationLocked,
     acquire_operation_lock,
@@ -64,13 +65,15 @@ from ..bot_control_rate_limit import (
     BotControlRateLimitExceeded,
     enforce_rate_limit,
 )
+from ..bot_control_reconcile import reconcile_request_against_gate
+from ..bot_stop_estimate import estimate_stop_return
 from ..config import get_settings
 from ..db import session_scope
-from ..models import Bot
 from ..gate_client import (
     GateAPIError,
     GateClient,
 )
+from ..models import Bot
 from ..security import (
     DashboardUser,
     require_account_access,
@@ -81,7 +84,6 @@ from ..spot_grid import (
     decimal_text,
     validate_spot_grid,
 )
-
 
 router = APIRouter(
     prefix="/api/bot-control",
@@ -769,6 +771,24 @@ async def create_spot_grid(
                     "write_performed": False,
                 },
             )
+
+        try:
+            require_account_action_allowed(
+                account_id=account_id,
+                capability="trading",
+            )
+
+        except AccountActionPolicyDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    **exc.safe_dict(
+                        operation="spot_grid_create",
+                    ),
+                    "gate_write_performed": False,
+                    "write_performed": False,
+                },
+            ) from exc
 
     try:
         control_account = (

@@ -1120,3 +1120,453 @@ def test_withdrawals_policy_does_not_block_recovery_routes() -> None:
         )
 
     assert seen == protected
+
+
+
+def test_trading_policy_exact_runtime_consumers() -> None:
+    files = {
+        Path("app/trading_execution.py"):
+            "execute_limit_order",
+        Path("app/trading_order_amend.py"):
+            "amend_limit_order_price",
+        Path("app/api/bot_control.py"):
+            "create_spot_grid",
+    }
+
+    actual = {}
+
+    for path, _expected_function in files.items():
+        tree = ast.parse(
+            path.read_text(),
+            filename=str(path),
+        )
+
+        for function in tree.body:
+            if not isinstance(
+                function,
+                ast.FunctionDef | ast.AsyncFunctionDef,
+            ):
+                continue
+
+            for call in ast.walk(function):
+                if not (
+                    isinstance(call, ast.Call)
+                    and isinstance(
+                        call.func,
+                        ast.Name,
+                    )
+                    and call.func.id
+                    == "require_account_action_allowed"
+                ):
+                    continue
+
+                keywords = {
+                    keyword.arg: keyword.value
+                    for keyword in call.keywords
+                    if keyword.arg
+                }
+
+                capability = keywords.get(
+                    "capability"
+                )
+
+                if not (
+                    isinstance(
+                        capability,
+                        ast.Constant,
+                    )
+                    and capability.value == "trading"
+                ):
+                    continue
+
+                account = keywords.get(
+                    "account_id"
+                )
+
+                actual[
+                    (
+                        str(path),
+                        function.name,
+                    )
+                ] = ast.unparse(
+                    account
+                )
+
+    assert actual == {
+        (
+            "app/trading_execution.py",
+            "execute_limit_order",
+        ): "normalized_account",
+        (
+            "app/trading_order_amend.py",
+            "amend_limit_order_price",
+        ): "account_id",
+        (
+            "app/api/bot_control.py",
+            "create_spot_grid",
+        ): "account_id",
+    }
+
+    trading_tree = ast.parse(
+        Path("app/api/trading.py").read_text()
+    )
+
+    operations = {}
+
+    for function in trading_tree.body:
+        if not isinstance(
+            function,
+            ast.FunctionDef | ast.AsyncFunctionDef,
+        ):
+            continue
+
+        for call in ast.walk(function):
+            if not (
+                isinstance(call, ast.Call)
+                and isinstance(
+                    call.func,
+                    ast.Attribute,
+                )
+                and call.func.attr == "safe_dict"
+            ):
+                continue
+
+            for keyword in call.keywords:
+                if not (
+                    keyword.arg == "operation"
+                    and isinstance(
+                        keyword.value,
+                        ast.Constant,
+                    )
+                ):
+                    continue
+
+                operations[
+                    function.name
+                ] = keyword.value.value
+
+    assert operations[
+        "execute_trading_limit_order"
+    ] == "limit_order_create"
+
+    assert operations[
+        "amend_trading_limit_order"
+    ] == "limit_order_amend"
+
+    bot_tree = ast.parse(
+        Path("app/api/bot_control.py").read_text()
+    )
+
+    bot = next(
+        node
+        for node in bot_tree.body
+        if (
+            isinstance(
+                node,
+                ast.FunctionDef | ast.AsyncFunctionDef,
+            )
+            and node.name == "create_spot_grid"
+        )
+    )
+
+    bot_operations = [
+        keyword.value.value
+        for call in ast.walk(bot)
+        if (
+            isinstance(call, ast.Call)
+            and isinstance(
+                call.func,
+                ast.Attribute,
+            )
+            and call.func.attr == "safe_dict"
+        )
+        for keyword in call.keywords
+        if (
+            keyword.arg == "operation"
+            and isinstance(
+                keyword.value,
+                ast.Constant,
+            )
+        )
+    ]
+
+    assert bot_operations == [
+        "spot_grid_create"
+    ]
+
+
+def test_trading_policy_execution_order() -> None:
+    def function(
+        path: Path,
+        name: str,
+    ):
+        tree = ast.parse(
+            path.read_text(),
+            filename=str(path),
+        )
+
+        return next(
+            node
+            for node in tree.body
+            if (
+                isinstance(
+                    node,
+                    ast.FunctionDef | ast.AsyncFunctionDef,
+                )
+                and node.name == name
+            )
+        )
+
+    def call_lines(
+        node,
+        name: str,
+    ):
+        return sorted(
+            child.lineno
+            for child in ast.walk(node)
+            if (
+                isinstance(child, ast.Call)
+                and (
+                    (
+                        isinstance(
+                            child.func,
+                            ast.Name,
+                        )
+                        and child.func.id == name
+                    )
+                    or (
+                        isinstance(
+                            child.func,
+                            ast.Attribute,
+                        )
+                        and child.func.attr == name
+                    )
+                )
+            )
+        )
+
+    create = function(
+        Path("app/trading_execution.py"),
+        "execute_limit_order",
+    )
+
+    create_policy = call_lines(
+        create,
+        "require_account_action_allowed",
+    )
+
+    create_rate = call_lines(
+        create,
+        "enforce_trading_rate_limit",
+    )
+
+    create_replay = [
+        child.lineno
+        for child in ast.walk(create)
+        if (
+            isinstance(child, ast.If)
+            and isinstance(
+                child.test,
+                ast.UnaryOp,
+            )
+            and isinstance(
+                child.test.op,
+                ast.Not,
+            )
+            and isinstance(
+                child.test.operand,
+                ast.Name,
+            )
+            and child.test.operand.id == "created"
+        )
+    ]
+
+    assert len(create_policy) == 1
+    assert len(create_rate) == 1
+    assert len(create_replay) == 1
+
+    assert (
+        create_replay[0]
+        < create_policy[0]
+        < create_rate[0]
+    )
+
+    amend = function(
+        Path("app/trading_order_amend.py"),
+        "amend_limit_order_price",
+    )
+
+    amend_policy = call_lines(
+        amend,
+        "require_account_action_allowed",
+    )
+
+    amend_gate_read = call_lines(
+        amend,
+        "_read_gate_order",
+    )
+
+    amend_replay = [
+        child.lineno
+        for child in ast.walk(amend)
+        if (
+            isinstance(child, ast.If)
+            and isinstance(
+                child.test,
+                ast.Compare,
+            )
+            and isinstance(
+                child.test.left,
+                ast.Name,
+            )
+            and child.test.left.id == "existing"
+            and len(child.test.ops) == 1
+            and isinstance(
+                child.test.ops[0],
+                ast.IsNot,
+            )
+        )
+    ]
+
+    assert len(amend_policy) == 1
+    assert len(amend_gate_read) == 1
+    assert len(amend_replay) == 1
+
+    assert (
+        amend_replay[0]
+        < amend_policy[0]
+        < amend_gate_read[0]
+    )
+
+    grid = function(
+        Path("app/api/bot_control.py"),
+        "create_spot_grid",
+    )
+
+    grid_policy = call_lines(
+        grid,
+        "require_account_action_allowed",
+    )
+
+    live_policy = call_lines(
+        grid,
+        "evaluate_live_create_policy",
+    )
+
+    credentials = call_lines(
+        grid,
+        "get_bot_control_account",
+    )
+
+    assert len(grid_policy) == 1
+    assert len(live_policy) == 1
+    assert len(credentials) == 1
+
+    assert (
+        live_policy[0]
+        < grid_policy[0]
+        < credentials[0]
+    )
+
+    live_branches = [
+        child
+        for child in ast.walk(grid)
+        if (
+            isinstance(child, ast.If)
+            and isinstance(
+                child.test,
+                ast.Name,
+            )
+            and child.test.id == "live_execution"
+        )
+    ]
+
+    assert len(live_branches) == 1
+
+    assert any(
+        (
+            isinstance(child, ast.Call)
+            and isinstance(
+                child.func,
+                ast.Name,
+            )
+            and child.func.id
+            == "require_account_action_allowed"
+        )
+        for child in ast.walk(
+            live_branches[0]
+        )
+    )
+
+
+def test_trading_policy_preserves_risk_reducing_paths() -> None:
+    protected = {
+        Path("app/api/trading.py"): {
+            "cancel_trading_limit_order",
+            "reconcile_trading_limit_order_cancellation",
+            "reconcile_trading_limit_order_amendment",
+            "reconcile_trading_limit_order_request",
+        },
+        Path("app/api/bot_control.py"): {
+            "prepare_spot_grid",
+            "prepare_bot_stop",
+            "stop_bot_control",
+            "reconcile_bot_control_request",
+            "release_bot_control_request_lock",
+        },
+        Path("app/bot_control_live_policy.py"): {
+            "evaluate_live_account_policy",
+            "evaluate_live_stop_policy",
+        },
+    }
+
+    policy_names = {
+        "require_account_action_allowed",
+        "_require_account_action_policy",
+    }
+
+    for path, names in protected.items():
+        tree = ast.parse(
+            path.read_text(),
+            filename=str(path),
+        )
+
+        functions = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(
+                node,
+                ast.FunctionDef | ast.AsyncFunctionDef,
+            )
+        }
+
+        for name in names:
+            function = functions[name]
+
+            policy_calls = [
+                child.lineno
+                for child in ast.walk(function)
+                if (
+                    isinstance(child, ast.Call)
+                    and (
+                        (
+                            isinstance(
+                                child.func,
+                                ast.Name,
+                            )
+                            and child.func.id
+                            in policy_names
+                        )
+                        or (
+                            isinstance(
+                                child.func,
+                                ast.Attribute,
+                            )
+                            and child.func.attr
+                            in policy_names
+                        )
+                    )
+                )
+            ]
+
+            assert policy_calls == []

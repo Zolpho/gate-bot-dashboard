@@ -7,6 +7,9 @@ from decimal import (
 )
 from typing import Any
 
+from .account_action_policy import (
+    require_account_action_allowed,
+)
 from .config import Settings
 from .gate_client import (
     GateAPIError,
@@ -29,7 +32,6 @@ from .trading_order_audit import (
 from .trading_order_cancel_audit import (
     get_order_cancellation,
 )
-
 
 _AMBIGUOUS_HTTP_STATUS_CODES = {
     408,
@@ -1437,6 +1439,11 @@ async def amend_limit_order_price(
             ),
             status_code=409,
         )
+
+    require_account_action_allowed(
+        account_id=account_id,
+        capability="trading",
+    )
 
     try:
         trading_account = (
