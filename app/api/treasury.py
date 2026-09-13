@@ -5735,6 +5735,12 @@ async def execute_treasury_withdrawal_jit(
                 "gate_write_performed": False,
             },
         )
+    _require_account_action_policy(
+        account_id=row["owner_account_id"],
+        capability="withdrawals",
+        operation="withdrawal_jit",
+    )
+
 
     _enforce_treasury_rate_limit(
         user=user,
@@ -6527,6 +6533,12 @@ async def execute_treasury_external_withdrawal(
                 "gate_write_performed": False,
             },
         )
+    _require_account_action_policy(
+        account_id=row["owner_account_id"],
+        capability="withdrawals",
+        operation="external_withdrawal",
+    )
+
 
     _enforce_treasury_rate_limit(
         user=user,

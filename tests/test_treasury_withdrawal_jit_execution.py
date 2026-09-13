@@ -375,6 +375,12 @@ def _arm_jit(monkeypatch):
         "_enforce_treasury_rate_limit",
         lambda **kwargs: None,
     )
+    monkeypatch.setattr(
+        treasury_api,
+        "_require_account_action_policy",
+        lambda **_kwargs: None,
+    )
+
 
 
 def _confirmation(
@@ -738,6 +744,7 @@ async def test_pending_and_uncertain_jit_keep_parent_reconciling(
             request_id,
             amount,
             audit_payload,
+            child_status=child_status,
             **kwargs,
         ):
             child = _create_child(
@@ -1521,4 +1528,197 @@ def test_hold_on_main_replay_recovers_stranded_lock():
             row["request_id"]
         )
         is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_jit_withdrawals_policy_denial_never_starts_execution(
+    monkeypatch,
+):
+    row = _create_jit_prepared_request()
+
+    fresh = _preflight(
+        row,
+        jit_required=True,
+        jit_amount="4.05",
+    )
+
+    _install_fresh_preflight(
+        monkeypatch,
+        jit_required=True,
+        jit_amount="4.05",
+    )
+
+    # Preserve the real HTTP adapter before _arm_jit()
+    # stubs account policy for its legacy execution tests.
+    real_policy_adapter = (
+        treasury_api
+        ._require_account_action_policy
+    )
+
+    # Opens the existing global Treasury-transfer arm and
+    # source allowlist used by JIT infrastructure.
+    _arm_jit(monkeypatch)
+
+    # Restore the production adapter so this test exercises
+    # the actual route-level account-policy boundary.
+    monkeypatch.setattr(
+        treasury_api,
+        "_require_account_action_policy",
+        real_policy_adapter,
+    )
+
+    policy_calls = []
+
+    def deny_policy(
+        account_id: str,
+        capability: str,
+    ) -> None:
+        policy_calls.append(
+            (
+                account_id,
+                capability,
+            )
+        )
+
+        raise (
+            treasury_api
+            .AccountActionPolicyDenied(
+                account_id=account_id,
+                capability=capability,
+            )
+        )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "require_account_action_allowed",
+        deny_policy,
+    )
+
+    rate_limit_called = False
+
+    def forbidden_rate_limit(
+        **_kwargs,
+    ) -> None:
+        nonlocal rate_limit_called
+        rate_limit_called = True
+
+        raise AssertionError(
+            "Policy-denied JIT reached rate limit"
+        )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "_enforce_treasury_rate_limit",
+        forbidden_rate_limit,
+    )
+
+    transition_called = False
+
+    def forbidden_transition(
+        *_args,
+        **_kwargs,
+    ):
+        nonlocal transition_called
+        transition_called = True
+
+        raise AssertionError(
+            "Policy-denied JIT entered "
+            "jit_executing state"
+        )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "transition_withdrawal_request",
+        forbidden_transition,
+    )
+
+    executor_called = False
+
+    async def forbidden_executor(
+        **_kwargs,
+    ):
+        nonlocal executor_called
+        executor_called = True
+
+        raise AssertionError(
+            "Policy-denied JIT reached "
+            "Gate transfer executor"
+        )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "execute_reserved_live_transfer",
+        forbidden_executor,
+    )
+
+    confirmation = _confirmation(
+        row,
+        fresh,
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as captured:
+        await (
+            treasury_api
+            .execute_treasury_withdrawal_jit(
+                row["request_id"],
+                TreasuryWithdrawalReservationRequest(
+                    confirmation=confirmation,
+                ),
+                user=_user(),
+            )
+        )
+
+    assert captured.value.status_code == 403
+
+    assert captured.value.detail == {
+        "reason": (
+            "withdrawals_disabled_by_account_policy"
+        ),
+        "message": (
+            "The Withdrawals capability is disabled "
+            "for Wallet account arnold"
+        ),
+        "account_id": "arnold",
+        "capability": "withdrawals",
+        "operation": "withdrawal_jit",
+        "gate_write_performed": False,
+    }
+
+    assert policy_calls == [
+        (
+            "arnold",
+            "withdrawals",
+        )
+    ]
+
+    assert rate_limit_called is False
+    assert transition_called is False
+    assert executor_called is False
+
+    stored = get_withdrawal_request(
+        row["request_id"]
+    )
+
+    assert stored is not None
+    assert stored["status"] == "jit_prepared"
+
+    assert (
+        get_transfer_request(
+            withdrawal_jit_transfer_request_id(
+                row["request_id"]
+            )
+        )
+        is None
+    )
+
+    # The withdrawal reservation remains held because the
+    # request is still a valid pre-execution withdrawal.
+    assert (
+        get_withdrawal_lock_for_request(
+            row["request_id"]
+        )
+        is not None
     )

@@ -372,31 +372,19 @@ def test_only_direct_transfer_execute_routes_consume_policy() -> None:
         ):
             continue
 
-        for child in ast.walk(
-            node
+        if _policy_calls_by_capability(
+            node,
+            "transfers",
         ):
-            if not isinstance(
-                child,
-                ast.Call,
-            ):
-                continue
-
-            if (
-                isinstance(
-                    child.func,
-                    ast.Name,
-                )
-                and child.func.id
-                == "_require_account_action_policy"
-            ):
-                consumers.add(
-                    node.name
-                )
+            consumers.add(
+                node.name
+            )
 
     assert consumers == {
         "execute_treasury_user_transfer",
         "execute_treasury_transfer",
     }
+
 
 
 def test_shared_transfer_executor_remains_policy_agnostic() -> None:
@@ -806,3 +794,329 @@ def test_denial_message_is_generic_and_grammatical(
         f"{capability}"
         "_disabled_by_account_policy"
     )
+
+
+def _keyword_value(
+    call: ast.Call,
+    name: str,
+) -> ast.AST | None:
+    for keyword in call.keywords:
+        if keyword.arg == name:
+            return keyword.value
+
+    return None
+
+
+def _policy_calls_by_capability(
+    node: ast.AST,
+    capability: str,
+) -> list[ast.Call]:
+    result = []
+
+    for child in ast.walk(node):
+        if not isinstance(
+            child,
+            ast.Call,
+        ):
+            continue
+
+        if not (
+            isinstance(
+                child.func,
+                ast.Name,
+            )
+            and child.func.id
+            == "_require_account_action_policy"
+        ):
+            continue
+
+        value = _keyword_value(
+            child,
+            "capability",
+        )
+
+        if (
+            isinstance(
+                value,
+                ast.Constant,
+            )
+            and value.value == capability
+        ):
+            result.append(child)
+
+    return result
+
+
+def _is_row_owner_account_id(
+    node: ast.AST | None,
+) -> bool:
+    return (
+        isinstance(node, ast.Subscript)
+        and isinstance(
+            node.value,
+            ast.Name,
+        )
+        and node.value.id == "row"
+        and isinstance(
+            node.slice,
+            ast.Constant,
+        )
+        and node.slice.value
+        == "owner_account_id"
+    )
+
+
+def test_withdrawals_policy_exact_runtime_consumers() -> None:
+    tree = ast.parse(
+        TREASURY.read_text(),
+        filename=str(TREASURY),
+    )
+
+    expected = {
+        "execute_treasury_withdrawal_jit":
+            "withdrawal_jit",
+        "execute_treasury_external_withdrawal":
+            "external_withdrawal",
+    }
+
+    actual = {}
+
+    for node in tree.body:
+        if not isinstance(
+            node,
+            ast.FunctionDef
+            | ast.AsyncFunctionDef,
+        ):
+            continue
+
+        calls = (
+            _policy_calls_by_capability(
+                node,
+                "withdrawals",
+            )
+        )
+
+        if not calls:
+            continue
+
+        assert len(calls) == 1
+
+        call = calls[0]
+
+        account = _keyword_value(
+            call,
+            "account_id",
+        )
+
+        operation = _keyword_value(
+            call,
+            "operation",
+        )
+
+        assert _is_row_owner_account_id(
+            account
+        )
+
+        assert isinstance(
+            operation,
+            ast.Constant,
+        )
+
+        actual[node.name] = (
+            operation.value
+        )
+
+    assert actual == expected
+
+
+def test_withdrawals_policy_follows_global_gates_before_writes() -> None:
+    tree = ast.parse(
+        TREASURY.read_text(),
+        filename=str(TREASURY),
+    )
+
+    def gate_if_lines(
+        node: ast.AST,
+        attribute_name: str,
+    ) -> list[int]:
+        return sorted(
+            child.lineno
+            for child in ast.walk(node)
+            if (
+                isinstance(
+                    child,
+                    ast.If,
+                )
+                and any(
+                    (
+                        isinstance(
+                            item,
+                            ast.Attribute,
+                        )
+                        and item.attr
+                        == attribute_name
+                    )
+                    for item
+                    in ast.walk(
+                        child.test
+                    )
+                )
+            )
+        )
+
+    jit = function_node(
+        tree,
+        "execute_treasury_withdrawal_jit",
+    )
+
+    jit_arm = gate_if_lines(
+        jit,
+        "treasury_transfers_live_armed",
+    )
+
+    jit_allowlist = gate_if_lines(
+        jit,
+        "treasury_transfers_live_account_allowed",
+    )
+
+    jit_policy = [
+        call.lineno
+        for call in (
+            _policy_calls_by_capability(
+                jit,
+                "withdrawals",
+            )
+        )
+    ]
+
+    jit_rate = call_lines(
+        jit,
+        "_enforce_treasury_rate_limit",
+    )
+
+    jit_executor = call_lines(
+        jit,
+        "execute_reserved_live_transfer",
+    )
+
+    assert len(jit_arm) == 1
+    assert len(jit_allowlist) == 1
+    assert len(jit_policy) == 1
+    assert len(jit_rate) == 1
+    assert len(jit_executor) == 1
+
+    transitions = [
+        line
+        for line in call_lines(
+            jit,
+            "transition_withdrawal_request",
+        )
+        if (
+            jit_rate[0]
+            < line
+            < jit_executor[0]
+        )
+    ]
+
+    assert len(transitions) == 1
+
+    assert (
+        jit_arm[0]
+        < jit_allowlist[0]
+        < jit_policy[0]
+        < jit_rate[0]
+        < transitions[0]
+        < jit_executor[0]
+    )
+
+    external = function_node(
+        tree,
+        "execute_treasury_external_withdrawal",
+    )
+
+    external_arm = gate_if_lines(
+        external,
+        "treasury_withdrawals_live_armed",
+    )
+
+    external_allowlist = gate_if_lines(
+        external,
+        "treasury_withdrawals_live_account_allowed",
+    )
+
+    external_policy = [
+        call.lineno
+        for call in (
+            _policy_calls_by_capability(
+                external,
+                "withdrawals",
+            )
+        )
+    ]
+
+    external_rate = call_lines(
+        external,
+        "_enforce_treasury_rate_limit",
+    )
+
+    external_executor = call_lines(
+        external,
+        "submit_withdrawal_once",
+    )
+
+    assert len(external_arm) == 1
+    assert len(external_allowlist) == 1
+    assert len(external_policy) == 1
+    assert len(external_rate) == 1
+    assert len(external_executor) == 1
+
+    assert (
+        external_arm[0]
+        < external_allowlist[0]
+        < external_policy[0]
+        < external_rate[0]
+        < external_executor[0]
+    )
+
+
+
+def test_withdrawals_policy_does_not_block_recovery_routes() -> None:
+    tree = ast.parse(
+        TREASURY.read_text(),
+        filename=str(TREASURY),
+    )
+
+    protected = {
+        "prepare_treasury_withdrawal_jit",
+        "reconcile_treasury_withdrawal_jit",
+        "reconcile_treasury_external_withdrawal",
+        "settle_treasury_withdrawal_request",
+        "abandon_treasury_withdrawal_request",
+        "hold_treasury_withdrawal_funds_on_main",
+        "cancel_treasury_withdrawal_request",
+    }
+
+    seen = set()
+
+    for node in tree.body:
+        if not (
+            isinstance(
+                node,
+                ast.FunctionDef
+                | ast.AsyncFunctionDef,
+            )
+            and node.name in protected
+        ):
+            continue
+
+        seen.add(node.name)
+
+        assert (
+            _policy_calls_by_capability(
+                node,
+                "withdrawals",
+            )
+            == []
+        )
+
+    assert seen == protected

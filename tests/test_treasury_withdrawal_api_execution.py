@@ -277,6 +277,12 @@ def _install(
         fake_reconcile,
     )
 
+    monkeypatch.setattr(
+        treasury_api,
+        "_require_account_action_policy",
+        lambda **_kwargs: None,
+    )
+
     return current_row, calls
 
 
@@ -683,3 +689,109 @@ def test_external_reconcile_route_has_no_submission_call():
         ".treasury_withdrawals_live_armed"
         not in source.replace("\n", "")
     )
+
+
+@pytest.mark.asyncio
+async def test_external_withdrawals_policy_denial_never_submits(
+    monkeypatch,
+):
+    # Preserve the real adapter before _install() stubs it
+    # for the pre-existing external-withdrawal route tests.
+    real_policy_adapter = (
+        treasury_api
+        ._require_account_action_policy
+    )
+
+    row, calls = _install(
+        monkeypatch,
+        armed=True,
+    )
+
+    # Restore the production adapter so this test exercises
+    # the actual account-policy boundary after the existing
+    # global withdrawal arm/owner allowlist.
+    monkeypatch.setattr(
+        treasury_api,
+        "_require_account_action_policy",
+        real_policy_adapter,
+    )
+
+    policy_calls = []
+
+    def deny_policy(
+        account_id: str,
+        capability: str,
+    ) -> None:
+        policy_calls.append(
+            (
+                account_id,
+                capability,
+            )
+        )
+
+        raise (
+            treasury_api
+            .AccountActionPolicyDenied(
+                account_id=account_id,
+                capability=capability,
+            )
+        )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "require_account_action_allowed",
+        deny_policy,
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as captured:
+        await (
+            treasury_api
+            .execute_treasury_external_withdrawal(
+                row["request_id"],
+                TreasuryWithdrawalReservationRequest(
+                    confirmation=(
+                        withdrawal_execution_confirmation_text(
+                            row
+                        )
+                    ),
+                ),
+                user=_user(),
+            )
+        )
+
+    assert captured.value.status_code == 403
+
+    assert captured.value.detail == {
+        "reason": (
+            "withdrawals_disabled_by_account_policy"
+        ),
+        "message": (
+            "The Withdrawals capability is disabled "
+            "for Wallet account arnold"
+        ),
+        "account_id": "arnold",
+        "capability": "withdrawals",
+        "operation": "external_withdrawal",
+        "gate_write_performed": False,
+    }
+
+    assert policy_calls == [
+        (
+            "arnold",
+            "withdrawals",
+        )
+    ]
+
+    # Fresh preflight is intentionally before the final
+    # live execution barriers and remains allowed.
+    assert calls["preflight"] == 1
+
+    # Account policy must stop the request before either
+    # rate limiting or the Gate withdrawal submission.
+    assert calls["rate_limit"] == []
+    assert calls["submit"] == 0
+
+    # Execution denial does not invoke reconciliation.
+    assert calls["reconcile"] == 0
