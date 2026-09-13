@@ -6390,3 +6390,26 @@ p {
     aspect-ratio: 1 / 1 !important;
   }
 }
+
+
+/* ============================================================
+   AURORA MOBILE WITHDRAWAL SAFETY STACK
+
+   The active Safety stage uses a two-column Amount + funding
+   sidecar on wider displays. On phone-width screens that later
+   phase-specific rule can outrank earlier responsive fallbacks
+   and force real controls outside the visible card.
+
+   Stack only the active Safety execution row. Do not hide or
+   clip content, and leave tablet/desktop geometry unchanged.
+   ============================================================ */
+
+@media (max-width: 620px) {
+  #tab-wallet
+  #treasuryWithdrawalAction[data-aurora-phase="safety"]
+  .aurora-withdrawal-stage-safety
+  .treasury-withdrawal-execution-row {
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+  }
+}

@@ -454,3 +454,70 @@ def test_withdrawal_mobile_glow_cannot_widen_document():
         r"\boverflow(?:-x|-y)?\s*:",
         glow_block,
     )
+
+
+def test_withdrawal_mobile_safety_execution_row_stacks():
+    media_pattern = re.compile(
+        r"@media\s*\("
+        r"\s*max-width\s*:"
+        r"\s*620px\s*\)"
+    )
+
+    safety_media_blocks = []
+
+    for match in media_pattern.finditer(
+        WITHDRAWAL
+    ):
+        media_block = css_brace_block(
+            WITHDRAWAL,
+            match.start(),
+        )
+
+        if (
+            'data-aurora-phase="safety"'
+            in media_block
+            and
+            ".treasury-withdrawal-execution-row"
+            in media_block
+        ):
+            safety_media_blocks.append(
+                media_block
+            )
+
+    assert len(safety_media_blocks) == 1
+
+    media_block = safety_media_blocks[0]
+
+    assert (
+        "#treasuryWithdrawalAction"
+        '[data-aurora-phase="safety"]'
+        in media_block
+    )
+
+    selector = (
+        ".treasury-withdrawal-execution-row"
+    )
+
+    selector_position = media_block.index(
+        selector
+    )
+
+    safety_block = css_brace_block(
+        media_block,
+        selector_position,
+    )
+
+    assert re.search(
+        r"grid-template-columns\s*:"
+        r"\s*minmax\("
+        r"\s*0\s*,"
+        r"\s*1fr\s*\)"
+        r"\s*!important",
+        safety_block,
+        flags=re.S,
+    )
+
+    assert not re.search(
+        r"\b(?:width|overflow(?:-x|-y)?)\s*:",
+        safety_block,
+    )
