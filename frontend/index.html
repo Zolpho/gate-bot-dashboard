@@ -85,6 +85,12 @@
   <link rel="stylesheet" href="./aurora-overview.css?v=20260906-aurora-a7c156-v1" data-dashboard-ui-stylesheet="aurora" disabled>
   <link
     rel="stylesheet"
+    href="./aurora-account-permissions.css?v=20260913-account-permissions-a7c486-v1"
+    data-dashboard-ui-stylesheet="aurora"
+    disabled
+  >
+  <link
+    rel="stylesheet"
     href="./aurora-symbols.css?v=20260906-aurora-a7c94-v1"
     data-dashboard-ui-stylesheet="aurora"
     disabled
@@ -138,6 +144,14 @@
           <span class="mode-badge" id="modeBadge">—</span>
           <span class="admin-identity hidden" id="adminIdentity"></span>
           <button class="button secondary hidden" id="changePasswordButton">Change password</button>
+          <button
+            type="button"
+            class="button secondary hidden"
+            id="accountPermissionsButton"
+            aria-haspopup="dialog"
+            aria-controls="accountPermissionsDialog"
+            aria-hidden="true"
+          >Permissions</button>
           <button class="button secondary" id="adminButton">Account login</button>
           <button class="button primary" id="syncButton">Sync Gate</button>
         </div>
@@ -2960,6 +2974,82 @@
   </dialog>
 
 
+  <dialog
+    id="accountPermissionsDialog"
+    class="account-permissions-dialog"
+    aria-labelledby="accountPermissionsTitle"
+  >
+    <div class="dialog-header account-permissions-header">
+      <div>
+        <span class="account-permissions-overline">
+          ROOTADMIN · ACCOUNT POLICY
+        </span>
+        <h2 id="accountPermissionsTitle">
+          Wallet account permissions
+        </h2>
+        <p>
+          Control risk-on capabilities independently for each
+          Wallet account.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeAccountPermissionsDialog"
+        aria-label="Close Wallet account permissions"
+      >×</button>
+    </div>
+
+    <div class="account-permissions-body">
+      <div class="account-permissions-safety">
+        <strong>LOCAL POLICY CONTROL</strong>
+        <p>
+          Global environment arms and account allowlists remain
+          independent upper safety gates. In this phase these
+          changes are stored and audited locally; Gate execution
+          enforcement is not connected yet.
+        </p>
+      </div>
+
+      <div
+        id="accountPermissionsError"
+        class="form-error hidden"
+        role="alert"
+        aria-live="assertive"
+      ></div>
+
+      <div
+        id="accountPermissionsLoading"
+        class="account-permissions-loading hidden"
+        aria-live="polite"
+      >
+        Loading Wallet account policies…
+      </div>
+
+      <div
+        id="accountPermissionsList"
+        class="account-permissions-list"
+      ></div>
+    </div>
+
+    <div class="account-permissions-footer">
+      <span>
+        Changes require an explicit reason and are written to
+        immutable policy history.
+      </span>
+
+      <button
+        type="button"
+        class="button secondary"
+        id="refreshAccountPermissions"
+      >
+        Refresh policies
+      </button>
+    </div>
+  </dialog>
+
+
   <dialog id="adminDialog" class="small-dialog">
     <div class="dialog-header"><div><h2>Account login</h2><p>Credentials stay in memory until this page is refreshed or locked.</p></div><button class="icon-button" id="closeAdminDialog" aria-label="Close">×</button></div>
     <form id="adminForm" class="form-grid">
@@ -3057,7 +3147,11 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260906-aurora-a7c148-v1"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1"
+    defer
+  ></script>
+  <script
+    src="./aurora-account-permissions.js?v=20260913-account-permissions-a7c486-v1"
     defer
   ></script>
   <script

@@ -264,6 +264,8 @@ function renderAdminState() {
     && state.adminAuthorization
   );
 
+  window.renderAccountPermissionsAccess?.();
+
   if (state.adminUser) {
     button.textContent = 'Lock account';
     identity.textContent = `${state.adminUser.username} · ${state.adminUser.role.replace('_', ' ')}`;
@@ -461,6 +463,9 @@ function lockAdmin(showMessage = true) {
   if (depositDialog?.open) depositDialog.close();
   const passwordDialog = $('#changePasswordDialog');
   if (passwordDialog?.open) passwordDialog.close();
+
+  window.clearAccountPermissionsState?.();
+
   renderAdminState();
   renderBotRaw();
   if (showMessage) showToast('Account session locked.');
