@@ -73,6 +73,13 @@ def _install_registry(
         ),
     )
 
+    monkeypatch.setattr(
+        treasury_api,
+        "_require_account_action_policy",
+        lambda **_kwargs: None,
+    )
+
+
 
 @pytest.mark.asyncio
 async def test_participants_are_account_scoped_and_do_not_leak_recipient_balances(
@@ -1011,3 +1018,181 @@ async def test_reconcile_allowed_while_live_arm_disabled(
     assert called is True
     assert result["status"] == "uncertain"
     assert result["gate_write_performed"] is False
+
+
+@pytest.mark.asyncio
+async def test_execute_policy_disabled_never_dispatches(
+    monkeypatch,
+):
+    alice = _user(
+        "alice",
+        ("alice-account",),
+    )
+
+    bob = _user(
+        "bob",
+        ("bob-account",),
+    )
+
+    source = _account(
+        "alice-account",
+        gate_uid="101",
+    )
+
+    destination = _account(
+        "bob-account",
+        gate_uid="202",
+    )
+
+    # Preserve the real adapter before the legacy helper
+    # stubs account policy for its older route tests.
+    real_policy_adapter = (
+        treasury_api
+        ._require_account_action_policy
+    )
+
+    _install_registry(
+        monkeypatch,
+        users=(
+            alice,
+            bob,
+        ),
+        accounts={
+            "alice-account": source,
+            "bob-account": destination,
+        },
+        enabled=True,
+    )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "_require_account_action_policy",
+        real_policy_adapter,
+    )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "find_matching_transfer_request",
+        lambda **_kwargs: None,
+    )
+
+    policy_calls = []
+
+    def deny_policy(
+        account_id: str,
+        capability: str,
+    ) -> None:
+        policy_calls.append(
+            (
+                account_id,
+                capability,
+            )
+        )
+
+        raise (
+            treasury_api
+            .AccountActionPolicyDenied(
+                account_id=account_id,
+                capability=capability,
+            )
+        )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "require_account_action_allowed",
+        deny_policy,
+    )
+
+    rate_limit_called = False
+
+    def forbidden_rate_limit(
+        **_kwargs,
+    ) -> None:
+        nonlocal rate_limit_called
+        rate_limit_called = True
+
+        raise AssertionError(
+            "Policy-denied user transfer "
+            "reached rate limit"
+        )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "_enforce_treasury_rate_limit",
+        forbidden_rate_limit,
+    )
+
+    executor_called = False
+
+    async def forbidden_executor(
+        **_kwargs,
+    ):
+        nonlocal executor_called
+        executor_called = True
+
+        raise AssertionError(
+            "Policy-denied user transfer "
+            "reached executor"
+        )
+
+    monkeypatch.setattr(
+        treasury_api,
+        "execute_user_account_transfer",
+        forbidden_executor,
+    )
+
+    request = (
+        treasury_api
+        .TreasuryUserTransferExecutionRequest(
+            request_id=(
+                "user-transfer-policy-denied-0001"
+            ),
+            source_account_id="alice-account",
+            destination_account_id="bob-account",
+            currency="USDT",
+            amount=Decimal("1"),
+            confirmation=(
+                "TRANSFER 1 USDT FROM alice-account "
+                "TO bob-account"
+            ),
+        )
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as raised:
+        await (
+            treasury_api
+            .execute_treasury_user_transfer(
+                request,
+                alice,
+            )
+        )
+
+    assert raised.value.status_code == 403
+
+    detail = raised.value.detail
+
+    assert detail == {
+        "reason": (
+            "transfers_disabled_by_account_policy"
+        ),
+        "message": (
+            "The Transfers capability is disabled "
+            "for Wallet account alice-account"
+        ),
+        "account_id": "alice-account",
+        "capability": "transfers",
+        "operation": "user_transfer",
+        "gate_write_performed": False,
+    }
+
+    assert policy_calls == [
+        (
+            "alice-account",
+            "transfers",
+        )
+    ]
+
+    assert rate_limit_called is False
+    assert executor_called is False

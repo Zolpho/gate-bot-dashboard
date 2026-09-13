@@ -8,6 +8,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..account_action_policy import (
+    AccountActionPolicyDenied,
+    require_account_action_allowed,
+)
 from ..accounts import get_gate_account
 from ..config import get_settings
 from ..gate_client import GateAPIError, GateClient
@@ -99,16 +103,6 @@ from ..treasury_withdrawal_destinations import (
     list_destinations,
     revoke_destination,
 )
-from ..treasury_withdrawal_recipients import (
-    TreasuryWithdrawalRecipientError,
-    archive_recipient,
-    create_recipient,
-    get_recipient,
-    list_recipient_events,
-    list_recipients,
-    rename_recipient,
-    restore_recipient,
-)
 from ..treasury_withdrawal_execution import (
     TreasuryWithdrawalExecutionError,
     withdrawal_execution_confirmation_text,
@@ -132,6 +126,16 @@ from ..treasury_withdrawal_orphan_resolution import (
     TreasuryWithdrawalOrphanResolutionError,
     abandon_unresolved_withdrawal,
     withdrawal_abandon_confirmation_text,
+)
+from ..treasury_withdrawal_recipients import (
+    TreasuryWithdrawalRecipientError,
+    archive_recipient,
+    create_recipient,
+    get_recipient,
+    list_recipient_events,
+    list_recipients,
+    rename_recipient,
+    restore_recipient,
 )
 from ..treasury_withdrawal_settlement import (
     TreasuryWithdrawalSettlementError,
@@ -183,6 +187,30 @@ def _currency(value: str) -> str:
         )
 
     return normalized
+
+
+def _require_account_action_policy(
+    *,
+    account_id: str,
+    capability: str,
+    operation: str,
+) -> None:
+    try:
+        require_account_action_allowed(
+            account_id,
+            capability,
+        )
+
+    except AccountActionPolicyDenied as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                **exc.safe_dict(
+                    operation=operation,
+                ),
+                "gate_write_performed": False,
+            },
+        ) from exc
 
 
 def _enforce_treasury_rate_limit(
@@ -1324,6 +1352,11 @@ async def execute_treasury_user_transfer(
                 "gate_write_performed": False,
             },
         )
+    _require_account_action_policy(
+        account_id=source,
+        capability="transfers",
+        operation="user_transfer",
+    )
 
     _enforce_treasury_rate_limit(
         user=user,
@@ -1756,6 +1789,11 @@ async def execute_treasury_transfer(
                 "write_performed": False,
             },
         )
+    _require_account_action_policy(
+        account_id=source_account_id,
+        capability="transfers",
+        operation="treasury_transfer",
+    )
 
     _enforce_treasury_rate_limit(
         user=user,

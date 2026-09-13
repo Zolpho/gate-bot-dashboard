@@ -13,7 +13,6 @@ from .models import (
     GateAccount,
 )
 
-
 CAPABILITIES = (
     "transfers",
     "withdrawals",
@@ -29,6 +28,51 @@ _CAPABILITY_COLUMNS = {
 
 class AccountActionPolicyError(RuntimeError):
     pass
+
+
+class AccountActionPolicyDenied(
+    AccountActionPolicyError
+):
+    """
+    A risk-on account capability is disabled.
+
+    This exception is intentionally framework-neutral so
+    Treasury, Trading and Bot Control can share the same
+    durable account-policy semantics without coupling the
+    service layer to FastAPI.
+    """
+
+    def __init__(
+        self,
+        *,
+        account_id: str,
+        capability: str,
+    ) -> None:
+        self.account_id = account_id
+        self.capability = capability
+
+        super().__init__(
+
+                f"The {capability.capitalize()} capability is disabled "
+                f"for Wallet account {account_id}"
+
+        )
+
+    def safe_dict(
+        self,
+        *,
+        operation: str,
+    ) -> dict[str, Any]:
+        return {
+            "reason": (
+                f"{self.capability}"
+                "_disabled_by_account_policy"
+            ),
+            "message": str(self),
+            "account_id": self.account_id,
+            "capability": self.capability,
+            "operation": str(operation or "").strip(),
+        }
 
 
 def _account_id(value: str) -> str:
@@ -215,6 +259,37 @@ def account_action_allowed(
                 column_name,
             )
         )
+
+
+def require_account_action_allowed(
+    account_id: str,
+    capability: str,
+) -> None:
+    """
+    Fail closed when a risk-on account capability is off.
+
+    Missing policy rows remain denied because
+    account_action_allowed() is deliberately fail-closed.
+    """
+
+    normalized_account = _account_id(
+        account_id
+    )
+
+    normalized_capability = _capability(
+        capability
+    )
+
+    if account_action_allowed(
+        normalized_account,
+        normalized_capability,
+    ):
+        return
+
+    raise AccountActionPolicyDenied(
+        account_id=normalized_account,
+        capability=normalized_capability,
+    )
 
 
 def list_account_action_policies(
