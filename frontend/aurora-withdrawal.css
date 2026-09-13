@@ -3596,9 +3596,9 @@ p {
 #treasuryWithdrawalAction[data-aurora-phase="request"]
 .aurora-withdrawal-stage-grid {
   grid-template-columns:
-    minmax(325px, 0.76fr)
-    minmax(305px, 0.72fr)
-    minmax(440px, 1.34fr) !important;
+    minmax(0, 0.76fr)
+    minmax(0, 0.72fr)
+    minmax(0, 1.34fr) !important;
 }
 
 #treasuryWithdrawalAction[data-aurora-phase="request"]
