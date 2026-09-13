@@ -379,3 +379,78 @@ def test_withdrawal_tablet_stage_placement_returns_to_normal_flow():
         LAYOUT,
         flags=re.S,
     )
+
+def test_withdrawal_mobile_glow_cannot_widen_document():
+    media_pattern = re.compile(
+        r"@media\s*\("
+        r"\s*max-width\s*:"
+        r"\s*620px\s*\)"
+    )
+
+    glow_media_blocks = []
+
+    for match in media_pattern.finditer(
+        WITHDRAWAL
+    ):
+        media_block = css_brace_block(
+            WITHDRAWAL,
+            match.start(),
+        )
+
+        if (
+            "#treasuryWithdrawalAction::after"
+            in media_block
+        ):
+            glow_media_blocks.append(
+                media_block
+            )
+
+    assert len(glow_media_blocks) == 1
+
+    media_block = glow_media_blocks[0]
+
+    selector = (
+        "#treasuryWithdrawalAction::after"
+    )
+
+    selector_position = (
+        media_block.index(
+            selector
+        )
+    )
+
+    glow_block = css_brace_block(
+        media_block,
+        selector_position,
+    )
+
+    assert re.search(
+        r"width\s*:"
+        r"\s*min\("
+        r"\s*540px\s*,"
+        r"\s*100%\s*\)"
+        r"\s*!important",
+        glow_block,
+        flags=re.S,
+    )
+
+    assert re.search(
+        r"height\s*:"
+        r"\s*auto"
+        r"\s*!important",
+        glow_block,
+        flags=re.S,
+    )
+
+    assert re.search(
+        r"aspect-ratio\s*:"
+        r"\s*1\s*/\s*1"
+        r"\s*!important",
+        glow_block,
+        flags=re.S,
+    )
+
+    assert not re.search(
+        r"\boverflow(?:-x|-y)?\s*:",
+        glow_block,
+    )

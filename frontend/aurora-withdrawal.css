@@ -6370,3 +6370,23 @@ p {
   opacity: 1 !important;
 
 }
+
+/* ============================================================
+   AURORA MOBILE WITHDRAWAL GLOW FIT
+
+   The Withdrawal shell intentionally allows stage geometry to
+   remain visible, but its large decorative ::after glow must
+   not widen the document on narrow screens.
+
+   Keep the desktop 540px ornament when space permits; constrain
+   only the ornament itself when the Withdrawal shell is narrower.
+   ============================================================ */
+
+@media (max-width: 620px) {
+  #tab-wallet
+  #treasuryWithdrawalAction::after {
+    width: min(540px, 100%) !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+  }
+}
