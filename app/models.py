@@ -49,6 +49,144 @@ class GateAccount(Base):
     sync_runs: Mapped[list["SyncRun"]] = relationship(back_populates="account")
 
 
+class AccountActionPolicy(Base):
+    """
+    Durable per-Gate-account action policy.
+
+    Missing rows are deliberately interpreted by the policy
+    service as all capabilities disabled (fail closed).
+    """
+
+    __tablename__ = "account_action_policies"
+
+    __table_args__ = (
+        Index(
+            "ix_account_action_policies_updated_at",
+            "updated_at",
+        ),
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "gate_accounts.id",
+            ondelete="CASCADE",
+        ),
+        primary_key=True,
+    )
+
+    transfers_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    withdrawals_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    trading_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    updated_by: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
+class AccountActionPolicyEvent(Base):
+    """
+    Append-only application audit for policy changes.
+
+    old_enabled is NULL for initialization events where
+    no prior durable policy row existed.
+    """
+
+    __tablename__ = "account_action_policy_events"
+
+    __table_args__ = (
+        Index(
+            "ix_account_action_policy_events_account_created",
+            "account_id",
+            "created_at",
+        ),
+        Index(
+            "ix_account_action_policy_events_capability_created",
+            "capability",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "gate_accounts.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    capability: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    old_enabled: Mapped[Optional[bool]] = mapped_column(
+        Boolean,
+        nullable=True,
+    )
+
+    new_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    reason: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    metadata_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+
 class Bot(Base):
     __tablename__ = "bots"
     __table_args__ = (

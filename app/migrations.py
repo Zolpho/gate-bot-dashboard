@@ -674,6 +674,8 @@ def migrate_database(engine: Engine) -> None:
         return
 
     from .models import (
+        AccountActionPolicy,
+        AccountActionPolicyEvent,
         AlertIncident,
         Bot,
         BotArchive,
@@ -1034,6 +1036,105 @@ def migrate_database(engine: Engine) -> None:
                 "DELETE FROM gate_accounts WHERE id='legacy' "
                 "AND NOT EXISTS (SELECT 1 FROM bots WHERE account_id='legacy')"
             )
+
+        # A7C484: durable per-account action-policy foundation.
+        #
+        # IMPORTANT rollout rule:
+        #
+        # Existing Gate accounts are initialized permissively only
+        # when this table is introduced, preserving current behavior.
+        # Accounts created/discovered after this migration receive no
+        # automatic row and are therefore fail-closed by the runtime
+        # policy service until rootadmin explicitly configures them.
+        policy_table_created = not _table_exists(
+            raw,
+            "account_action_policies",
+        )
+
+        if policy_table_created:
+            _create_table(
+                raw,
+                engine,
+                AccountActionPolicy.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "account_action_policy_events",
+        ):
+            _create_table(
+                raw,
+                engine,
+                AccountActionPolicyEvent.__table__,
+            )
+
+        if policy_table_created:
+            policy_backfill_at = (
+                datetime.now(timezone.utc).isoformat()
+            )
+
+            raw.execute(
+                """
+                INSERT INTO account_action_policies
+                (
+                    account_id,
+                    transfers_enabled,
+                    withdrawals_enabled,
+                    trading_enabled,
+                    updated_by,
+                    created_at,
+                    updated_at
+                )
+                SELECT
+                    id,
+                    1,
+                    1,
+                    1,
+                    'migration:a7c484',
+                    ?,
+                    ?
+                FROM gate_accounts
+                """,
+                (
+                    policy_backfill_at,
+                    policy_backfill_at,
+                ),
+            )
+
+            for capability in (
+                "transfers",
+                "withdrawals",
+                "trading",
+            ):
+                raw.execute(
+                    """
+                    INSERT INTO account_action_policy_events
+                    (
+                        account_id,
+                        capability,
+                        old_enabled,
+                        new_enabled,
+                        username,
+                        reason,
+                        metadata_json,
+                        created_at
+                    )
+                    SELECT
+                        id,
+                        ?,
+                        NULL,
+                        1,
+                        'migration:a7c484',
+                        'Initial policy backfill for an existing Gate account.',
+                        '{"source":"migration_backfill"}',
+                        ?
+                    FROM gate_accounts
+                    """,
+                    (
+                        capability,
+                        policy_backfill_at,
+                    ),
+                )
 
         raw.commit()
         raw.execute("PRAGMA legacy_alter_table=OFF")
