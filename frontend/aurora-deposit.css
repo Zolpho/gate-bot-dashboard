@@ -1038,11 +1038,7 @@
       rgba(82, 226, 172, 0.11);
   }
 
-  #walletDepositsWorkspace
-  #depositDetails {
-    grid-template-columns:
-      1fr;
-  }
+
 
   #walletDepositsWorkspace
   .deposit-definition-list {
@@ -3164,13 +3160,7 @@ dd:nth-of-type(3) {
 }
 
 
-#walletDepositsWorkspace
-#depositNetworkList
-.deposit-option
-.deposit-coin-mark
-.aurora-symbol {
-  --aurora-symbol-size: 24px;
-}
+
 
 
 /*
