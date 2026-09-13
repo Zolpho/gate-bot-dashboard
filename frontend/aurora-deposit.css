@@ -125,23 +125,11 @@
 
 #walletDepositsWorkspace
 .wallet-deposit-header::before {
-  content: "";
-
-  width: 7px;
-  height: 7px;
 
   flex:
     0
     0
     auto;
-
-  border-radius: 999px;
-
-  background: #59f2bd;
-
-  box-shadow:
-    0 0 0 4px rgba(89, 242, 189, 0.08),
-    0 0 16px rgba(89, 242, 189, 0.46);
 }
 
 
@@ -620,8 +608,6 @@
       rgba(8, 48, 36, 0.72),
       rgba(3, 27, 21, 0.78)
     );
-
-  overflow: hidden;
 }
 
 
@@ -651,12 +637,7 @@
 }
 
 
-#walletDepositsWorkspace
-.deposit-qr-actions {
-  padding:
-    8px
-    10px;
-}
+
 
 
 #walletDepositsWorkspace
@@ -671,10 +652,6 @@
 
 #walletDepositsWorkspace
 .deposit-address-fields {
-  min-width: 0;
-
-  padding:
-    12px;
 
   border:
     1px solid
@@ -727,12 +704,6 @@
 .deposit-copy-row {
   display: grid;
 
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto;
-
-  gap: 7px;
-
   align-items: stretch;
 
   margin-top: 7px;
@@ -746,8 +717,6 @@
   padding:
     9px
     10px;
-
-  overflow-wrap: anywhere;
 
   border:
     1px solid
