@@ -4358,6 +4358,13 @@ p {
   .aurora-withdrawal-stage-destination
   .treasury-withdrawal-route-grid {
     grid-template-columns: 1fr !important;
+
+    grid-template-areas:
+      "asset"
+      "network"
+      "recipient"
+      "memo"
+      "actions" !important;
   }
 
   #treasuryWithdrawalAction

@@ -29,6 +29,14 @@ MOTION = (
     encoding="utf-8"
 )
 
+WITHDRAWAL = (
+    ROOT
+    / "frontend"
+    / "aurora-withdrawal.css"
+).read_text(
+    encoding="utf-8"
+)
+
 LAYOUT_CACHE = (
     "20260912-aurora-wallet-tablet-layout-a7c312-v2"
 )
@@ -52,6 +60,39 @@ class LinkParser(HTMLParser):
             self.links.append(
                 dict(attrs)
             )
+
+
+def css_brace_block(
+    source,
+    start,
+):
+    open_brace = source.index(
+        "{",
+        start,
+    )
+
+    depth = 0
+
+    for position in range(
+        open_brace,
+        len(source),
+    ):
+        character = source[position]
+
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+
+            if depth == 0:
+                return source[
+                    start:
+                    position + 1
+                ]
+
+    raise AssertionError(
+        "unterminated CSS block"
+    )
 
 
 def stylesheet_link(
@@ -171,6 +212,68 @@ def test_withdrawal_tablet_geometry_is_single_column():
         r"\s*minmax\(0,\s*1fr\)"
         r"\s*!important",
         LAYOUT,
+        flags=re.S,
+    )
+
+
+def test_withdrawal_tablet_route_grid_keeps_named_areas_vertical():
+    media_pattern = re.compile(
+        r"@media\s*\("
+        r"\s*max-width\s*:"
+        r"\s*1320px\s*\)"
+    )
+
+    route_media_blocks = []
+
+    for match in media_pattern.finditer(
+        WITHDRAWAL
+    ):
+        media_block = css_brace_block(
+            WITHDRAWAL,
+            match.start(),
+        )
+
+        if (
+            ".treasury-withdrawal-route-grid"
+            in media_block
+        ):
+            route_media_blocks.append(
+                media_block
+            )
+
+    assert len(route_media_blocks) == 1
+
+    media_block = route_media_blocks[0]
+
+    route_selector = (
+        ".treasury-withdrawal-route-grid"
+    )
+
+    route_position = media_block.index(
+        route_selector
+    )
+
+    route_block = css_brace_block(
+        media_block,
+        route_position,
+    )
+
+    assert re.search(
+        r"grid-template-columns\s*:"
+        r"\s*1fr\s*!important",
+        route_block,
+        flags=re.S,
+    )
+
+    assert re.search(
+        r"grid-template-areas\s*:"
+        r'\s*"asset"'
+        r'\s*"network"'
+        r'\s*"recipient"'
+        r'\s*"memo"'
+        r'\s*"actions"'
+        r"\s*!important",
+        route_block,
         flags=re.S,
     )
 
