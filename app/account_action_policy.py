@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -129,6 +130,24 @@ def _metadata_json(
     )
 
 
+def _utc_iso(
+    value: datetime | None,
+) -> str | None:
+    if value is None:
+        return None
+
+    if value.tzinfo is None:
+        normalized = value.replace(
+            tzinfo=UTC
+        )
+    else:
+        normalized = value.astimezone(
+            UTC
+        )
+
+    return normalized.isoformat()
+
+
 def _policy_snapshot(
     account_id: str,
     row: AccountActionPolicy | None,
@@ -158,15 +177,11 @@ def _policy_snapshot(
             row.trading_enabled
         ),
         "updated_by": row.updated_by or None,
-        "created_at": (
-            row.created_at.isoformat()
-            if row.created_at
-            else None
+        "created_at": _utc_iso(
+            row.created_at
         ),
-        "updated_at": (
-            row.updated_at.isoformat()
-            if row.updated_at
-            else None
+        "updated_at": _utc_iso(
+            row.updated_at
         ),
     }
 
@@ -194,10 +209,8 @@ def _event_snapshot(
         "username": row.username,
         "reason": row.reason,
         "metadata": metadata,
-        "created_at": (
-            row.created_at.isoformat()
-            if row.created_at
-            else None
+        "created_at": _utc_iso(
+            row.created_at
         ),
     }
 

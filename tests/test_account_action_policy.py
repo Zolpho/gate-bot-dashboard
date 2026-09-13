@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import uuid4
 
 import pytest
@@ -447,3 +448,40 @@ def test_policy_migration_backfills_only_accounts_present_at_introduction(
         )
 
     engine.dispose()
+
+def test_policy_datetime_serializer_normalizes_naive_utc() -> None:
+    from app.account_action_policy import _utc_iso
+
+    naive = datetime(
+        2026,
+        9,
+        13,
+        19,
+        30,
+        1,
+        484070,
+    )
+
+    assert (
+        _utc_iso(naive)
+        == "2026-09-13T19:30:01.484070+00:00"
+    )
+
+
+def test_policy_datetime_serializer_converts_aware_to_utc() -> None:
+    from app.account_action_policy import _utc_iso
+
+    aware = datetime.fromisoformat(
+        "2026-09-13T21:30:01.484070+02:00"
+    )
+
+    assert (
+        _utc_iso(aware)
+        == "2026-09-13T19:30:01.484070+00:00"
+    )
+
+
+def test_policy_datetime_serializer_preserves_none() -> None:
+    from app.account_action_policy import _utc_iso
+
+    assert _utc_iso(None) is None
