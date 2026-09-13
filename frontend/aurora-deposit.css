@@ -1973,9 +1973,9 @@ dd {
 #depositDialog:has(#depositDetailsStep:not(.deposit-step-disabled))
 .deposit-dialog-content {
   grid-template-columns:
-    minmax(235px, 0.58fr)
-    minmax(220px, 0.52fr)
-    minmax(620px, 1.55fr);
+    minmax(0, 0.58fr)
+    minmax(0, 0.52fr)
+    minmax(0, 1.55fr);
 
   gap: 12px;
 }
