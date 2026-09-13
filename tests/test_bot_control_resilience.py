@@ -27,6 +27,13 @@ def run_scenario(
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
 
+    existing_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        str(ROOT)
+        if not existing_pythonpath
+        else str(ROOT) + os.pathsep + existing_pythonpath
+    )
+
     env[
         "DATABASE_URL"
     ] = (
