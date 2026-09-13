@@ -2497,7 +2497,6 @@ input {
 }
 
 .aurora-command-node p {
-  overflow: hidden;
   margin: 0;
   color: rgba(208, 239, 221, 0.57);
   font-size: 0.72rem;
