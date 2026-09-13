@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, model_validator
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field, StrictBool, model_validator
 
+from ..account_action_policy import (
+    CAPABILITIES,
+    AccountActionPolicyError,
+    list_account_action_policies,
+    list_account_action_policy_events,
+    update_account_action_policy,
+)
 from ..accounts import AccountConfigError, enabled_gate_accounts
 from ..bot_control import (
     BotControlConfigError,
@@ -15,6 +22,7 @@ from ..security import (
     DashboardUser,
     PasswordChangeError,
     change_dashboard_user_password,
+    require_super_admin,
     require_user,
 )
 
@@ -27,10 +35,63 @@ class PasswordChangeRequest(BaseModel):
     confirm_password: str = Field(min_length=12, max_length=1024)
 
     @model_validator(mode="after")
-    def passwords_match(self) -> "PasswordChangeRequest":
+    def passwords_match(self) -> PasswordChangeRequest:
         if self.new_password != self.confirm_password:
             raise ValueError("New password and confirmation do not match")
         return self
+
+
+class AccountActionPolicyUpdateRequest(BaseModel):
+    transfers_enabled: StrictBool | None = None
+    withdrawals_enabled: StrictBool | None = None
+    trading_enabled: StrictBool | None = None
+    reason: str = Field(
+        default="",
+        max_length=1000,
+    )
+
+    @model_validator(mode="after")
+    def at_least_one_capability(
+        self,
+    ) -> AccountActionPolicyUpdateRequest:
+        if (
+            self.transfers_enabled is None
+            and self.withdrawals_enabled is None
+            and self.trading_enabled is None
+        ):
+            raise ValueError(
+                "At least one account policy capability "
+                "must be provided"
+            )
+
+        return self
+
+
+def _policy_account_or_404(
+    account_id: str,
+) -> str:
+    normalized = str(
+        account_id or ""
+    ).strip().lower()
+
+    if not normalized:
+        raise HTTPException(
+            status_code=404,
+            detail="Gate account not found",
+        )
+
+    known = {
+        item["account_id"]
+        for item in list_account_action_policies()
+    }
+
+    if normalized not in known:
+        raise HTTPException(
+            status_code=404,
+            detail="Gate account not found",
+        )
+
+    return normalized
 
 
 @router.get("/me")
@@ -119,4 +180,119 @@ def change_password(
         "status": "changed",
         "message": "Password changed successfully",
         "user": user.safe_dict(),
+    }
+
+@router.get("/account-policies")
+def account_action_policies(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_super_admin),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Rootadmin read model for all Wallet-account policies.
+
+    This is local authorization state only. Reading it never
+    performs a Gate write.
+    """
+
+    return {
+        "capabilities": list(CAPABILITIES),
+        "items": list_account_action_policies(),
+        "gate_write_performed": False,
+    }
+
+
+@router.get(
+    "/account-policies/{account_id}/events"
+)
+def account_action_policy_history(
+    account_id: str,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_super_admin),
+    ],
+    limit: int = Query(
+        default=200,
+        ge=1,
+        le=1000,
+    ),
+):  # type: ignore[no-untyped-def]
+    """
+    Rootadmin-only immutable policy history.
+    """
+
+    normalized = _policy_account_or_404(
+        account_id
+    )
+
+    return {
+        "account_id": normalized,
+        "items": (
+            list_account_action_policy_events(
+                normalized,
+                limit=limit,
+            )
+        ),
+        "limit": limit,
+        "gate_write_performed": False,
+    }
+
+
+@router.patch(
+    "/account-policies/{account_id}"
+)
+def change_account_action_policy(
+    account_id: str,
+    payload: AccountActionPolicyUpdateRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_super_admin),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Rootadmin-only local policy mutation.
+
+    This changes durable dashboard authorization state only.
+    It does not call Gate and does not itself enable any Gate
+    write.
+    """
+
+    normalized = _policy_account_or_404(
+        account_id
+    )
+
+    try:
+        result = update_account_action_policy(
+            normalized,
+            username=user.username,
+            transfers_enabled=(
+                payload.transfers_enabled
+            ),
+            withdrawals_enabled=(
+                payload.withdrawals_enabled
+            ),
+            trading_enabled=(
+                payload.trading_enabled
+            ),
+            reason=payload.reason.strip(),
+            metadata={
+                "source": "rootadmin_policy_api",
+                "auth_source": user.auth_source,
+            },
+        )
+    except AccountActionPolicyError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "status": (
+            "updated"
+            if result["changed"]
+            else "unchanged"
+        ),
+        **result,
+        "gate_write_performed": False,
     }
