@@ -187,6 +187,408 @@ class AccountActionPolicyEvent(Base):
     )
 
 
+class DashboardAuthFactor(Base):
+    """
+    Durable MFA state for one dashboard username.
+
+    Dashboard identity, password hash, role and Wallet-account
+    assignments intentionally remain in dashboard_users.json.
+    Recoverable TOTP material is stored only as ciphertext.
+    """
+
+    __tablename__ = "dashboard_auth_factors"
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        primary_key=True,
+    )
+
+    totp_secret_ciphertext: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    totp_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    totp_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    # Highest TOTP moving counter already accepted.
+    # This makes a valid one-time code genuinely one-time
+    # even while it remains inside the normal clock window.
+    totp_last_used_counter: Mapped[int | None] = mapped_column(
+        Integer,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
+class DashboardAuthSession(Base):
+    """
+    Opaque authenticated browser-session record.
+
+    Only a SHA-256 token hash is durable. The raw Bearer token
+    must exist only in the client and in the issuing response.
+
+    credential_fingerprint allows a future session validator to
+    invalidate sessions after the user's password record changes,
+    while role and Wallet-account authorization remain live reads
+    from dashboard_users.json.
+    """
+
+    __tablename__ = "dashboard_auth_sessions"
+    __table_args__ = (
+        UniqueConstraint(
+            "token_hash",
+            name="uq_dashboard_auth_sessions_token_hash",
+        ),
+        Index(
+            "ix_dashboard_auth_sessions_username_expires",
+            "username",
+            "expires_at",
+        ),
+        Index(
+            "ix_dashboard_auth_sessions_expires",
+            "expires_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    credential_fingerprint: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    auth_method: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="password",
+    )
+
+    mfa_completed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    last_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+
+class DashboardAuthChallenge(Base):
+    """
+    Durable one-time authentication challenge.
+
+    As with sessions, only a hash of the opaque challenge token
+    is stored. Later TOTP and WebAuthn flows can bind their
+    password-first state to this record without persisting the
+    raw bearer value.
+    """
+
+    __tablename__ = "dashboard_auth_challenges"
+    __table_args__ = (
+        UniqueConstraint(
+            "token_hash",
+            name="uq_dashboard_auth_challenges_token_hash",
+        ),
+        Index(
+            "ix_dashboard_auth_challenges_username_purpose",
+            "username",
+            "purpose",
+        ),
+        Index(
+            "ix_dashboard_auth_challenges_expires",
+            "expires_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    purpose: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    metadata_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+
+
+class DashboardAuthRecoveryCode(Base):
+    """
+    One-time dashboard MFA recovery code.
+
+    The plaintext code is returned only when a fresh set is
+    generated. SQLite stores only a SHA-256 digest.
+
+    Rotation never silently reactivates an older set: all
+    previously active rows are marked revoked first.
+    """
+
+    __tablename__ = "dashboard_auth_recovery_codes"
+    __table_args__ = (
+        UniqueConstraint(
+            "code_hash",
+            name="uq_dashboard_auth_recovery_codes_hash",
+        ),
+        Index(
+            "ix_dashboard_auth_recovery_codes_user_created",
+            "username",
+            "created_at",
+        ),
+        Index(
+            "ix_dashboard_auth_recovery_codes_user_batch",
+            "username",
+            "batch_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    batch_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    code_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+    consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+
+
+class DashboardAuthEvent(Base):
+    """
+    Append-only local audit for dashboard MFA lifecycle events.
+
+    Sensitive values such as TOTP seeds, recovery codes,
+    session tokens and challenge tokens must never be written
+    to metadata_json.
+    """
+
+    __tablename__ = "dashboard_auth_events"
+    __table_args__ = (
+        Index(
+            "ix_dashboard_auth_events_target_created",
+            "target_username",
+            "created_at",
+        ),
+        Index(
+            "ix_dashboard_auth_events_actor_created",
+            "actor_username",
+            "created_at",
+        ),
+        Index(
+            "ix_dashboard_auth_events_action_created",
+            "action",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    actor_username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    target_username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    reason: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    metadata_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+
+
+class DashboardAuthRateLimitEvent(Base):
+    """
+    Persistent authentication attempt slot.
+
+    Identifiers are stored only as SHA-256 digests. The table
+    deliberately contains no raw username, client address,
+    challenge token, password, TOTP or recovery code.
+    """
+
+    __tablename__ = "dashboard_auth_rate_limit_events"
+    __table_args__ = (
+        Index(
+            "ix_dashboard_auth_rate_username_action_created",
+            "username_hash",
+            "action",
+            "created_at",
+        ),
+        Index(
+            "ix_dashboard_auth_rate_client_created",
+            "client_hash",
+            "created_at",
+        ),
+        Index(
+            "ix_dashboard_auth_rate_challenge_action_created",
+            "challenge_hash",
+            "action",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    username_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    client_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    challenge_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+
 class Bot(Base):
     __tablename__ = "bots"
     __table_args__ = (

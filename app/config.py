@@ -147,6 +147,80 @@ class Settings(BaseSettings):
     dashboard_users_backup_dir: Path = Path("/data/dashboard-user-backups")
     dashboard_users_backup_keep: int = 20
 
+    # A7C488 authentication hardening foundation.
+    #
+    # MFA enforcement deliberately remains disabled until
+    # enrollment, recovery and browser-session flows have
+    # been implemented and accepted.
+    dashboard_mfa_required: bool = False
+
+    # Recoverable MFA material such as a TOTP seed must
+    # never be stored in plaintext. The encryption key is
+    # provisioned separately from the SQLite database.
+    dashboard_auth_encryption_key_file: Path = Path(
+        "/run/secrets/dashboard_auth.key"
+    )
+
+    # Future opaque Bearer sessions and one-time login /
+    # WebAuthn challenges use short, bounded lifetimes.
+    dashboard_auth_session_ttl_seconds: int = Field(
+        default=3600,
+        ge=300,
+        le=86400,
+    )
+    dashboard_auth_challenge_ttl_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=900,
+    )
+
+
+    # Authentication throttling is persistent so process
+    # restarts do not reset brute-force protection.
+    dashboard_auth_rate_limit_enabled: bool = True
+
+    dashboard_auth_password_attempt_limit: int = Field(
+        default=10,
+        ge=1,
+        le=1000,
+    )
+
+    dashboard_auth_password_attempt_window_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=86400,
+    )
+
+    dashboard_auth_mfa_user_attempt_limit: int = Field(
+        default=10,
+        ge=1,
+        le=1000,
+    )
+
+    dashboard_auth_mfa_challenge_attempt_limit: int = Field(
+        default=5,
+        ge=1,
+        le=1000,
+    )
+
+    dashboard_auth_mfa_attempt_window_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=86400,
+    )
+
+    dashboard_auth_client_attempt_limit: int = Field(
+        default=30,
+        ge=1,
+        le=10000,
+    )
+
+    dashboard_auth_client_attempt_window_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=86400,
+    )
+
     # Legacy single-account variables remain supported for a one-account install.
     # When GATE_ACCOUNTS_FILE exists and contains accounts, it takes precedence.
     gate_api_key: str = ""
