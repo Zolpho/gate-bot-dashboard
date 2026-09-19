@@ -335,6 +335,227 @@ def test_limit_order_sell_uses_base_balance():
     )
 
 
+@pytest.mark.asyncio
+async def test_limit_order_preview_blocks_above_configured_notional(
+    monkeypatch,
+):
+    from decimal import Decimal
+
+    import app.api.trading as trading_api
+
+    from app.accounts import (
+        GateAccountConfig,
+    )
+    from app.config import Settings
+    from app.gate_client import (
+        GateResponse,
+    )
+
+    user = DashboardUser(
+        username="arnold",
+        role="account_operator",
+        account_ids=("arnold",),
+    )
+
+    monitor = GateAccountConfig(
+        id="arnold",
+        name="arnold",
+        api_key="monitor-key",
+        api_secret="monitor-secret",
+        enabled=True,
+        account_type="subaccount",
+        gate_uid="58601346",
+    )
+
+    monkeypatch.setattr(
+        trading_api,
+        "_monitor_account_or_http",
+        lambda account_id: (
+            monitor
+            if account_id == "arnold"
+            else None
+        ),
+    )
+
+    class FakeGateClient:
+        def __init__(
+            self,
+            settings,
+            account,
+        ):
+            self.settings = settings
+            self.account = account
+
+        async def __aenter__(
+            self,
+        ):
+            return self
+
+        async def __aexit__(
+            self,
+            exc_type,
+            exc,
+            tb,
+        ):
+            return None
+
+        async def get_spot_currency_pair(
+            self,
+            pair,
+        ):
+            assert pair == "EQTY_USDT"
+
+            data = {
+                "id": "EQTY_USDT",
+                "base": "EQTY",
+                "quote": "USDT",
+                "trade_status": "tradable",
+                "precision": 6,
+                "amount_precision": 0,
+                "min_base_amount": "1",
+                "min_quote_amount": "3",
+            }
+
+            return GateResponse(
+                data=data,
+                status_code=200,
+                headers={},
+                raw=data,
+            )
+
+        async def list_spot_accounts(
+            self,
+        ):
+            data = [
+                {
+                    "currency": "EQTY",
+                    "available": "100000",
+                    "locked": "0",
+                },
+                {
+                    "currency": "USDT",
+                    "available": "100",
+                    "locked": "0",
+                },
+            ]
+
+            return GateResponse(
+                data=data,
+                status_code=200,
+                headers={},
+                raw=data,
+            )
+
+        async def get_spot_order_book(
+            self,
+            pair,
+            *,
+            interval,
+            limit,
+            with_id,
+        ):
+            assert pair == "EQTY_USDT"
+            assert interval == "0"
+            assert limit == 20
+            assert with_id is True
+
+            data = {
+                "id": 1,
+                "asks": [
+                    [
+                        "0.002100",
+                        "10000",
+                    ],
+                ],
+                "bids": [
+                    [
+                        "0.001900",
+                        "10000",
+                    ],
+                ],
+            }
+
+            return GateResponse(
+                data=data,
+                status_code=200,
+                headers={},
+                raw=data,
+            )
+
+    monkeypatch.setattr(
+        trading_api,
+        "GateClient",
+        FakeGateClient,
+    )
+
+    request = (
+        trading_api
+        .LimitOrderPreviewRequest(
+            account_id="arnold",
+            pair="EQTY_USDT",
+            side="buy",
+            price=Decimal(
+                "0.002000"
+            ),
+            amount=Decimal(
+                "3000"
+            ),
+            time_in_force="gtc",
+        )
+    )
+
+    result = await (
+        trading_api
+        .preview_limit_order(
+            request=request,
+            user=user,
+            settings=Settings(
+                _env_file=None,
+                trading_limit_order_max_quote_notional=(
+                    Decimal("5")
+                ),
+            ),
+        )
+    )
+
+    assert result["status"] == "invalid"
+
+    assert (
+        result["gate_write_performed"]
+        is False
+    )
+
+    assert (
+        result["write_performed"]
+        is False
+    )
+
+    assert (
+        result["order"]["total"]
+        == "6"
+    )
+
+    assert (
+        result["order"][
+            "max_quote_notional"
+        ]
+        == "5"
+    )
+
+    assert (
+        result["order"][
+            "max_quote_currency"
+        ]
+        == "USDT"
+    )
+
+    assert (
+        "Order total exceeds configured "
+        "maximum (5 USDT)."
+        in result["blockers"]
+    )
+
+
 def test_get_spot_order_is_signed_get(monkeypatch):
     import asyncio
 

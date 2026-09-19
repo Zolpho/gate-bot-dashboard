@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -35,6 +36,14 @@ class Settings(BaseSettings):
     # never enable live order placement.
     trading_limit_orders_enabled: bool = False
     trading_limit_order_confirmation_text: str = "LIMIT ORDER"
+
+    # Optional server-side ceiling for one manual
+    # Spot limit order. The value is expressed in the
+    # market's quote currency. Zero disables the ceiling.
+    trading_limit_order_max_quote_notional: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+    )
 
     # Persistent Spot order submission rate limits.
     trading_rate_limit_enabled: bool = True

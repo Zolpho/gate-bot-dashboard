@@ -89,6 +89,66 @@ def make_settings(
     )
 
 
+def test_notional_cap_disabled_when_zero():
+    settings = make_settings(
+        trading_limit_order_max_quote_notional=(
+            Decimal("0")
+        ),
+    )
+
+    blocker = (
+        execution
+        ._configured_notional_cap_blocker(
+            settings=settings,
+            total=Decimal("1000000"),
+            quote="USDT",
+        )
+    )
+
+    assert blocker is None
+
+
+def test_notional_cap_allows_exact_ceiling():
+    settings = make_settings(
+        trading_limit_order_max_quote_notional=(
+            Decimal("5")
+        ),
+    )
+
+    blocker = (
+        execution
+        ._configured_notional_cap_blocker(
+            settings=settings,
+            total=Decimal("5"),
+            quote="USDT",
+        )
+    )
+
+    assert blocker is None
+
+
+def test_notional_cap_blocks_above_ceiling():
+    settings = make_settings(
+        trading_limit_order_max_quote_notional=(
+            Decimal("5")
+        ),
+    )
+
+    blocker = (
+        execution
+        ._configured_notional_cap_blocker(
+            settings=settings,
+            total=Decimal("5.000001"),
+            quote="USDT",
+        )
+    )
+
+    assert blocker == (
+        "Order total exceeds configured "
+        "maximum (5 USDT)."
+    )
+
+
 def ready_preflight(
     *,
     side="buy",

@@ -31,6 +31,7 @@ from ..trading_credentials import (
 )
 from ..trading_execution import (
     TradingExecutionDenied,
+    _configured_notional_cap_blocker,
     execute_limit_order,
 )
 from ..trading_open_orders import (
@@ -1310,6 +1311,19 @@ async def preview_limit_order(
         best_ask=best_ask,
     )
 
+    notional_blocker = (
+        _configured_notional_cap_blocker(
+            settings=settings,
+            total=checks["total"],
+            quote=quote,
+        )
+    )
+
+    if notional_blocker:
+        checks["blockers"].append(
+            notional_blocker
+        )
+
     blockers = checks["blockers"]
     warnings = checks["warnings"]
 
@@ -1328,8 +1342,8 @@ async def preview_limit_order(
         ),
 
         # Important safety invariant:
-        # this endpoint performs no Gate write and there is
-        # deliberately no execute endpoint yet.
+        # this preview endpoint performs no Gate write.
+        # Live execution is a separate guarded endpoint.
         "preview_only": True,
         "execution_implemented": False,
         "execution_enabled": False,
@@ -1390,6 +1404,27 @@ async def preview_limit_order(
             ),
             "total": _decimal_text(
                 checks["total"]
+            ),
+            "max_quote_notional": (
+                _decimal_text(
+                    settings
+                    .trading_limit_order_max_quote_notional
+                )
+                if (
+                    settings
+                    .trading_limit_order_max_quote_notional
+                    > 0
+                )
+                else None
+            ),
+            "max_quote_currency": (
+                quote
+                if (
+                    settings
+                    .trading_limit_order_max_quote_notional
+                    > 0
+                )
+                else None
             ),
             "time_in_force": (
                 request.time_in_force

@@ -572,6 +572,31 @@ def _limit_order_checks(
     }
 
 
+def _configured_notional_cap_blocker(
+    *,
+    settings: Settings,
+    total: Decimal,
+    quote: str,
+) -> str | None:
+    maximum = (
+        settings
+        .trading_limit_order_max_quote_notional
+    )
+
+    if (
+        maximum <= 0
+        or total <= maximum
+    ):
+        return None
+
+    return (
+        "Order total exceeds configured "
+        "maximum "
+        f"({_decimal_text(maximum)} "
+        f"{quote})."
+    )
+
+
 async def fresh_limit_order_preflight(
     *,
     settings: Settings,
@@ -787,6 +812,19 @@ async def fresh_limit_order_preflight(
         )
     )
 
+    notional_blocker = (
+        _configured_notional_cap_blocker(
+            settings=settings,
+            total=checks["total"],
+            quote=quote,
+        )
+    )
+
+    if notional_blocker:
+        checks["blockers"].append(
+            notional_blocker
+        )
+
     funding_asset = (
         quote
         if checks[
@@ -833,6 +871,27 @@ async def fresh_limit_order_preflight(
             _decimal_text(
                 checks["total"]
             )
+        ),
+        "max_quote_notional": (
+            _decimal_text(
+                settings
+                .trading_limit_order_max_quote_notional
+            )
+            if (
+                settings
+                .trading_limit_order_max_quote_notional
+                > 0
+            )
+            else None
+        ),
+        "max_quote_currency": (
+            quote
+            if (
+                settings
+                .trading_limit_order_max_quote_notional
+                > 0
+            )
+            else None
         ),
         "available": (
             _decimal_text(
