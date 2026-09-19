@@ -4484,7 +4484,7 @@ function renderTradingLimitExecution() {
 
     description = (
       'Trading is disabled for this Wallet '
-      + 'account by rootadmin policy.'
+      + 'account by administrator policy.'
     );
 
     statusClass = 'disabled';
@@ -4576,7 +4576,7 @@ function renderTradingLimitExecution() {
         : !accountPolicyAllowed
           ? (
               'Trading is disabled for this Wallet '
-              + 'account by rootadmin policy.'
+              + 'account by administrator policy.'
             )
         : !exactConfirmation
           ? (

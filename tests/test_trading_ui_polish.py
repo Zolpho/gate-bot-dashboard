@@ -199,12 +199,12 @@ def test_trading_asset_versions_exact():
     )
 
     assert (
-        "./trading.js?v=20260919-policy-aware-trading-a7c487m-v1"
+        "./trading.js?v=20260919-administrator-policy-copy-a7c487m-v2"
         in html
     )
 
     assert (
-        "./trading-limit.js?v=20260919-policy-aware-trading-a7c487m-v1"
+        "./trading-limit.js?v=20260919-administrator-policy-copy-a7c487m-v2"
         in html
     )
 
@@ -746,13 +746,13 @@ def test_trading_script_versions_mark_session_isolation():
 
     assert (
         "./trading.js?"
-        "v=20260919-policy-aware-trading-a7c487m-v1"
+        "v=20260919-administrator-policy-copy-a7c487m-v2"
         in html
     )
 
     assert (
         "./trading-limit.js?"
-        "v=20260919-policy-aware-trading-a7c487m-v1"
+        "v=20260919-administrator-policy-copy-a7c487m-v2"
         in html
     )
 
@@ -859,7 +859,7 @@ def test_trading_limit_script_version_marks_typeerror_fix():
 
     assert (
         "./trading-limit.js?"
-        "v=20260919-policy-aware-trading-a7c487m-v1"
+        "v=20260919-administrator-policy-copy-a7c487m-v2"
         in html
     )
 
@@ -880,6 +880,28 @@ def test_risk_on_trading_ui_requires_rootadmin_policy():
     assert (
         "Trading is disabled for this Wallet "
         in limit_js
+    )
+
+    assert (
+        "account by administrator policy."
+        in limit_js
+    )
+
+    assert (
+        "rootadmin policy."
+        not in limit_js
+    )
+
+    html = _html()
+
+    assert (
+        "ADMINISTRATOR · ACCOUNT POLICY"
+        in html
+    )
+
+    assert (
+        "ROOTADMIN · ACCOUNT POLICY"
+        not in html
     )
 
     assert (
