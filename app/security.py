@@ -14,7 +14,12 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.security import (
+    HTTPAuthorizationCredentials,
+    HTTPBasic,
+    HTTPBasicCredentials,
+    HTTPBearer,
+)
 
 from .config import Settings, get_settings
 
@@ -23,6 +28,7 @@ DEFAULT_PBKDF2_ITERATIONS = 600_000
 _USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
 _ROLE_VALUES = {"account_operator", "super_admin"}
 _basic = HTTPBasic(auto_error=False)
+_bearer = HTTPBearer(auto_error=False)
 
 
 class UserConfigError(RuntimeError):
@@ -190,6 +196,18 @@ def _authentication_error(detail: str = "Authentication required") -> HTTPExcept
     )
 
 
+def _bearer_authentication_error(
+    detail: str = "Invalid or expired bearer token",
+) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={
+            "WWW-Authenticate": "Bearer",
+        },
+    )
+
+
 def authenticate_credentials(
     credentials: HTTPBasicCredentials | None,
     settings: Settings | None = None,
@@ -228,10 +246,51 @@ def authenticate_credentials(
 
 
 def require_user(
-    credentials: Annotated[HTTPBasicCredentials | None, Depends(_basic)],
-    settings: Annotated[Settings, Depends(get_settings)],
+    credentials: Annotated[
+        HTTPBasicCredentials | None,
+        Depends(_basic),
+    ],
+    bearer_credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(_bearer),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
 ) -> DashboardUser:
-    return authenticate_credentials(credentials, settings)
+    if bearer_credentials is not None:
+        # Local import deliberately avoids the module-level cycle:
+        # auth_login imports DashboardUser and identity helpers from
+        # this module.
+        from .auth_login import (
+            resolve_bearer_session,
+        )
+
+        resolved = resolve_bearer_session(
+            bearer_credentials.credentials,
+            settings=settings,
+        )
+
+        if resolved is None:
+            raise _bearer_authentication_error()
+
+        user = resolved.get(
+            "user"
+        )
+
+        if not isinstance(
+            user,
+            DashboardUser,
+        ):
+            raise _bearer_authentication_error()
+
+        return user
+
+    return authenticate_credentials(
+        credentials,
+        settings,
+    )
 
 
 def require_super_admin(user: Annotated[DashboardUser, Depends(require_user)]) -> DashboardUser:
