@@ -48,6 +48,26 @@ TRADING_ACCOUNT = GateAccountConfig(
 )
 
 
+@pytest.fixture(autouse=True)
+def _allow_capability_policy_by_default(
+    monkeypatch,
+):
+    """
+    Capability discovery is tested independently from
+    persistence. Individual tests may override this to
+    exercise policy denial.
+    """
+
+    monkeypatch.setattr(
+        trading_api,
+        "account_action_allowed",
+        lambda account_id, capability: (
+            bool(account_id)
+            and capability == "trading"
+        ),
+    )
+
+
 def execute_payload():
     return (
         trading_api
@@ -648,5 +668,67 @@ async def test_execution_capabilities_can_report_armed_state(
     # Capability discovery itself remains read-only.
     assert (
         result["gate_write_performed"]
+        is False
+    )
+
+@pytest.mark.asyncio
+async def test_execution_capabilities_report_policy_separately_from_credentials(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        trading_api,
+        "get_trading_account",
+        lambda account_id:
+            TRADING_ACCOUNT,
+    )
+
+    monkeypatch.setattr(
+        trading_api,
+        "account_action_allowed",
+        lambda account_id, capability: False,
+    )
+
+    result = await (
+        trading_api
+        .trading_execution_capabilities(
+            user=ARNOLD_USER,
+            settings=Settings(
+                _env_file=None,
+                trading_limit_orders_enabled=True,
+            ),
+        )
+    )
+
+    # Credential provisioning remains truthful.
+    assert (
+        result["configured_account_ids"]
+        == ["arnold"]
+    )
+
+    # Rootadmin policy is a separate, fail-closed
+    # risk-on capability boundary.
+    assert (
+        result["policy_allowed_account_ids"]
+        == []
+    )
+
+    # The global arm is still reported independently.
+    assert (
+        result["live_arm_enabled"]
+        is True
+    )
+
+    assert (
+        result["gate_read_performed"]
+        is False
+    )
+
+    assert (
+        result["gate_write_performed"]
+        is False
+    )
+
+    assert (
+        result["write_performed"]
         is False
     )

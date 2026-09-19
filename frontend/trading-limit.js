@@ -4348,6 +4348,22 @@ function renderTradingLimitExecution() {
     )
   );
 
+  const policyAllowedAccounts = (
+    capabilities
+      ?.policy_allowed_account_ids
+    || []
+  ).map(
+    value => String(
+      value || ''
+    ).toLowerCase()
+  );
+
+  const accountPolicyAllowed = (
+    policyAllowedAccounts.includes(
+      accountId
+    )
+  );
+
   const liveArmEnabled = (
     capabilities
       ?.live_arm_enabled
@@ -4463,6 +4479,16 @@ function renderTradingLimitExecution() {
       )
     );
 
+  } else if (!accountPolicyAllowed) {
+    label = 'TRADING DISABLED';
+
+    description = (
+      'Trading is disabled for this Wallet '
+      + 'account by rootadmin policy.'
+    );
+
+    statusClass = 'disabled';
+
   } else if (liveArmEnabled) {
     label = 'LIVE ENABLED';
 
@@ -4499,6 +4525,7 @@ function renderTradingLimitExecution() {
     implemented
     && routeAvailable
     && accountConfigured
+    && accountPolicyAllowed
     && liveArmEnabled
     && required
     && !attempt
@@ -4511,7 +4538,10 @@ function renderTradingLimitExecution() {
     );
 
     if (
-      !liveArmEnabled
+      (
+        !liveArmEnabled
+        || !accountPolicyAllowed
+      )
       && !attempt
     ) {
       confirmation.value = '';
@@ -4543,6 +4573,11 @@ function renderTradingLimitExecution() {
             'Live Trading is disabled '
             + 'by the backend.'
           )
+        : !accountPolicyAllowed
+          ? (
+              'Trading is disabled for this Wallet '
+              + 'account by rootadmin policy.'
+            )
         : !exactConfirmation
           ? (
               'Enter the exact required '
@@ -4608,6 +4643,17 @@ async function placeTradingLimitOrder() {
     || !(
       capabilities
         ?.configured_account_ids
+      || []
+    ).map(
+      value => String(
+        value || ''
+      ).toLowerCase()
+    ).includes(
+      snapshot.accountId
+    )
+    || !(
+      capabilities
+        ?.policy_allowed_account_ids
       || []
     ).map(
       value => String(
@@ -5092,6 +5138,9 @@ async function loadTradingExecutionCapabilities() {
       || result.amend_reconciliation_implemented !== true
       || result.amend_reconciliation_route_available !== true
       || result.amend_reconciliation_gate_get_only !== true
+      || !Array.isArray(
+        result.policy_allowed_account_ids
+      )
       || result.gate_write_performed !== false
       || result.write_performed !== false
     ) {
@@ -5121,6 +5170,7 @@ async function loadTradingExecutionCapabilities() {
         amend_reconciliation_route_available: false,
         amend_reconciliation_gate_get_only: false,
         configured_account_ids: [],
+        policy_allowed_account_ids: [],
         required_confirmation: '',
         cancel_required_confirmation: '',
         config_error: (

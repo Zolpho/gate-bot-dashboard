@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from ..account_action_policy import (
     AccountActionPolicyDenied,
+    account_action_allowed,
 )
 from ..accounts import (
     AccountConfigError,
@@ -1498,6 +1499,22 @@ async def trading_execution_capabilities(
                 account_id
             )
 
+    # Capability discovery must distinguish
+    # credential provisioning from rootadmin policy.
+    #
+    # This is read-only and deliberately fail-closed:
+    # missing policy rows are excluded by
+    # account_action_allowed().
+    policy_allowed_account_ids = [
+        account_id
+        for account_id
+        in authorized_account_ids
+        if account_action_allowed(
+            account_id,
+            "trading",
+        )
+    ]
+
     return {
         "execution_implemented": True,
         "execution_route_available": True,
@@ -1536,6 +1553,9 @@ async def trading_execution_capabilities(
         ),
         "configured_account_ids": (
             configured_account_ids
+        ),
+        "policy_allowed_account_ids": (
+            policy_allowed_account_ids
         ),
         "config_error": config_error,
         "gate_read_performed": False,

@@ -33,6 +33,14 @@ def _limit_css():
     )
 
 
+def _limit_js():
+    return Path(
+        "frontend/trading-limit.js"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+
 def test_trading_default_interval_is_one_hour():
     js = _js()
     html = _html()
@@ -191,12 +199,12 @@ def test_trading_asset_versions_exact():
     )
 
     assert (
-        "./trading.js?v=20260823-trading-session-isolation-v1"
+        "./trading.js?v=20260919-policy-aware-trading-a7c487m-v1"
         in html
     )
 
     assert (
-        "./trading-limit.js?v=20260823-trading-session-isolation-v2"
+        "./trading-limit.js?v=20260919-policy-aware-trading-a7c487m-v1"
         in html
     )
 
@@ -738,13 +746,13 @@ def test_trading_script_versions_mark_session_isolation():
 
     assert (
         "./trading.js?"
-        "v=20260823-trading-session-isolation-v1"
+        "v=20260919-policy-aware-trading-a7c487m-v1"
         in html
     )
 
     assert (
         "./trading-limit.js?"
-        "v=20260823-trading-session-isolation-v2"
+        "v=20260919-policy-aware-trading-a7c487m-v1"
         in html
     )
 
@@ -851,6 +859,35 @@ def test_trading_limit_script_version_marks_typeerror_fix():
 
     assert (
         "./trading-limit.js?"
-        "v=20260823-trading-session-isolation-v2"
+        "v=20260919-policy-aware-trading-a7c487m-v1"
         in html
+    )
+
+def test_risk_on_trading_ui_requires_rootadmin_policy():
+    trading_js = _js()
+    limit_js = _limit_js()
+
+    assert (
+        "policy_allowed_account_ids"
+        in limit_js
+    )
+
+    assert (
+        "accountPolicyAllowed"
+        in limit_js
+    )
+
+    assert (
+        "Trading is disabled for this Wallet "
+        in limit_js
+    )
+
+    assert (
+        "policy_allowed_account_ids"
+        in trading_js
+    )
+
+    assert (
+        "account_policy_disabled"
+        in trading_js
     )

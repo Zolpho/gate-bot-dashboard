@@ -2305,6 +2305,18 @@ function tradingPersistentAmendEligibility(
     )
   );
 
+  const policyAllowedAccounts = new Set(
+    (
+      capabilities
+        .policy_allowed_account_ids
+      || []
+    ).map(
+      value => String(
+        value || ''
+      ).trim().toLowerCase()
+    )
+  );
+
   if (!row?.managed) {
     return {
       allowed: false,
@@ -2578,6 +2590,14 @@ function tradingPersistentAmendEligibility(
       allowed: false,
       label: 'Unavailable',
       reason: 'account_unavailable',
+    };
+  }
+
+  if (!policyAllowedAccounts.has(accountId)) {
+    return {
+      allowed: false,
+      label: 'Trading disabled',
+      reason: 'account_policy_disabled',
     };
   }
 
