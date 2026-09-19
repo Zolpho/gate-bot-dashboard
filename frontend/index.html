@@ -3051,7 +3051,7 @@
 
 
   <dialog id="adminDialog" class="small-dialog">
-    <div class="dialog-header"><div><h2>Account login</h2><p>Credentials stay in memory until this page is refreshed or locked.</p></div><button class="icon-button" id="closeAdminDialog" aria-label="Close">×</button></div>
+    <div class="dialog-header"><div><h2>Account login</h2><p>Your authenticated session stays in memory until this page is refreshed or locked.</p></div><button class="icon-button" id="closeAdminDialog" aria-label="Close">×</button></div>
     <form id="adminForm" class="form-grid">
       <label class="full">Username<input name="username" autocomplete="username" required maxlength="64" placeholder="zolnode"></label>
       <label class="full">Password<input name="password" type="password" autocomplete="current-password" required></label>
@@ -3060,6 +3060,74 @@
       <div class="form-actions full"><button type="button" class="button secondary" id="cancelAdmin">Cancel</button><button type="submit" class="button primary" id="adminSubmitButton">Unlock</button></div>
     </form>
   </dialog>
+
+  <dialog id="adminMfaDialog" class="small-dialog">
+    <div class="dialog-header">
+      <div>
+        <h2>Verify account</h2>
+        <p id="adminMfaIdentity">
+          Complete the second verification step.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeAdminMfaDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <form id="adminMfaForm" class="form-grid">
+      <label class="full">
+        Verification method
+        <select
+          id="adminMfaMethod"
+          name="method"
+          required
+        ></select>
+      </label>
+
+      <label class="full">
+        Verification code
+        <input
+          name="code"
+          type="password"
+          autocomplete="one-time-code"
+          maxlength="128"
+          required
+        >
+      </label>
+
+      <p class="full admin-help">
+        Use the current code from your authenticator,
+        or choose Recovery code to use one of your
+        one-time recovery codes.
+      </p>
+
+      <p
+        id="adminMfaError"
+        class="full form-error hidden"
+        role="alert"
+        aria-live="assertive"
+      ></p>
+
+      <div class="form-actions full">
+        <button
+          type="button"
+          class="button secondary"
+          id="cancelAdminMfa"
+        >Cancel</button>
+
+        <button
+          type="submit"
+          class="button primary"
+          id="adminMfaSubmitButton"
+        >Verify</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="changePasswordDialog" class="small-dialog">
     <div class="dialog-header">
       <div>
@@ -3147,7 +3215,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260906-aurora-a7c148-v1"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260919-bearer-auth-r2f2a-v1"
     defer
   ></script>
   <script

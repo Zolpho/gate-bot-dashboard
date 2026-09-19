@@ -42,6 +42,8 @@ const state = {
   adminAuthorization: '',
   adminUser: null,
   adminSessionEpoch: 0,
+  adminMfaChallenge: '',
+  adminMfaMethods: [],
   privateBalance: null,
   privateBalanceAccountId: '',
   privateBalanceFetchedAt: 0,
@@ -204,11 +206,18 @@ function canManageRule(rule) {
   return canManageAccount(rule.account_id);
 }
 
-function basicAuthorization(username, password) {
-  const bytes = new TextEncoder().encode(`${username}:${password}`);
-  let binary = '';
-  bytes.forEach(byte => { binary += String.fromCharCode(byte); });
-  return `Basic ${btoa(binary)}`;
+function bearerAuthorization(token) {
+  const normalized = String(
+    token || ''
+  ).trim();
+
+  if (!normalized) {
+    throw new Error(
+      'Authentication response did not include a Bearer token.'
+    );
+  }
+
+  return `Bearer ${normalized}`;
 }
 
 function setAdminError(message = '') {
@@ -216,6 +225,126 @@ function setAdminError(message = '') {
   if (!errorBox) return;
   errorBox.textContent = message;
   errorBox.classList.toggle('hidden', !message);
+}
+
+
+function setAdminMfaError(message = '') {
+  const errorBox = $('#adminMfaError');
+
+  if (!errorBox) return;
+
+  errorBox.textContent = message;
+  errorBox.classList.toggle(
+    'hidden',
+    !message,
+  );
+}
+
+
+function clearPendingAdminMfa() {
+  state.adminMfaChallenge = '';
+  state.adminMfaMethods = [];
+
+  const form = $('#adminMfaForm');
+
+  if (form) {
+    form.reset();
+  }
+
+  const method = $('#adminMfaMethod');
+
+  if (method) {
+    method.innerHTML = '';
+  }
+
+  setAdminMfaError('');
+}
+
+
+function openAdminMfaDialog(result) {
+  const challenge = String(
+    result?.challenge_token || ''
+  ).trim();
+
+  const methods = (
+    Array.isArray(result?.methods)
+      ? result.methods
+      : []
+  )
+    .map(value => String(value).trim())
+    .filter(value => (
+      value === 'totp'
+      || value === 'recovery'
+    ));
+
+  if (
+    !challenge
+    || !methods.length
+  ) {
+    throw new Error(
+      'Authentication service returned an invalid MFA challenge.'
+    );
+  }
+
+  state.adminMfaChallenge = challenge;
+  state.adminMfaMethods = [
+    ...new Set(methods),
+  ];
+
+  const method = $('#adminMfaMethod');
+
+  method.innerHTML = state.adminMfaMethods
+    .map(value => (
+      `<option value="${value}">${
+        value === 'totp'
+          ? 'Authenticator code'
+          : 'Recovery code'
+      }</option>`
+    ))
+    .join('');
+
+  method.value = state.adminMfaMethods.includes(
+    'totp'
+  )
+    ? 'totp'
+    : state.adminMfaMethods[0];
+
+  const username = String(
+    result?.user?.username || ''
+  ).trim();
+
+  $('#adminMfaIdentity').textContent = username
+    ? `Verify ${username}.`
+    : 'Verify your account.';
+
+  setAdminMfaError('');
+
+  const dialog = $('#adminMfaDialog');
+
+  if (!dialog.open) {
+    dialog.showModal();
+  }
+
+  setTimeout(
+    () => (
+      $('#adminMfaForm input[name="code"]')
+        ?.focus()
+    ),
+    0,
+  );
+}
+
+
+function cancelAdminMfa() {
+  const dialog = $('#adminMfaDialog');
+
+  clearPendingAdminMfa();
+
+  if (dialog?.open) {
+    dialog.close();
+  }
+
+  openAdminDialog();
 }
 
 
@@ -453,6 +582,8 @@ function lockAdmin(showMessage = true) {
   state.adminUser = null;
   state.currentRawData = null;
 
+  clearPendingAdminMfa();
+
   clearPrivateBalance();
   clearDepositHistory();
   clearDepositState({ keepCatalog: false });
@@ -461,15 +592,85 @@ function lockAdmin(showMessage = true) {
 
   const depositDialog = $('#depositDialog');
   if (depositDialog?.open) depositDialog.close();
+
   const passwordDialog = $('#changePasswordDialog');
   if (passwordDialog?.open) passwordDialog.close();
+
+  const mfaDialog = $('#adminMfaDialog');
+  if (mfaDialog?.open) mfaDialog.close();
 
   window.clearAccountPermissionsState?.();
 
   renderAdminState();
   renderBotRaw();
-  if (showMessage) showToast('Account session locked.');
+
+  if (showMessage) {
+    showToast('Account session locked.');
+  }
 }
+
+
+async function logoutAdmin() {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    lockAdmin();
+    return;
+  }
+
+  const sessionEpoch = state.adminSessionEpoch;
+  const authorization = state.adminAuthorization;
+
+  let revokeWarning = '';
+
+  try {
+    if (
+      authorization.startsWith(
+        'Bearer '
+      )
+    ) {
+      await api(
+        '/api/auth/logout',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: authorization,
+          },
+        },
+      );
+    }
+
+  } catch (error) {
+    const alreadyInvalid = (
+      error instanceof ApiError
+      && error.status === 401
+    );
+
+    if (!alreadyInvalid) {
+      revokeWarning = (
+        'Account locked locally, but server-session '
+        + 'revocation could not be confirmed.'
+      );
+    }
+  }
+
+  if (
+    state.adminSessionEpoch !== sessionEpoch
+    || state.adminAuthorization !== authorization
+  ) {
+    return;
+  }
+
+  lockAdmin(false);
+
+  showToast(
+    revokeWarning
+      || 'Account session locked.',
+    Boolean(revokeWarning),
+  );
+}
+
 
 async function unlockAdmin(event) {
   event.preventDefault();
@@ -480,7 +681,6 @@ async function unlockAdmin(event) {
   const form = new FormData(formElement);
   const username = String(form.get('username') || '').trim();
   const password = String(form.get('password') || '');
-  const authorization = basicAuthorization(username, password);
   const submitButton = $('#adminSubmitButton');
 
   setAdminError('');
@@ -490,8 +690,48 @@ async function unlockAdmin(event) {
   let authRequestSucceeded = false;
 
   try {
-    const result = await api('/api/auth/me', { headers: { Authorization: authorization } });
+    const result = await api(
+      '/api/auth/login',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      },
+    );
+
     authRequestSucceeded = true;
+
+    if (
+      result.status === 'mfa_required'
+    ) {
+      const passwordInput = formElement.querySelector(
+        'input[name="password"]'
+      );
+
+      if (passwordInput) {
+        passwordInput.value = '';
+      }
+
+      $('#adminDialog').close();
+      openAdminMfaDialog(result);
+      return;
+    }
+
+    if (
+      result.status !== 'authenticated'
+      || result.token_type !== 'bearer'
+    ) {
+      throw new Error(
+        'Authentication service returned an invalid login state.'
+      );
+    }
+
+    const authorization = bearerAuthorization(
+      result.access_token
+    );
+
     state.adminSessionEpoch += 1;
     state.adminAuthorization = authorization;
     state.adminUser = result.user;
@@ -501,34 +741,210 @@ async function unlockAdmin(event) {
     window.resetTradingTab?.();
 
     await loadBotControlCapabilities();
+
     formElement.reset();
     $('#adminDialog').close();
     renderAdminState();
     switchTab('wallet');
-    showToast(`Signed in as ${result.user.username}.`);
-    if (state.currentBotData?.bot && canManageAccount(state.currentBotData.bot.account_id)) {
+
+    showToast(
+      `Signed in as ${result.user.username}.`
+    );
+
+    if (
+      state.currentBotData?.bot
+      && canManageAccount(
+        state.currentBotData.bot.account_id
+      )
+    ) {
       await loadCurrentBotRaw();
     }
+
   } catch (error) {
-    const message = error instanceof ApiError && error.status === 401
+    const message = (
+      error instanceof ApiError
+      && error.status === 401
+    )
       ? 'Invalid username or password.'
       : error instanceof TypeError && !authRequestSucceeded
-        ? 'The dashboard could not contact the API. Check the network connection and CORS configuration.'
-        : error instanceof TypeError
-          ? 'Authentication succeeded, but the dashboard could not initialize the private workspace. Reload and try again.'
-          : (error.message || 'Unable to unlock account actions.');
+        ? (
+            'The dashboard could not contact the API. '
+            + 'Check the network connection and CORS configuration.'
+          )
+        : (
+            error instanceof TypeError
+          )
+          ? (
+              'Authentication succeeded, but the dashboard could not initialize the private workspace. '
+              + 'Reload and try again.'
+            )
+          : (
+              error.message
+              || 'Unable to unlock account actions.'
+            );
 
     setAdminError(message);
-    const passwordInput = formElement.querySelector('input[name="password"]');
+
+    const passwordInput = formElement.querySelector(
+      'input[name="password"]'
+    );
+
     if (passwordInput) {
       passwordInput.value = '';
       passwordInput.focus();
     }
+
   } finally {
     submitButton.disabled = false;
     submitButton.textContent = 'Unlock';
   }
 }
+
+
+async function completeAdminMfa(event) {
+  event.preventDefault();
+
+  const formElement = event.currentTarget;
+  const form = new FormData(formElement);
+
+  const method = String(
+    form.get('method') || ''
+  ).trim();
+
+  const code = String(
+    form.get('code') || ''
+  ).trim();
+
+  const challenge = String(
+    state.adminMfaChallenge || ''
+  ).trim();
+
+  const submitButton = $(
+    '#adminMfaSubmitButton'
+  );
+
+  setAdminMfaError('');
+
+  if (
+    !challenge
+    || !state.adminMfaMethods.includes(
+      method
+    )
+  ) {
+    setAdminMfaError(
+      'This verification request is no longer available. Sign in again.'
+    );
+    return;
+  }
+
+  if (!code) {
+    setAdminMfaError(
+      'Enter your verification code.'
+    );
+    return;
+  }
+
+  submitButton.disabled = true;
+  submitButton.textContent = 'Verifying…';
+
+  try {
+    const result = await api(
+      '/api/auth/login/mfa',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          challenge_token: challenge,
+          method,
+          code,
+        }),
+      },
+    );
+
+    if (
+      result.status !== 'authenticated'
+      || result.token_type !== 'bearer'
+    ) {
+      throw new Error(
+        'Authentication service returned an invalid MFA state.'
+      );
+    }
+
+    const authorization = bearerAuthorization(
+      result.access_token
+    );
+
+    state.adminSessionEpoch += 1;
+    state.adminAuthorization = authorization;
+    state.adminUser = result.user;
+
+    clearTreasurySession();
+    clearBotControlSession();
+    window.resetTradingTab?.();
+
+    await loadBotControlCapabilities();
+
+    clearPendingAdminMfa();
+
+    const dialog = $('#adminMfaDialog');
+
+    if (dialog.open) {
+      dialog.close();
+    }
+
+    renderAdminState();
+    switchTab('wallet');
+
+    showToast(
+      `Signed in as ${result.user.username}.`
+    );
+
+    if (
+      state.currentBotData?.bot
+      && canManageAccount(
+        state.currentBotData.bot.account_id
+      )
+    ) {
+      await loadCurrentBotRaw();
+    }
+
+  } catch (error) {
+    const message = (
+      error instanceof ApiError
+      && error.status === 401
+    )
+      ? (
+          'Invalid or expired verification code. '
+          + 'Try a new code or cancel and sign in again.'
+        )
+      : (
+          error instanceof TypeError
+        )
+        ? (
+            'The dashboard could not contact the API. '
+            + 'Check the network connection and CORS configuration.'
+          )
+        : (
+            error.message
+            || 'Unable to verify this account.'
+          );
+
+    setAdminMfaError(message);
+
+    const codeInput = formElement.querySelector(
+      'input[name="code"]'
+    );
+
+    if (codeInput) {
+      codeInput.value = '';
+      codeInput.focus();
+    }
+
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = 'Verify';
+  }
+}
+
 
 async function changeOwnPassword(event) {
   event.preventDefault();
@@ -576,18 +992,14 @@ async function changeOwnPassword(event) {
       }),
     });
 
-    // Basic authentication is stateless. Keep this browser session unlocked by
-    // replacing the in-memory Authorization value with the new password.
-    state.adminAuthorization = basicAuthorization(
-      state.adminUser.username,
-      newPassword,
-    );
-
-    state.adminSessionEpoch += 1;
-
+    // Password changes invalidate password-bound Bearer sessions.
+    // Do not retain or reconstruct credentials in browser memory.
     formElement.reset();
     $('#changePasswordDialog').close();
-    showToast('Password changed successfully.');
+    lockAdmin(false);
+    showToast(
+      'Password changed successfully. Sign in again.'
+    );
   } catch (error) {
     const message = error instanceof ApiError && error.status === 401
       ? 'Your admin session is no longer valid. Unlock it again.'
@@ -18848,11 +19260,44 @@ function bindEvents() {
   $('#testAccountButton').addEventListener('click', () => inspectEndpoint(scopedPath('/api/account')));
   $('#loadRecommendations').addEventListener('click', () => inspectEndpoint(scopedPath('/api/recommendations', { limit: 10 })));
   $('#clearInspector').addEventListener('click', () => { $('#apiInspector').textContent = 'Select an action above to inspect a response.'; });
-  $('#adminButton').addEventListener('click', () => state.adminUser ? lockAdmin() : openAdminDialog());
+  $('#adminButton').addEventListener(
+    'click',
+    () => {
+      if (state.adminUser) {
+        void logoutAdmin();
+        return;
+      }
+
+      openAdminDialog();
+    },
+  );
   $('#changePasswordButton').addEventListener('click', openChangePasswordDialog);
   $('#adminForm').addEventListener('submit', unlockAdmin);
   $('#closeAdminDialog').addEventListener('click', () => $('#adminDialog').close());
   $('#cancelAdmin').addEventListener('click', () => $('#adminDialog').close());
+
+  $('#adminMfaForm').addEventListener(
+    'submit',
+    completeAdminMfa,
+  );
+
+  $('#closeAdminMfaDialog').addEventListener(
+    'click',
+    cancelAdminMfa,
+  );
+
+  $('#cancelAdminMfa').addEventListener(
+    'click',
+    cancelAdminMfa,
+  );
+
+  $('#adminMfaDialog').addEventListener(
+    'cancel',
+    event => {
+      event.preventDefault();
+      cancelAdminMfa();
+    },
+  );
   $('#adminDialog').addEventListener('click', event => { if (event.target === $('#adminDialog')) $('#adminDialog').close(); });
   $('#changePasswordForm').addEventListener('submit', changeOwnPassword);
   $('#closeChangePasswordDialog').addEventListener('click', () => $('#changePasswordDialog').close());
