@@ -28,7 +28,11 @@ from ..auth_mfa import (
     reset_user_mfa,
 )
 from ..auth_rate_limit import AuthRateLimitExceeded
-from ..auth_state import AuthEncryptionKeyError, AuthStateError
+from ..auth_state import (
+    AuthEncryptionKeyError,
+    AuthStateError,
+    revoke_auth_session,
+)
 from ..auth_totp import (
     TotpEnrollmentError,
     TotpSecretError,
@@ -221,6 +225,41 @@ def _request_client_identifier(
     ).strip()
 
     return value or None
+
+
+def _request_bearer_token(
+    request: Request,
+) -> str | None:
+    """
+    Return the raw Bearer token from the current request only.
+
+    The value is used solely to revoke the caller's own durable
+    session. It is never persisted or returned to the client.
+    """
+
+    authorization = str(
+        request.headers.get(
+            "authorization",
+            "",
+        )
+    ).strip()
+
+    scheme, separator, token = (
+        authorization.partition(
+            " "
+        )
+    )
+
+    if (
+        not separator
+        or scheme.lower()
+        != "bearer"
+    ):
+        return None
+
+    normalized = token.strip()
+
+    return normalized or None
 
 
 def _raise_auth_rate_limit(
@@ -505,6 +544,54 @@ def mfa_login(
 @router.get("/me")
 def current_user(user: Annotated[DashboardUser, Depends(require_user)]):  # type: ignore[no-untyped-def]
     return {"user": user.safe_dict()}
+
+
+@router.post("/logout")
+def logout_current_session(
+    request: Request,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Revoke the caller's current Bearer session.
+
+    Basic authentication remains available during migration, but
+    Basic credentials do not represent a durable server session and
+    therefore cannot be logged out through this endpoint.
+    """
+
+    token = _request_bearer_token(
+        request
+    )
+
+    if token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Bearer session required",
+        )
+
+    if not revoke_auth_session(
+        token
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Invalid or expired "
+                "bearer token"
+            ),
+            headers={
+                "WWW-Authenticate":
+                    "Bearer",
+            },
+        )
+
+    return {
+        "status": "revoked",
+        "user": user.safe_dict(),
+        "gate_write_performed": False,
+    }
 
 
 @router.get("/capabilities")
