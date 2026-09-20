@@ -1,0 +1,854 @@
+/*
+ * Gate Bots — Aurora Security presentation
+ * A7C488 R4A2A
+ *
+ * Presentation only.
+ *
+ * Authentication state, TOTP reads/writes, session handling
+ * and account-security behavior remain owned by app.js/API.
+ */
+
+html[data-dashboard-ui="aurora"]
+#tab-security {
+  --security-border:
+    rgba(106, 231, 187, 0.15);
+
+  --security-border-strong:
+    rgba(106, 231, 187, 0.27);
+
+  --security-surface:
+    rgba(5, 24, 17, 0.82);
+
+  --security-surface-strong:
+    rgba(6, 31, 22, 0.92);
+
+  --security-muted:
+    rgba(161, 198, 184, 0.62);
+
+  --security-soft:
+    rgba(204, 233, 222, 0.80);
+
+  --security-mint:
+    var(--positive);
+
+  --security-warning:
+    var(--warning);
+}
+
+
+/* ============================================================
+ * 01. PAGE
+ * ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+#tab-security {
+  display: none;
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-security.active {
+  display: block;
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-page-error {
+  margin-bottom: 16px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .panel {
+  border-color:
+    var(--security-border);
+
+  background:
+    radial-gradient(
+      circle at 88% -10%,
+      rgba(78, 231, 177, 0.07),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(7, 33, 23, 0.95),
+      rgba(3, 19, 13, 0.96)
+    );
+
+  box-shadow:
+    inset 0 1px
+      rgba(255, 255, 255, 0.025),
+    0 18px 46px
+      rgba(0, 0, 0, 0.22);
+}
+
+
+/* ============================================================
+ * 02. ACCOUNT HEADER
+ * ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-account-panel {
+  margin-bottom: 16px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-account-panel
+.panel-header {
+  align-items: center;
+
+  margin-bottom: 15px;
+  padding-bottom: 14px;
+
+  border-bottom:
+    1px solid
+    rgba(105, 223, 181, 0.10);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-account-panel
+.panel-header h2 {
+  font-size: 1rem;
+  font-weight: 720;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-account-panel
+.panel-header p {
+  margin-top: 3px;
+
+  color:
+    var(--security-muted);
+
+  font-size: 0.78rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-account-facts {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(105, 223, 181, 0.10);
+
+  border-radius: 12px;
+
+  background:
+    rgba(2, 17, 11, 0.46);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-account-facts > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 4px;
+
+  padding:
+    11px 13px;
+
+  border-right:
+    1px solid
+    rgba(105, 223, 181, 0.08);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security
+.security-account-facts > div:last-child {
+  border-right: 0;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-account-facts span {
+  color:
+    rgba(145, 183, 169, 0.58);
+
+  font-size: 0.62rem;
+  font-weight: 680;
+
+  letter-spacing: 0.055em;
+
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-account-facts strong {
+  overflow: hidden;
+
+  color:
+    rgba(226, 248, 239, 0.90);
+
+  font-size: 0.8rem;
+  font-weight: 680;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ============================================================
+ * 03. SECURITY CARDS
+ * ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 16px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card {
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  padding: 18px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card-heading {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  margin-bottom: 12px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card-heading h2 {
+  margin:
+    3px 0 0;
+
+  color:
+    rgba(237, 255, 248, 0.93);
+
+  font-size: 0.98rem;
+  font-weight: 720;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card-kicker {
+  color:
+    rgba(126, 255, 207, 0.65);
+
+  font-size: 0.58rem;
+  font-weight: 760;
+
+  letter-spacing: 0.11em;
+
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card > p {
+  margin:
+    0 0 13px;
+
+  color:
+    rgba(165, 200, 187, 0.67);
+
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card-meta {
+  min-height: 1.2em;
+
+  margin-top: -4px !important;
+
+  color:
+    rgba(139, 181, 165, 0.55) !important;
+
+  font-size: 0.68rem !important;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  margin-top: auto;
+  padding-top: 3px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card-actions .button {
+  min-height: 34px;
+
+  padding:
+    7px 11px;
+
+  border-color:
+    rgba(106, 231, 187, 0.18);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(17, 52, 39, 0.76),
+      rgba(7, 31, 22, 0.84)
+    );
+
+  color:
+    rgba(203, 238, 224, 0.80);
+
+  font-size: 0.75rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security
+.security-card-actions
+.button:hover:not(:disabled) {
+  border-color:
+    rgba(106, 231, 187, 0.32);
+
+  color:
+    rgba(229, 251, 242, 0.96);
+}
+
+
+/* ============================================================
+ * 04. STATUS PILLS
+ * ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-status-pill {
+  flex: 0 0 auto;
+
+  padding:
+    5px 8px;
+
+  border:
+    1px solid
+    rgba(155, 185, 174, 0.14);
+
+  border-radius: 999px;
+
+  background:
+    rgba(2, 18, 12, 0.46);
+
+  color:
+    rgba(165, 197, 185, 0.67);
+
+  font-size: 0.62rem;
+  font-weight: 720;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-status-pill.enabled {
+  border-color:
+    rgba(99, 241, 191, 0.24);
+
+  background:
+    rgba(30, 150, 108, 0.08);
+
+  color:
+    rgba(105, 245, 194, 0.88);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-status-pill.planned {
+  border-color:
+    rgba(233, 189, 103, 0.18);
+
+  background:
+    rgba(156, 112, 37, 0.06);
+
+  color:
+    rgba(217, 185, 121, 0.70);
+}
+
+
+/* ============================================================
+ * 05. PLANNED FEATURES
+ * ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card-planned {
+  border-color:
+    rgba(105, 223, 181, 0.09);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(6, 27, 19, 0.76),
+      rgba(3, 18, 12, 0.82)
+    );
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security
+.security-card-planned
+.security-card-kicker {
+  color:
+    rgba(148, 188, 173, 0.52);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security
+.security-card-planned h2 {
+  color:
+    rgba(215, 237, 228, 0.78);
+}
+
+
+/* ============================================================
+ * 06. DISABLED CONTROLS
+ * ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+#tab-security button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+
+/* ============================================================
+ * 07. RESPONSIVE
+ * ============================================================ */
+
+@media (max-width: 1040px) {
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+@media (max-width: 700px) {
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-account-facts {
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-security
+  .security-account-facts > div {
+    border-right: 0;
+
+    border-bottom:
+      1px solid
+      rgba(105, 223, 181, 0.08);
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-security
+  .security-account-facts > div:last-child {
+    border-bottom: 0;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-card-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-card {
+    padding: 15px;
+  }
+}
+
+
+/* ============================================================
+ * 08. AUTHENTICATOR SETUP DIALOG
+ * ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+.security-totp-dialog {
+  width:
+    min(
+      620px,
+      calc(100vw - 32px)
+    );
+
+  max-width: none;
+
+  padding: 0;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(112, 235, 190, 0.22);
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 24, 17, 0.99),
+      rgba(3, 14, 10, 0.995)
+    );
+
+  color:
+    var(--text);
+
+  box-shadow:
+    0 30px 90px
+      rgba(0, 0, 0, 0.54),
+    0 0 55px
+      rgba(90, 240, 188, 0.045);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-dialog::backdrop {
+  background:
+    rgba(1, 8, 5, 0.74);
+
+  backdrop-filter:
+    blur(5px);
+
+  -webkit-backdrop-filter:
+    blur(5px);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-dialog
+.dialog-header {
+  padding:
+    20px 22px 17px;
+
+  border-bottom:
+    1px solid
+    rgba(116, 220, 184, 0.13);
+
+  background:
+    linear-gradient(
+      110deg,
+      rgba(11, 42, 29, 0.78),
+      rgba(4, 20, 14, 0.58)
+    );
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-dialog
+.dialog-header h2 {
+  margin: 0 0 4px;
+
+  color:
+    #f3fff9;
+
+  font-size: 1.2rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-dialog
+.dialog-header p {
+  margin: 0;
+
+  color:
+    rgba(169, 205, 191, 0.72);
+
+  font-size: 0.76rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-stage {
+  padding:
+    20px 22px 22px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-safety,
+html[data-dashboard-ui="aurora"]
+.security-totp-recovery-warning {
+  margin-bottom: 14px;
+
+  padding:
+    13px 14px;
+
+  border:
+    1px solid
+    rgba(110, 230, 188, 0.15);
+
+  border-radius: 11px;
+
+  background:
+    rgba(7, 35, 24, 0.55);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-safety strong,
+html[data-dashboard-ui="aurora"]
+.security-totp-recovery-warning strong {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    #8bffd5;
+
+  font-size: 0.7rem;
+
+  letter-spacing: 0.06em;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-safety p,
+html[data-dashboard-ui="aurora"]
+.security-totp-recovery-warning p {
+  margin: 0;
+
+  color:
+    rgba(181, 215, 202, 0.75);
+
+  font-size: 0.73rem;
+  line-height: 1.5;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-setup-grid {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 0.9fr)
+    minmax(0, 1.1fr);
+
+  gap: 16px;
+
+  margin-bottom: 18px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-qr-panel,
+html[data-dashboard-ui="aurora"]
+.security-totp-manual-panel {
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-label {
+  color:
+    rgba(151, 199, 181, 0.70);
+
+  font-size: 0.64rem;
+  font-weight: 720;
+
+  letter-spacing: 0.055em;
+
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-qr-surface {
+  display: grid;
+
+  place-items: center;
+
+  min-height: 230px;
+
+  padding: 10px;
+
+  border:
+    1px solid
+    rgba(111, 213, 177, 0.13);
+
+  border-radius: 13px;
+
+  background:
+    rgba(238, 255, 249, 0.96);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-qr-surface img {
+  display: block;
+
+  width: min(220px, 100%);
+  height: auto;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-secret {
+  min-height: 46px;
+
+  display: flex;
+
+  align-items: center;
+
+  padding:
+    10px 11px;
+
+  overflow-wrap: anywhere;
+
+  border:
+    1px solid
+    rgba(111, 213, 177, 0.14);
+
+  border-radius: 10px;
+
+  background:
+    rgba(1, 13, 8, 0.64);
+
+  color:
+    rgba(222, 248, 237, 0.90);
+
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-manual-panel > p {
+  margin: 0;
+
+  color:
+    rgba(151, 190, 176, 0.62);
+
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-confirm-form {
+  padding-top: 16px;
+
+  border-top:
+    1px solid
+    rgba(111, 213, 177, 0.10);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-recovery-codes {
+  min-height: 150px;
+
+  margin:
+    0 0 15px;
+
+  padding:
+    15px;
+
+  overflow: auto;
+
+  border:
+    1px solid
+    rgba(111, 213, 177, 0.14);
+
+  border-radius: 11px;
+
+  background:
+    rgba(1, 13, 8, 0.72);
+
+  color:
+    rgba(226, 250, 240, 0.92);
+
+  font:
+    0.82rem/1.7
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-totp-recovery-actions {
+  display: flex;
+
+  justify-content: flex-end;
+
+  gap: 9px;
+}
+
+
+@media (max-width: 680px) {
+  html[data-dashboard-ui="aurora"]
+  .security-totp-dialog {
+    width:
+      calc(100vw - 16px);
+
+    border-radius: 14px;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  .security-totp-stage {
+    padding:
+      16px;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  .security-totp-setup-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  .security-totp-recovery-actions {
+    align-items: stretch;
+
+    flex-direction: column;
+  }
+}

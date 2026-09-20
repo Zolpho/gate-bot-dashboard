@@ -44,6 +44,9 @@ const state = {
   adminSessionEpoch: 0,
   adminMfaChallenge: '',
   adminMfaMethods: [],
+  securityTotp: null,
+  securityTotpLoading: false,
+  securityTotpDialogEpoch: 0,
   privateBalance: null,
   privateBalanceAccountId: '',
   privateBalanceFetchedAt: 0,
@@ -348,6 +351,1285 @@ function cancelAdminMfa() {
 }
 
 
+function securityRoleLabel(value) {
+  return String(
+    value || '—'
+  ).replaceAll(
+    '_',
+    ' ',
+  );
+}
+
+
+function securityAuthSourceLabel(value) {
+  return (
+    value === 'file'
+      ? 'Dashboard account'
+      : 'Server configuration'
+  );
+}
+
+
+function setSecurityPageError(message = '') {
+  const element = $('#securityPageError');
+
+  if (!element) return;
+
+  element.textContent = message;
+
+  element.classList.toggle(
+    'hidden',
+    !message,
+  );
+}
+
+
+function renderSecurityPage() {
+  const user = state.adminUser;
+
+  const username = $('#securityUsername');
+  const role = $('#securityRole');
+  const source = $('#securityAuthSource');
+  const accountStatus = $('#securityAccountStatus');
+  const passwordButton = $(
+    '#securityChangePasswordButton'
+  );
+
+  if (!username || !role || !source) {
+    return;
+  }
+
+  if (!user) {
+    username.textContent = '—';
+    role.textContent = '—';
+    source.textContent = '—';
+
+    if (accountStatus) {
+      accountStatus.textContent = 'Locked';
+      accountStatus.classList.remove(
+        'enabled',
+      );
+    }
+
+    if (passwordButton) {
+      passwordButton.disabled = true;
+    }
+
+  } else {
+    username.textContent = (
+      user.username || '—'
+    );
+
+    role.textContent = securityRoleLabel(
+      user.role
+    );
+
+    source.textContent = (
+      securityAuthSourceLabel(
+        user.auth_source
+      )
+    );
+
+    if (accountStatus) {
+      accountStatus.textContent = 'Signed in';
+      accountStatus.classList.add(
+        'enabled',
+      );
+    }
+
+    if (passwordButton) {
+      passwordButton.disabled = (
+        user.auth_source !== 'file'
+      );
+
+      passwordButton.title = (
+        user.auth_source === 'file'
+          ? 'Change this dashboard account password'
+          : (
+            'Server-configured passwords must '
+            + 'be changed on the server.'
+          )
+      );
+    }
+  }
+
+  const status = $('#securityTotpStatus');
+  const meta = $('#securityTotpMeta');
+  const setup = $('#securityTotpSetupButton');
+
+  if (!status || !meta || !setup) {
+    return;
+  }
+
+  status.classList.remove(
+    'enabled',
+    'planned',
+  );
+
+  if (!user) {
+    status.textContent = 'Locked';
+    meta.textContent = '';
+    setup.classList.add('hidden');
+    return;
+  }
+
+  if (state.securityTotpLoading) {
+    status.textContent = 'Loading…';
+    meta.textContent = (
+      'Reading authenticator status.'
+    );
+    setup.classList.add('hidden');
+    return;
+  }
+
+  const factor = (
+    state.securityTotp?.factor
+    || null
+  );
+
+  if (factor?.totp_enabled) {
+    status.textContent = 'Enabled';
+    status.classList.add('enabled');
+
+    meta.textContent = (
+      factor.totp_confirmed_at
+        ? (
+          'Enabled '
+          + fmtDate(
+            factor.totp_confirmed_at
+          )
+          + '.'
+        )
+        : (
+          'Authenticator verification is enabled.'
+        )
+    );
+
+    setup.classList.add('hidden');
+    return;
+  }
+
+  if (factor) {
+    status.textContent = 'Not enabled';
+
+    meta.textContent = (
+      user.auth_source === 'file'
+        ? (
+          'Authenticator setup is available for '
+          + 'this account. Enrollment controls '
+          + 'will be wired in the next security step.'
+        )
+        : (
+          'Authenticator enrollment requires a '
+          + 'dashboard-managed account.'
+        )
+    );
+
+    const enrollmentAvailable = (
+      user.auth_source === 'file'
+      && Boolean(
+        state.adminAuthorization
+      )
+    );
+
+    setup.classList.toggle(
+      'hidden',
+      !enrollmentAvailable,
+    );
+
+    setup.disabled = (
+      !enrollmentAvailable
+    );
+
+    setup.title = (
+      enrollmentAvailable
+        ? (
+            'Set up Authenticator for '
+            + 'this dashboard account.'
+          )
+        : (
+            'Authenticator enrollment '
+            + 'requires a dashboard-managed '
+            + 'account.'
+          )
+    );
+
+    return;
+  }
+
+  status.textContent = 'Unavailable';
+
+  meta.textContent = (
+    'Authenticator status could not be loaded.'
+  );
+
+  setup.classList.add('hidden');
+}
+
+
+async function loadSecurityOverview({
+  quiet = false,
+} = {}) {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    renderSecurityPage();
+    return;
+  }
+
+  const sessionEpoch = (
+    state.adminSessionEpoch
+  );
+
+  const authorization = (
+    state.adminAuthorization
+  );
+
+  state.securityTotpLoading = true;
+
+  setSecurityPageError('');
+  renderSecurityPage();
+
+  try {
+    const result = await adminApi(
+      '/api/auth/mfa/totp'
+    );
+
+    if (
+      state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    state.securityTotp = result;
+
+    setSecurityPageError('');
+
+  } catch (error) {
+    if (
+      state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    state.securityTotp = null;
+
+    const message = (
+      error instanceof TypeError
+        ? (
+          'The dashboard could not contact '
+          + 'the authentication service.'
+        )
+        : (
+          error.message
+          || 'Unable to load security settings.'
+        )
+    );
+
+    setSecurityPageError(
+      message
+    );
+
+    if (!quiet) {
+      showToast(
+        message,
+        true,
+      );
+    }
+
+  } finally {
+    if (
+      state.adminSessionEpoch
+        === sessionEpoch
+      && state.adminAuthorization
+        === authorization
+    ) {
+      state.securityTotpLoading = false;
+      renderSecurityPage();
+    }
+  }
+}
+
+
+function clearSecurityState() {
+  state.securityTotp = null;
+  state.securityTotpLoading = false;
+
+  closeSecurityTotpDialog({
+    force: true,
+  });
+
+  setSecurityPageError('');
+  renderSecurityPage();
+}
+
+
+function setSecurityTotpDialogError(
+  selector,
+  message = '',
+) {
+  const element = $(selector);
+
+  if (!element) return;
+
+  element.textContent = (
+    String(message || '')
+  );
+
+  element.classList.toggle(
+    'hidden',
+    !message,
+  );
+}
+
+
+function clearSecurityTotpSensitiveState() {
+  const enrollForm = $(
+    '#securityTotpEnrollForm'
+  );
+
+  const confirmForm = $(
+    '#securityTotpConfirmForm'
+  );
+
+  enrollForm?.reset();
+  confirmForm?.reset();
+
+  const qr = $('#securityTotpQr');
+
+  if (qr) {
+    qr.removeAttribute('src');
+  }
+
+  const secret = $(
+    '#securityTotpSecret'
+  );
+
+  if (secret) {
+    secret.textContent = '—';
+  }
+
+  const recoveryCodes = $(
+    '#securityTotpRecoveryCodes'
+  );
+
+  if (recoveryCodes) {
+    recoveryCodes.textContent = '';
+  }
+
+  $('#securityTotpReauthStage')
+    ?.classList.remove('hidden');
+
+  $('#securityTotpVerifyStage')
+    ?.classList.add('hidden');
+
+  $('#securityTotpRecoveryStage')
+    ?.classList.add('hidden');
+
+  setSecurityTotpDialogError(
+    '#securityTotpEnrollError',
+    '',
+  );
+
+  setSecurityTotpDialogError(
+    '#securityTotpConfirmError',
+    '',
+  );
+
+  const enrollButton = $(
+    '#securityTotpEnrollButton'
+  );
+
+  if (enrollButton) {
+    enrollButton.disabled = false;
+    enrollButton.textContent = 'Continue';
+  }
+
+  /*
+   * Confirmation is intentionally held disabled
+   * until R4A2B3 wires the confirm endpoint.
+   */
+  const confirmButton = $(
+    '#securityTotpConfirmButton'
+  );
+
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = (
+      'Verify and enable'
+    );
+  }
+}
+
+
+function securityTotpRecoveryCodesAwaitingAcknowledgement() {
+  const stage = $(
+    '#securityTotpRecoveryStage'
+  );
+
+  return Boolean(
+    stage
+    && !stage.classList.contains(
+      'hidden'
+    )
+  );
+}
+
+
+function securityTotpDialogIsCurrent({
+  dialogEpoch,
+  sessionEpoch,
+  authorization,
+}) {
+  const dialog = $(
+    '#securityTotpDialog'
+  );
+
+  return Boolean(
+    dialog?.open
+    && state.securityTotpDialogEpoch
+      === dialogEpoch
+    && state.adminSessionEpoch
+      === sessionEpoch
+    && state.adminAuthorization
+      === authorization
+  );
+}
+
+
+function closeSecurityTotpDialog(
+  options = {},
+) {
+  const force = Boolean(
+    options?.force
+  );
+
+  if (
+    !force
+    && securityTotpRecoveryCodesAwaitingAcknowledgement()
+  ) {
+    showToast(
+      'Save your recovery codes and choose '
+      + '“I saved these codes” before closing.',
+      true,
+    );
+
+    return false;
+  }
+
+  /*
+   * Invalidates every in-flight enrollment or
+   * confirmation operation before wiping the
+   * shared dialog DOM. A later response from an
+   * older dialog generation cannot repopulate it.
+   */
+  state.securityTotpDialogEpoch += 1;
+
+  const dialog = $(
+    '#securityTotpDialog'
+  );
+
+  clearSecurityTotpSensitiveState();
+
+  if (dialog?.open) {
+    dialog.close();
+  }
+
+  return true;
+}
+
+function openSecurityTotpDialog() {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    openAdminDialog();
+    return;
+  }
+
+  if (
+    state.adminUser.auth_source
+    !== 'file'
+  ) {
+    showToast(
+      'Authenticator enrollment requires '
+      + 'a dashboard-managed account.',
+      true,
+    );
+    return;
+  }
+
+  const factor = (
+    state.securityTotp?.factor
+    || null
+  );
+
+  if (!factor) {
+    showToast(
+      'Authenticator status is not '
+      + 'available yet.',
+      true,
+    );
+
+    void loadSecurityOverview();
+
+    return;
+  }
+
+  if (factor.totp_enabled) {
+    showToast(
+      'Authenticator is already enabled.',
+      true,
+    );
+    return;
+  }
+
+  state.securityTotpDialogEpoch += 1;
+
+  clearSecurityTotpSensitiveState();
+
+  const identity = $(
+    '#securityTotpDialogIdentity'
+  );
+
+  if (identity) {
+    identity.textContent = (
+      `Signed in as ${
+        state.adminUser.username
+      }. Confirm your current password `
+      + 'to create a new Authenticator setup.'
+    );
+  }
+
+  const dialog = $(
+    '#securityTotpDialog'
+  );
+
+  if (!dialog) {
+    showToast(
+      'Authenticator setup dialog '
+      + 'is unavailable.',
+      true,
+    );
+    return;
+  }
+
+  if (!dialog.open) {
+    dialog.showModal();
+  }
+
+  window.setTimeout(
+    () => {
+      $('#securityTotpCurrentPassword')
+        ?.focus();
+    },
+    0,
+  );
+}
+
+
+async function copySecuritySensitiveText(
+  value,
+  button,
+  successMessage,
+) {
+  const text = String(
+    value || ''
+  );
+
+  if (!text) return;
+
+  try {
+    await navigator.clipboard.writeText(
+      text
+    );
+
+  } catch {
+    const textarea = (
+      document.createElement(
+        'textarea'
+      )
+    );
+
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+
+    document.body.appendChild(
+      textarea
+    );
+
+    textarea.select();
+
+    document.execCommand(
+      'copy'
+    );
+
+    textarea.remove();
+  }
+
+  if (button) {
+    const originalLabel = (
+      button.textContent.trim()
+      || 'Copy'
+    );
+
+    button.textContent = 'Copied ✓';
+
+    window.setTimeout(
+      () => {
+        if (button.isConnected) {
+          button.textContent = (
+            originalLabel
+          );
+        }
+      },
+      1600,
+    );
+  }
+
+  showToast(
+    successMessage
+  );
+}
+
+
+async function copySecurityTotpSecret() {
+  const secret = String(
+    $('#securityTotpSecret')
+      ?.textContent
+    || ''
+  ).trim();
+
+  if (
+    !secret
+    || secret === '—'
+  ) {
+    return;
+  }
+
+  await copySecuritySensitiveText(
+    secret,
+    $('#copySecurityTotpSecret'),
+    'Authenticator setup key copied.',
+  );
+}
+
+
+async function beginSecurityTotpEnrollment(
+  event,
+) {
+  event.preventDefault();
+
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    closeSecurityTotpDialog();
+    openAdminDialog();
+    return;
+  }
+
+  if (
+    state.adminUser.auth_source
+    !== 'file'
+  ) {
+    closeSecurityTotpDialog();
+
+    showToast(
+      'Authenticator enrollment requires '
+      + 'a dashboard-managed account.',
+      true,
+    );
+
+    return;
+  }
+
+  const factor = (
+    state.securityTotp?.factor
+    || null
+  );
+
+  if (factor?.totp_enabled) {
+    closeSecurityTotpDialog();
+
+    showToast(
+      'Authenticator is already enabled.',
+      true,
+    );
+
+    return;
+  }
+
+  const formElement = (
+    event.currentTarget
+  );
+
+  const passwordInput = (
+    formElement.querySelector(
+      'input[name="current_password"]'
+    )
+  );
+
+  const currentPassword = String(
+    passwordInput?.value || ''
+  );
+
+  setSecurityTotpDialogError(
+    '#securityTotpEnrollError',
+    '',
+  );
+
+  if (!currentPassword) {
+    setSecurityTotpDialogError(
+      '#securityTotpEnrollError',
+      'Enter your current password.',
+    );
+
+    passwordInput?.focus();
+    return;
+  }
+
+  /*
+   * Verify all secret-bearing display surfaces
+   * exist before asking the backend to generate
+   * a pending seed.
+   */
+  const qr = $('#securityTotpQr');
+
+  const secretElement = $(
+    '#securityTotpSecret'
+  );
+
+  const reauthStage = $(
+    '#securityTotpReauthStage'
+  );
+
+  const verifyStage = $(
+    '#securityTotpVerifyStage'
+  );
+
+  if (
+    !qr
+    || !secretElement
+    || !reauthStage
+    || !verifyStage
+  ) {
+    setSecurityTotpDialogError(
+      '#securityTotpEnrollError',
+      'Authenticator setup UI is incomplete.',
+    );
+
+    if (passwordInput) {
+      passwordInput.value = '';
+    }
+
+    return;
+  }
+
+  const submitButton = $(
+    '#securityTotpEnrollButton'
+  );
+
+  const sessionEpoch = (
+    state.adminSessionEpoch
+  );
+
+  const authorization = (
+    state.adminAuthorization
+  );
+
+  const dialogEpoch = (
+    state.securityTotpDialogEpoch
+  );
+
+  if (passwordInput) {
+    /*
+     * Do not leave the plaintext password in
+     * the DOM while the network request runs.
+     */
+    passwordInput.value = '';
+  }
+
+  submitButton.disabled = true;
+  submitButton.textContent = (
+    'Creating setup…'
+  );
+
+  try {
+    const result = await adminApi(
+      '/api/auth/mfa/totp/enroll',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password:
+            currentPassword,
+        }),
+      },
+    );
+
+    if (
+      !securityTotpDialogIsCurrent({
+        dialogEpoch,
+        sessionEpoch,
+        authorization,
+      })
+    ) {
+      return;
+    }
+
+    const secret = String(
+      result.secret || ''
+    ).trim();
+
+    const qrDataUri = String(
+      result.qr_data_uri || ''
+    ).trim();
+
+    if (
+      result.status !== 'pending'
+      || !secret
+      || !qrDataUri.startsWith(
+        'data:image/png;base64,'
+      )
+      || result.factor?.totp_enabled
+        !== false
+    ) {
+      throw new Error(
+        'Authentication service returned '
+        + 'an invalid enrollment response.'
+      );
+    }
+
+    /*
+     * The password has already been removed
+     * from the DOM. Only the pending setup
+     * secret is displayed, and it will be
+     * wiped by every dialog-close path.
+     */
+    secretElement.textContent = secret;
+    qr.src = qrDataUri;
+
+    reauthStage.classList.add(
+      'hidden'
+    );
+
+    verifyStage.classList.remove(
+      'hidden'
+    );
+
+    setSecurityTotpDialogError(
+      '#securityTotpConfirmError',
+      '',
+    );
+
+    const confirmButton = $(
+      '#securityTotpConfirmButton'
+    );
+
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.removeAttribute(
+        'title'
+      );
+    }
+
+    $('#securityTotpVerificationCode')
+      ?.focus();
+
+  } catch (error) {
+    if (
+      !securityTotpDialogIsCurrent({
+        dialogEpoch,
+        sessionEpoch,
+        authorization,
+      })
+      || staleAdminSessionError(error)
+    ) {
+      return;
+    }
+
+    const message = (
+      error instanceof ApiError
+      && error.status === 403
+    )
+      ? (
+          'Current password confirmation '
+          + 'failed.'
+        )
+      : (
+          error instanceof TypeError
+        )
+        ? (
+            'The dashboard could not contact '
+            + 'the authentication service.'
+          )
+        : (
+            error.message
+            || (
+              'Authenticator setup could '
+              + 'not be started.'
+            )
+          );
+
+    setSecurityTotpDialogError(
+      '#securityTotpEnrollError',
+      message,
+    );
+
+    passwordInput?.focus();
+
+  } finally {
+    if (
+      submitButton
+      && securityTotpDialogIsCurrent({
+        dialogEpoch,
+        sessionEpoch,
+        authorization,
+      })
+    ) {
+      submitButton.disabled = false;
+      submitButton.textContent = (
+        'Continue'
+      );
+    }
+  }
+}
+
+
+async function copySecurityTotpRecoveryCodes() {
+  const recoveryCodes = String(
+    $('#securityTotpRecoveryCodes')
+      ?.textContent
+    || ''
+  ).trim();
+
+  if (!recoveryCodes) {
+    return;
+  }
+
+  await copySecuritySensitiveText(
+    recoveryCodes,
+    $('#copySecurityTotpRecoveryCodes'),
+    'Recovery codes copied.',
+  );
+}
+
+
+function finishSecurityTotpSetup() {
+  closeSecurityTotpDialog({
+    force: true,
+  });
+
+  showToast(
+    'Authenticator setup complete.'
+  );
+}
+
+async function submitSecurityTotpConfirmation(
+  event,
+) {
+  event.preventDefault();
+
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    closeSecurityTotpDialog();
+    openAdminDialog();
+    return;
+  }
+
+  const verifyStage = $(
+    '#securityTotpVerifyStage'
+  );
+
+  const secretElement = $(
+    '#securityTotpSecret'
+  );
+
+  const qr = $('#securityTotpQr');
+
+  /*
+   * Confirmation belongs only to the pending
+   * enrollment currently displayed in this
+   * dialog. A closed/reopened dialog must
+   * start enrollment again to obtain a fresh
+   * setup secret.
+   */
+  if (
+    !verifyStage
+    || verifyStage.classList.contains(
+      'hidden'
+    )
+    || !secretElement
+    || String(
+      secretElement.textContent || ''
+    ).trim() === '—'
+    || !qr?.getAttribute('src')
+  ) {
+    setSecurityTotpDialogError(
+      '#securityTotpConfirmError',
+      (
+        'Start Authenticator setup again '
+        + 'before verifying a code.'
+      ),
+    );
+
+    return;
+  }
+
+  const formElement = (
+    event.currentTarget
+  );
+
+  const codeInput = (
+    formElement.querySelector(
+      'input[name="code"]'
+    )
+  );
+
+  const code = String(
+    codeInput?.value || ''
+  ).trim();
+
+  setSecurityTotpDialogError(
+    '#securityTotpConfirmError',
+    '',
+  );
+
+  if (!/^[0-9]{6}$/.test(code)) {
+    setSecurityTotpDialogError(
+      '#securityTotpConfirmError',
+      'Enter a six-digit verification code.',
+    );
+
+    codeInput?.focus();
+    return;
+  }
+
+  const recoveryStage = $(
+    '#securityTotpRecoveryStage'
+  );
+
+  const recoveryElement = $(
+    '#securityTotpRecoveryCodes'
+  );
+
+  if (
+    !recoveryStage
+    || !recoveryElement
+  ) {
+    setSecurityTotpDialogError(
+      '#securityTotpConfirmError',
+      'Recovery-code UI is unavailable.',
+    );
+
+    if (codeInput) {
+      codeInput.value = '';
+    }
+
+    return;
+  }
+
+  const submitButton = $(
+    '#securityTotpConfirmButton'
+  );
+
+  const sessionEpoch = (
+    state.adminSessionEpoch
+  );
+
+  const authorization = (
+    state.adminAuthorization
+  );
+
+  const dialogEpoch = (
+    state.securityTotpDialogEpoch
+  );
+
+  /*
+   * Keep the one-time verification code out
+   * of the DOM while the request is running.
+   */
+  if (codeInput) {
+    codeInput.value = '';
+  }
+
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = (
+      'Verifying…'
+    );
+  }
+
+  try {
+    const result = await adminApi(
+      '/api/auth/mfa/totp/confirm',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          code,
+        }),
+      },
+    );
+
+    if (
+      !securityTotpDialogIsCurrent({
+        dialogEpoch,
+        sessionEpoch,
+        authorization,
+      })
+    ) {
+      return;
+    }
+
+    const recoveryCodes = (
+      Array.isArray(
+        result.recovery_codes
+      )
+        ? result.recovery_codes.map(
+            value => String(
+              value || ''
+            ).trim()
+          ).filter(Boolean)
+        : []
+    );
+
+    const recoveryCount = Number(
+      result.recovery_code_count
+    );
+
+    if (
+      result.status !== 'enabled'
+      || result.factor?.totp_enabled
+        !== true
+      || recoveryCodes.length < 1
+      || !Number.isInteger(
+        recoveryCount
+      )
+      || recoveryCount
+        !== recoveryCodes.length
+    ) {
+      throw new Error(
+        'Authentication service returned '
+        + 'an invalid confirmation response.'
+      );
+    }
+
+    /*
+     * Never place plaintext recovery codes
+     * into global state. Keep only public
+     * factor/status data there.
+     */
+    state.securityTotp = {
+      factor: result.factor,
+      mfa_required:
+        Boolean(
+          result.mfa_required
+        ),
+      gate_write_performed:
+        Boolean(
+          result.gate_write_performed
+        ),
+    };
+
+    /*
+     * TOTP is confirmed. The pending seed,
+     * QR and submitted verification code
+     * are no longer needed and are removed
+     * before recovery codes are displayed.
+     */
+    qr.removeAttribute('src');
+    secretElement.textContent = '—';
+    formElement.reset();
+
+    verifyStage.classList.add(
+      'hidden'
+    );
+
+    recoveryElement.textContent = (
+      recoveryCodes.join('\n')
+    );
+
+    recoveryStage.classList.remove(
+      'hidden'
+    );
+
+    renderSecurityPage();
+
+    showToast(
+      'Authenticator enabled. Save the '
+      + 'recovery codes before closing.'
+    );
+
+  } catch (error) {
+    if (
+      !securityTotpDialogIsCurrent({
+        dialogEpoch,
+        sessionEpoch,
+        authorization,
+      })
+      || staleAdminSessionError(error)
+    ) {
+      return;
+    }
+
+    const message = (
+      error instanceof ApiError
+      && error.status === 400
+    )
+      ? (
+          error.message
+          || 'Invalid Authenticator code.'
+        )
+      : (
+          error instanceof TypeError
+        )
+        ? (
+            'The dashboard could not contact '
+            + 'the authentication service.'
+          )
+        : (
+            error.message
+            || (
+              'Authenticator verification '
+              + 'could not be completed.'
+            )
+          );
+
+    setSecurityTotpDialogError(
+      '#securityTotpConfirmError',
+      message,
+    );
+
+    codeInput?.focus();
+
+  } finally {
+    if (
+      submitButton
+      && securityTotpDialogIsCurrent({
+        dialogEpoch,
+        sessionEpoch,
+        authorization,
+      })
+    ) {
+      submitButton.disabled = false;
+      submitButton.textContent = (
+        'Verify and enable'
+      );
+    }
+  }
+}
+
+
 function setChangePasswordError(message = '') {
   const errorBox = $('#changePasswordError');
   if (!errorBox) return;
@@ -388,6 +1670,7 @@ function renderAdminState() {
   const changePasswordButton = $('#changePasswordButton');
   const walletNavItem = $('#walletNavItem');
   const tradingNavItem = $('#tradingNavItem');
+  const securityNavItem = $('#securityNavItem');
   const signedIn = Boolean(
     state.adminUser
     && state.adminAuthorization
@@ -435,6 +1718,20 @@ function renderAdminState() {
     tradingNavItem.tabIndex = signedIn ? 0 : -1;
   }
 
+  securityNavItem?.classList.toggle(
+    'hidden',
+    !signedIn,
+  );
+
+  securityNavItem?.setAttribute(
+    'aria-hidden',
+    String(!signedIn),
+  );
+
+  if (securityNavItem) {
+    securityNavItem.tabIndex = signedIn ? 0 : -1;
+  }
+
   if (signedIn) {
     $('#privateBalancePanel')?.classList.remove('hidden');
   } else {
@@ -444,6 +1741,7 @@ function renderAdminState() {
     if (
       state.activeTab === 'wallet'
       || state.activeTab === 'trading'
+      || state.activeTab === 'security'
     ) {
       switchTab('overview');
     }
@@ -589,6 +1887,7 @@ function lockAdmin(showMessage = true) {
   clearDepositState({ keepCatalog: false });
   clearBotControlSession();
   clearTreasurySession();
+  clearSecurityState();
 
   const depositDialog = $('#depositDialog');
   if (depositDialog?.open) depositDialog.close();
@@ -14854,6 +16153,7 @@ function switchTab(tab, { updateHash = true } = {}) {
     alerts: ['Alerts', 'Local rules evaluated after each bot snapshot'],
     wallet: ['Wallet', 'Private balances, deposits and account-scoped wallet activity'],
     trading: ['Trading', 'Live Gate spot chart, order book and account-scoped market view'],
+    security: ['Security', 'Manage dashboard sign-in and account protection'],
     system: ['System', 'Connection status, collector runs and safe API inspection'],
   };
 
@@ -14866,7 +16166,7 @@ function switchTab(tab, { updateHash = true } = {}) {
     target = 'overview';
   }
   if (
-    ['wallet', 'trading'].includes(target)
+    ['wallet', 'trading', 'security'].includes(target)
     && (
       !state.adminUser
       || !state.adminAuthorization
@@ -14898,6 +16198,7 @@ function switchTab(tab, { updateHash = true } = {}) {
       'wallet',
       'trading',
       'bot-control',
+      'security',
     ].includes(target)
   );
 
@@ -14959,6 +16260,16 @@ function switchTab(tab, { updateHash = true } = {}) {
     && state.adminAuthorization
   ) {
     window.activateTradingTab?.();
+  }
+
+  if (
+    target === 'security'
+    && state.adminUser
+    && state.adminAuthorization
+  ) {
+    void loadSecurityOverview({
+      quiet: true,
+    });
   }
 }
 function setMetric(selector, value, formatter = fmtMoney, classValue = value) {
@@ -19424,6 +20735,79 @@ function bindEvents() {
   $('#closeChangePasswordDialog').addEventListener('click', () => $('#changePasswordDialog').close());
   $('#cancelChangePassword').addEventListener('click', () => $('#changePasswordDialog').close());
   $('#changePasswordDialog').addEventListener('click', event => { if (event.target === $('#changePasswordDialog')) $('#changePasswordDialog').close(); });
+
+  $('#securityChangePasswordButton')?.addEventListener(
+    'click',
+    openChangePasswordDialog,
+  );
+
+  $('#securityTotpSetupButton')?.addEventListener(
+    'click',
+    openSecurityTotpDialog,
+  );
+
+  $('#securityTotpEnrollForm')?.addEventListener(
+    'submit',
+    beginSecurityTotpEnrollment,
+  );
+
+  $('#securityTotpConfirmForm')?.addEventListener(
+    'submit',
+    submitSecurityTotpConfirmation,
+  );
+
+  $('#copySecurityTotpSecret')?.addEventListener(
+    'click',
+    copySecurityTotpSecret,
+  );
+
+  $('#copySecurityTotpRecoveryCodes')
+    ?.addEventListener(
+      'click',
+      copySecurityTotpRecoveryCodes,
+    );
+
+  $('#finishSecurityTotpSetup')
+    ?.addEventListener(
+      'click',
+      finishSecurityTotpSetup,
+    );
+
+  $('#closeSecurityTotpDialog')?.addEventListener(
+    'click',
+    closeSecurityTotpDialog,
+  );
+
+  $('#cancelSecurityTotpEnroll')?.addEventListener(
+    'click',
+    closeSecurityTotpDialog,
+  );
+
+  $('#cancelSecurityTotpConfirm')?.addEventListener(
+    'click',
+    closeSecurityTotpDialog,
+  );
+
+  $('#securityTotpDialog')?.addEventListener(
+    'cancel',
+    event => {
+      event.preventDefault();
+      closeSecurityTotpDialog();
+    },
+  );
+
+  $('#securityTotpDialog')?.addEventListener(
+    'click',
+    event => {
+      if (
+        event.target
+        === $('#securityTotpDialog')
+      ) {
+        closeSecurityTotpDialog();
+      }
+    },
+  );
+
   window.addEventListener('hashchange', () => {
     switchTab(window.location.hash.slice(1), { updateHash: false });
   });

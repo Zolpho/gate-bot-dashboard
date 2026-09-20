@@ -82,6 +82,12 @@
   <link rel="stylesheet" href="./aurora-trading.css?v=20260906-aurora-a7c156-v1" data-dashboard-ui-stylesheet="aurora" disabled>
   <link rel="stylesheet" href="./aurora-alerts.css?v=20260906-aurora-a7c156-v1" data-dashboard-ui-stylesheet="aurora" disabled>
   <link rel="stylesheet" href="./aurora-system.css?v=20260906-aurora-a7c156-v1" data-dashboard-ui-stylesheet="aurora" disabled>
+  <link
+    rel="stylesheet"
+    href="./aurora-security.css?v=20260920-security-totp-r4a2c3-v1"
+    data-dashboard-ui-stylesheet="aurora"
+    disabled
+  >
   <link rel="stylesheet" href="./aurora-overview.css?v=20260906-aurora-a7c156-v1" data-dashboard-ui-stylesheet="aurora" disabled>
   <link
     rel="stylesheet"
@@ -125,6 +131,13 @@
         ><span>↕</span>Trading</button>
         <button class="nav-item" data-tab="alerts"><span>◇</span>Alerts</button>
         <button class="nav-item hidden" id="walletNavItem" data-tab="wallet" aria-hidden="true" aria-controls="tab-wallet"><span>◈</span>Wallet</button>
+        <button
+          class="nav-item hidden"
+          id="securityNavItem"
+          data-tab="security"
+          aria-hidden="true"
+          aria-controls="tab-security"
+        ><span>⌾</span>Security</button>
         <button class="nav-item" data-tab="system"><span>⚙</span>System</button>
       </nav>
       <div class="sidebar-footer">
@@ -143,7 +156,6 @@
           <label class="account-selector" id="globalAccountSelector"><span class="account-selector-label">Account</span><select id="accountSelector" aria-label="Gate account"><option value="">All accounts</option></select></label>
           <span class="mode-badge" id="modeBadge">—</span>
           <span class="admin-identity hidden" id="adminIdentity"></span>
-          <button class="button secondary hidden" id="changePasswordButton">Change password</button>
           <button
             type="button"
             class="button secondary hidden"
@@ -2629,6 +2641,206 @@
 
         </div>
       </section>
+      <section
+        class="tab-panel security-tab-panel"
+        id="tab-security"
+        aria-label="Account security"
+      >
+        <div
+          id="securityPageError"
+          class="form-error hidden security-page-error"
+          role="alert"
+          aria-live="polite"
+        ></div>
+
+        <article class="panel security-account-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Account security</h2>
+              <p>
+                Authentication settings for the signed-in
+                dashboard account.
+              </p>
+            </div>
+
+            <span
+              id="securityAccountStatus"
+              class="security-status-pill"
+            >Signed in</span>
+          </div>
+
+          <div class="security-account-facts">
+            <div>
+              <span>Username</span>
+              <strong id="securityUsername">—</strong>
+            </div>
+
+            <div>
+              <span>Role</span>
+              <strong id="securityRole">—</strong>
+            </div>
+
+            <div>
+              <span>Authentication</span>
+              <strong id="securityAuthSource">—</strong>
+            </div>
+          </div>
+        </article>
+
+        <div class="security-grid">
+          <article class="panel security-card">
+            <div class="security-card-heading">
+              <div>
+                <span class="security-card-kicker">
+                  PASSWORD
+                </span>
+                <h2>Password</h2>
+              </div>
+
+              <span class="security-status-pill enabled">
+                Active
+              </span>
+            </div>
+
+            <p id="securityPasswordDescription">
+              Change the password used for this dashboard
+              account.
+            </p>
+
+            <div class="security-card-actions">
+              <button
+                type="button"
+                class="button secondary"
+                id="securityChangePasswordButton"
+              >
+                Change password
+              </button>
+            </div>
+          </article>
+
+          <article class="panel security-card">
+            <div class="security-card-heading">
+              <div>
+                <span class="security-card-kicker">
+                  TWO-STEP VERIFICATION
+                </span>
+                <h2>Authenticator app</h2>
+              </div>
+
+              <span
+                id="securityTotpStatus"
+                class="security-status-pill"
+              >
+                Loading…
+              </span>
+            </div>
+
+            <p id="securityTotpDescription">
+              Use a six-digit code from your authenticator
+              app when signing in.
+            </p>
+
+            <p
+              id="securityTotpMeta"
+              class="security-card-meta"
+            ></p>
+
+            <div class="security-card-actions">
+              <button
+                type="button"
+                class="button secondary hidden"
+                id="securityTotpSetupButton"
+                disabled
+                title="Authenticator setup will be enabled in the next security step."
+              >
+                Set up Authenticator
+              </button>
+            </div>
+          </article>
+
+          <article class="panel security-card security-card-planned">
+            <div class="security-card-heading">
+              <div>
+                <span class="security-card-kicker">
+                  PASSKEYS
+                </span>
+                <h2>Passkeys</h2>
+              </div>
+
+              <span class="security-status-pill planned">
+                Not available yet
+              </span>
+            </div>
+
+            <p>
+              Passkeys are not available yet. They will become
+              available after the dashboard's permanent domain is
+              configured.
+            </p>
+          </article>
+
+          <article class="panel security-card security-card-planned">
+            <div class="security-card-heading">
+              <div>
+                <span class="security-card-kicker">
+                  SESSIONS
+                </span>
+                <h2>Active sessions</h2>
+              </div>
+
+              <span class="security-status-pill planned">
+                Planned
+              </span>
+            </div>
+
+            <p>
+              Review signed-in sessions and revoke individual
+              sessions or all other sessions.
+            </p>
+          </article>
+
+          <article class="panel security-card security-card-planned">
+            <div class="security-card-heading">
+              <div>
+                <span class="security-card-kicker">
+                  NETWORK ACCESS
+                </span>
+                <h2>IP restrictions</h2>
+              </div>
+
+              <span class="security-status-pill planned">
+                Planned
+              </span>
+            </div>
+
+            <p>
+              Optionally restrict this account to approved IP
+              addresses or network ranges.
+            </p>
+          </article>
+
+          <article class="panel security-card security-card-planned">
+            <div class="security-card-heading">
+              <div>
+                <span class="security-card-kicker">
+                  NOTIFICATIONS
+                </span>
+                <h2>Telegram</h2>
+              </div>
+
+              <span class="security-status-pill planned">
+                Planned
+              </span>
+            </div>
+
+            <p>
+              Security notifications can later report sign-ins,
+              factor changes and other account-security events.
+            </p>
+          </article>
+        </div>
+      </section>
+
       <section class="tab-panel" id="tab-system">
         <div class="dashboard-grid equal">
           <article class="panel">
@@ -3206,6 +3418,233 @@
   </dialog>
 
 
+  <dialog
+    id="securityTotpDialog"
+    class="small-dialog security-totp-dialog"
+    aria-labelledby="securityTotpDialogTitle"
+  >
+    <div class="dialog-header">
+      <div>
+        <h2 id="securityTotpDialogTitle">
+          Set up Authenticator
+        </h2>
+
+        <p id="securityTotpDialogIdentity">
+          Protect this dashboard account with a
+          six-digit authenticator code.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeSecurityTotpDialog"
+        aria-label="Close Authenticator setup"
+      >×</button>
+    </div>
+
+    <div
+      id="securityTotpReauthStage"
+      class="security-totp-stage"
+    >
+      <form
+        id="securityTotpEnrollForm"
+        class="form-grid"
+      >
+        <div class="full security-totp-safety">
+          <strong>
+            Confirm your current password first.
+          </strong>
+
+          <p>
+            A fresh password confirmation is required
+            before the dashboard creates an
+            Authenticator secret.
+          </p>
+        </div>
+
+        <label class="full">
+          Current password
+          <input
+            id="securityTotpCurrentPassword"
+            name="current_password"
+            type="password"
+            autocomplete="current-password"
+            maxlength="1024"
+            required
+          >
+        </label>
+
+        <p
+          id="securityTotpEnrollError"
+          class="full form-error hidden"
+          role="alert"
+          aria-live="assertive"
+        ></p>
+
+        <div class="form-actions full">
+          <button
+            type="button"
+            class="button secondary"
+            id="cancelSecurityTotpEnroll"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            class="button primary"
+            id="securityTotpEnrollButton"
+          >
+            Continue
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div
+      id="securityTotpVerifyStage"
+      class="security-totp-stage hidden"
+      aria-live="polite"
+    >
+      <div class="security-totp-setup-grid">
+        <div class="security-totp-qr-panel">
+          <span class="security-totp-label">
+            Scan QR code
+          </span>
+
+          <div class="security-totp-qr-surface">
+            <img
+              id="securityTotpQr"
+              alt="Authenticator enrollment QR code"
+              width="220"
+              height="220"
+            >
+          </div>
+        </div>
+
+        <div class="security-totp-manual-panel">
+          <span class="security-totp-label">
+            Manual setup key
+          </span>
+
+          <code
+            id="securityTotpSecret"
+            class="security-totp-secret"
+          >—</code>
+
+          <button
+            type="button"
+            class="button secondary"
+            id="copySecurityTotpSecret"
+          >
+            Copy setup key
+          </button>
+
+          <p>
+            Keep this setup key private. It provides
+            the same access as scanning the QR code.
+          </p>
+        </div>
+      </div>
+
+      <form
+        id="securityTotpConfirmForm"
+        class="form-grid security-totp-confirm-form"
+      >
+        <label class="full">
+          Six-digit verification code
+          <input
+            id="securityTotpVerificationCode"
+            name="code"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9]{6}"
+            minlength="6"
+            maxlength="6"
+            placeholder="000000"
+            required
+          >
+        </label>
+
+        <p class="full admin-help">
+          Enter the current six-digit code from the
+          Authenticator app you just configured.
+        </p>
+
+        <p
+          id="securityTotpConfirmError"
+          class="full form-error hidden"
+          role="alert"
+          aria-live="assertive"
+        ></p>
+
+        <div class="form-actions full">
+          <button
+            type="button"
+            class="button secondary"
+            id="cancelSecurityTotpConfirm"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            class="button primary"
+            id="securityTotpConfirmButton"
+          >
+            Verify and enable
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div
+      id="securityTotpRecoveryStage"
+      class="security-totp-stage hidden"
+      aria-live="polite"
+    >
+      <div class="security-totp-recovery-warning">
+        <strong>
+          Save your recovery codes now.
+        </strong>
+
+        <p>
+          Each recovery code can be used once if you
+          lose access to your Authenticator app.
+          These codes are shown only after successful
+          setup.
+        </p>
+      </div>
+
+      <pre
+        id="securityTotpRecoveryCodes"
+        class="security-totp-recovery-codes"
+        aria-label="One-time recovery codes"
+      ></pre>
+
+      <div class="security-totp-recovery-actions">
+        <button
+          type="button"
+          class="button secondary"
+          id="copySecurityTotpRecoveryCodes"
+        >
+          Copy recovery codes
+        </button>
+
+        <button
+          type="button"
+          class="button primary"
+          id="finishSecurityTotpSetup"
+        >
+          I saved these codes
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+
 
   <script src="./config.js"></script>
   <script
@@ -3215,7 +3654,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260906-aurora-a7c148-v1"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260920-bearer-init-cleanup-r3b4e-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260920-security-totp-r4a2c3-v1"
     defer
   ></script>
   <script
