@@ -57,6 +57,8 @@ def test_auth_foundation_tables_are_created_without_raw_tokens(tmp_path) -> None
         "dashboard_auth_recovery_codes",
         "dashboard_auth_events",
         "dashboard_auth_rate_limit_events",
+        "dashboard_auth_passkey_users",
+        "dashboard_auth_passkey_credentials",
     }
 
     assert expected <= table_names
@@ -504,3 +506,186 @@ def test_challenge_wrong_purpose_does_not_consume() -> None:
         )
         is not None
     )
+
+
+def test_passkey_foundation_settings_are_opt_in() -> None:
+    settings = Settings()
+
+    assert settings.dashboard_mfa_required is False
+    assert settings.dashboard_webauthn_rp_id == ""
+    assert settings.dashboard_webauthn_origin == ""
+    assert (
+        settings.dashboard_webauthn_rp_name
+        == "Gate Bot Dashboard"
+    )
+
+    configured = Settings(
+        dashboard_webauthn_rp_id=(
+            "zolpho.github.io"
+        ),
+        dashboard_webauthn_origin=(
+            "https://zolpho.github.io"
+        ),
+        dashboard_webauthn_rp_name=(
+            "Gate Bot Dashboard"
+        ),
+    )
+
+    assert (
+        configured.dashboard_webauthn_rp_id
+        == "zolpho.github.io"
+    )
+    assert (
+        configured.dashboard_webauthn_origin
+        == "https://zolpho.github.io"
+    )
+
+
+def test_passkey_foundation_tables_support_multiple_credentials(
+    tmp_path,
+) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'passkeys.db'}"
+    )
+
+    Base.metadata.create_all(
+        engine
+    )
+
+    inspector = inspect(
+        engine
+    )
+
+    passkey_user_columns = {
+        column["name"]
+        for column in inspector.get_columns(
+            "dashboard_auth_passkey_users"
+        )
+    }
+
+    passkey_credential_columns = {
+        column["name"]
+        for column in inspector.get_columns(
+            "dashboard_auth_passkey_credentials"
+        )
+    }
+
+    assert passkey_user_columns == {
+        "username",
+        "user_handle",
+        "enabled",
+        "created_at",
+        "updated_at",
+    }
+
+    assert passkey_credential_columns == {
+        "id",
+        "username",
+        "credential_id",
+        "credential_public_key",
+        "sign_count",
+        "transports_json",
+        "credential_device_type",
+        "credential_backed_up",
+        "label",
+        "created_at",
+        "last_used_at",
+        "revoked_at",
+    }
+
+    user_uniques = {
+        tuple(
+            item["column_names"]
+        )
+        for item in inspector.get_unique_constraints(
+            "dashboard_auth_passkey_users"
+        )
+    }
+
+    credential_uniques = {
+        tuple(
+            item["column_names"]
+        )
+        for item in inspector.get_unique_constraints(
+            "dashboard_auth_passkey_credentials"
+        )
+    }
+
+    assert (
+        "user_handle",
+    ) in user_uniques
+
+    assert (
+        "credential_id",
+    ) in credential_uniques
+
+    # The server stores only public credential material.
+    assert (
+        "credential_public_key"
+        in passkey_credential_columns
+    )
+    assert (
+        "private_key"
+        not in passkey_credential_columns
+    )
+
+
+def test_passkey_factor_switch_is_independent_from_totp(
+    tmp_path,
+) -> None:
+    from sqlalchemy.orm import Session
+
+    from app.models import (
+        DashboardAuthFactor,
+        DashboardAuthPasskeyUser,
+    )
+
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'passkey-switch.db'}"
+    )
+
+    Base.metadata.create_all(
+        engine
+    )
+
+    with Session(
+        engine
+    ) as db:
+        db.add(
+            DashboardAuthFactor(
+                username="alice",
+                totp_enabled=True,
+            )
+        )
+
+        db.add(
+            DashboardAuthPasskeyUser(
+                username="alice",
+                user_handle=b"a" * 64,
+                enabled=False,
+            )
+        )
+
+        db.commit()
+
+        totp = db.get(
+            DashboardAuthFactor,
+            "alice",
+        )
+
+        passkey = db.get(
+            DashboardAuthPasskeyUser,
+            "alice",
+        )
+
+        assert totp is not None
+        assert passkey is not None
+
+        assert totp.totp_enabled is True
+        assert passkey.enabled is False
+
+        passkey.enabled = True
+        db.commit()
+
+        assert totp.totp_enabled is True
+        assert passkey.enabled is True

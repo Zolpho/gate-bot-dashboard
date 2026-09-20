@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -237,6 +238,156 @@ class DashboardAuthFactor(Base):
         nullable=False,
         default=utcnow,
         onupdate=utcnow,
+    )
+
+
+class DashboardAuthPasskeyUser(Base):
+    """
+    Stable WebAuthn identity for one dashboard username.
+
+    The random user_handle is intentionally separate from the
+    dashboard username and remains stable across multiple passkeys.
+
+    enabled is the future user-controlled Security-page switch.
+    Disabling the passkey factor does not need to destroy registered
+    credentials; login logic must require enabled plus at least one
+    active credential.
+    """
+
+    __tablename__ = "dashboard_auth_passkey_users"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_handle",
+            name=(
+                "uq_dashboard_auth_passkey_users_"
+                "user_handle"
+            ),
+        ),
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        primary_key=True,
+    )
+
+    user_handle: Mapped[bytes] = mapped_column(
+        LargeBinary,
+        nullable=False,
+    )
+
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
+class DashboardAuthPasskeyCredential(Base):
+    """
+    One registered WebAuthn public-key credential.
+
+    Only public credential material is durable. No authenticator
+    private key exists in dashboard storage.
+
+    revoked_at supports preserving audit/history when an individual
+    passkey is removed from active use.
+    """
+
+    __tablename__ = (
+        "dashboard_auth_passkey_credentials"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "credential_id",
+            name=(
+                "uq_dashboard_auth_passkey_credentials_"
+                "credential_id"
+            ),
+        ),
+        Index(
+            "ix_dashboard_auth_passkey_credentials_"
+            "username_revoked",
+            "username",
+            "revoked_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    credential_id: Mapped[bytes] = mapped_column(
+        LargeBinary,
+        nullable=False,
+    )
+
+    credential_public_key: Mapped[bytes] = mapped_column(
+        LargeBinary,
+        nullable=False,
+    )
+
+    sign_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    transports_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="[]",
+    )
+
+    credential_device_type: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="",
+    )
+
+    credential_backed_up: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    label: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
     )
 
 

@@ -174,6 +174,14 @@ class Settings(BaseSettings):
         le=900,
     )
 
+    # Passkeys/WebAuthn remain unavailable until the browser
+    # Relying Party identity is configured explicitly. This
+    # prevents source defaults from permanently binding user
+    # credentials to a temporary frontend hostname.
+    dashboard_webauthn_rp_id: str = ""
+    dashboard_webauthn_origin: str = ""
+    dashboard_webauthn_rp_name: str = "Gate Bot Dashboard"
+
 
     # Authentication throttling is persistent so process
     # restarts do not reset brute-force protection.
