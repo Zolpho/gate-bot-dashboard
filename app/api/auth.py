@@ -19,8 +19,10 @@ from ..accounts import AccountConfigError, enabled_gate_accounts
 from ..auth_login import (
     LoginDenied,
     MfaEnrollmentRequired,
+    begin_passkey_mfa_login,
     begin_password_login,
     complete_mfa_login,
+    complete_passkey_mfa_login,
 )
 from ..auth_mfa import (
     MfaAdminError,
@@ -106,6 +108,35 @@ class MfaLoginRequest(BaseModel):
         min_length=1,
         max_length=128,
     )
+
+
+class PasskeyLoginBeginRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    challenge_token: str = Field(
+        min_length=1,
+        max_length=512,
+    )
+
+
+class PasskeyLoginCompleteRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    challenge_token: str = Field(
+        min_length=1,
+        max_length=512,
+    )
+
+    passkey_challenge_token: str = Field(
+        min_length=1,
+        max_length=512,
+    )
+
+    credential: dict[str, Any]
 
 
 class PasskeyRegistrationBeginRequest(BaseModel):
@@ -617,6 +648,207 @@ def mfa_login(
             status_code=503,
             detail=(
                 "MFA service is not available"
+            ),
+        ) from exc
+
+    if (
+        result.get(
+            "status"
+        )
+        != "authenticated"
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Authentication service returned "
+                "an invalid state"
+            ),
+        )
+
+    return _public_authenticated_login(
+        result,
+        settings=settings,
+    )
+
+
+@router.post("/login/passkey")
+def begin_passkey_login(
+    payload: PasskeyLoginBeginRequest,
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Start the WebAuthn child challenge for an existing
+    password-authenticated login challenge.
+
+    The parent login challenge remains authoritative. Its raw token
+    is never stored in the child challenge.
+    """
+
+    _require_passkey_service(
+        settings
+    )
+
+    try:
+        result = (
+            begin_passkey_mfa_login(
+                challenge_token=(
+                    payload.challenge_token
+                ),
+                settings=settings,
+            )
+        )
+
+    except LoginDenied as exc:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Invalid or expired passkey "
+                "login challenge"
+            ),
+        ) from exc
+
+    except PasskeyConfigurationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Passkey service is not available"
+            ),
+        ) from exc
+
+    except (
+        AuthStateError,
+        UserConfigError,
+    ) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Authentication service is "
+                "not available"
+            ),
+        ) from exc
+
+    if (
+        result.get(
+            "status"
+        )
+        != "passkey_authentication_required"
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Authentication service returned "
+                "an invalid state"
+            ),
+        )
+
+    return {
+        "status":
+            result[
+                "status"
+            ],
+        "challenge_token":
+            result[
+                "challenge_token"
+            ],
+        "challenge_expires_at":
+            result[
+                "challenge_expires_at"
+            ],
+        "options":
+            result[
+                "options"
+            ],
+        "gate_write_performed":
+            False,
+    }
+
+
+@router.post("/login/passkey/complete")
+def complete_passkey_login(
+    request: Request,
+    payload: PasskeyLoginCompleteRequest,
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Complete password + passkey authentication.
+
+    Passkey verification, child challenge consumption, parent login
+    challenge consumption and Bearer-session issuance are atomic in
+    the login service. MFA attempt throttling uses the same durable
+    limiter as TOTP/recovery completion.
+    """
+
+    _require_passkey_service(
+        settings
+    )
+
+    client_identifier = (
+        _request_client_identifier(
+            request
+        )
+    )
+
+    try:
+        result = (
+            complete_passkey_mfa_login(
+                challenge_token=(
+                    payload.challenge_token
+                ),
+                passkey_challenge_token=(
+                    payload.passkey_challenge_token
+                ),
+                credential=(
+                    payload.credential
+                ),
+                settings=settings,
+                client_identifier=(
+                    client_identifier
+                ),
+            )
+        )
+
+    except AuthRateLimitExceeded as exc:
+        _raise_auth_rate_limit(
+            exc
+        )
+
+    except (
+        LoginDenied,
+        PasskeyChallengeError,
+        PasskeyStateError,
+        PasskeyVerificationError,
+    ) as exc:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Invalid or expired passkey "
+                "challenge or credential"
+            ),
+        ) from exc
+
+    except PasskeyConfigurationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Passkey service is not available"
+            ),
+        ) from exc
+
+    except (
+        AuthStateError,
+        UserConfigError,
+    ) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Authentication service is "
+                "not available"
             ),
         ) from exc
 
