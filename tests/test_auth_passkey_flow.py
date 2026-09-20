@@ -662,3 +662,322 @@ def test_authentication_update_and_challenge_consumption_share_transaction(
         )
         is not None
     )
+
+
+
+@pytest.mark.parametrize(
+    (
+        "setting_name",
+        "changed_value",
+    ),
+    (
+        (
+            "dashboard_webauthn_rp_id",
+            "changed.example.invalid",
+        ),
+        (
+            "dashboard_webauthn_origin",
+            "https://changed.example.invalid",
+        ),
+    ),
+)
+def test_registration_rejects_changed_webauthn_binding(
+    monkeypatch,
+    setting_name: str,
+    changed_value: str,
+) -> None:
+    init_db()
+
+    username = (
+        "flow-registration-config-"
+        + setting_name.replace(
+            "dashboard_webauthn_",
+            "",
+        )
+    )
+
+    original = _settings()
+
+    started = (
+        begin_passkey_registration(
+            username=username,
+            settings=original,
+        )
+    )
+
+    challenge_token = (
+        started[
+            "challenge_token"
+        ]
+    )
+
+    durable = (
+        get_auth_challenge(
+            challenge_token,
+            purpose=(
+                "passkey_registration"
+            ),
+        )
+    )
+
+    assert durable is not None
+
+    metadata = durable[
+        "metadata"
+    ]
+
+    assert (
+        metadata[
+            "webauthn_rp_id"
+        ]
+        == "example.invalid"
+    )
+
+    assert (
+        metadata[
+            "webauthn_origin"
+        ]
+        == "https://example.invalid"
+    )
+
+    monkeypatch.setattr(
+        passkeys,
+        "verify_registration_response",
+        lambda **_kwargs: (
+            pytest.fail(
+                "registration verifier must not "
+                "run after RP/origin changes"
+            )
+        ),
+    )
+
+    changed = (
+        original.model_copy(
+            update={
+                setting_name:
+                    changed_value,
+            }
+        )
+    )
+
+    with pytest.raises(
+        PasskeyChallengeError,
+        match=(
+            "configuration binding"
+        ),
+    ):
+        complete_passkey_registration(
+            challenge_token=(
+                challenge_token
+            ),
+            credential=(
+                _credential(
+                    b"config-mismatch-registration"
+                )
+            ),
+            settings=changed,
+        )
+
+    assert (
+        get_auth_challenge(
+            challenge_token,
+            purpose=(
+                "passkey_registration"
+            ),
+        )
+        is not None
+    )
+
+    assert (
+        passkey_status(
+            username
+        )[
+            "credential_count"
+        ]
+        == 0
+    )
+
+
+@pytest.mark.parametrize(
+    (
+        "setting_name",
+        "changed_value",
+    ),
+    (
+        (
+            "dashboard_webauthn_rp_id",
+            "changed.example.invalid",
+        ),
+        (
+            "dashboard_webauthn_origin",
+            "https://changed.example.invalid",
+        ),
+    ),
+)
+def test_authentication_rejects_changed_webauthn_binding(
+    monkeypatch,
+    setting_name: str,
+    changed_value: str,
+) -> None:
+    init_db()
+
+    username = (
+        "flow-auth-config-"
+        + setting_name.replace(
+            "dashboard_webauthn_",
+            "",
+        )
+    )
+
+    credential_id = (
+        (
+            "flow-auth-config-"
+            + setting_name
+        ).encode()
+    )
+
+    original = _settings()
+
+    _register(
+        monkeypatch,
+        username=username,
+        credential_id=(
+            credential_id
+        ),
+    )
+
+    set_passkey_enabled(
+        username,
+        True,
+    )
+
+    parent = (
+        "flow-config-parent-"
+        + setting_name
+    )
+
+    started = (
+        begin_passkey_authentication(
+            username=username,
+            settings=original,
+            parent_challenge_token=(
+                parent
+            ),
+        )
+    )
+
+    child_token = (
+        started[
+            "challenge_token"
+        ]
+    )
+
+    durable = (
+        get_auth_challenge(
+            child_token,
+            purpose=(
+                "passkey_authentication"
+            ),
+        )
+    )
+
+    assert durable is not None
+
+    metadata = durable[
+        "metadata"
+    ]
+
+    assert (
+        metadata[
+            "webauthn_rp_id"
+        ]
+        == "example.invalid"
+    )
+
+    assert (
+        metadata[
+            "webauthn_origin"
+        ]
+        == "https://example.invalid"
+    )
+
+    monkeypatch.setattr(
+        passkeys,
+        "verify_authentication_response",
+        lambda **_kwargs: (
+            pytest.fail(
+                "authentication verifier must not "
+                "run after RP/origin changes"
+            )
+        ),
+    )
+
+    changed = (
+        original.model_copy(
+            update={
+                setting_name:
+                    changed_value,
+            }
+        )
+    )
+
+    db = SessionLocal()
+
+    try:
+        db.execute(
+            text(
+                "BEGIN IMMEDIATE"
+            )
+        )
+
+        with pytest.raises(
+            PasskeyChallengeError,
+            match=(
+                "configuration binding"
+            ),
+        ):
+            verify_passkey_authentication_challenge_in_session(
+                db,
+                challenge_token=(
+                    child_token
+                ),
+                credential=(
+                    _credential(
+                        credential_id
+                    )
+                ),
+                settings=changed,
+                username=username,
+                parent_challenge_token=(
+                    parent
+                ),
+            )
+
+        db.rollback()
+
+    finally:
+        db.close()
+
+    assert (
+        get_auth_challenge(
+            child_token,
+            purpose=(
+                "passkey_authentication"
+            ),
+        )
+        is not None
+    )
+
+    with SessionLocal() as db:
+        row = db.scalar(
+            select(
+                DashboardAuthPasskeyCredential
+            ).where(
+                DashboardAuthPasskeyCredential
+                .credential_id
+                == credential_id
+            )
+        )
+
+        assert row is not None
+        assert row.sign_count == 0

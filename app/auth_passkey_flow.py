@@ -161,6 +161,84 @@ def _metadata(
     return value
 
 
+def _webauthn_binding(
+    settings: Settings,
+) -> dict[str, str]:
+    rp_id = str(
+        settings.dashboard_webauthn_rp_id
+        or ""
+    ).strip()
+
+    origin = str(
+        settings.dashboard_webauthn_origin
+        or ""
+    ).strip()
+
+    if (
+        not rp_id
+        or not origin
+    ):
+        raise PasskeyChallengeError(
+            "WebAuthn challenge configuration "
+            "is incomplete"
+        )
+
+    return {
+        "webauthn_rp_id":
+            rp_id,
+        "webauthn_origin":
+            origin,
+    }
+
+
+def _verify_webauthn_binding(
+    metadata: dict[str, Any],
+    settings: Settings,
+) -> None:
+    expected = (
+        _webauthn_binding(
+            settings
+        )
+    )
+
+    stored_rp_id = str(
+        metadata.get(
+            "webauthn_rp_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    stored_origin = str(
+        metadata.get(
+            "webauthn_origin",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if (
+        not stored_rp_id
+        or not stored_origin
+        or not hmac.compare_digest(
+            stored_rp_id,
+            expected[
+                "webauthn_rp_id"
+            ],
+        )
+        or not hmac.compare_digest(
+            stored_origin,
+            expected[
+                "webauthn_origin"
+            ],
+        )
+    ):
+        raise PasskeyChallengeError(
+            "WebAuthn challenge configuration "
+            "binding is invalid"
+        )
+
+
 def _serialized_write(
     db: Session,
 ) -> None:
@@ -282,6 +360,9 @@ def begin_passkey_registration(
                     _encode_bytes(
                         webauthn_challenge
                     ),
+                **_webauthn_binding(
+                    settings
+                ),
             },
             now=now,
         )
@@ -337,6 +418,11 @@ def complete_passkey_registration(
             _metadata(
                 challenge
             )
+        )
+
+        _verify_webauthn_binding(
+            metadata,
+            settings,
         )
 
         webauthn_challenge = (
@@ -434,6 +520,9 @@ def begin_passkey_authentication(
             _encode_bytes(
                 webauthn_challenge
             ),
+        **_webauthn_binding(
+            settings
+        ),
     }
 
     if (
@@ -532,6 +621,11 @@ def verify_passkey_authentication_challenge_in_session(
     _verify_parent_binding(
         metadata,
         parent_challenge_token,
+    )
+
+    _verify_webauthn_binding(
+        metadata,
+        settings,
     )
 
     webauthn_challenge = (
