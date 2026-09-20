@@ -204,6 +204,17 @@ class PasskeyRevokeRequest(BaseModel):
     )
 
 
+class TotpEnrollmentRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    current_password: str = Field(
+        min_length=1,
+        max_length=1024,
+    )
+
+
 class TotpConfirmRequest(BaseModel):
     code: str = Field(
         min_length=6,
@@ -1524,6 +1535,8 @@ def current_totp_status(
 
 @router.post("/mfa/totp/enroll")
 def enroll_totp(
+    request: Request,
+    payload: TotpEnrollmentRequest,
     user: Annotated[
         DashboardUser,
         Depends(require_user),
@@ -1536,9 +1549,22 @@ def enroll_totp(
     """
     Begin TOTP enrollment for the authenticated user only.
 
-    The plaintext seed is returned only as part of this
-    enrollment response. Durable state stores ciphertext.
+    Fresh current-password confirmation is required before
+    a new authenticator secret is generated. The plaintext
+    seed is returned only as part of this enrollment response.
+    Durable state stores ciphertext.
     """
+
+    _confirm_current_password(
+        user,
+        payload.current_password,
+        settings=settings,
+        client_identifier=(
+            _request_client_identifier(
+                request
+            )
+        ),
+    )
 
     try:
         enrollment = (

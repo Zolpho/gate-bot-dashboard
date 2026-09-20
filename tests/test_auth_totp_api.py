@@ -93,7 +93,11 @@ def test_totp_api_requires_existing_authentication(
 
             assert (
                 client.post(
-                    "/api/auth/mfa/totp/enroll"
+                    "/api/auth/mfa/totp/enroll",
+                    json={
+                        "current_password":
+                            "rootadmin-test-password",
+                    },
                 ).status_code
                 == 401
             )
@@ -196,9 +200,55 @@ def test_totp_api_enrolls_only_authenticated_user_and_returns_png_qr(
                 is False
             )
 
+            denied = client.post(
+                "/api/auth/mfa/totp/enroll",
+                headers=ROOT,
+                json={
+                    "current_password":
+                        "wrong-current-password",
+                },
+            )
+
+            assert (
+                denied.status_code
+                == 403
+            )
+
+            unchanged = client.get(
+                "/api/auth/mfa/totp",
+                headers=ROOT,
+            )
+
+            assert (
+                unchanged.status_code
+                == 200
+            )
+
+            assert (
+                unchanged.json()[
+                    "factor"
+                ][
+                    "totp_enabled"
+                ]
+                is False
+            )
+
+            assert (
+                unchanged.json()[
+                    "factor"
+                ][
+                    "has_totp_secret"
+                ]
+                is False
+            )
+
             enrolled = client.post(
                 "/api/auth/mfa/totp/enroll",
                 headers=ROOT,
+                json={
+                    "current_password":
+                        "rootadmin-test-password",
+                },
             )
 
             assert (
@@ -441,6 +491,10 @@ def test_totp_api_enrolls_only_authenticated_user_and_returns_png_qr(
             repeated = client.post(
                 "/api/auth/mfa/totp/enroll",
                 headers=ROOT,
+                json={
+                    "current_password":
+                        "rootadmin-test-password",
+                },
             )
 
             assert (
