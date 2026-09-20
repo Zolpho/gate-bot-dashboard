@@ -167,7 +167,7 @@ def test_permissions_feature_loads_after_app() -> None:
             "./app.js?"
             "v=20260912-bot-control-live-ux-a7c240-v1"
             "&a7c486=20260913-account-permissions-v1"
-            "&a7c488=20260919-bearer-auth-r2f2a-v1"
+            "&a7c488=20260920-bearer-init-cleanup-r3b4e-v1"
         )
     )
 

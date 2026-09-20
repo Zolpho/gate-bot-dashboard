@@ -672,6 +672,49 @@ async function logoutAdmin() {
 }
 
 
+async function cleanupFailedAdminInitialization(
+  authorization,
+  sessionEpoch,
+) {
+  let revokeConfirmed = false;
+
+  if (
+    authorization.startsWith(
+      'Bearer '
+    )
+  ) {
+    try {
+      await api(
+        '/api/auth/logout',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: authorization,
+          },
+        },
+      );
+
+      revokeConfirmed = true;
+
+    } catch (error) {
+      revokeConfirmed = (
+        error instanceof ApiError
+        && error.status === 401
+      );
+    }
+  }
+
+  if (
+    state.adminSessionEpoch === sessionEpoch
+    && state.adminAuthorization === authorization
+  ) {
+    lockAdmin(false);
+  }
+
+  return revokeConfirmed;
+}
+
+
 async function unlockAdmin(event) {
   event.preventDefault();
 
@@ -688,6 +731,8 @@ async function unlockAdmin(event) {
   submitButton.textContent = 'Unlocking…';
 
   let authRequestSucceeded = false;
+  let issuedAuthorization = '';
+  let issuedSessionEpoch = null;
 
   try {
     const result = await api(
@@ -736,6 +781,9 @@ async function unlockAdmin(event) {
     state.adminAuthorization = authorization;
     state.adminUser = result.user;
 
+    issuedAuthorization = authorization;
+    issuedSessionEpoch = state.adminSessionEpoch;
+
     clearTreasurySession();
     clearBotControlSession();
     window.resetTradingTab?.();
@@ -761,6 +809,44 @@ async function unlockAdmin(event) {
     }
 
   } catch (error) {
+    if (
+      issuedAuthorization
+      && issuedSessionEpoch !== null
+    ) {
+      const revokeConfirmed = (
+        await cleanupFailedAdminInitialization(
+          issuedAuthorization,
+          issuedSessionEpoch,
+        )
+      );
+
+      openAdminDialog();
+
+      setAdminError(
+        revokeConfirmed
+          ? (
+              'Authentication succeeded, but the dashboard could not initialize the private workspace. '
+              + 'The new server session was revoked. Sign in again.'
+            )
+          : (
+              'Authentication succeeded, but the dashboard could not initialize the private workspace. '
+              + 'The account was locked locally, but server-session revocation could not be confirmed. '
+              + 'Sign in again.'
+            ),
+      );
+
+      const passwordInput = formElement.querySelector(
+        'input[name="password"]'
+      );
+
+      if (passwordInput) {
+        passwordInput.value = '';
+        passwordInput.focus();
+      }
+
+      return;
+    }
+
     const message = (
       error instanceof ApiError
       && error.status === 401
@@ -847,6 +933,9 @@ async function completeAdminMfa(event) {
   submitButton.disabled = true;
   submitButton.textContent = 'Verifying…';
 
+  let issuedAuthorization = '';
+  let issuedSessionEpoch = null;
+
   try {
     const result = await api(
       '/api/auth/login/mfa',
@@ -876,6 +965,9 @@ async function completeAdminMfa(event) {
     state.adminSessionEpoch += 1;
     state.adminAuthorization = authorization;
     state.adminUser = result.user;
+
+    issuedAuthorization = authorization;
+    issuedSessionEpoch = state.adminSessionEpoch;
 
     clearTreasurySession();
     clearBotControlSession();
@@ -908,6 +1000,35 @@ async function completeAdminMfa(event) {
     }
 
   } catch (error) {
+    if (
+      issuedAuthorization
+      && issuedSessionEpoch !== null
+    ) {
+      const revokeConfirmed = (
+        await cleanupFailedAdminInitialization(
+          issuedAuthorization,
+          issuedSessionEpoch,
+        )
+      );
+
+      openAdminDialog();
+
+      setAdminError(
+        revokeConfirmed
+          ? (
+              'Verification succeeded, but the dashboard could not initialize the private workspace. '
+              + 'The new server session was revoked. Sign in again.'
+            )
+          : (
+              'Verification succeeded, but the dashboard could not initialize the private workspace. '
+              + 'The account was locked locally, but server-session revocation could not be confirmed. '
+              + 'Sign in again.'
+            ),
+      );
+
+      return;
+    }
+
     const message = (
       error instanceof ApiError
       && error.status === 401
