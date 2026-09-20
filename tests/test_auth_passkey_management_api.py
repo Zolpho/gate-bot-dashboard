@@ -890,3 +890,966 @@ def test_passkey_registration_models_reject_unknown_fields(
             get_settings,
             None,
         )
+
+
+
+def _basic(
+    username: str,
+    password: str,
+) -> dict[str, str]:
+    encoded = base64.b64encode(
+        (
+            f"{username}:{password}"
+        ).encode()
+    ).decode(
+        "ascii"
+    )
+
+    return {
+        "Authorization":
+            f"Basic {encoded}",
+    }
+
+
+def _register_test_passkey(
+    monkeypatch,
+    *,
+    username: str,
+    credential_id: bytes,
+    settings: Settings,
+) -> str:
+    from app.auth_passkey_flow import (
+        begin_passkey_registration,
+        complete_passkey_registration,
+    )
+
+    started = (
+        begin_passkey_registration(
+            username=username,
+            settings=settings,
+        )
+    )
+
+    monkeypatch.setattr(
+        passkeys,
+        "verify_registration_response",
+        lambda **_kwargs: (
+            _fake_registration(
+                credential_id
+            )
+        ),
+    )
+
+    completed = (
+        complete_passkey_registration(
+            challenge_token=(
+                started[
+                    "challenge_token"
+                ]
+            ),
+            credential=(
+                _credential(
+                    credential_id
+                )
+            ),
+            settings=settings,
+            label="Management test passkey",
+        )
+    )
+
+    return str(
+        completed[
+            "credential"
+        ][
+            "credential_id"
+        ]
+    )
+
+
+def test_passkey_enable_requires_current_password_and_credential(
+    tmp_path,
+) -> None:
+    init_db()
+
+    username = (
+        "passkey-enable-empty-user"
+    )
+
+    password = (
+        "password-test-123"
+    )
+
+    settings = _settings(
+        tmp_path,
+        username=username,
+        password=password,
+    )
+
+    _clear(
+        username
+    )
+
+    app.dependency_overrides[
+        get_settings
+    ] = lambda: settings
+
+    try:
+        with TestClient(
+            app
+        ) as client:
+            headers = _login(
+                client,
+                username=username,
+                password=password,
+            )
+
+            wrong_password = client.post(
+                "/api/auth/mfa/passkeys/enabled",
+                headers=headers,
+                json={
+                    "enabled":
+                        True,
+                    "current_password":
+                        "wrong-password-123",
+                },
+            )
+
+            assert (
+                wrong_password.status_code
+                == 403
+            )
+
+            no_credential = client.post(
+                "/api/auth/mfa/passkeys/enabled",
+                headers=headers,
+                json={
+                    "enabled":
+                        True,
+                    "current_password":
+                        password,
+                },
+            )
+
+        assert (
+            no_credential.status_code
+            == 400
+        )
+
+        assert (
+            passkeys.passkey_status(
+                username
+            )[
+                "enabled"
+            ]
+            is False
+        )
+
+    finally:
+        app.dependency_overrides.pop(
+            get_settings,
+            None,
+        )
+
+
+def test_enabling_passkey_invalidates_password_only_bearer(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    init_db()
+
+    username = (
+        "passkey-enable-session-user"
+    )
+
+    password = (
+        "password-test-123"
+    )
+
+    settings = _settings(
+        tmp_path,
+        username=username,
+        password=password,
+    )
+
+    _clear(
+        username
+    )
+
+    _register_test_passkey(
+        monkeypatch,
+        username=username,
+        credential_id=(
+            b"passkey-enable-session-credential"
+        ),
+        settings=settings,
+    )
+
+    app.dependency_overrides[
+        get_settings
+    ] = lambda: settings
+
+    try:
+        with TestClient(
+            app
+        ) as client:
+            headers = _login(
+                client,
+                username=username,
+                password=password,
+            )
+
+            enabled = client.post(
+                "/api/auth/mfa/passkeys/enabled",
+                headers=headers,
+                json={
+                    "enabled":
+                        True,
+                    "current_password":
+                        password,
+                },
+            )
+
+            assert (
+                enabled.status_code
+                == 200
+            )
+
+            assert (
+                enabled.json()[
+                    "factor"
+                ][
+                    "enabled"
+                ]
+                is True
+            )
+
+            after = client.get(
+                "/api/auth/mfa/passkeys",
+                headers=headers,
+            )
+
+            assert (
+                after.status_code
+                == 401
+            )
+
+    finally:
+        app.dependency_overrides.pop(
+            get_settings,
+            None,
+        )
+
+
+def test_disabling_passkey_restores_password_only_login(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    init_db()
+
+    username = (
+        "passkey-disable-user"
+    )
+
+    password = (
+        "password-test-123"
+    )
+
+    settings = _settings(
+        tmp_path,
+        username=username,
+        password=password,
+    )
+
+    _clear(
+        username
+    )
+
+    _register_test_passkey(
+        monkeypatch,
+        username=username,
+        credential_id=(
+            b"passkey-disable-credential"
+        ),
+        settings=settings,
+    )
+
+    passkeys.set_passkey_enabled(
+        username,
+        True,
+    )
+
+    app.dependency_overrides[
+        get_settings
+    ] = lambda: settings
+
+    try:
+        with TestClient(
+            app
+        ) as client:
+            disabled = client.post(
+                "/api/auth/mfa/passkeys/enabled",
+                headers=_basic(
+                    username,
+                    password,
+                ),
+                json={
+                    "enabled":
+                        False,
+                    "current_password":
+                        password,
+                },
+            )
+
+            assert (
+                disabled.status_code
+                == 200
+            )
+
+            assert (
+                disabled.json()[
+                    "factor"
+                ][
+                    "enabled"
+                ]
+                is False
+            )
+
+            login = client.post(
+                "/api/auth/login",
+                json={
+                    "username":
+                        username,
+                    "password":
+                        password,
+                },
+            )
+
+            assert (
+                login.status_code
+                == 200
+            )
+
+            body = login.json()
+
+            assert (
+                body[
+                    "status"
+                ]
+                == "authenticated"
+            )
+
+            assert (
+                body[
+                    "session"
+                ][
+                    "auth_method"
+                ]
+                == "password"
+            )
+
+    finally:
+        app.dependency_overrides.pop(
+            get_settings,
+            None,
+        )
+
+
+def test_disable_and_revoke_remain_available_when_rollout_gate_is_off(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    init_db()
+
+    username = (
+        "passkey-gate-off-recovery-user"
+    )
+
+    password = (
+        "password-test-123"
+    )
+
+    enabled_settings = _settings(
+        tmp_path,
+        username=username,
+        password=password,
+    )
+
+    _clear(
+        username
+    )
+
+    credential_id = (
+        _register_test_passkey(
+            monkeypatch,
+            username=username,
+            credential_id=(
+                b"passkey-gate-off-recovery-credential"
+            ),
+            settings=enabled_settings,
+        )
+    )
+
+    passkeys.set_passkey_enabled(
+        username,
+        True,
+    )
+
+    disabled_settings = (
+        enabled_settings.model_copy(
+            update={
+                "dashboard_webauthn_enabled":
+                    False,
+            }
+        )
+    )
+
+    app.dependency_overrides[
+        get_settings
+    ] = lambda: disabled_settings
+
+    try:
+        with TestClient(
+            app
+        ) as client:
+            disabled = client.post(
+                "/api/auth/mfa/passkeys/enabled",
+                headers=_basic(
+                    username,
+                    password,
+                ),
+                json={
+                    "enabled":
+                        False,
+                    "current_password":
+                        password,
+                },
+            )
+
+            assert (
+                disabled.status_code
+                == 200
+            )
+
+            revoked = client.post(
+                "/api/auth/mfa/passkeys/revoke",
+                headers=_basic(
+                    username,
+                    password,
+                ),
+                json={
+                    "credential_id":
+                        credential_id,
+                    "current_password":
+                        password,
+                },
+            )
+
+            assert (
+                revoked.status_code
+                == 200
+            )
+
+            assert (
+                revoked.json()[
+                    "factor"
+                ][
+                    "credential_count"
+                ]
+                == 0
+            )
+
+    finally:
+        app.dependency_overrides.pop(
+            get_settings,
+            None,
+        )
+
+
+def test_revoking_credentials_keeps_factor_until_last_then_disables(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    init_db()
+
+    username = (
+        "passkey-revoke-user"
+    )
+
+    password = (
+        "password-test-123"
+    )
+
+    settings = _settings(
+        tmp_path,
+        username=username,
+        password=password,
+    )
+
+    _clear(
+        username
+    )
+
+    first_id = (
+        _register_test_passkey(
+            monkeypatch,
+            username=username,
+            credential_id=(
+                b"passkey-revoke-first"
+            ),
+            settings=settings,
+        )
+    )
+
+    second_id = (
+        _register_test_passkey(
+            monkeypatch,
+            username=username,
+            credential_id=(
+                b"passkey-revoke-second"
+            ),
+            settings=settings,
+        )
+    )
+
+    passkeys.set_passkey_enabled(
+        username,
+        True,
+    )
+
+    app.dependency_overrides[
+        get_settings
+    ] = lambda: settings
+
+    try:
+        with TestClient(
+            app
+        ) as client:
+            first = client.post(
+                "/api/auth/mfa/passkeys/revoke",
+                headers=_basic(
+                    username,
+                    password,
+                ),
+                json={
+                    "credential_id":
+                        first_id,
+                    "current_password":
+                        password,
+                },
+            )
+
+            assert (
+                first.status_code
+                == 200
+            )
+
+            assert (
+                first.json()[
+                    "factor"
+                ][
+                    "credential_count"
+                ]
+                == 1
+            )
+
+            assert (
+                first.json()[
+                    "factor"
+                ][
+                    "enabled"
+                ]
+                is True
+            )
+
+            second = client.post(
+                "/api/auth/mfa/passkeys/revoke",
+                headers=_basic(
+                    username,
+                    password,
+                ),
+                json={
+                    "credential_id":
+                        second_id,
+                    "current_password":
+                        password,
+                },
+            )
+
+            assert (
+                second.status_code
+                == 200
+            )
+
+            factor = second.json()[
+                "factor"
+            ]
+
+            assert (
+                factor[
+                    "credential_count"
+                ]
+                == 0
+            )
+
+            assert (
+                factor[
+                    "enabled"
+                ]
+                is False
+            )
+
+            replay = client.post(
+                "/api/auth/mfa/passkeys/revoke",
+                headers=_basic(
+                    username,
+                    password,
+                ),
+                json={
+                    "credential_id":
+                        second_id,
+                    "current_password":
+                        password,
+                },
+            )
+
+            assert (
+                replay.status_code
+                == 404
+            )
+
+    finally:
+        app.dependency_overrides.pop(
+            get_settings,
+            None,
+        )
+
+
+def test_global_mfa_protects_only_enabled_passkey_factor(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    init_db()
+
+    username = (
+        "passkey-required-factor-user"
+    )
+
+    password = (
+        "password-test-123"
+    )
+
+    base_settings = _settings(
+        tmp_path,
+        username=username,
+        password=password,
+    )
+
+    _clear(
+        username
+    )
+
+    credential_id = (
+        _register_test_passkey(
+            monkeypatch,
+            username=username,
+            credential_id=(
+                b"passkey-required-factor-credential"
+            ),
+            settings=base_settings,
+        )
+    )
+
+    passkeys.set_passkey_enabled(
+        username,
+        True,
+    )
+
+    required_settings = (
+        base_settings.model_copy(
+            update={
+                "dashboard_mfa_required":
+                    True,
+            }
+        )
+    )
+
+    app.dependency_overrides[
+        get_settings
+    ] = lambda: required_settings
+
+    try:
+        with TestClient(
+            app
+        ) as client:
+            disabled = client.post(
+                "/api/auth/mfa/passkeys/enabled",
+                headers=_basic(
+                    username,
+                    password,
+                ),
+                json={
+                    "enabled":
+                        False,
+                    "current_password":
+                        password,
+                },
+            )
+
+            assert (
+                disabled.status_code
+                == 409
+            )
+
+            revoked = client.post(
+                "/api/auth/mfa/passkeys/revoke",
+                headers=_basic(
+                    username,
+                    password,
+                ),
+                json={
+                    "credential_id":
+                        credential_id,
+                    "current_password":
+                        password,
+                },
+            )
+
+            assert (
+                revoked.status_code
+                == 409
+            )
+
+        factor = (
+            passkeys.passkey_status(
+                username
+            )
+        )
+
+        assert (
+            factor[
+                "enabled"
+            ]
+            is True
+        )
+
+        assert (
+            factor[
+                "credential_count"
+            ]
+            == 1
+        )
+
+    finally:
+        app.dependency_overrides.pop(
+            get_settings,
+            None,
+        )
+
+
+def test_security_reauth_password_guessing_is_rate_limited(
+    tmp_path,
+) -> None:
+    init_db()
+
+    username = (
+        "passkey-reauth-rate-user"
+    )
+
+    password = (
+        "password-test-123"
+    )
+
+    settings = _settings(
+        tmp_path,
+        username=username,
+        password=password,
+    ).model_copy(
+        update={
+            "dashboard_auth_rate_limit_enabled":
+                True,
+            "dashboard_auth_password_attempt_limit":
+                1,
+            "dashboard_auth_password_attempt_window_seconds":
+                300,
+            "dashboard_auth_client_attempt_limit":
+                30,
+            "dashboard_auth_client_attempt_window_seconds":
+                300,
+        }
+    )
+
+    _clear(
+        username
+    )
+
+    app.dependency_overrides[
+        get_settings
+    ] = lambda: settings
+
+    try:
+        with TestClient(
+            app
+        ) as client:
+            headers = _login(
+                client,
+                username=username,
+                password=password,
+            )
+
+            first = client.post(
+                "/api/auth/mfa/passkeys/register",
+                headers=headers,
+                json={
+                    "current_password":
+                        "wrong-password-123",
+                },
+            )
+
+            assert (
+                first.status_code
+                == 403
+            )
+
+            second = client.post(
+                "/api/auth/mfa/passkeys/register",
+                headers=headers,
+                json={
+                    "current_password":
+                        "wrong-password-123",
+                },
+            )
+
+            assert (
+                second.status_code
+                == 429
+            )
+
+            assert (
+                second.json()[
+                    "detail"
+                ][
+                    "scope"
+                ]
+                == "username"
+            )
+
+            assert (
+                int(
+                    second.headers[
+                        "retry-after"
+                    ]
+                )
+                >= 1
+            )
+
+        with session_scope() as db:
+            rows = list(
+                db.scalars(
+                    select(
+                        DashboardAuthRateLimitEvent
+                    ).where(
+                        DashboardAuthRateLimitEvent
+                        .username_hash
+                        .is_not(
+                            None
+                        )
+                    )
+                )
+            )
+
+        reauth_rows = [
+            row
+            for row in rows
+            if (
+                row.action
+                == "security_reauth"
+            )
+        ]
+
+        assert len(
+            reauth_rows
+        ) == 1
+
+        assert (
+            reauth_rows[0]
+            .client_hash
+        )
+
+    finally:
+        app.dependency_overrides.pop(
+            get_settings,
+            None,
+        )
+
+
+def test_passkey_management_request_models_are_strict(
+    tmp_path,
+) -> None:
+    init_db()
+
+    username = (
+        "passkey-management-strict-user"
+    )
+
+    password = (
+        "password-test-123"
+    )
+
+    settings = _settings(
+        tmp_path,
+        username=username,
+        password=password,
+    )
+
+    _clear(
+        username
+    )
+
+    app.dependency_overrides[
+        get_settings
+    ] = lambda: settings
+
+    try:
+        with TestClient(
+            app
+        ) as client:
+            headers = _login(
+                client,
+                username=username,
+                password=password,
+            )
+
+            enabled = client.post(
+                "/api/auth/mfa/passkeys/enabled",
+                headers=headers,
+                json={
+                    "enabled":
+                        True,
+                    "current_password":
+                        password,
+                    "unexpected":
+                        True,
+                },
+            )
+
+            revoke = client.post(
+                "/api/auth/mfa/passkeys/revoke",
+                headers=headers,
+                json={
+                    "credential_id":
+                        "credential-id",
+                    "current_password":
+                        password,
+                    "unexpected":
+                        True,
+                },
+            )
+
+        assert enabled.status_code == 422
+        assert revoke.status_code == 422
+
+    finally:
+        app.dependency_overrides.pop(
+            get_settings,
+            None,
+        )

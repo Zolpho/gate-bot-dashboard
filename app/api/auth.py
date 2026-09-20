@@ -34,6 +34,8 @@ from ..auth_passkey import (
     PasskeyStateError,
     PasskeyVerificationError,
     passkey_status,
+    revoke_passkey_credential,
+    set_passkey_enabled,
 )
 from ..auth_passkey_flow import (
     PASSKEY_REGISTRATION_PURPOSE,
@@ -41,7 +43,11 @@ from ..auth_passkey_flow import (
     begin_passkey_registration,
     complete_passkey_registration,
 )
-from ..auth_rate_limit import AuthRateLimitExceeded
+from ..auth_rate_limit import (
+    SECURITY_REAUTH,
+    AuthRateLimitExceeded,
+    enforce_auth_rate_limit,
+)
 from ..auth_state import (
     AuthEncryptionKeyError,
     AuthStateError,
@@ -166,6 +172,35 @@ class PasskeyRegistrationCompleteRequest(BaseModel):
         default="Passkey",
         min_length=1,
         max_length=128,
+    )
+
+
+class PasskeyEnabledRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    enabled: StrictBool
+
+    current_password: str = Field(
+        min_length=1,
+        max_length=1024,
+    )
+
+
+class PasskeyRevokeRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    credential_id: str = Field(
+        min_length=1,
+        max_length=2048,
+    )
+
+    current_password: str = Field(
+        min_length=1,
+        max_length=1024,
     )
 
 
@@ -374,7 +409,25 @@ def _require_passkey_service(
 def _confirm_current_password(
     user: DashboardUser,
     current_password: str,
+    *,
+    settings: Settings,
+    client_identifier: str | None,
 ) -> None:
+    try:
+        enforce_auth_rate_limit(
+            settings=settings,
+            username=user.username,
+            action=SECURITY_REAUTH,
+            client_identifier=(
+                client_identifier
+            ),
+        )
+
+    except AuthRateLimitExceeded as exc:
+        _raise_auth_rate_limit(
+            exc
+        )
+
     if (
         user.auth_source
         != "file"
@@ -1022,6 +1075,7 @@ def current_passkey_status(
 
 @router.post("/mfa/passkeys/register")
 def begin_current_user_passkey_registration(
+    request: Request,
     payload: PasskeyRegistrationBeginRequest,
     user: Annotated[
         DashboardUser,
@@ -1046,6 +1100,12 @@ def begin_current_user_passkey_registration(
     _confirm_current_password(
         user,
         payload.current_password,
+        settings=settings,
+        client_identifier=(
+            _request_client_identifier(
+                request
+            )
+        ),
     )
 
     try:
@@ -1207,6 +1267,222 @@ def complete_current_user_passkey_registration(
             completed[
                 "credential"
             ],
+        "factor":
+            passkey_status(
+                user.username
+            ),
+        "gate_write_performed":
+            False,
+    }
+
+
+@router.post("/mfa/passkeys/enabled")
+def set_current_user_passkey_enabled(
+    request: Request,
+    payload: PasskeyEnabledRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Enable or disable passkey MFA for the authenticated user.
+
+    Enabling requires an operational WebAuthn configuration and at
+    least one active registered credential. Disabling remains
+    available if the rollout gate is later turned off.
+    """
+
+    _confirm_current_password(
+        user,
+        payload.current_password,
+        settings=settings,
+        client_identifier=(
+            _request_client_identifier(
+                request
+            )
+        ),
+    )
+
+    if payload.enabled:
+        _require_passkey_service(
+            settings
+        )
+
+    current = (
+        passkey_status(
+            user.username
+        )
+    )
+
+    if (
+        not payload.enabled
+        and settings.dashboard_mfa_required
+        and current[
+            "enabled"
+        ]
+        and not totp_status(
+            user.username
+        )[
+            "totp_enabled"
+        ]
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Cannot disable the only enabled "
+                "MFA factor while MFA is required"
+            ),
+        )
+
+    try:
+        factor = (
+            set_passkey_enabled(
+                user.username,
+                bool(
+                    payload.enabled
+                ),
+            )
+        )
+
+    except PasskeyStateError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(
+                exc
+            ),
+        ) from exc
+
+    return {
+        "status": (
+            "enabled"
+            if factor[
+                "enabled"
+            ]
+            else "disabled"
+        ),
+        "factor":
+            factor,
+        "gate_write_performed":
+            False,
+    }
+
+
+@router.post("/mfa/passkeys/revoke")
+def revoke_current_user_passkey(
+    request: Request,
+    payload: PasskeyRevokeRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Soft-revoke one active credential belonging to the
+    authenticated user.
+
+    Removing the final active credential automatically disables the
+    user's passkey factor. The last required factor is protected when
+    global MFA enforcement is active.
+    """
+
+    _confirm_current_password(
+        user,
+        payload.current_password,
+        settings=settings,
+        client_identifier=(
+            _request_client_identifier(
+                request
+            )
+        ),
+    )
+
+    current = (
+        passkey_status(
+            user.username
+        )
+    )
+
+    target_exists = any(
+        str(
+            credential.get(
+                "credential_id",
+                "",
+            )
+        )
+        == payload.credential_id
+        for credential
+        in current[
+            "credentials"
+        ]
+    )
+
+    if not target_exists:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Passkey credential not found"
+            ),
+        )
+
+    if (
+        settings.dashboard_mfa_required
+        and current[
+            "enabled"
+        ]
+        and current[
+            "credential_count"
+        ]
+        <= 1
+        and not totp_status(
+            user.username
+        )[
+            "totp_enabled"
+        ]
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Cannot revoke the only enabled "
+                "MFA factor while MFA is required"
+            ),
+        )
+
+    try:
+        revoked = (
+            revoke_passkey_credential(
+                user.username,
+                payload.credential_id,
+            )
+        )
+
+    except PasskeyVerificationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid passkey credential ID"
+            ),
+        ) from exc
+
+    if not revoked:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Passkey credential not found"
+            ),
+        )
+
+    return {
+        "status":
+            "revoked",
         "factor":
             passkey_status(
                 user.username

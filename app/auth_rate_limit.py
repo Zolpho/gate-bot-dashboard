@@ -15,10 +15,12 @@ from .models import DashboardAuthRateLimitEvent
 
 PASSWORD_LOGIN = "password_login"
 MFA_LOGIN = "mfa_login"
+SECURITY_REAUTH = "security_reauth"
 
 AUTH_RATE_ACTIONS = {
     PASSWORD_LOGIN,
     MFA_LOGIN,
+    SECURITY_REAUTH,
 }
 
 
@@ -99,7 +101,10 @@ def _policy_for_action(
     settings: Settings,
     action: str,
 ) -> AuthRateLimitPolicy:
-    if action == PASSWORD_LOGIN:
+    if action in {
+        PASSWORD_LOGIN,
+        SECURITY_REAUTH,
+    }:
         return AuthRateLimitPolicy(
             user_limit=(
                 settings
