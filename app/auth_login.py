@@ -6,6 +6,16 @@ from typing import Any
 
 from sqlalchemy import text
 
+from .auth_passkey import (
+    PasskeyStateError,
+    PasskeyVerificationError,
+    passkey_status,
+)
+from .auth_passkey_flow import (
+    PasskeyChallengeError,
+    begin_passkey_authentication,
+    verify_passkey_authentication_challenge_in_session,
+)
 from .auth_rate_limit import (
     MFA_LOGIN,
     PASSWORD_LOGIN,
@@ -46,6 +56,8 @@ MFA_METHODS = {
     "totp",
     "recovery",
 }
+
+PASSKEY_MFA_METHOD = "passkey"
 
 
 class LoginError(RuntimeError):
@@ -246,12 +258,14 @@ def begin_password_login(
         user.username
     )
 
+    methods: list[str] = []
+
     if factor[
         "totp_enabled"
     ]:
-        methods = [
-            "totp",
-        ]
+        methods.append(
+            "totp"
+        )
 
         recovery = (
             recovery_code_status(
@@ -269,6 +283,24 @@ def begin_password_login(
                 "recovery"
             )
 
+    if (
+        settings
+        .dashboard_webauthn_enabled
+    ):
+        passkey = (
+            passkey_status(
+                user.username
+            )
+        )
+
+        if passkey[
+            "available"
+        ]:
+            methods.append(
+                PASSKEY_MFA_METHOD
+            )
+
+    if methods:
         challenge_token, challenge = (
             create_auth_challenge(
                 username=(
@@ -320,6 +352,401 @@ def begin_password_login(
         settings=settings,
         now=now,
     )
+
+
+def begin_passkey_mfa_login(
+    *,
+    challenge_token: str,
+    settings: Settings,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """
+    Start WebAuthn after the password-first login challenge.
+
+    The parent password challenge remains active. The generated
+    WebAuthn child challenge stores only a hash of the parent token.
+    """
+
+    parent = (
+        get_auth_challenge(
+            challenge_token,
+            purpose=(
+                LOGIN_CHALLENGE_PURPOSE
+            ),
+            now=now,
+        )
+    )
+
+    if parent is None:
+        raise LoginDenied(
+            "Invalid or expired login challenge"
+        )
+
+    metadata = parent.get(
+        "metadata"
+    )
+
+    if not isinstance(
+        metadata,
+        dict,
+    ):
+        raise LoginDenied(
+            "Invalid login challenge"
+        )
+
+    allowed_methods = metadata.get(
+        "allowed_methods"
+    )
+
+    if (
+        not isinstance(
+            allowed_methods,
+            list,
+        )
+        or PASSKEY_MFA_METHOD
+        not in allowed_methods
+    ):
+        raise LoginDenied(
+            "Passkey is not available "
+            "for this login challenge"
+        )
+
+    username = str(
+        parent.get(
+            "username",
+            "",
+        )
+    ).strip().lower()
+
+    user = _enabled_file_user(
+        username,
+        settings=settings,
+    )
+
+    if user is None:
+        raise LoginDenied(
+            "Invalid login challenge"
+        )
+
+    expected_fingerprint = str(
+        metadata.get(
+            "credential_fingerprint",
+            "",
+        )
+    )
+
+    current_fingerprint = (
+        _fingerprint(
+            user
+        )
+    )
+
+    if not (
+        expected_fingerprint
+        and hmac.compare_digest(
+            expected_fingerprint,
+            current_fingerprint,
+        )
+    ):
+        raise LoginDenied(
+            "Login challenge is no longer valid"
+        )
+
+    try:
+        return (
+            begin_passkey_authentication(
+                username=user.username,
+                settings=settings,
+                parent_challenge_token=(
+                    challenge_token
+                ),
+                now=now,
+            )
+        )
+
+    except (
+        PasskeyChallengeError,
+        PasskeyStateError,
+        PasskeyVerificationError,
+    ) as exc:
+        raise LoginDenied(
+            "Passkey authentication "
+            "is not available"
+        ) from exc
+
+
+def complete_passkey_mfa_login(
+    *,
+    challenge_token: str,
+    passkey_challenge_token: str,
+    credential: Any,
+    settings: Settings,
+    client_identifier: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """
+    Complete password + passkey authentication atomically.
+
+    Credential state update, child WebAuthn challenge consumption,
+    parent password challenge consumption and Bearer-session issuance
+    all share one serialized transaction.
+    """
+
+    preflight = (
+        get_auth_challenge(
+            challenge_token,
+            purpose=(
+                LOGIN_CHALLENGE_PURPOSE
+            ),
+            now=now,
+        )
+    )
+
+    if preflight is None:
+        raise LoginDenied(
+            "Invalid or expired login challenge"
+        )
+
+    username = str(
+        preflight.get(
+            "username",
+            "",
+        )
+    ).strip().lower()
+
+    enforce_auth_rate_limit(
+        settings=settings,
+        username=username,
+        action=MFA_LOGIN,
+        client_identifier=(
+            client_identifier
+        ),
+        challenge_token=(
+            challenge_token
+        ),
+        now=now,
+    )
+
+    db = SessionLocal()
+
+    try:
+        if engine.dialect.name == "sqlite":
+            db.execute(
+                text(
+                    "BEGIN IMMEDIATE"
+                )
+            )
+
+        parent = (
+            get_auth_challenge_in_session(
+                db,
+                challenge_token,
+                purpose=(
+                    LOGIN_CHALLENGE_PURPOSE
+                ),
+                now=now,
+            )
+        )
+
+        if parent is None:
+            raise LoginDenied(
+                "Invalid or expired login challenge"
+            )
+
+        metadata = parent.get(
+            "metadata"
+        )
+
+        if not isinstance(
+            metadata,
+            dict,
+        ):
+            raise LoginDenied(
+                "Invalid login challenge"
+            )
+
+        allowed_methods = metadata.get(
+            "allowed_methods"
+        )
+
+        if (
+            not isinstance(
+                allowed_methods,
+                list,
+            )
+            or PASSKEY_MFA_METHOD
+            not in allowed_methods
+        ):
+            raise LoginDenied(
+                "Passkey is not available "
+                "for this login challenge"
+            )
+
+        expected_fingerprint = str(
+            metadata.get(
+                "credential_fingerprint",
+                "",
+            )
+        )
+
+        user = _enabled_file_user(
+            username,
+            settings=settings,
+        )
+
+        if user is None:
+            consumed = (
+                consume_auth_challenge_in_session(
+                    db,
+                    challenge_token,
+                    purpose=(
+                        LOGIN_CHALLENGE_PURPOSE
+                    ),
+                    now=now,
+                )
+            )
+
+            if consumed is None:
+                raise LoginDenied(
+                    "Invalid login challenge"
+                )
+
+            db.commit()
+
+            raise LoginDenied(
+                "Invalid login challenge"
+            )
+
+        current_fingerprint = (
+            _fingerprint(
+                user
+            )
+        )
+
+        if not (
+            expected_fingerprint
+            and hmac.compare_digest(
+                expected_fingerprint,
+                current_fingerprint,
+            )
+        ):
+            consumed = (
+                consume_auth_challenge_in_session(
+                    db,
+                    challenge_token,
+                    purpose=(
+                        LOGIN_CHALLENGE_PURPOSE
+                    ),
+                    now=now,
+                )
+            )
+
+            if consumed is None:
+                raise LoginDenied(
+                    "Login challenge is no longer valid"
+                )
+
+            db.commit()
+
+            raise LoginDenied(
+                "Login challenge is no longer valid"
+            )
+
+        try:
+            passkey_result = (
+                verify_passkey_authentication_challenge_in_session(
+                    db,
+                    challenge_token=(
+                        passkey_challenge_token
+                    ),
+                    credential=credential,
+                    settings=settings,
+                    username=(
+                        user.username
+                    ),
+                    parent_challenge_token=(
+                        challenge_token
+                    ),
+                    now=now,
+                )
+            )
+
+        except (
+            PasskeyChallengeError,
+            PasskeyStateError,
+            PasskeyVerificationError,
+        ) as exc:
+            raise LoginDenied(
+                "Invalid or expired passkey "
+                "challenge or credential"
+            ) from exc
+
+        consumed_parent = (
+            consume_auth_challenge_in_session(
+                db,
+                challenge_token,
+                purpose=(
+                    LOGIN_CHALLENGE_PURPOSE
+                ),
+                now=now,
+            )
+        )
+
+        if consumed_parent is None:
+            raise LoginDenied(
+                "Login challenge is no longer valid"
+            )
+
+        token, session = (
+            create_auth_session_in_session(
+                db,
+                username=user.username,
+                credential_hash=(
+                    current_fingerprint
+                ),
+                auth_method=(
+                    "password_passkey"
+                ),
+                mfa_completed=True,
+                ttl_seconds=(
+                    settings
+                    .dashboard_auth_session_ttl_seconds
+                ),
+                now=now,
+            )
+        )
+
+        result = {
+            "status":
+                "authenticated",
+            "token_type":
+                "bearer",
+            "access_token":
+                token,
+            "user":
+                user.safe_dict(),
+            "session":
+                session,
+            "passkey":
+                passkey_result[
+                    "credential"
+                ],
+        }
+
+        db.commit()
+
+        return result
+
+    except LoginDenied:
+        db.rollback()
+        raise
+
+    except Exception:
+        db.rollback()
+        raise
+
+    finally:
+        db.close()
 
 
 def complete_mfa_login(
@@ -711,12 +1138,27 @@ def resolve_bearer_session(
         user.username
     )
 
+    passkey_required = False
+
+    if (
+        settings
+        .dashboard_webauthn_enabled
+    ):
+        passkey_required = bool(
+            passkey_status(
+                user.username
+            )[
+                "available"
+            ]
+        )
+
     second_factor_required = bool(
         settings
         .dashboard_mfa_required
         or factor[
             "totp_enabled"
         ]
+        or passkey_required
     )
 
     if (
