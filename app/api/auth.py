@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
-from typing import Annotated
+from typing import Annotated, Any
 
 import segno
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -27,10 +27,23 @@ from ..auth_mfa import (
     complete_totp_enrollment_with_recovery,
     reset_user_mfa,
 )
+from ..auth_passkey import (
+    PasskeyConfigurationError,
+    PasskeyStateError,
+    PasskeyVerificationError,
+    passkey_status,
+)
+from ..auth_passkey_flow import (
+    PASSKEY_REGISTRATION_PURPOSE,
+    PasskeyChallengeError,
+    begin_passkey_registration,
+    complete_passkey_registration,
+)
 from ..auth_rate_limit import AuthRateLimitExceeded
 from ..auth_state import (
     AuthEncryptionKeyError,
     AuthStateError,
+    get_auth_challenge,
     revoke_auth_session,
 )
 from ..auth_totp import (
@@ -51,6 +64,7 @@ from ..security import (
     change_dashboard_user_password,
     require_super_admin,
     require_user,
+    verify_password,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -89,6 +103,36 @@ class MfaLoginRequest(BaseModel):
     )
 
     code: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+
+class PasskeyRegistrationBeginRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    current_password: str = Field(
+        min_length=1,
+        max_length=1024,
+    )
+
+
+class PasskeyRegistrationCompleteRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    challenge_token: str = Field(
+        min_length=1,
+        max_length=512,
+    )
+
+    credential: dict[str, Any]
+
+    label: str = Field(
+        default="Passkey",
         min_length=1,
         max_length=128,
     )
@@ -260,6 +304,61 @@ def _request_bearer_token(
     normalized = token.strip()
 
     return normalized or None
+
+
+def _passkey_service_available(
+    settings: Settings,
+) -> bool:
+    return bool(
+        settings.dashboard_webauthn_enabled
+        and str(
+            settings.dashboard_webauthn_rp_id
+            or ""
+        ).strip()
+        and str(
+            settings.dashboard_webauthn_origin
+            or ""
+        ).strip()
+        and str(
+            settings.dashboard_webauthn_rp_name
+            or ""
+        ).strip()
+    )
+
+
+def _require_passkey_service(
+    settings: Settings,
+) -> None:
+    if not _passkey_service_available(
+        settings
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Passkey service is not available"
+            ),
+        )
+
+
+def _confirm_current_password(
+    user: DashboardUser,
+    current_password: str,
+) -> None:
+    if (
+        user.auth_source
+        != "file"
+        or not user.password_hash
+        or not verify_password(
+            current_password,
+            user.password_hash,
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Current password confirmation failed"
+            ),
+        )
 
 
 def _raise_auth_rate_limit(
@@ -652,6 +751,236 @@ def capabilities(
             "treasury": False,
         },
         "accounts": account_capabilities,
+    }
+
+
+@router.get("/mfa/passkeys")
+def current_passkey_status(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Return only the authenticated user's public passkey state.
+
+    Credential public keys, user handles, challenge metadata and
+    private authenticator material are never returned.
+    """
+
+    return {
+        "factor":
+            passkey_status(
+                user.username
+            ),
+        "service_available":
+            _passkey_service_available(
+                settings
+            ),
+        "mfa_required":
+            settings.dashboard_mfa_required,
+        "gate_write_performed":
+            False,
+    }
+
+
+@router.post("/mfa/passkeys/register")
+def begin_current_user_passkey_registration(
+    payload: PasskeyRegistrationBeginRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Begin passkey registration for the authenticated user.
+
+    A fresh current-password confirmation is required before the
+    one-time WebAuthn registration challenge is issued.
+    """
+
+    _require_passkey_service(
+        settings
+    )
+
+    _confirm_current_password(
+        user,
+        payload.current_password,
+    )
+
+    try:
+        result = (
+            begin_passkey_registration(
+                username=user.username,
+                settings=settings,
+                display_name=(
+                    user.username
+                ),
+            )
+        )
+
+    except PasskeyConfigurationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Passkey service is not available"
+            ),
+        ) from exc
+
+    except (
+        PasskeyChallengeError,
+        PasskeyStateError,
+    ) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Passkey registration could not "
+                "be started"
+            ),
+        ) from exc
+
+    return {
+        "status":
+            result[
+                "status"
+            ],
+        "challenge_token":
+            result[
+                "challenge_token"
+            ],
+        "challenge_expires_at":
+            result[
+                "challenge_expires_at"
+            ],
+        "options":
+            result[
+                "options"
+            ],
+        "gate_write_performed":
+            False,
+    }
+
+
+@router.post(
+    "/mfa/passkeys/register/complete"
+)
+def complete_current_user_passkey_registration(
+    payload: PasskeyRegistrationCompleteRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Complete only the authenticated user's pending passkey
+    registration.
+
+    The registration challenge was created only after fresh password
+    confirmation. The new credential remains disabled until a later
+    explicit enable operation.
+    """
+
+    _require_passkey_service(
+        settings
+    )
+
+    preflight = (
+        get_auth_challenge(
+            payload.challenge_token,
+            purpose=(
+                PASSKEY_REGISTRATION_PURPOSE
+            ),
+        )
+    )
+
+    if preflight is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid or expired passkey "
+                "registration challenge"
+            ),
+        )
+
+    challenge_username = str(
+        preflight.get(
+            "username",
+            "",
+        )
+    ).strip().lower()
+
+    if (
+        challenge_username
+        != user.username
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Passkey registration challenge "
+                "does not belong to this user"
+            ),
+        )
+
+    try:
+        completed = (
+            complete_passkey_registration(
+                challenge_token=(
+                    payload.challenge_token
+                ),
+                credential=(
+                    payload.credential
+                ),
+                settings=settings,
+                label=payload.label,
+            )
+        )
+
+    except PasskeyConfigurationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Passkey service is not available"
+            ),
+        ) from exc
+
+    except (
+        PasskeyChallengeError,
+        PasskeyStateError,
+        PasskeyVerificationError,
+    ) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Passkey registration could not "
+                "be completed"
+            ),
+        ) from exc
+
+    return {
+        "status":
+            "registered",
+        "credential":
+            completed[
+                "credential"
+            ],
+        "factor":
+            passkey_status(
+                user.username
+            ),
+        "gate_write_performed":
+            False,
     }
 
 
