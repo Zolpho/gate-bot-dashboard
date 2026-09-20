@@ -178,6 +178,10 @@ class Settings(BaseSettings):
     # Relying Party identity is configured explicitly. This
     # prevents source defaults from permanently binding user
     # credentials to a temporary frontend hostname.
+    # Operational rollout gate only. This does not force MFA
+    # or override each user's independent Security-page choice.
+    dashboard_webauthn_enabled: bool = False
+
     dashboard_webauthn_rp_id: str = ""
     dashboard_webauthn_origin: str = ""
     dashboard_webauthn_rp_name: str = "Gate Bot Dashboard"
