@@ -35,6 +35,7 @@ from .auth_state import (
     get_auth_challenge_in_session,
     get_auth_session,
     revoke_auth_session,
+    touch_auth_session,
 )
 from .auth_totp import (
     totp_status,
@@ -163,6 +164,8 @@ def _authenticated_result(
     auth_method: str,
     mfa_completed: bool,
     settings: Settings,
+    client_identifier: str | None,
+    user_agent: str | None,
     now: datetime | None,
 ) -> dict[str, Any]:
     token, session = (
@@ -178,6 +181,12 @@ def _authenticated_result(
             ttl_seconds=(
                 settings
                 .dashboard_auth_session_ttl_seconds
+            ),
+            client_ip=(
+                client_identifier
+            ),
+            user_agent=(
+                user_agent
             ),
             now=now,
         )
@@ -203,6 +212,7 @@ def begin_password_login(
     password: str,
     settings: Settings,
     client_identifier: str | None = None,
+    user_agent: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """
@@ -350,6 +360,12 @@ def begin_password_login(
         auth_method="password",
         mfa_completed=False,
         settings=settings,
+        client_identifier=(
+            client_identifier
+        ),
+        user_agent=(
+            user_agent
+        ),
         now=now,
     )
 
@@ -482,6 +498,7 @@ def complete_passkey_mfa_login(
     credential: Any,
     settings: Settings,
     client_identifier: str | None = None,
+    user_agent: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """
@@ -712,6 +729,12 @@ def complete_passkey_mfa_login(
                     settings
                     .dashboard_auth_session_ttl_seconds
                 ),
+                client_ip=(
+                    client_identifier
+                ),
+                user_agent=(
+                    user_agent
+                ),
                 now=now,
             )
         )
@@ -756,6 +779,7 @@ def complete_mfa_login(
     code: str,
     settings: Settings,
     client_identifier: str | None = None,
+    user_agent: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """
@@ -1031,6 +1055,12 @@ def complete_mfa_login(
                     settings
                     .dashboard_auth_session_ttl_seconds
                 ),
+                client_ip=(
+                    client_identifier
+                ),
+                user_agent=(
+                    user_agent
+                ),
                 now=now,
             )
         )
@@ -1175,9 +1205,19 @@ def resolve_bearer_session(
         )
         return None
 
+    touched_session = (
+        touch_auth_session(
+            token,
+            now=now,
+        )
+    )
+
+    if touched_session is None:
+        return None
+
     return {
         "user":
             user,
         "session":
-            session,
+            touched_session,
     }

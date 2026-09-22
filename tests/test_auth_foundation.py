@@ -103,6 +103,8 @@ def test_auth_foundation_tables_are_created_without_raw_tokens(tmp_path) -> None
         "mfa_completed",
         "created_at",
         "expires_at",
+        "client_ip",
+        "user_agent",
         "last_seen_at",
         "revoked_at",
     }

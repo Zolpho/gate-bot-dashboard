@@ -354,6 +354,19 @@ def _request_client_identifier(
     return value or None
 
 
+def _request_user_agent(
+    request: Request,
+) -> str | None:
+    value = str(
+        request.headers.get(
+            "user-agent",
+            "",
+        )
+    ).strip()
+
+    return value or None
+
+
 def _request_bearer_token(
     request: Request,
 ) -> str | None:
@@ -601,6 +614,11 @@ def password_login(
             client_identifier=(
                 client_identifier
             ),
+            user_agent=(
+                _request_user_agent(
+                    request
+                )
+            ),
         )
 
     except AuthRateLimitExceeded as exc:
@@ -691,6 +709,11 @@ def mfa_login(
             settings=settings,
             client_identifier=(
                 client_identifier
+            ),
+            user_agent=(
+                _request_user_agent(
+                    request
+                )
             ),
         )
 
@@ -879,6 +902,11 @@ def complete_passkey_login(
                 settings=settings,
                 client_identifier=(
                     client_identifier
+                ),
+                user_agent=(
+                    _request_user_agent(
+                        request
+                    )
                 ),
             )
         )

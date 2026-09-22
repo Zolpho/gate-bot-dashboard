@@ -109,6 +109,10 @@ def _public_session(
             _utc_iso(
                 row.expires_at
             ),
+        "client_ip":
+            row.client_ip,
+        "user_agent":
+            row.user_agent,
         "last_seen_at":
             _utc_iso(
                 row.last_seen_at

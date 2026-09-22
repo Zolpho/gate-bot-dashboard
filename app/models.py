@@ -464,6 +464,14 @@ class DashboardAuthSession(Base):
         nullable=False,
     )
 
+    client_ip: Mapped[str | None] = mapped_column(
+        String(64),
+    )
+
+    user_agent: Mapped[str | None] = mapped_column(
+        String(512),
+    )
+
     last_seen_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
     )

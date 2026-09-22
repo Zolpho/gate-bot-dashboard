@@ -163,6 +163,8 @@ def test_active_sessions_are_sanitized_and_mark_current() -> None:
                 "mfa_completed",
                 "created_at",
                 "expires_at",
+                "client_ip",
+                "user_agent",
                 "last_seen_at",
                 "current",
             }

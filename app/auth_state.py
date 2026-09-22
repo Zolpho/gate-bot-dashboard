@@ -22,6 +22,10 @@ from .models import (
 AUTH_TOKEN_BYTES = 32
 AUTH_ENCRYPTION_KEY_BYTES = 32
 
+SESSION_CLIENT_IP_MAX_LENGTH = 64
+SESSION_USER_AGENT_MAX_LENGTH = 512
+SESSION_TOUCH_INTERVAL_SECONDS = 60
+
 SESSION_AUTH_METHODS = {
     "password",
     "password_passkey",
@@ -116,6 +120,33 @@ def _now(
         if value is not None
         else utcnow()
     )
+
+
+def _normalize_session_metadata(
+    value: str | None,
+    *,
+    max_length: int,
+) -> str | None:
+    if value is None:
+        return None
+
+    normalized = " ".join(
+        str(
+            value
+        )
+        .replace(
+            "\x00",
+            " ",
+        )
+        .split()
+    )
+
+    if not normalized:
+        return None
+
+    return normalized[
+        :max_length
+    ]
 
 
 def new_opaque_token() -> str:
@@ -325,25 +356,29 @@ def _session_snapshot(
             row.mfa_completed,
         "created_at":
             (
-                row.created_at.isoformat()
+                _as_utc(row.created_at).isoformat()
                 if row.created_at
                 else None
             ),
         "expires_at":
             (
-                row.expires_at.isoformat()
+                _as_utc(row.expires_at).isoformat()
                 if row.expires_at
                 else None
             ),
+        "client_ip":
+            row.client_ip,
+        "user_agent":
+            row.user_agent,
         "last_seen_at":
             (
-                row.last_seen_at.isoformat()
+                _as_utc(row.last_seen_at).isoformat()
                 if row.last_seen_at
                 else None
             ),
         "revoked_at":
             (
-                row.revoked_at.isoformat()
+                _as_utc(row.revoked_at).isoformat()
                 if row.revoked_at
                 else None
             ),
@@ -392,6 +427,8 @@ def create_auth_session(
     auth_method: str = "password",
     mfa_completed: bool = False,
     ttl_seconds: int = 3600,
+    client_ip: str | None = None,
+    user_agent: str | None = None,
     now: datetime | None = None,
 ) -> tuple[str, dict[str, Any]]:
     normalized_username = (
@@ -461,7 +498,24 @@ def create_auth_session(
             mfa_completed=bool(
                 mfa_completed
             ),
+            client_ip=(
+                _normalize_session_metadata(
+                    client_ip,
+                    max_length=(
+                        SESSION_CLIENT_IP_MAX_LENGTH
+                    ),
+                )
+            ),
+            user_agent=(
+                _normalize_session_metadata(
+                    user_agent,
+                    max_length=(
+                        SESSION_USER_AGENT_MAX_LENGTH
+                    ),
+                )
+            ),
             created_at=issued_at,
+            last_seen_at=issued_at,
             expires_at=(
                 issued_at
                 + timedelta(
@@ -533,6 +587,84 @@ def get_auth_session(
             <= reference
         ):
             return None
+
+        return _session_snapshot(
+            row
+        )
+
+
+def touch_auth_session(
+    token: str,
+    *,
+    now: datetime | None = None,
+    min_interval_seconds: int = (
+        SESSION_TOUCH_INTERVAL_SECONDS
+    ),
+) -> dict[str, Any] | None:
+    token_hash = (
+        hash_opaque_token(
+            token
+        )
+    )
+
+    reference = _now(
+        now
+    )
+
+    interval = int(
+        min_interval_seconds
+    )
+
+    if interval < 0 or interval > 3600:
+        raise AuthStateError(
+            "Session touch interval must be "
+            "between 0 and 3600 seconds"
+        )
+
+    with session_scope() as db:
+        row = db.scalar(
+            select(
+                DashboardAuthSession
+            ).where(
+                DashboardAuthSession
+                .token_hash
+                == token_hash
+            )
+        )
+
+        if row is None:
+            return None
+
+        if row.revoked_at is not None:
+            return None
+
+        if (
+            _as_utc(
+                row.expires_at
+            )
+            <= reference
+        ):
+            return None
+
+        last_seen = (
+            _as_utc(
+                row.last_seen_at
+            )
+            if row.last_seen_at
+            else None
+        )
+
+        if (
+            last_seen is None
+            or reference
+            - last_seen
+            >= timedelta(
+                seconds=interval
+            )
+        ):
+            row.last_seen_at = (
+                reference
+            )
 
         return _session_snapshot(
             row
@@ -940,6 +1072,8 @@ def create_auth_session_in_session(
     auth_method: str = "password",
     mfa_completed: bool = False,
     ttl_seconds: int = 3600,
+    client_ip: str | None = None,
+    user_agent: str | None = None,
     now: datetime | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """
@@ -1017,7 +1151,24 @@ def create_auth_session_in_session(
         mfa_completed=bool(
             mfa_completed
         ),
+        client_ip=(
+            _normalize_session_metadata(
+                client_ip,
+                max_length=(
+                    SESSION_CLIENT_IP_MAX_LENGTH
+                ),
+            )
+        ),
+        user_agent=(
+            _normalize_session_metadata(
+                user_agent,
+                max_length=(
+                    SESSION_USER_AGENT_MAX_LENGTH
+                ),
+            )
+        ),
         created_at=issued_at,
+        last_seen_at=issued_at,
         expires_at=(
             issued_at
             + timedelta(

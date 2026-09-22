@@ -660,6 +660,51 @@ def _migrate_treasury_withdrawal_destination_recipient_bridge(
     )
 
 
+def _migrate_dashboard_auth_session_metadata(
+    raw_connection: Any,
+) -> None:
+    table_name = (
+        "dashboard_auth_sessions"
+    )
+
+    if not _table_exists(
+        raw_connection,
+        table_name,
+    ):
+        return
+
+    columns = set(
+        _table_columns(
+            raw_connection,
+            table_name,
+        )
+    )
+
+    if "client_ip" not in columns:
+        logger.info(
+            "Adding dashboard auth session "
+            "client_ip metadata"
+        )
+
+        raw_connection.execute(
+            "ALTER TABLE "
+            "dashboard_auth_sessions "
+            "ADD COLUMN client_ip VARCHAR(64)"
+        )
+
+    if "user_agent" not in columns:
+        logger.info(
+            "Adding dashboard auth session "
+            "user_agent metadata"
+        )
+
+        raw_connection.execute(
+            "ALTER TABLE "
+            "dashboard_auth_sessions "
+            "ADD COLUMN user_agent VARCHAR(512)"
+        )
+
+
 def migrate_database(engine: Engine) -> None:
     """Apply the small built-in schema migration needed for multi-account support.
 
@@ -702,6 +747,10 @@ def migrate_database(engine: Engine) -> None:
     try:
         raw.execute("PRAGMA foreign_keys=OFF")
         raw.execute("PRAGMA legacy_alter_table=ON")
+
+        _migrate_dashboard_auth_session_metadata(
+            raw
+        )
 
         if not _table_exists(raw, "gate_accounts"):
             _create_table(raw, engine, GateAccount.__table__)
