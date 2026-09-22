@@ -20788,11 +20788,78 @@ function bindEvents() {
     closeSecurityTotpDialog,
   );
 
+  /*
+   * Do not let the browser own Escape dismissal.
+   * closedby="none" prevents platform dismissal in
+   * supporting browsers; this capture handler keeps
+   * Escape behavior explicit and routes it through
+   * the recovery-code acknowledgement guard.
+   */
+  $('#securityTotpDialog')?.addEventListener(
+    'keydown',
+    event => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      closeSecurityTotpDialog();
+    },
+    true,
+  );
+
+  /*
+   * Defense in depth for browsers that still emit a
+   * native dialog cancel request.
+   */
   $('#securityTotpDialog')?.addEventListener(
     'cancel',
     event => {
       event.preventDefault();
       closeSecurityTotpDialog();
+    },
+  );
+
+  /*
+   * A native close event itself is not cancelable.
+   * If a browser nevertheless closes the dialog while
+   * one-time recovery codes are awaiting acknowledgement,
+   * immediately restore the same dialog without wiping
+   * those codes.
+   */
+  $('#securityTotpDialog')?.addEventListener(
+    'close',
+    () => {
+      if (
+        !securityTotpRecoveryCodesAwaitingAcknowledgement()
+      ) {
+        return;
+      }
+
+      const dialog = $('#securityTotpDialog');
+
+      window.setTimeout(
+        () => {
+          if (
+            dialog
+            && !dialog.open
+            && securityTotpRecoveryCodesAwaitingAcknowledgement()
+          ) {
+            dialog.showModal();
+
+            $('#finishSecurityTotpSetup')
+              ?.focus();
+
+            showToast(
+              'Save your recovery codes and choose '
+              + '“I saved these codes” before closing.',
+              true,
+            );
+          }
+        },
+        0,
+      );
     },
   );
 

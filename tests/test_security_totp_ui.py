@@ -1028,6 +1028,7 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "&a7c486=20260913-account-permissions-v1"
             "&a7c488=20260922-login-startup-hotfix-v1"
             "&a7c488copy=20260922-authenticator-copy-v1"
+            "&a7c488escape=20260922-recovery-escape-guard-v1"
         )
     ]
 
@@ -1139,4 +1140,89 @@ def test_authenticator_available_copy_describes_live_enrollment() -> None:
     assert (
         "will be wired in the next security step."
         not in security_render
+    )
+
+def test_recovery_codes_survive_repeated_native_escape_close_requests() -> None:
+    document = inventory()
+
+    dialog = document.elements[
+        "securityTotpDialog"
+    ]
+
+    assert (
+        dialog.get("tag")
+        == "dialog"
+    )
+
+    assert (
+        dialog.get("closedby")
+        == "none"
+    )
+
+    closer = function_block(
+        "closeSecurityTotpDialog"
+    )
+
+    assert (
+        "securityTotpRecoveryCodesAwaitingAcknowledgement()"
+        in closer
+    )
+
+    assert (
+        "return false;"
+        in closer
+    )
+
+    bind = function_block(
+        "bindEvents"
+    )
+
+    assert (
+        "'keydown'"
+        in bind
+    )
+
+    assert (
+        "event.key !== 'Escape'"
+        in bind
+    )
+
+    assert (
+        "event.preventDefault();"
+        in bind
+    )
+
+    assert (
+        "event.stopPropagation();"
+        in bind
+    )
+
+    assert (
+        "'cancel'"
+        in bind
+    )
+
+    assert (
+        "'close'"
+        in bind
+    )
+
+    assert (
+        "securityTotpRecoveryCodesAwaitingAcknowledgement()"
+        in bind
+    )
+
+    assert (
+        "dialog.showModal();"
+        in bind
+    )
+
+    assert (
+        "$('#finishSecurityTotpSetup')"
+        in bind
+    )
+
+    assert (
+        "I saved these codes"
+        in bind
     )
