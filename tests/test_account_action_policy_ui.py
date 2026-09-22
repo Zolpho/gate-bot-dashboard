@@ -167,7 +167,7 @@ def test_permissions_feature_loads_after_app() -> None:
             "./app.js?"
             "v=20260912-bot-control-live-ux-a7c240-v1"
             "&a7c486=20260913-account-permissions-v1"
-            "&a7c488=20260920-security-totp-r4a2c3-v1"
+            "&a7c488=20260922-login-startup-hotfix-v1"
         )
     )
 

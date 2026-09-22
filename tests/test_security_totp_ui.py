@@ -1026,7 +1026,7 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "./app.js?"
             "v=20260912-bot-control-live-ux-a7c240-v1"
             "&a7c486=20260913-account-permissions-v1"
-            "&a7c488=20260920-security-totp-r4a2c3-v1"
+            "&a7c488=20260922-login-startup-hotfix-v1"
         )
     ]
 
@@ -1046,3 +1046,66 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
         "20260920-security-page-r4a2a-v1"
         not in HTML
     )
+
+def test_removed_legacy_change_password_control_is_startup_safe() -> None:
+    document = inventory()
+
+    assert (
+        "changePasswordButton"
+        not in document.elements
+    )
+
+    assert (
+        "securityChangePasswordButton"
+        in document.elements
+    )
+
+    admin_state = function_block(
+        "renderAdminState"
+    )
+
+    assert (
+        "changePasswordButton?.classList.toggle("
+        in admin_state
+    )
+
+    assert (
+        "changePasswordButton?.classList.add("
+        in admin_state
+    )
+
+    assert (
+        "changePasswordButton.classList"
+        not in admin_state
+    )
+
+    assert (
+        "$('#changePasswordButton')?.addEventListener("
+        in APP
+    )
+
+    assert (
+        "$('#changePasswordButton').addEventListener("
+        not in APP
+    )
+
+
+def test_required_direct_event_bindings_have_dom_targets() -> None:
+    document = inventory()
+
+    required_ids = set(
+        re.findall(
+            r"\$\('#([^']+)'\)"
+            r"\.addEventListener\(",
+            APP,
+        )
+    )
+
+    missing = sorted(
+        required_ids
+        - set(
+            document.elements
+        )
+    )
+
+    assert missing == []

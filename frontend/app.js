@@ -1682,12 +1682,12 @@ function renderAdminState() {
     button.textContent = 'Lock account';
     identity.textContent = `${state.adminUser.username} · ${state.adminUser.role.replace('_', ' ')}`;
     identity.classList.remove('hidden');
-    changePasswordButton.classList.toggle('hidden', state.adminUser.auth_source !== 'file');
+    changePasswordButton?.classList.toggle('hidden', state.adminUser.auth_source !== 'file');
   } else {
     button.textContent = 'Account login';
     identity.textContent = '';
     identity.classList.add('hidden');
-    changePasswordButton.classList.add('hidden');
+    changePasswordButton?.classList.add('hidden');
   }
 
   walletNavItem?.classList.toggle(
@@ -20703,7 +20703,7 @@ function bindEvents() {
       openAdminDialog();
     },
   );
-  $('#changePasswordButton').addEventListener('click', openChangePasswordDialog);
+  $('#changePasswordButton')?.addEventListener('click', openChangePasswordDialog);
   $('#adminForm').addEventListener('submit', unlockAdmin);
   $('#closeAdminDialog').addEventListener('click', () => $('#adminDialog').close());
   $('#cancelAdmin').addEventListener('click', () => $('#adminDialog').close());
