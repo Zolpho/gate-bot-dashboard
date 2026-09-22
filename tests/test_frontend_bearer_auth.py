@@ -429,6 +429,7 @@ def test_app_script_cache_bust_is_additive() -> None:
             "&a7c488=20260922-login-startup-hotfix-v1"
             "&a7c488copy=20260922-authenticator-copy-v1"
             "&a7c488escape=20260922-recovery-escape-guard-v1"
+            "&a7c489c=20260922-active-sessions-readonly-v1"
         )
     ]
 

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import re
 from html.parser import HTMLParser
 from pathlib import Path
-import re
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -1029,13 +1028,14 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "&a7c488=20260922-login-startup-hotfix-v1"
             "&a7c488copy=20260922-authenticator-copy-v1"
             "&a7c488escape=20260922-recovery-escape-guard-v1"
+            "&a7c489c=20260922-active-sessions-readonly-v1"
         )
     ]
 
     assert security_styles == [
         (
             "./aurora-security.css?"
-            "v=20260920-security-totp-r4a2c3-v1"
+            "v=20260922-active-sessions-a7c489c-v1"
         )
     ]
 

@@ -498,6 +498,278 @@ html[data-dashboard-ui="aurora"]
 
 
 /* ============================================================
+ * 07A. ACTIVE SESSIONS
+ * ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card-sessions {
+  grid-column: 1 / -1;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-error {
+  margin:
+    0 0 13px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-list {
+  display: grid;
+
+  gap: 10px;
+
+  margin-bottom: 13px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-row {
+  min-width: 0;
+
+  padding: 13px 14px;
+
+  border:
+    1px solid
+    rgba(115, 205, 174, 0.11);
+
+  border-radius: 12px;
+
+  background:
+    rgba(1, 15, 10, 0.46);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-row.current {
+  border-color:
+    rgba(99, 241, 191, 0.25);
+
+  background:
+    linear-gradient(
+      120deg,
+      rgba(21, 92, 66, 0.16),
+      rgba(1, 15, 10, 0.50)
+    );
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-heading {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 12px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-identity {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-identity strong {
+  color:
+    rgba(233, 253, 245, 0.92);
+
+  font-size: 0.82rem;
+  font-weight: 720;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-identity span {
+  color:
+    rgba(151, 191, 176, 0.63);
+
+  font-size: 0.68rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-badge {
+  flex: 0 0 auto;
+
+  padding:
+    4px 7px;
+
+  border:
+    1px solid
+    rgba(152, 190, 176, 0.13);
+
+  border-radius: 999px;
+
+  color:
+    rgba(172, 204, 192, 0.68);
+
+  font-size: 0.59rem;
+  font-weight: 720;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-badge.current {
+  border-color:
+    rgba(99, 241, 191, 0.24);
+
+  background:
+    rgba(30, 150, 108, 0.08);
+
+  color:
+    rgba(105, 245, 194, 0.88);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-facts {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-fact {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 4px;
+
+  padding:
+    9px 10px;
+
+  border:
+    1px solid
+    rgba(110, 201, 169, 0.08);
+
+  border-radius: 9px;
+
+  background:
+    rgba(2, 20, 13, 0.42);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-fact span {
+  color:
+    rgba(136, 177, 162, 0.54);
+
+  font-size: 0.58rem;
+  font-weight: 700;
+
+  letter-spacing: 0.045em;
+
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-fact strong {
+  min-width: 0;
+
+  color:
+    rgba(211, 239, 228, 0.82);
+
+  font-size: 0.69rem;
+  font-weight: 620;
+  line-height: 1.4;
+
+  overflow-wrap: anywhere;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-user-agent {
+  grid-column: 1 / -1;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-user-agent strong {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size: 0.64rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-empty {
+  margin: 0;
+
+  padding:
+    14px;
+
+  border:
+    1px dashed
+    rgba(126, 191, 168, 0.13);
+
+  border-radius: 10px;
+
+  color:
+    rgba(149, 188, 174, 0.58);
+
+  font-size: 0.72rem;
+}
+
+
+@media (max-width: 920px) {
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-session-facts {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+
+@media (max-width: 560px) {
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-session-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-session-facts {
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-session-user-agent {
+    grid-column: auto;
+  }
+}
+
+
+/* ============================================================
  * 08. AUTHENTICATOR SETUP DIALOG
  * ============================================================ */
 

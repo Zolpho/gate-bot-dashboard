@@ -3,7 +3,6 @@ from __future__ import annotations
 from html.parser import HTMLParser
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 HTML = (
@@ -170,6 +169,7 @@ def test_permissions_feature_loads_after_app() -> None:
             "&a7c488=20260922-login-startup-hotfix-v1"
             "&a7c488copy=20260922-authenticator-copy-v1"
             "&a7c488escape=20260922-recovery-escape-guard-v1"
+            "&a7c489c=20260922-active-sessions-readonly-v1"
         )
     )
 

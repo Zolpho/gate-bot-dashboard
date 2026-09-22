@@ -46,6 +46,8 @@ const state = {
   adminMfaMethods: [],
   securityTotp: null,
   securityTotpLoading: false,
+  securitySessions: [],
+  securitySessionsLoading: false,
   securityTotpDialogEpoch: 0,
   privateBalance: null,
   privateBalanceAccountId: '',
@@ -384,6 +386,571 @@ function setSecurityPageError(message = '') {
 }
 
 
+function setSecuritySessionsError(
+  message = '',
+) {
+  const element = $(
+    '#securitySessionsError'
+  );
+
+  if (!element) return;
+
+  element.textContent = String(
+    message || ''
+  );
+
+  element.classList.toggle(
+    'hidden',
+    !message,
+  );
+}
+
+
+function securitySessionMethodLabel(
+  value,
+) {
+  const normalized = String(
+    value || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  const labels = {
+    password: 'Password',
+    password_totp:
+      'Password + Authenticator',
+    password_recovery:
+      'Password + recovery code',
+    passkey: 'Passkey',
+    passkey_mfa: 'Passkey + verification',
+  };
+
+  if (labels[normalized]) {
+    return labels[normalized];
+  }
+
+  if (!normalized) {
+    return 'Authentication method unavailable';
+  }
+
+  return normalized
+    .replaceAll('_', ' ')
+    .replace(
+      /\b\w/g,
+      character => (
+        character.toUpperCase()
+      ),
+    );
+}
+
+
+function securitySessionDate(
+  value,
+) {
+  const normalized = String(
+    value || ''
+  ).trim();
+
+  return (
+    normalized
+      ? fmtDate(normalized)
+      : 'Not recorded'
+  );
+}
+
+
+function renderSecuritySessions() {
+  const status = $(
+    '#securitySessionsStatus'
+  );
+
+  const list = $(
+    '#securitySessionsList'
+  );
+
+  const refresh = $(
+    '#securitySessionsRefreshButton'
+  );
+
+  if (
+    !status
+    || !list
+    || !refresh
+  ) {
+    return;
+  }
+
+  status.classList.remove(
+    'enabled',
+    'planned',
+  );
+
+  list.replaceChildren();
+
+  const authenticated = Boolean(
+    state.adminUser
+    && state.adminAuthorization
+  );
+
+  refresh.disabled = (
+    !authenticated
+    || state.securitySessionsLoading
+  );
+
+  if (!authenticated) {
+    status.textContent = 'Locked';
+    return;
+  }
+
+  if (state.securitySessionsLoading) {
+    status.textContent = 'Loading…';
+
+    const loading = (
+      document.createElement('p')
+    );
+
+    loading.className = (
+      'security-session-empty'
+    );
+
+    loading.textContent = (
+      'Loading signed-in sessions…'
+    );
+
+    list.append(
+      loading
+    );
+
+    return;
+  }
+
+  const sessions = (
+    Array.isArray(
+      state.securitySessions
+    )
+      ? state.securitySessions
+      : []
+  );
+
+  status.textContent = (
+    `${sessions.length} active`
+  );
+
+  status.classList.add(
+    'enabled',
+  );
+
+  if (!sessions.length) {
+    const empty = (
+      document.createElement('p')
+    );
+
+    empty.className = (
+      'security-session-empty'
+    );
+
+    empty.textContent = (
+      'No active sessions were returned.'
+    );
+
+    list.append(
+      empty
+    );
+
+    return;
+  }
+
+  sessions.forEach(session => {
+    const row = (
+      document.createElement('article')
+    );
+
+    row.className = (
+      'security-session-row'
+    );
+
+    row.dataset.sessionId = String(
+      session.id
+    );
+
+    const current = (
+      session.current === true
+    );
+
+    if (current) {
+      row.classList.add(
+        'current'
+      );
+    }
+
+    row.setAttribute(
+      'aria-label',
+      current
+        ? 'Current signed-in session'
+        : 'Signed-in session',
+    );
+
+    const heading = (
+      document.createElement('div')
+    );
+
+    heading.className = (
+      'security-session-heading'
+    );
+
+    const identity = (
+      document.createElement('div')
+    );
+
+    identity.className = (
+      'security-session-identity'
+    );
+
+    const title = (
+      document.createElement('strong')
+    );
+
+    title.textContent = (
+      current
+        ? 'This session'
+        : 'Other active session'
+    );
+
+    const method = (
+      document.createElement('span')
+    );
+
+    const methodLabel = (
+      securitySessionMethodLabel(
+        session.auth_method
+      )
+    );
+
+    method.textContent = (
+      session.mfa_completed
+        ? `${methodLabel} · MFA verified`
+        : methodLabel
+    );
+
+    identity.append(
+      title,
+      method,
+    );
+
+    const badge = (
+      document.createElement('span')
+    );
+
+    badge.className = (
+      'security-session-badge'
+    );
+
+    badge.textContent = (
+      current
+        ? 'Current'
+        : 'Active'
+    );
+
+    if (current) {
+      badge.classList.add(
+        'current'
+      );
+    }
+
+    heading.append(
+      identity,
+      badge,
+    );
+
+    const facts = (
+      document.createElement('div')
+    );
+
+    facts.className = (
+      'security-session-facts'
+    );
+
+    const addFact = (
+      labelText,
+      valueText,
+      className = '',
+    ) => {
+      const fact = (
+        document.createElement('div')
+      );
+
+      fact.className = (
+        'security-session-fact'
+        + (
+          className
+            ? ` ${className}`
+            : ''
+        )
+      );
+
+      const label = (
+        document.createElement('span')
+      );
+
+      label.textContent = labelText;
+
+      const value = (
+        document.createElement('strong')
+      );
+
+      value.textContent = valueText;
+
+      fact.append(
+        label,
+        value,
+      );
+
+      facts.append(
+        fact
+      );
+
+      return value;
+    };
+
+    const clientIp = String(
+      session.client_ip || ''
+    ).trim();
+
+    addFact(
+      'IP address',
+      clientIp
+        || 'Not recorded (older session)',
+    );
+
+    addFact(
+      'Signed in',
+      securitySessionDate(
+        session.created_at
+      ),
+    );
+
+    addFact(
+      'Last active',
+      securitySessionDate(
+        session.last_seen_at
+      ),
+    );
+
+    addFact(
+      'Expires',
+      securitySessionDate(
+        session.expires_at
+      ),
+    );
+
+    const userAgent = String(
+      session.user_agent || ''
+    ).trim();
+
+    const userAgentValue = addFact(
+      'Browser / User-Agent',
+      userAgent
+        || 'Not recorded (older session)',
+      'security-session-user-agent',
+    );
+
+    if (userAgent) {
+      userAgentValue.title = (
+        userAgent
+      );
+    }
+
+    row.append(
+      heading,
+      facts,
+    );
+
+    list.append(
+      row
+    );
+  });
+}
+
+
+async function loadSecuritySessions({
+  quiet = false,
+} = {}) {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    state.securitySessions = [];
+    state.securitySessionsLoading = false;
+
+    setSecuritySessionsError('');
+    renderSecuritySessions();
+
+    return;
+  }
+
+  const sessionEpoch = (
+    state.adminSessionEpoch
+  );
+
+  const authorization = (
+    state.adminAuthorization
+  );
+
+  state.securitySessionsLoading = true;
+
+  setSecuritySessionsError('');
+  renderSecuritySessions();
+
+  try {
+    const result = await adminApi(
+      '/api/auth/sessions'
+    );
+
+    if (
+      state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    if (
+      !Array.isArray(
+        result.sessions
+      )
+      || result.gate_write_performed
+        !== false
+    ) {
+      throw new Error(
+        'Authentication service returned '
+        + 'an invalid session response.'
+      );
+    }
+
+    const sessions = (
+      result.sessions.map(
+        item => {
+          const id = Number(
+            item?.id
+          );
+
+          if (
+            !Number.isInteger(id)
+            || id <= 0
+          ) {
+            throw new Error(
+              'Authentication service returned '
+              + 'an invalid session identifier.'
+            );
+          }
+
+          return {
+            id,
+            auth_method: String(
+              item?.auth_method || ''
+            ).trim(),
+            mfa_completed: Boolean(
+              item?.mfa_completed
+            ),
+            created_at: String(
+              item?.created_at || ''
+            ).trim(),
+            expires_at: String(
+              item?.expires_at || ''
+            ).trim(),
+            client_ip: String(
+              item?.client_ip || ''
+            ).trim(),
+            user_agent: String(
+              item?.user_agent || ''
+            ).trim(),
+            last_seen_at: String(
+              item?.last_seen_at || ''
+            ).trim(),
+            current:
+              item?.current === true,
+          };
+        },
+      )
+    );
+
+    const currentCount = (
+      sessions.filter(
+        session => session.current
+      ).length
+    );
+
+    if (currentCount !== 1) {
+      throw new Error(
+        'Authentication service did not '
+        + 'identify exactly one current session.'
+      );
+    }
+
+    state.securitySessions = (
+      sessions
+    );
+
+    setSecuritySessionsError('');
+
+  } catch (error) {
+    if (
+      staleAdminSessionError(error)
+      || state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    state.securitySessions = [];
+
+    const message = (
+      error instanceof TypeError
+        ? (
+          'The dashboard could not contact '
+          + 'the session service.'
+        )
+        : (
+          error.message
+          || 'Unable to load active sessions.'
+        )
+    );
+
+    setSecuritySessionsError(
+      message
+    );
+
+    if (!quiet) {
+      showToast(
+        message,
+        true,
+      );
+    }
+
+  } finally {
+    if (
+      state.adminSessionEpoch
+        === sessionEpoch
+      && state.adminAuthorization
+        === authorization
+    ) {
+      state.securitySessionsLoading = false;
+      renderSecuritySessions();
+    }
+  }
+}
+
+
+function refreshSecuritySessions() {
+  void loadSecuritySessions({
+    quiet: false,
+  });
+}
+
+
 function renderSecurityPage() {
   const user = state.adminUser;
 
@@ -452,6 +1019,8 @@ function renderSecurityPage() {
       );
     }
   }
+
+  renderSecuritySessions();
 
   const status = $('#securityTotpStatus');
   const meta = $('#securityTotpMeta');
@@ -655,12 +1224,20 @@ async function loadSecurityOverview({
       renderSecurityPage();
     }
   }
+
+  await loadSecuritySessions({
+    quiet,
+  });
 }
 
 
 function clearSecurityState() {
   state.securityTotp = null;
   state.securityTotpLoading = false;
+  state.securitySessions = [];
+  state.securitySessionsLoading = false;
+
+  setSecuritySessionsError('');
 
   closeSecurityTotpDialog({
     force: true,
@@ -20744,6 +21321,11 @@ function bindEvents() {
   $('#securityTotpSetupButton')?.addEventListener(
     'click',
     openSecurityTotpDialog,
+  );
+
+  $('#securitySessionsRefreshButton')?.addEventListener(
+    'click',
+    refreshSecuritySessions,
   );
 
   $('#securityTotpEnrollForm')?.addEventListener(
