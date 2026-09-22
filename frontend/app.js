@@ -516,8 +516,8 @@ function renderSecurityPage() {
       user.auth_source === 'file'
         ? (
           'Authenticator setup is available for '
-          + 'this account. Enrollment controls '
-          + 'will be wired in the next security step.'
+          + 'this account. Use Set up Authenticator '
+          + 'to add two-step verification.'
         )
         : (
           'Authenticator enrollment requires a '

@@ -168,6 +168,7 @@ def test_permissions_feature_loads_after_app() -> None:
             "v=20260912-bot-control-live-ux-a7c240-v1"
             "&a7c486=20260913-account-permissions-v1"
             "&a7c488=20260922-login-startup-hotfix-v1"
+            "&a7c488copy=20260922-authenticator-copy-v1"
         )
     )
 

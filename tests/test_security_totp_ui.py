@@ -1027,6 +1027,7 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "v=20260912-bot-control-live-ux-a7c240-v1"
             "&a7c486=20260913-account-permissions-v1"
             "&a7c488=20260922-login-startup-hotfix-v1"
+            "&a7c488copy=20260922-authenticator-copy-v1"
         )
     ]
 
@@ -1109,3 +1110,33 @@ def test_required_direct_event_bindings_have_dom_targets() -> None:
     )
 
     assert missing == []
+
+def test_authenticator_available_copy_describes_live_enrollment() -> None:
+    security_render = function_block(
+        "renderSecurityPage"
+    )
+
+    assert (
+        "'Authenticator setup is available for '"
+        in security_render
+    )
+
+    assert (
+        "+ 'this account. Use Set up Authenticator '"
+        in security_render
+    )
+
+    assert (
+        "+ 'to add two-step verification.'"
+        in security_render
+    )
+
+    assert (
+        "Enrollment controls"
+        not in security_render
+    )
+
+    assert (
+        "will be wired in the next security step."
+        not in security_render
+    )
