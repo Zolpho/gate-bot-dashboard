@@ -48,6 +48,12 @@ from ..auth_rate_limit import (
     AuthRateLimitExceeded,
     enforce_auth_rate_limit,
 )
+from ..auth_sessions import (
+    AuthSessionManagementError,
+    list_active_auth_sessions,
+    revoke_active_auth_session_by_id,
+    revoke_other_auth_sessions,
+)
 from ..auth_state import (
     AuthEncryptionKeyError,
     AuthStateError,
@@ -986,6 +992,150 @@ def logout_current_session(
         "status": "revoked",
         "user": user.safe_dict(),
         "gate_write_performed": False,
+    }
+
+
+@router.get("/sessions")
+def active_sessions(
+    request: Request,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):  # type: ignore[no-untyped-def]
+    token = _request_bearer_token(
+        request
+    )
+
+    if token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Bearer session required",
+        )
+
+    try:
+        sessions = (
+            list_active_auth_sessions(
+                username=user.username,
+                current_token=token,
+            )
+        )
+
+    except AuthSessionManagementError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Session management service "
+                "is not available"
+            ),
+        ) from exc
+
+    return {
+        "sessions":
+            sessions,
+        "gate_write_performed":
+            False,
+    }
+
+
+@router.post(
+    "/sessions/{session_id}/revoke"
+)
+def revoke_active_session(
+    session_id: int,
+    request: Request,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):  # type: ignore[no-untyped-def]
+    token = _request_bearer_token(
+        request
+    )
+
+    if token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Bearer session required",
+        )
+
+    try:
+        session = (
+            revoke_active_auth_session_by_id(
+                username=user.username,
+                session_id=session_id,
+                current_token=token,
+            )
+        )
+
+    except AuthSessionManagementError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Session management service "
+                "is not available"
+            ),
+        ) from exc
+
+    if session is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Active session not found",
+        )
+
+    return {
+        "status":
+            "revoked",
+        "session":
+            session,
+        "gate_write_performed":
+            False,
+    }
+
+
+@router.post(
+    "/sessions/revoke-others"
+)
+def revoke_other_active_sessions(
+    request: Request,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):  # type: ignore[no-untyped-def]
+    token = _request_bearer_token(
+        request
+    )
+
+    if token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Bearer session required",
+        )
+
+    try:
+        result = (
+            revoke_other_auth_sessions(
+                username=user.username,
+                current_token=token,
+            )
+        )
+
+    except AuthSessionManagementError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Current Bearer session "
+                "is no longer active"
+            ),
+        ) from exc
+
+    return {
+        "status":
+            "revoked",
+        **result,
+        "gate_write_performed":
+            False,
     }
 
 
