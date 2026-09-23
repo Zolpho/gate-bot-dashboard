@@ -1184,6 +1184,7 @@
       document.querySelectorAll(
         [
           '#spotGridReviewMetrics .bot-control-review-item',
+          '#infiniteGridReviewMetrics .bot-control-review-item',
           '#spotGridConfirmSummary .bot-control-confirm-row',
           '#botControlAttentionList .bot-control-attention-field',
           '#stopBotConfirmSummary .bot-stop-strategy-meta > div',
@@ -1313,147 +1314,140 @@
 
 
   function decorateBotControlMarketInput() {
-    const form = document.querySelector(
-      '#spotGridForm'
-    );
-
-    if (!form) {
-      return;
-    }
-
-    const marketLabel = Array.from(
-      form.querySelectorAll(
-        'label'
+    document
+      .querySelectorAll(
+        '#spotGridForm, '
+        + '#infiniteGridForm'
       )
-    ).find(label => (
-      String(
-        label.textContent || ''
-      )
-        .trim()
-        .toLowerCase()
-        .startsWith('market')
-    ));
+      .forEach(form => {
+        const input =
+          form.querySelector(
+            'input[name="market"]'
+          );
 
-    if (!marketLabel) {
-      return;
-    }
+        if (!input) {
+          return;
+        }
 
-    const input =
-      marketLabel.querySelector(
-        'input'
-      );
+        const marketLabel =
+          input.closest('label');
 
-    if (!input) {
-      return;
-    }
+        if (!marketLabel) {
+          return;
+        }
 
-    let group =
-      marketLabel.querySelector(
-        ':scope > .aurora-bot-control-market-input-symbols'
-      );
+        let group =
+          marketLabel.querySelector(
+            ':scope > '
+            + '.aurora-bot-control-market-input-symbols'
+          );
 
-    if (!group) {
-      group =
-        document.createElement(
-          'span'
-        );
-
-      group.className =
-        'aurora-bot-control-market-input-symbols';
-
-      group.setAttribute(
-        'aria-hidden',
-        'true',
-      );
-
-      marketLabel.insertBefore(
-        group,
-        input,
-      );
-    }
-
-    const market = String(
-      input.value || ''
-    ).trim();
-
-    if (!market) {
-      group.hidden = true;
-      group.replaceChildren();
-      delete group.dataset.auroraMarket;
-    } else if (
-      group.dataset.auroraMarket
-      !== market
-    ) {
-      group.replaceChildren();
-
-      const [
-        base,
-        quote,
-      ] = splitBotMarketAssets(
-        market
-      );
-
-      [
-        base,
-        quote,
-      ]
-        .filter(Boolean)
-        .forEach(symbol => {
-          const slot =
+        if (!group) {
+          group =
             document.createElement(
               'span'
             );
 
-          slot.className =
-            'aurora-bot-control-market-symbol-slot';
+          group.className =
+            'aurora-bot-control-market-input-symbols';
 
-          group.appendChild(
-            slot
+          group.setAttribute(
+            'aria-hidden',
+            'true',
           );
 
-          prependSymbol(
-            slot,
-            'asset',
-            symbol,
-            symbol,
-            'aurora-bot-control-market-symbol-inline',
+          marketLabel.insertBefore(
+            group,
+            input,
           );
-        });
+        }
 
-      group.dataset.auroraMarket =
-        market;
+        const market = String(
+          input.value || ''
+        ).trim();
 
-      group.title = [
-        base,
-        quote,
-      ]
-        .filter(Boolean)
-        .join(' / ');
+        if (!market) {
+          group.hidden = true;
+          group.replaceChildren();
+          delete group.dataset
+            .auroraMarket;
 
-      group.hidden = false;
-    } else {
-      group.hidden = false;
-    }
+        } else if (
+          group.dataset.auroraMarket
+          !== market
+        ) {
+          group.replaceChildren();
 
-    if (
-      input.dataset
-      && !input.dataset
-        .auroraBotControlSymbolListener
-    ) {
-      input.dataset
-        .auroraBotControlSymbolListener =
-        '1';
+          const [
+            base,
+            quote,
+          ] = splitBotMarketAssets(
+            market
+          );
 
-      input.addEventListener(
-        'input',
-        scheduleDecorate,
-      );
+          [
+            base,
+            quote,
+          ]
+            .filter(Boolean)
+            .forEach(symbol => {
+              const slot =
+                document.createElement(
+                  'span'
+                );
 
-      input.addEventListener(
-        'change',
-        scheduleDecorate,
-      );
-    }
+              slot.className =
+                'aurora-bot-control-market-symbol-slot';
+
+              group.appendChild(
+                slot
+              );
+
+              prependSymbol(
+                slot,
+                'asset',
+                symbol,
+                symbol,
+                'aurora-bot-control-market-symbol-inline',
+              );
+            });
+
+          group.dataset.auroraMarket =
+            market;
+
+          group.title = [
+            base,
+            quote,
+          ]
+            .filter(Boolean)
+            .join(' / ');
+
+          group.hidden = false;
+
+        } else {
+          group.hidden = false;
+        }
+
+        if (
+          input.dataset
+          && !input.dataset
+            .auroraBotControlSymbolListener
+        ) {
+          input.dataset
+            .auroraBotControlSymbolListener =
+            '1';
+
+          input.addEventListener(
+            'input',
+            scheduleDecorate,
+          );
+
+          input.addEventListener(
+            'change',
+            scheduleDecorate,
+          );
+        }
+      });
   }
 
 

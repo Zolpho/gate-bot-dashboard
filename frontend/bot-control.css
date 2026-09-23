@@ -1734,3 +1734,32 @@
 .bot-control-infinity-layout {
   margin-top: 18px;
 }
+
+
+/* M4.2 shared Bot Control market reference */
+
+#tab-bot-control
+.bot-control-market-reference {
+  grid-column: 1 / -1;
+  min-height: 1em;
+  margin: -7px 0 0;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 550;
+  line-height: 1.35;
+}
+
+#tab-bot-control
+.bot-control-market-reference.is-loading {
+  opacity: .72;
+}
+
+#tab-bot-control
+.bot-control-market-reference.is-live {
+  color: var(--muted);
+}
+
+#tab-bot-control
+.bot-control-market-reference.is-unavailable {
+  opacity: .72;
+}

@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css?v=20260830-wallet-ux-j19-v2">
   <link rel="stylesheet" href="./treasury.css?v=20260830-wallet-ux-j21-v2">
-  <link rel="stylesheet" href="./bot-control.css?v=20260923-infinity-preview-m4-v1">
+  <link rel="stylesheet" href="./bot-control.css?v=20260923-bot-control-market-m42-v2">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
   <link
@@ -2213,6 +2213,8 @@
               <label class="full">
                 Market
                 <input
+                  id="spotGridMarket"
+                  list="botControlMarketOptions"
                   name="market"
                   value="EQTY_USDT"
                   required
@@ -2222,6 +2224,18 @@
                   spellcheck="false"
                 >
               </label>
+
+              <datalist
+                id="botControlMarketOptions"
+              ></datalist>
+
+              <p
+                id="spotGridMarketReference"
+                class="bot-control-market-reference full"
+                aria-live="polite"
+              >
+                Select a market to load live price.
+              </p>
 
               <label>
                 Investment
@@ -2234,7 +2248,9 @@
                     placeholder="100"
                     required
                   >
-                  <span>USDT</span>
+                  <span
+                    id="spotGridInvestmentCurrency"
+                  >USDT</span>
                 </div>
               </label>
 
@@ -2257,7 +2273,7 @@
                   type="number"
                   min="0"
                   step="any"
-                  placeholder="0.001650"
+                  placeholder="Set lower bound"
                   required
                 >
               </label>
@@ -2269,7 +2285,7 @@
                   type="number"
                   min="0"
                   step="any"
-                  placeholder="0.002000"
+                  placeholder="Set upper bound"
                   required
                 >
               </label>
@@ -2353,7 +2369,7 @@
           <article class="panel bot-control-review-panel">
             <div class="panel-header">
               <div>
-                <h2>Preflight review</h2>
+                <h2>Spot Grid preflight</h2>
                 <p>
                   Live Gate market data, balance and exact
                   parameters.
@@ -2471,6 +2487,8 @@
               <label class="full">
                 Market
                 <input
+                  id="infiniteGridMarket"
+                  list="botControlMarketOptions"
                   name="market"
                   value="EQTY_USDT"
                   required
@@ -2480,6 +2498,14 @@
                   spellcheck="false"
                 >
               </label>
+
+              <p
+                id="infiniteGridMarketReference"
+                class="bot-control-market-reference full"
+                aria-live="polite"
+              >
+                Select a market to load live price.
+              </p>
 
               <label>
                 Investment
@@ -2492,7 +2518,9 @@
                     placeholder="100"
                     required
                   >
-                  <span>USDT</span>
+                  <span
+                    id="infiniteGridInvestmentCurrency"
+                  >USDT</span>
                 </div>
               </label>
 
@@ -2503,7 +2531,7 @@
                   type="number"
                   min="0"
                   step="any"
-                  placeholder="0.001500"
+                  placeholder="Set floor"
                   required
                 >
               </label>
@@ -2516,7 +2544,8 @@
                     type="number"
                     min="0"
                     step="any"
-                    placeholder="0.5"
+                    value="1"
+                    placeholder="1.0"
                     required
                   >
                   <span>%</span>
@@ -2530,20 +2559,18 @@
                   type="number"
                   min="1"
                   step="1"
-                  placeholder="Gate default"
+                  value="10"
+                  required
                 >
               </label>
 
               <label class="full">
                 Grid type
                 <select name="price_type">
-                  <option value="" selected>
-                    Gate default
-                  </option>
                   <option value="0">
                     Arithmetic
                   </option>
-                  <option value="1">
+                  <option value="1" selected>
                     Geometric
                   </option>
                 </select>
@@ -4261,9 +4288,13 @@
     defer
   ></script>
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
-  <script src="./aurora-symbols.js?v=20260906-aurora-a7c148-v1"></script>
+  <script src="./aurora-symbols.js?v=20260923-bot-control-market-m42-v2"></script>
   <script
     src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1"
+    defer
+  ></script>
+  <script
+    src="./bot-control-market-picker.js?v=20260923-bot-control-market-m42-v2"
     defer
   ></script>
   <script
