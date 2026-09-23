@@ -1030,3 +1030,259 @@ def disable_ip_restriction_policy_by_admin(
 
     finally:
         db.close()
+
+def evaluate_ip_restriction_access(
+    *,
+    username: str,
+    client_ip: str | None,
+    global_enforcement_enabled: bool,
+) -> dict[str, Any]:
+    """
+    Compute one read-only IP-restriction access decision.
+
+    A7C490D1 deliberately does not wire this primitive into
+    password login, MFA completion, Bearer authorization,
+    Basic authorization or session management.
+
+    Semantics:
+      - global arm OFF: allow immediately without reading policy
+      - missing/disabled user policy: allow
+      - global arm ON + enabled policy: enforcement is active
+      - active enforcement requires a valid observed client IP
+      - active enforcement requires a non-empty valid allowlist
+      - matching IPv4/IPv6 network: allow
+      - mismatch or malformed active policy: deny fail-closed
+
+    The function performs no writes, audit events, session
+    revocations or Gate operations.
+    """
+
+    target = _normalize_username(
+        username
+    )
+
+    if not isinstance(
+        global_enforcement_enabled,
+        bool,
+    ):
+        raise AuthIpRestrictionError(
+            "Global IP enforcement value "
+            "must be true or false"
+        )
+
+    if not global_enforcement_enabled:
+        return {
+            "allowed":
+                True,
+            "enforcement_active":
+                False,
+            "reason":
+                "global_disabled",
+            "policy_checked":
+                False,
+            "policy_enabled":
+                None,
+            "client_ip":
+                None,
+        }
+
+    policy = (
+        get_ip_restriction_policy(
+            username=target,
+        )
+    )
+
+    if not bool(
+        policy.get(
+            "enabled"
+        )
+    ):
+        return {
+            "allowed":
+                True,
+            "enforcement_active":
+                False,
+            "reason":
+                "policy_disabled",
+            "policy_checked":
+                True,
+            "policy_enabled":
+                False,
+            "client_ip":
+                None,
+        }
+
+    raw_allowlist = policy.get(
+        "allowlist"
+    )
+
+    if not isinstance(
+        raw_allowlist,
+        list,
+    ):
+        return {
+            "allowed":
+                False,
+            "enforcement_active":
+                True,
+            "reason":
+                "policy_invalid",
+            "policy_checked":
+                True,
+            "policy_enabled":
+                True,
+            "client_ip":
+                None,
+        }
+
+    networks: list[str] = []
+
+    for item in raw_allowlist:
+        if not isinstance(
+            item,
+            dict,
+        ):
+            return {
+                "allowed":
+                    False,
+                "enforcement_active":
+                    True,
+                "reason":
+                    "policy_invalid",
+                "policy_checked":
+                    True,
+                "policy_enabled":
+                    True,
+                "client_ip":
+                    None,
+            }
+
+        network = str(
+            item.get(
+                "network",
+                "",
+            )
+        ).strip()
+
+        if not network:
+            return {
+                "allowed":
+                    False,
+                "enforcement_active":
+                    True,
+                "reason":
+                    "policy_invalid",
+                "policy_checked":
+                    True,
+                "policy_enabled":
+                    True,
+                "client_ip":
+                    None,
+            }
+
+        networks.append(
+            network
+        )
+
+    if not networks:
+        return {
+            "allowed":
+                False,
+            "enforcement_active":
+                True,
+            "reason":
+                "empty_allowlist",
+            "policy_checked":
+                True,
+            "policy_enabled":
+                True,
+            "client_ip":
+                None,
+        }
+
+    raw_client_ip = str(
+        client_ip or ""
+    ).strip()
+
+    if not raw_client_ip:
+        return {
+            "allowed":
+                False,
+            "enforcement_active":
+                True,
+            "reason":
+                "client_ip_unavailable",
+            "policy_checked":
+                True,
+            "policy_enabled":
+                True,
+            "client_ip":
+                None,
+        }
+
+    try:
+        normalized_client_ip = (
+            normalize_client_ip(
+                raw_client_ip
+            )
+        )
+
+    except AuthIpRestrictionError:
+        return {
+            "allowed":
+                False,
+            "enforcement_active":
+                True,
+            "reason":
+                "client_ip_invalid",
+            "policy_checked":
+                True,
+            "policy_enabled":
+                True,
+            "client_ip":
+                None,
+        }
+
+    try:
+        matched = (
+            client_ip_matches_allowlist(
+                normalized_client_ip,
+                networks,
+            )
+        )
+
+    except AuthIpRestrictionError:
+        return {
+            "allowed":
+                False,
+            "enforcement_active":
+                True,
+            "reason":
+                "policy_invalid",
+            "policy_checked":
+                True,
+            "policy_enabled":
+                True,
+            "client_ip":
+                normalized_client_ip,
+        }
+
+    return {
+        "allowed":
+            bool(
+                matched
+            ),
+        "enforcement_active":
+            True,
+        "reason": (
+            "allowlist_match"
+            if matched
+            else "allowlist_miss"
+        ),
+        "policy_checked":
+            True,
+        "policy_enabled":
+            True,
+        "client_ip":
+            normalized_client_ip,
+    }
