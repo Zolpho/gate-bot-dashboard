@@ -90,7 +90,7 @@ def function_block(
 def test_preview_assets_are_registered() -> None:
     assert (
         "./infinite-grid-preview.js?"
-        "v=20260923-infinity-preview-m4-v1"
+        "v=20260923-infinity-profit-percent-m41-v1"
         in HTML
     )
 
@@ -134,7 +134,7 @@ def test_preview_workspace_contains_required_fields() -> None:
         'name="market"',
         'name="money"',
         'name="price_floor"',
-        'name="profit_per_grid"',
+        'name="profit_per_grid_percent"',
         'name="grid_num"',
         'name="price_type"',
         'name="trigger_price"',
@@ -286,6 +286,7 @@ def test_review_explains_infinity_semantics() -> None:
     for token in (
         "Price floor",
         "Profit per grid",
+        "Gate profit ratio",
         "Number of grids",
         "Gate default",
         "Upper price",
@@ -376,3 +377,126 @@ def test_preview_controller_has_no_write_confirmation_flow() -> None:
         "operation_lock",
     ):
         assert forbidden not in PREVIEW
+
+def test_profit_per_grid_uses_explicit_percent_semantics() -> None:
+    block = infinity_html_block()
+
+    assert (
+        'name="profit_per_grid_percent"'
+        in block
+    )
+
+    assert (
+        'name="profit_per_grid"'
+        not in block
+    )
+
+    assert (
+        "<span>%</span>"
+        in block
+    )
+
+    assert (
+        "function percentToGateRatioText("
+        in PREVIEW
+    )
+
+    assert (
+        "function infinityGridPreparePayloadFromDraft("
+        in PREVIEW
+    )
+
+
+def test_prepare_converts_percent_to_gate_ratio() -> None:
+    start = PREVIEW.index(
+        "function infinityGridPreparePayloadFromDraft("
+    )
+
+    end = PREVIEW.index(
+        "\n\n  function reviewMetric(",
+        start,
+    )
+
+    block = PREVIEW[
+        start:end
+    ]
+
+    assert (
+        "profit_per_grid_percent,"
+        in block
+    )
+
+    assert (
+        "profit_per_grid:"
+        in block
+    )
+
+    assert (
+        "percentToGateRatioText("
+        in block
+    )
+
+
+def test_percent_parser_fails_closed_on_ambiguous_notation() -> None:
+    start = PREVIEW.index(
+        "function percentToGateRatioText("
+    )
+
+    end = PREVIEW.index(
+        "\n\n  function optionalValue(",
+        start,
+    )
+
+    block = PREVIEW[
+        start:end
+    ]
+
+    assert (
+        "throw new Error("
+        in block
+    )
+
+    assert (
+        "decimal percentage such as 0.5 or 1"
+        in block
+    )
+
+    assert (
+        "return raw;"
+        not in block
+    )
+
+
+def test_review_discloses_human_percent_and_gate_ratio() -> None:
+    start = PREVIEW.index(
+        "function renderInfinityGridReview("
+    )
+
+    end = PREVIEW.index(
+        "\n\n  async function prepareInfiniteGrid(",
+        start,
+    )
+
+    block = PREVIEW[
+        start:end
+    ]
+
+    assert (
+        "'Profit per grid'"
+        in block
+    )
+
+    assert (
+        "draft.profit_per_grid_percent"
+        in block
+    )
+
+    assert (
+        "'Gate profit ratio'"
+        in block
+    )
+
+    assert (
+        "grid.profit_per_grid"
+        in block
+    )

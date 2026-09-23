@@ -2510,14 +2510,17 @@
 
               <label>
                 Profit per grid
-                <input
-                  name="profit_per_grid"
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="0.01"
-                  required
-                >
+                <div class="input-with-suffix">
+                  <input
+                    name="profit_per_grid_percent"
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0.5"
+                    required
+                  >
+                  <span>%</span>
+                </div>
               </label>
 
               <label>
@@ -4264,7 +4267,7 @@
     defer
   ></script>
   <script
-    src="./infinite-grid-preview.js?v=20260923-infinity-preview-m4-v1"
+    src="./infinite-grid-preview.js?v=20260923-infinity-profit-percent-m41-v1"
     defer
   ></script>
   <script

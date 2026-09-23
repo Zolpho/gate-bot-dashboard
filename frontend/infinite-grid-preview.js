@@ -406,6 +406,70 @@
   }
 
 
+  function percentToGateRatioText(
+    value,
+  ) {
+    const raw = String(
+      value || ''
+    ).trim();
+
+    if (
+      !/^\d+(?:\.\d+)?$/.test(
+        raw
+      )
+    ) {
+      throw new Error(
+        'Profit per grid must be entered as a '
+        + 'decimal percentage such as 0.5 or 1.'
+      );
+    }
+
+    const [
+      whole,
+      fraction = '',
+    ] = raw.split('.');
+
+    const digits = (
+      whole + fraction
+    ).replace(
+      /^0+(?=\d)/,
+      '',
+    ) || '0';
+
+    const scale = (
+      fraction.length + 2
+    );
+
+    const padded = (
+      digits.padStart(
+        scale + 1,
+        '0',
+      )
+    );
+
+    const integerPart = (
+      padded.slice(
+        0,
+        -scale,
+      )
+      || '0'
+    );
+
+    const fractionalPart = (
+      padded.slice(
+        -scale,
+      ).replace(
+        /0+$/,
+        '',
+      )
+    );
+
+    return fractionalPart
+      ? `${integerPart}.${fractionalPart}`
+      : integerPart;
+  }
+
+
   function optionalValue(
     form,
     name,
@@ -460,8 +524,8 @@
         || ''
       ).trim(),
 
-      profit_per_grid: String(
-        form.get('profit_per_grid')
+      profit_per_grid_percent: String(
+        form.get('profit_per_grid_percent')
         || ''
       ).trim(),
 
@@ -491,6 +555,25 @@
         form,
         'stop_loss',
       ),
+    };
+  }
+
+
+  function infinityGridPreparePayloadFromDraft(
+    draft,
+  ) {
+    const {
+      profit_per_grid_percent,
+      ...payload
+    } = draft;
+
+    return {
+      ...payload,
+
+      profit_per_grid:
+        percentToGateRatioText(
+          profit_per_grid_percent
+        ),
     };
   }
 
@@ -673,8 +756,24 @@
         reviewMetric(
           'Profit per grid',
           (
+            draft.profit_per_grid_percent
+              ? (
+                `${
+                  draft.profit_per_grid_percent
+                }%`
+              )
+              : '—'
+          ),
+        ),
+
+        reviewMetric(
+          'Gate profit ratio',
+          (
             grid.profit_per_grid
-            || draft.profit_per_grid
+            || prepared
+              .gate_create_payload_preview
+              ?.create_params
+              ?.profit_per_grid
             || '—'
           ),
         ),
@@ -827,12 +926,18 @@
     }
 
     try {
+      const requestPayload = (
+        infinityGridPreparePayloadFromDraft(
+          draft
+        )
+      );
+
       const result = await adminApi(
         '/api/bot-control/infinite-grid/prepare',
         {
           method: 'POST',
           body: JSON.stringify(
-            draft
+            requestPayload
           ),
         },
       );
