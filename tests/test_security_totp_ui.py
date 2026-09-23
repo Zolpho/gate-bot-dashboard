@@ -1037,7 +1037,7 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
     assert security_styles == [
         (
             "./aurora-security.css?"
-            "v=20260923-ip-restrictions-ui-a7c490c-v1"
+            "v=20260923-ip-checkbox-a7c490c1-v1"
         )
     ]
 

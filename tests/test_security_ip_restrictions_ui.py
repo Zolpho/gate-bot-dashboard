@@ -566,3 +566,52 @@ def test_ip_ui_uses_only_local_auth_endpoints() -> None:
         "recovery_codes",
     ):
         assert forbidden not in blocks
+
+def test_ip_enable_checkbox_has_cross_browser_aurora_geometry() -> None:
+    compact = re.sub(
+        r"\s+",
+        " ",
+        CSS,
+    )
+
+    selector = (
+        'html[data-dashboard-ui="aurora"] '
+        '.security-ip-enable '
+        'input[type="checkbox"]'
+    )
+
+    assert (
+        selector
+        in compact
+    )
+
+    for token in (
+        "-webkit-appearance: none;",
+        "appearance: none;",
+        "flex: 0 0 18px;",
+        "width: 18px;",
+        "height: 18px;",
+        "border-radius: 4px;",
+    ):
+        assert token in compact
+
+    assert (
+        (
+            '.security-ip-enable '
+            'input[type="checkbox"]:checked'
+        )
+        in compact
+    )
+
+    assert (
+        'background-image: url("data:image/svg+xml,'
+        in compact
+    )
+
+    assert (
+        (
+            '.security-ip-enable '
+            'input[type="checkbox"]:focus-visible'
+        )
+        in compact
+    )
