@@ -1723,3 +1723,14 @@
     flex-direction: column;
   }
 }
+
+
+/*
+ * Infinity Grid preview-only workspace.
+ *
+ * Uses the existing Bot Control form/review components in both
+ * Classic and Aurora. No creation control is styled or exposed.
+ */
+.bot-control-infinity-layout {
+  margin-top: 18px;
+}

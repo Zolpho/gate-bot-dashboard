@@ -259,28 +259,50 @@ def test_pair_marks_are_adjacent_not_overlapped():
 
 
 def test_changed_assets_use_new_cache_key():
-    unchanged_version = (
+    bot_control_version = (
+        "20260923-infinity-preview-m4-v1"
+    )
+
+    app_base_version = (
         "20260912-bot-control-live-ux-a7c240-v1"
     )
-    aurora_scroll_version = (
+
+    app_m4_marker = (
+        "infinitym4="
+        "20260923-preview-only-v1"
+    )
+
+    aurora_version = (
         "20260912-aurora-bot-control-live-warning-a7c282-v1"
     )
 
-    for asset in (
-        "bot-control.css",
-        "app.js",
-    ):
-        assert (
-            INDEX.count(
-                f"./{asset}?v={unchanged_version}"
-            )
-            == 1
+    assert (
+        INDEX.count(
+            "./bot-control.css?"
+            f"v={bot_control_version}"
         )
+        == 1
+    )
+
+    assert (
+        INDEX.count(
+            "./app.js?"
+            f"v={app_base_version}"
+        )
+        == 1
+    )
+
+    assert (
+        INDEX.count(
+            app_m4_marker
+        )
+        == 1
+    )
 
     assert (
         INDEX.count(
             "./aurora-bot-control.css?"
-            f"v={aurora_scroll_version}"
+            f"v={aurora_version}"
         )
         == 1
     )

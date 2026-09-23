@@ -204,14 +204,22 @@ def test_preflight_panel_is_compact():
 def test_bot_control_asset_versions_are_bumped():
     assert (
         "./bot-control.css?"
+        "v=20260923-infinity-preview-m4-v1"
+        in HTML
+    )
+
+    assert (
+        "./app.js?"
         "v=20260912-bot-control-live-ux-a7c240-v1"
         in HTML
     )
 
     assert (
-        './app.js?v=20260912-bot-control-live-ux-a7c240-v1'
+        "infinitym4="
+        "20260923-preview-only-v1"
         in HTML
     )
+
 
 
 def test_activity_exports_remain_independent():

@@ -8425,6 +8425,10 @@ function resetBotControlSessionForm() {
    */
   resetSpotGridForm();
 
+  window.resetInfiniteGridPreviewForm?.({
+    clearAccount: true,
+  });
+
   const account = $('#spotGridAccount');
 
   if (account) {
@@ -8960,6 +8964,8 @@ function renderBotControlAccess() {
   updateSpotGridConfirmButton();
 
   renderSidebarSyncScope();
+
+  window.renderInfiniteGridPreviewAccess?.();
 
   if (
     state.activeTab === 'bot-control'

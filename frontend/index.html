@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css?v=20260830-wallet-ux-j19-v2">
   <link rel="stylesheet" href="./treasury.css?v=20260830-wallet-ux-j21-v2">
-  <link rel="stylesheet" href="./bot-control.css?v=20260912-bot-control-live-ux-a7c240-v1">
+  <link rel="stylesheet" href="./bot-control.css?v=20260923-infinity-preview-m4-v1">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
   <link
@@ -2415,6 +2415,266 @@
       
 
         
+        <div
+          class="bot-control-layout bot-control-infinity-layout"
+          id="infiniteGridPreviewWorkspace"
+        >
+
+          <article class="panel bot-control-form-panel">
+            <div class="panel-header">
+              <div>
+                <div class="bot-control-create-title-row">
+                  <h2>Infinity Grid preview</h2>
+
+                  <span
+                    id="infiniteGridAccountChip"
+                    class="bot-control-account-chip hidden"
+                    title="Bot Control account"
+                  >—</span>
+                </div>
+
+                <p>
+                  Validate Infinity Grid parameters against
+                  live Gate market data. This preview cannot
+                  create a bot.
+                </p>
+              </div>
+
+              <div class="bot-control-create-state">
+                <span
+                  class="status-badge disabled"
+                  id="infiniteGridPreviewState"
+                >PREVIEW ONLY</span>
+
+                <small>No create path</small>
+              </div>
+            </div>
+
+            <form
+              id="infiniteGridForm"
+              class="bot-control-form"
+            >
+
+              <label
+                class="full bot-control-account-field"
+                id="infiniteGridAccountField"
+              >
+                Gate account
+
+                <select
+                  id="infiniteGridAccount"
+                  name="account_id"
+                  required
+                ></select>
+              </label>
+
+              <label class="full">
+                Market
+                <input
+                  name="market"
+                  value="EQTY_USDT"
+                  required
+                  maxlength="64"
+                  pattern="[A-Za-z0-9]+_[A-Za-z0-9]+"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+              </label>
+
+              <label>
+                Investment
+                <div class="input-with-suffix">
+                  <input
+                    name="money"
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="100"
+                    required
+                  >
+                  <span>USDT</span>
+                </div>
+              </label>
+
+              <label>
+                Price floor
+                <input
+                  name="price_floor"
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.001500"
+                  required
+                >
+              </label>
+
+              <label>
+                Profit per grid
+                <input
+                  name="profit_per_grid"
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.01"
+                  required
+                >
+              </label>
+
+              <label>
+                Number of grids
+                <input
+                  name="grid_num"
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="Gate default"
+                >
+              </label>
+
+              <label class="full">
+                Grid type
+                <select name="price_type">
+                  <option value="" selected>
+                    Gate default
+                  </option>
+                  <option value="0">
+                    Arithmetic
+                  </option>
+                  <option value="1">
+                    Geometric
+                  </option>
+                </select>
+              </label>
+
+              <details class="bot-control-advanced full">
+                <summary>
+                  Optional trigger and exit prices
+                </summary>
+
+                <div class="bot-control-advanced-grid">
+                  <label>
+                    Trigger price
+                    <input
+                      name="trigger_price"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Optional"
+                    >
+                  </label>
+
+                  <label>
+                    Take-profit price
+                    <input
+                      name="stop_profit"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Optional"
+                    >
+                  </label>
+
+                  <label>
+                    Stop-loss price
+                    <input
+                      name="stop_loss"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Optional"
+                    >
+                  </label>
+                </div>
+              </details>
+
+              <p
+                id="infiniteGridFormError"
+                class="form-error full hidden"
+                role="alert"
+              ></p>
+
+              <div
+                class="form-actions full bot-control-form-actions"
+              >
+                <button
+                  type="button"
+                  class="button secondary"
+                  id="resetInfiniteGridButton"
+                >
+                  Reset
+                </button>
+
+                <button
+                  type="submit"
+                  class="button primary"
+                  id="prepareInfiniteGridButton"
+                >
+                  Review Infinity Grid
+                </button>
+              </div>
+            </form>
+          </article>
+
+
+          <article class="panel bot-control-review-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Infinity Grid preflight</h2>
+
+                <p>
+                  Live Gate market data, balance and exact
+                  payload preview. No write action is exposed.
+                </p>
+              </div>
+            </div>
+
+            <div
+              id="infiniteGridReviewEmpty"
+              class="empty-state"
+            >
+              Enter the strategy parameters and choose
+              <strong>Review Infinity Grid</strong>.
+            </div>
+
+            <div
+              id="infiniteGridReview"
+              class="hidden"
+            >
+              <div
+                id="infiniteGridReviewStatus"
+                class="bot-control-review-status"
+              ></div>
+
+              <div
+                id="infiniteGridReviewMetrics"
+                class="bot-control-review-grid"
+              ></div>
+
+              <div
+                id="infiniteGridValidationMessages"
+                class="bot-control-validation"
+              ></div>
+
+              <details class="bot-control-payload">
+                <summary>
+                  Exact Gate payload preview
+                </summary>
+
+                <pre id="infiniteGridPayloadPreview"></pre>
+              </details>
+
+              <div class="bot-control-validation">
+                <div class="bot-control-message warning">
+                  Preview only. Infinity Grid creation is not
+                  enabled in this dashboard milestone.
+                </div>
+              </div>
+            </div>
+          </article>
+
+        </div>
+
+
         <article class="panel bot-control-attention-panel">
           <div class="panel-header">
             <div>
@@ -4000,7 +4260,11 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260906-aurora-a7c148-v1"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1"
+    defer
+  ></script>
+  <script
+    src="./infinite-grid-preview.js?v=20260923-infinity-preview-m4-v1"
     defer
   ></script>
   <script
