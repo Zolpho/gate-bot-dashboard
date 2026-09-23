@@ -948,3 +948,718 @@ def test_ip_policy_is_scoped_to_authenticated_dashboard_user() -> None:
             _clear_user_state(
                 username
             )
+
+def _seed_enabled_policy(
+    username: str,
+) -> list[tuple[int, str, str]]:
+    with session_scope() as db:
+        policy = (
+            DashboardAuthIpPolicy(
+                username=username,
+                enabled=True,
+                updated_by=username,
+            )
+        )
+
+        db.add(
+            policy
+        )
+
+        db.flush()
+
+        entries = [
+            DashboardAuthIpAllowlistEntry(
+                username=username,
+                network="203.0.113.0/24",
+                label="Target office",
+            ),
+            DashboardAuthIpAllowlistEntry(
+                username=username,
+                network="2001:db8::/64",
+                label="Target IPv6",
+            ),
+        ]
+
+        db.add_all(
+            entries
+        )
+
+        db.flush()
+
+        return [
+            (
+                int(
+                    entry.id
+                ),
+                str(
+                    entry.network
+                ),
+                str(
+                    entry.label
+                ),
+            )
+            for entry in entries
+        ]
+
+
+def test_admin_disable_route_requires_bearer_superadmin_and_valid_target() -> None:
+    init_db()
+
+    for username in (
+        "rootadmin",
+        "zolnode",
+    ):
+        _clear_user_state(
+            username
+        )
+
+    try:
+        with TestClient(
+            app,
+            client=(
+                "198.51.100.42",
+                50000,
+            ),
+        ) as client:
+            root_token = _login(
+                client
+            )
+
+            operator_token = _login(
+                client,
+                username="zolnode",
+                password=(
+                    "zolnode-test-password"
+                ),
+            )
+
+            path = (
+                "/api/auth/ip-restrictions/"
+                "users/zolnode/disable"
+            )
+
+            payload = {
+                "current_password":
+                    "rootadmin-test-password",
+                "reason":
+                    "Administrative recovery",
+            }
+
+            unauthenticated = client.post(
+                path,
+                json=payload,
+            )
+
+            assert (
+                unauthenticated.status_code
+                == 401
+            )
+
+            basic = client.post(
+                path,
+                headers=_basic(),
+                json=payload,
+            )
+
+            assert (
+                basic.status_code
+                == 400
+            )
+
+            assert (
+                basic.json()[
+                    "detail"
+                ]
+                == "Bearer session required"
+            )
+
+            operator = client.post(
+                path,
+                headers=_bearer(
+                    operator_token
+                ),
+                json={
+                    "current_password":
+                        "zolnode-test-password",
+                    "reason":
+                        "Operator must not recover",
+                },
+            )
+
+            assert (
+                operator.status_code
+                == 403
+            )
+
+            unknown = client.post(
+                (
+                    "/api/auth/ip-restrictions/"
+                    "users/not-a-user/disable"
+                ),
+                headers=_bearer(
+                    root_token
+                ),
+                json=payload,
+            )
+
+            assert (
+                unknown.status_code
+                == 404
+            )
+
+            wrong_password = client.post(
+                path,
+                headers=_bearer(
+                    root_token
+                ),
+                json={
+                    "current_password":
+                        "wrong-password",
+                    "reason":
+                        "Must not mutate",
+                },
+            )
+
+            assert (
+                wrong_password.status_code
+                == 403
+            )
+
+            whitespace_reason = client.post(
+                path,
+                headers=_bearer(
+                    root_token
+                ),
+                json={
+                    "current_password":
+                        "rootadmin-test-password",
+                    "reason":
+                        "   ",
+                },
+            )
+
+            assert (
+                whitespace_reason.status_code
+                == 400
+            )
+
+            with session_scope() as db:
+                assert (
+                    db.get(
+                        DashboardAuthIpPolicy,
+                        "zolnode",
+                    )
+                    is None
+                )
+
+    finally:
+        for username in (
+            "rootadmin",
+            "zolnode",
+        ):
+            _clear_user_state(
+                username
+            )
+
+
+def test_rootadmin_can_disable_target_policy_without_matching_target_allowlist() -> None:
+    init_db()
+
+    for username in (
+        "rootadmin",
+        "zolnode",
+    ):
+        _clear_user_state(
+            username
+        )
+
+    try:
+        before_entries = (
+            _seed_enabled_policy(
+                "zolnode"
+            )
+        )
+
+        # The administrator is deliberately outside both
+        # networks saved on zolnode's enabled policy.
+        with TestClient(
+            app,
+            client=(
+                "198.51.100.42",
+                50000,
+            ),
+        ) as client:
+            token = _login(
+                client
+            )
+
+            response = client.post(
+                (
+                    "/api/auth/ip-restrictions/"
+                    "users/zolnode/disable"
+                ),
+                headers=_bearer(
+                    token
+                ),
+                json={
+                    "current_password":
+                        (
+                            "rootadmin-"
+                            "test-password"
+                        ),
+                    "reason":
+                        (
+                            "Recover user from "
+                            "network lockout"
+                        ),
+                },
+            )
+
+            assert (
+                response.status_code
+                == 200
+            )
+
+            body = response.json()
+
+            assert (
+                body[
+                    "status"
+                ]
+                == "disabled"
+            )
+
+            assert (
+                body[
+                    "changed"
+                ]
+                is True
+            )
+
+            assert (
+                body[
+                    "policy"
+                ][
+                    "username"
+                ]
+                == "zolnode"
+            )
+
+            assert (
+                body[
+                    "policy"
+                ][
+                    "enabled"
+                ]
+                is False
+            )
+
+            assert (
+                body[
+                    "policy"
+                ][
+                    "updated_by"
+                ]
+                == "rootadmin"
+            )
+
+            assert {
+                (
+                    item[
+                        "network"
+                    ],
+                    item[
+                        "label"
+                    ],
+                )
+                for item
+                in body[
+                    "policy"
+                ][
+                    "allowlist"
+                ]
+            } == {
+                (
+                    "203.0.113.0/24",
+                    "Target office",
+                ),
+                (
+                    "2001:db8::/64",
+                    "Target IPv6",
+                ),
+            }
+
+            assert (
+                body[
+                    "observed_client_ip"
+                ]
+                == "198.51.100.42"
+            )
+
+            assert (
+                body[
+                    "observed_client_network"
+                ]
+                == "198.51.100.42/32"
+            )
+
+            assert (
+                body[
+                    "global_enforcement_enabled"
+                ]
+                is False
+            )
+
+            assert (
+                body[
+                    "enforcement_active"
+                ]
+                is False
+            )
+
+            assert (
+                body[
+                    "gate_write_performed"
+                ]
+                is False
+            )
+
+            event = body[
+                "event"
+            ]
+
+            assert (
+                event[
+                    "action"
+                ]
+                == (
+                    "ip_restriction_policy_"
+                    "admin_disabled"
+                )
+            )
+
+            assert (
+                event[
+                    "actor_username"
+                ]
+                == "rootadmin"
+            )
+
+            assert (
+                event[
+                    "target_username"
+                ]
+                == "zolnode"
+            )
+
+            assert (
+                event[
+                    "reason"
+                ]
+                == (
+                    "Recover user from "
+                    "network lockout"
+                )
+            )
+
+            metadata = event[
+                "metadata"
+            ]
+
+            assert (
+                metadata[
+                    "source"
+                ]
+                == (
+                    "rootadmin_ip_"
+                    "restriction_recovery"
+                )
+            )
+
+            assert (
+                metadata[
+                    "actor_observed_client_ip"
+                ]
+                == "198.51.100.42"
+            )
+
+            assert (
+                metadata[
+                    "old_enabled"
+                ]
+                is True
+            )
+
+            assert (
+                metadata[
+                    "new_enabled"
+                ]
+                is False
+            )
+
+            assert (
+                metadata[
+                    "preserved_allowlist_count"
+                ]
+                == 2
+            )
+
+            # Repeat must be idempotent: no extra audit event.
+            repeated = client.post(
+                (
+                    "/api/auth/ip-restrictions/"
+                    "users/zolnode/disable"
+                ),
+                headers=_bearer(
+                    token
+                ),
+                json={
+                    "current_password":
+                        (
+                            "rootadmin-"
+                            "test-password"
+                        ),
+                    "reason":
+                        "Repeat recovery",
+                },
+            )
+
+            assert (
+                repeated.status_code
+                == 200
+            )
+
+            repeated_body = (
+                repeated.json()
+            )
+
+            assert (
+                repeated_body[
+                    "status"
+                ]
+                == "unchanged"
+            )
+
+            assert (
+                repeated_body[
+                    "changed"
+                ]
+                is False
+            )
+
+            assert (
+                repeated_body[
+                    "event"
+                ]
+                is None
+            )
+
+        with session_scope() as db:
+            policy = db.get(
+                DashboardAuthIpPolicy,
+                "zolnode",
+            )
+
+            assert (
+                policy is not None
+            )
+
+            assert (
+                policy.enabled
+                is False
+            )
+
+            after_entries = [
+                (
+                    int(
+                        entry.id
+                    ),
+                    str(
+                        entry.network
+                    ),
+                    str(
+                        entry.label
+                    ),
+                )
+                for entry
+                in db.scalars(
+                    select(
+                        DashboardAuthIpAllowlistEntry
+                    )
+                    .where(
+                        DashboardAuthIpAllowlistEntry
+                        .username
+                        == "zolnode"
+                    )
+                    .order_by(
+                        DashboardAuthIpAllowlistEntry
+                        .id
+                    )
+                )
+            ]
+
+            assert (
+                after_entries
+                == before_entries
+            )
+
+            events = list(
+                db.scalars(
+                    select(
+                        DashboardAuthEvent
+                    ).where(
+                        DashboardAuthEvent
+                        .target_username
+                        == "zolnode",
+                        DashboardAuthEvent
+                        .action
+                        == (
+                            "ip_restriction_policy_"
+                            "admin_disabled"
+                        ),
+                    )
+                )
+            )
+
+            assert len(
+                events
+            ) == 1
+
+    finally:
+        for username in (
+            "rootadmin",
+            "zolnode",
+        ):
+            _clear_user_state(
+                username
+            )
+
+
+def test_admin_disable_missing_policy_is_noop_without_creating_state() -> None:
+    init_db()
+
+    for username in (
+        "rootadmin",
+        "zolnode",
+    ):
+        _clear_user_state(
+            username
+        )
+
+    try:
+        with TestClient(
+            app,
+            client=(
+                "198.51.100.42",
+                50000,
+            ),
+        ) as client:
+            token = _login(
+                client
+            )
+
+            response = client.post(
+                (
+                    "/api/auth/ip-restrictions/"
+                    "users/zolnode/disable"
+                ),
+                headers=_bearer(
+                    token
+                ),
+                json={
+                    "current_password":
+                        (
+                            "rootadmin-"
+                            "test-password"
+                        ),
+                    "reason":
+                        "Recovery check",
+                },
+            )
+
+            assert (
+                response.status_code
+                == 200
+            )
+
+            body = response.json()
+
+            assert (
+                body[
+                    "status"
+                ]
+                == "unchanged"
+            )
+
+            assert (
+                body[
+                    "changed"
+                ]
+                is False
+            )
+
+            assert (
+                body[
+                    "event"
+                ]
+                is None
+            )
+
+            assert (
+                body[
+                    "policy"
+                ][
+                    "enabled"
+                ]
+                is False
+            )
+
+            assert (
+                body[
+                    "policy"
+                ][
+                    "allowlist"
+                ]
+                == []
+            )
+
+        with session_scope() as db:
+            assert (
+                db.get(
+                    DashboardAuthIpPolicy,
+                    "zolnode",
+                )
+                is None
+            )
+
+            events = list(
+                db.scalars(
+                    select(
+                        DashboardAuthEvent
+                    ).where(
+                        DashboardAuthEvent
+                        .target_username
+                        == "zolnode",
+                        DashboardAuthEvent
+                        .action
+                        == (
+                            "ip_restriction_policy_"
+                            "admin_disabled"
+                        ),
+                    )
+                )
+            )
+
+            assert (
+                events
+                == []
+            )
+
+    finally:
+        for username in (
+            "rootadmin",
+            "zolnode",
+        ):
+            _clear_user_state(
+                username
+            )

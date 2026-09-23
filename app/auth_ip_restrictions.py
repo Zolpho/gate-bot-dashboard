@@ -857,3 +857,176 @@ def update_ip_restriction_policy(
 
     finally:
         db.close()
+
+def disable_ip_restriction_policy_by_admin(
+    *,
+    username: str,
+    actor_username: str,
+    reason: str,
+    observed_client_ip: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """
+    Disable one dashboard user's durable IP restriction while
+    preserving every saved allowlist entry.
+
+    This is a recovery-only mutation:
+      - it can only move enabled -> disabled
+      - it never creates a missing policy row
+      - it never deletes or replaces allowlist rows
+      - it never requires the actor's address to match the
+        target user's allowlist
+      - it does not itself enforce or bypass request blocking
+    """
+
+    target = _normalize_username(
+        username
+    )
+
+    actor = _normalize_username(
+        actor_username
+    )
+
+    selected_reason = str(
+        reason or ""
+    ).strip()
+
+    if not selected_reason:
+        raise AuthIpRestrictionError(
+            "Administrator recovery reason is required"
+        )
+
+    if (
+        len(selected_reason)
+        > MAX_IP_RESTRICTION_REASON_LENGTH
+    ):
+        raise AuthIpRestrictionError(
+            "Administrator recovery reason is too long"
+        )
+
+    normalized_client_ip = None
+
+    if observed_client_ip is not None:
+        normalized_client_ip = (
+            normalize_client_ip(
+                observed_client_ip
+            )
+        )
+
+    reference = _now(
+        now
+    )
+
+    db = SessionLocal()
+
+    try:
+        if engine.dialect.name == "sqlite":
+            db.execute(
+                text(
+                    "BEGIN IMMEDIATE"
+                )
+            )
+
+        current = (
+            _policy_snapshot_in_session(
+                db,
+                target,
+            )
+        )
+
+        row = db.get(
+            DashboardAuthIpPolicy,
+            target,
+        )
+
+        if (
+            row is None
+            or not bool(
+                row.enabled
+            )
+        ):
+            db.rollback()
+
+            return {
+                "changed":
+                    False,
+                "policy":
+                    current,
+                "event":
+                    None,
+            }
+
+        preserved_allowlist_count = len(
+            current[
+                "allowlist"
+            ]
+        )
+
+        row.enabled = False
+        row.updated_by = actor
+        row.updated_at = reference
+
+        event = DashboardAuthEvent(
+            actor_username=actor,
+            target_username=target,
+            action=(
+                "ip_restriction_policy_"
+                "admin_disabled"
+            ),
+            reason=selected_reason,
+            metadata_json=json.dumps(
+                {
+                    "source": (
+                        "rootadmin_ip_"
+                        "restriction_recovery"
+                    ),
+                    "actor_observed_client_ip":
+                        normalized_client_ip,
+                    "old_enabled":
+                        True,
+                    "new_enabled":
+                        False,
+                    "preserved_allowlist_count":
+                        preserved_allowlist_count,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ),
+            created_at=reference,
+        )
+
+        db.add(
+            event
+        )
+
+        db.flush()
+
+        policy = (
+            _policy_snapshot_in_session(
+                db,
+                target,
+            )
+        )
+
+        result = {
+            "changed":
+                True,
+            "policy":
+                policy,
+            "event":
+                _event_snapshot(
+                    event
+                ),
+        }
+
+        db.commit()
+
+        return result
+
+    except Exception:
+        db.rollback()
+        raise
+
+    finally:
+        db.close()

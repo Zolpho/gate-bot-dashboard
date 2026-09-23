@@ -19,6 +19,7 @@ from ..accounts import AccountConfigError, enabled_gate_accounts
 from ..auth_ip_restrictions import (
     AuthIpRestrictionError,
     client_ip_host_network,
+    disable_ip_restriction_policy_by_admin,
     get_ip_restriction_policy,
     normalize_client_ip,
     update_ip_restriction_policy,
@@ -83,6 +84,7 @@ from ..security import (
     PasswordChangeError,
     UserConfigError,
     change_dashboard_user_password,
+    load_dashboard_users,
     require_super_admin,
     require_user,
     verify_password,
@@ -285,6 +287,24 @@ class IpRestrictionUpdateRequest(
 
     reason: str = Field(
         default="",
+        max_length=1000,
+    )
+
+
+class IpRestrictionAdminDisableRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    current_password: str = Field(
+        min_length=1,
+        max_length=1024,
+    )
+
+    reason: str = Field(
+        min_length=1,
         max_length=1000,
     )
 
@@ -1428,6 +1448,142 @@ def replace_current_ip_restrictions(
     return {
         "status": (
             "updated"
+            if result[
+                "changed"
+            ]
+            else "unchanged"
+        ),
+        **result,
+        "observed_client_ip":
+            observed_ip,
+        "observed_client_network":
+            observed_network,
+        "global_enforcement_enabled":
+            (
+                settings
+                .dashboard_ip_restrictions_enforcement_enabled
+            ),
+        "enforcement_active":
+            False,
+        "gate_write_performed":
+            False,
+    }
+
+
+@router.post(
+    "/ip-restrictions/users/"
+    "{target_username}/disable"
+)
+def administrator_disable_ip_restrictions(
+    target_username: str,
+    request: Request,
+    payload: IpRestrictionAdminDisableRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_super_admin),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Rootadmin recovery path for one configured dashboard user.
+
+    This can only disable a target user's IP restriction.
+    Saved allowlist entries remain intact for later review or
+    re-enablement.
+
+    The administrator's current network does not need to be in
+    the target user's allowlist. Actual IP enforcement remains
+    absent in A7C490B2.
+    """
+
+    if (
+        _request_bearer_token(
+            request
+        )
+        is None
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Bearer session required",
+        )
+
+    normalized_target = str(
+        target_username or ""
+    ).strip().lower()
+
+    try:
+        users = load_dashboard_users(
+            settings
+        )
+
+    except UserConfigError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Dashboard user configuration "
+                "is not available"
+            ),
+        ) from exc
+
+    target = next(
+        (
+            item
+            for item in users
+            if item.username
+            == normalized_target
+        ),
+        None,
+    )
+
+    if target is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Dashboard user not found",
+        )
+
+    observed_ip, observed_network = (
+        _observed_client_ip(
+            request
+        )
+    )
+
+    _confirm_current_password(
+        user,
+        payload.current_password,
+        settings=settings,
+        client_identifier=(
+            observed_ip
+        ),
+    )
+
+    try:
+        result = (
+            disable_ip_restriction_policy_by_admin(
+                username=target.username,
+                actor_username=(
+                    user.username
+                ),
+                reason=payload.reason,
+                observed_client_ip=(
+                    observed_ip
+                ),
+            )
+        )
+
+    except AuthIpRestrictionError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(
+                exc
+            ),
+        ) from exc
+
+    return {
+        "status": (
+            "disabled"
             if result[
                 "changed"
             ]
