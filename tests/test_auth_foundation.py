@@ -11,6 +11,11 @@ def test_auth_foundation_settings_default_fail_open_for_rollout() -> None:
     settings = Settings()
 
     assert settings.dashboard_mfa_required is False
+    assert (
+        settings
+        .dashboard_ip_restrictions_enforcement_enabled
+        is False
+    )
     assert str(settings.dashboard_auth_encryption_key_file) == (
         "/run/secrets/dashboard_auth.key"
     )
@@ -59,6 +64,8 @@ def test_auth_foundation_tables_are_created_without_raw_tokens(tmp_path) -> None
         "dashboard_auth_rate_limit_events",
         "dashboard_auth_passkey_users",
         "dashboard_auth_passkey_credentials",
+        "dashboard_auth_ip_policies",
+        "dashboard_auth_ip_allowlist_entries",
     }
 
     assert expected <= table_names

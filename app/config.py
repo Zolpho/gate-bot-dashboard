@@ -186,6 +186,14 @@ class Settings(BaseSettings):
     dashboard_webauthn_origin: str = ""
     dashboard_webauthn_rp_name: str = "Gate Bot Dashboard"
 
+    # A7C490 IP-restriction rollout has an independent
+    # global enforcement arm. Persistence and allowlist
+    # configuration may exist while this remains false.
+    #
+    # A future enforcement milestone must require BOTH this
+    # global arm and the individual dashboard user's durable
+    # policy to be enabled.
+    dashboard_ip_restrictions_enforcement_enabled: bool = False
 
     # Authentication throttling is persistent so process
     # restarts do not reset brute-force protection.

@@ -725,6 +725,8 @@ def migrate_database(engine: Engine) -> None:
         Bot,
         BotArchive,
         BotControlAttentionReview,
+        DashboardAuthIpAllowlistEntry,
+        DashboardAuthIpPolicy,
         GateAccount,
         SyncRun,
         TreasuryOwnershipLedgerEntry,
@@ -733,11 +735,11 @@ def migrate_database(engine: Engine) -> None:
         TreasuryTransferOperationLock,
         TreasuryTransferReconciliation,
         TreasuryTransferRequest,
-        TreasuryWithdrawalRecipient,
-        TreasuryWithdrawalRecipientEvent,
         TreasuryWithdrawalDestination,
         TreasuryWithdrawalDestinationEvent,
         TreasuryWithdrawalOperationLock,
+        TreasuryWithdrawalRecipient,
+        TreasuryWithdrawalRecipientEvent,
         TreasuryWithdrawalReconciliation,
         TreasuryWithdrawalRequest,
         TreasuryWithdrawalRequestEvent,
@@ -751,6 +753,32 @@ def migrate_database(engine: Engine) -> None:
         _migrate_dashboard_auth_session_metadata(
             raw
         )
+
+        # A7C490A: non-enforcing per-dashboard-user
+        # IP-restriction persistence foundation.
+        #
+        # No policy rows are backfilled. Missing rows mean
+        # disabled, so introducing these tables can never
+        # activate request blocking for an existing user.
+        if not _table_exists(
+            raw,
+            "dashboard_auth_ip_policies",
+        ):
+            _create_table(
+                raw,
+                engine,
+                DashboardAuthIpPolicy.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "dashboard_auth_ip_allowlist_entries",
+        ):
+            _create_table(
+                raw,
+                engine,
+                DashboardAuthIpAllowlistEntry.__table__,
+            )
 
         if not _table_exists(raw, "gate_accounts"):
             _create_table(raw, engine, GateAccount.__table__)

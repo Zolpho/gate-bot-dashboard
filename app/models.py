@@ -188,6 +188,112 @@ class AccountActionPolicyEvent(Base):
     )
 
 
+class DashboardAuthIpPolicy(Base):
+    """
+    Durable per-dashboard-user IP-restriction switch.
+
+    Missing rows are deliberately interpreted as disabled.
+    Existing dashboard users are never backfilled with an
+    enabled policy during migration.
+
+    This row alone is not sufficient to enforce anything:
+    runtime enforcement also requires the independent global
+    configuration arm.
+    """
+
+    __tablename__ = "dashboard_auth_ip_policies"
+
+    username: Mapped[str] = mapped_column(
+        String(64),
+        primary_key=True,
+    )
+
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    updated_by: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
+class DashboardAuthIpAllowlistEntry(Base):
+    """
+    One canonical IPv4/IPv6 network allowed by a dashboard
+    user's future IP-restriction policy.
+
+    `network` is stored in canonical CIDR form, including
+    /32 for a single IPv4 address and /128 for a single
+    IPv6 address.
+    """
+
+    __tablename__ = (
+        "dashboard_auth_ip_allowlist_entries"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "username",
+            "network",
+            name=(
+                "uq_dashboard_auth_ip_allowlist_"
+                "username_network"
+            ),
+        ),
+        Index(
+            "ix_dashboard_auth_ip_allowlist_username",
+            "username",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    username: Mapped[str] = mapped_column(
+        ForeignKey(
+            "dashboard_auth_ip_policies.username",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    network: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    label: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+
 class DashboardAuthFactor(Base):
     """
     Durable MFA state for one dashboard username.
