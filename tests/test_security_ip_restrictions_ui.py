@@ -591,6 +591,12 @@ def test_ip_enable_checkbox_has_cross_browser_aurora_geometry() -> None:
         "flex: 0 0 18px;",
         "width: 18px;",
         "height: 18px;",
+        "min-width: 18px;",
+        "min-height: 18px;",
+        "max-width: 18px;",
+        "max-height: 18px;",
+        "padding: 0;",
+        "box-sizing: border-box;",
         "border-radius: 4px;",
     ):
         assert token in compact
