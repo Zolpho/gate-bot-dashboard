@@ -1723,7 +1723,7 @@ async function submitSecurityIpRestrictions(
       '#securityIpDialogError',
       (
         'Add at least one approved network '
-        + 'before preparing IP restrictions.'
+        + 'before enabling IP restrictions.'
       ),
     );
 
@@ -1785,18 +1785,18 @@ async function submitSecurityIpRestrictions(
       )
     );
 
-    /*
-     * A7C490C is intentionally configuration-only.
-     * The backend must still report that request
-     * enforcement is inactive.
-     */
+    const expectedEnforcementActive = Boolean(
+      normalized.global_enforcement_enabled
+      && normalized.policy.enabled
+    );
+
     if (
       normalized.enforcement_active
-      !== false
+      !== expectedEnforcementActive
     ) {
       throw new Error(
-        'IP enforcement became active during '
-        + 'the configuration-only rollout.'
+        'Authentication service returned '
+        + 'an inconsistent IP enforcement state.'
       );
     }
 

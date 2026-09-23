@@ -173,6 +173,7 @@ def test_permissions_feature_loads_after_app() -> None:
             "&a7c489d=20260923-session-revocation-v1"
             "&a7c490c=20260923-ip-restrictions-ui-v1"
             "&a7c490d21=20260923-refresh-safe-session-v1"
+            "&a7c490d31=20260923-ip-live-save-v1"
         )
     )
 

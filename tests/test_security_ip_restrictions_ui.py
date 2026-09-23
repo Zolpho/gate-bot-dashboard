@@ -376,7 +376,7 @@ def test_current_connection_helper_uses_backend_host_network() -> None:
     )
 
 
-def test_self_policy_save_is_password_confirmed_configuration_only() -> None:
+def test_self_policy_save_is_password_confirmed_and_enforcement_aware() -> None:
     save = function_block(
         "submitSecurityIpRestrictions"
     )
@@ -387,13 +387,19 @@ def test_self_policy_save_is_password_confirmed_configuration_only() -> None:
         "current_password:",
         "allowlist,",
         "normalizeSecurityIpResponse(",
+        "const expectedEnforcementActive = Boolean(",
+        "normalized.global_enforcement_enabled",
+        "&& normalized.policy.enabled",
         "normalized.enforcement_active",
-        "!== false",
+        "!== expectedEnforcementActive",
+        "an inconsistent IP enforcement state.",
         "Global enforcement is still off.",
     ):
         assert token in save
 
     for forbidden in (
+        "configuration-only rollout",
+        "normalized.enforcement_active\n      !== false",
         "/api/treasury/",
         "/api/trading/",
         "/api/bot-control/",
@@ -497,19 +503,33 @@ def test_ip_controls_are_bound() -> None:
         assert token in bind
 
 
-def test_ip_ui_copy_is_explicitly_non_enforcing() -> None:
+def test_ip_ui_copy_describes_live_enforcement_and_recovery_state() -> None:
     combined = (
         HTML
         + APP
     )
 
     for token in (
-        "Configuration is not enforcement.",
-        "Global IP enforcement is currently off.",
+        "Verify your approved networks before enabling.",
+        "If Global enforcement is on, enabling this policy",
+        "immediately limits this account to its saved approved",
+        "Keep the current connection approved before",
+        "Enable IP-restricted access for this account",
+        "Global enforcement is on and ",
+        "this account policy is active.",
+        "Global enforcement is on, but ",
+        "this account policy is off.",
+        "Global IP enforcement is currently ",
         "does not block access yet.",
         "network identity observed by the backend",
     ):
         assert token in combined
+
+    for stale in (
+        "Configuration is not enforcement.",
+        "Prepare this account for IP-restricted access",
+    ):
+        assert stale not in combined
 
 
 def test_ip_aurora_layout_is_registered_and_responsive() -> None:
