@@ -177,7 +177,7 @@ def test_mfa_completion_uses_challenge_api() -> None:
         assert token in mfa
 
 
-def test_auth_secrets_remain_in_memory_in_auth_flow() -> None:
+def test_password_mfa_and_recovery_inputs_are_never_persisted() -> None:
     sensitive = "".join(
         (
             block(
@@ -186,7 +186,7 @@ def test_auth_secrets_remain_in_memory_in_auth_flow() -> None:
             ),
             block(
                 "async function logoutAdmin(",
-                "\n\nasync function unlockAdmin(",
+                "\n\nasync function cleanupFailedAdminInitialization(",
             ),
             block(
                 "async function unlockAdmin(",
@@ -199,22 +199,223 @@ def test_auth_secrets_remain_in_memory_in_auth_flow() -> None:
         )
     )
 
+    # Login/MFA handlers never touch browser storage directly.
+    # Only the dedicated Bearer-session persistence helpers may do so.
     for forbidden in (
+        "window.sessionStorage",
         "localStorage",
-        "sessionStorage",
         "indexedDB",
         "document.cookie",
     ):
         assert forbidden not in sensitive
 
+    storage_start = APP.index(
+        "const ADMIN_SESSION_STORAGE_KEY"
+    )
+
+    storage_end = APP.index(
+        "\n\nfunction setAdminError(",
+        storage_start,
+    )
+
+    storage = APP[
+        storage_start:
+        storage_end
+    ].lower()
+
+    for forbidden in (
+        "password",
+        "current_password",
+        "adminmfachallenge",
+        "recovery_codes",
+        "totp_secret",
+    ):
+        assert forbidden not in storage
+
+
+def test_refresh_safe_session_uses_sessionstorage_only() -> None:
+    storage_start = APP.index(
+        "const ADMIN_SESSION_STORAGE_KEY"
+    )
+
+    storage_end = APP.index(
+        "\n\nfunction setAdminError(",
+        storage_start,
+    )
+
+    storage = APP[
+        storage_start:
+        storage_end
+    ]
+
+    for token in (
+        "'gate-bot-dashboard.admin-session.v1'",
+        "window.sessionStorage.setItem(",
+        "window.sessionStorage.getItem(",
+        "window.sessionStorage.removeItem(",
+        "version: 1",
+        "authorization:",
+        "user:",
+    ):
+        assert token in storage
+
+    for forbidden in (
+        "localStorage",
+        "indexedDB",
+        "document.cookie",
+    ):
+        assert forbidden not in APP
+
+
+def test_persisted_session_is_validated_before_restore() -> None:
+    restore = block(
+        "async function restorePersistedAdminSession(",
+        "\n\nfunction setAdminError(",
+    )
+
+    for token in (
+        "'/api/auth/me'",
+        "Authorization:",
+        "persisted.authorization",
+        "normalizeAdminSessionUser(",
+        "state.adminAuthorization = (",
+        "state.adminUser = user;",
+        "await loadBotControlCapabilities();",
+        "renderAdminState();",
+        "switchTab(",
+    ):
+        assert token in restore
+
     assert (
-        "adminMfaChallenge: ''"
+        restore.index(
+            "'/api/auth/me'"
+        )
+        < restore.index(
+            "state.adminAuthorization = ("
+        )
+    )
+
+
+def test_401_clears_persisted_session_but_403_preserves_it() -> None:
+    restore = block(
+        "async function restorePersistedAdminSession(",
+        "\n\nfunction setAdminError(",
+    )
+
+    unauthorized = restore[
+        restore.index(
+            "error.status === 401"
+        ):
+        restore.index(
+            "} else if (",
+            restore.index(
+                "error.status === 401"
+            ),
+        )
+    ]
+
+    denied_start = restore.index(
+        "error.status === 403"
+    )
+
+    denied_end = restore.index(
+        "} else {",
+        denied_start,
+    )
+
+    denied = restore[
+        denied_start:
+        denied_end
+    ]
+
+    assert (
+        "clearPersistedAdminSession();"
+        in unauthorized
+    )
+
+    assert (
+        "clearPersistedAdminSession();"
+        not in denied
+    )
+
+    assert (
+        "Return to an "
+        in denied
+    )
+
+    assert (
+        "+ 'approved network and refresh.'"
+        in denied
+    )
+
+
+def test_password_and_mfa_sessions_persist_only_after_private_init() -> None:
+    login = block(
+        "async function unlockAdmin(",
+        "\n\nasync function completeAdminMfa(",
+    )
+
+    mfa = block(
+        "async function completeAdminMfa(",
+        "\n\nasync function changeOwnPassword(",
+    )
+
+    for operation in (
+        login,
+        mfa,
+    ):
+        assert (
+            "persistAdminSession("
+            in operation
+        )
+
+        assert (
+            operation.index(
+                "await loadBotControlCapabilities();"
+            )
+            < operation.index(
+                "persistAdminSession("
+            )
+        )
+
+
+def test_lock_clears_persisted_session() -> None:
+    lock = block(
+        "function lockAdmin(",
+        "\n\nasync function logoutAdmin(",
+    )
+
+    assert (
+        "clearPersistedAdminSession();"
+        in lock
+    )
+
+    assert (
+        lock.index(
+            "clearPersistedAdminSession();"
+        )
+        < lock.index(
+            "state.adminAuthorization = '';"
+        )
+    )
+
+
+def test_startup_attempts_saved_session_restore() -> None:
+    assert (
+        "void restorePersistedAdminSession();"
         in APP
     )
 
     assert (
-        "adminMfaMethods: []"
-        in APP
+        APP.index(
+            "loadCore();"
+        )
+        < APP.index(
+            "void restorePersistedAdminSession();"
+        )
+        < APP.index(
+            "setInterval(loadCore, 60000);"
+        )
     )
 
 
@@ -432,14 +633,16 @@ def test_app_script_cache_bust_is_additive() -> None:
             "&a7c489c=20260922-active-sessions-readonly-v1"
             "&a7c489d=20260923-session-revocation-v1"
             "&a7c490c=20260923-ip-restrictions-ui-v1"
+            "&a7c490d21=20260923-refresh-safe-session-v1"
         )
     ]
 
 
-def test_login_copy_describes_authenticated_memory_session() -> None:
+def test_login_copy_describes_refresh_safe_tab_session() -> None:
     assert (
-        "Your authenticated session stays in memory "
-        "until this page is refreshed or locked."
+        "Your authenticated session survives page refreshes "
+        "in this browser tab until you sign out, the session "
+        "expires, or the tab is closed."
         in HTML
     )
 

@@ -230,6 +230,358 @@ function bearerAuthorization(token) {
   return `Bearer ${normalized}`;
 }
 
+const ADMIN_SESSION_STORAGE_KEY = (
+  'gate-bot-dashboard.admin-session.v1'
+);
+
+
+function normalizeAdminSessionUser(value) {
+  if (
+    !value
+    || typeof value !== 'object'
+  ) {
+    return null;
+  }
+
+  const username = String(
+    value.username || ''
+  ).trim().toLowerCase();
+
+  const role = String(
+    value.role || ''
+  ).trim();
+
+  const accountIds = (
+    Array.isArray(
+      value.account_ids
+    )
+      ? [
+          ...new Set(
+            value.account_ids
+              .map(
+                item => String(
+                  item || ''
+                ).trim().toLowerCase()
+              )
+              .filter(Boolean),
+          ),
+        ]
+      : null
+  );
+
+  const authSource = String(
+    value.auth_source || ''
+  ).trim();
+
+  if (
+    !username
+    || ![
+      'account_operator',
+      'super_admin',
+    ].includes(role)
+    || accountIds === null
+    || value.enabled !== true
+    || !authSource
+  ) {
+    return null;
+  }
+
+  return {
+    username,
+    role,
+    account_ids: accountIds,
+    enabled: true,
+    auth_source: authSource,
+  };
+}
+
+
+function normalizePersistedAuthorization(value) {
+  const authorization = String(
+    value || ''
+  ).trim();
+
+  if (
+    !authorization.startsWith(
+      'Bearer '
+    )
+    || authorization.length <= 7
+  ) {
+    return '';
+  }
+
+  return authorization;
+}
+
+
+function clearPersistedAdminSession() {
+  try {
+    window.sessionStorage.removeItem(
+      ADMIN_SESSION_STORAGE_KEY
+    );
+
+  } catch {
+    // Browser storage can be unavailable. Runtime logout still works.
+  }
+}
+
+
+function persistAdminSession(
+  authorization,
+  user,
+) {
+  const normalizedAuthorization = (
+    normalizePersistedAuthorization(
+      authorization
+    )
+  );
+
+  const normalizedUser = (
+    normalizeAdminSessionUser(
+      user
+    )
+  );
+
+  if (
+    !normalizedAuthorization
+    || !normalizedUser
+  ) {
+    return false;
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      ADMIN_SESSION_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        authorization:
+          normalizedAuthorization,
+        user:
+          normalizedUser,
+      }),
+    );
+
+    return true;
+
+  } catch {
+    // Storage failure falls back to the existing memory-only session.
+    return false;
+  }
+}
+
+
+function readPersistedAdminSession() {
+  let raw = '';
+
+  try {
+    raw = String(
+      window.sessionStorage.getItem(
+        ADMIN_SESSION_STORAGE_KEY
+      )
+      || ''
+    );
+
+  } catch {
+    return null;
+  }
+
+  if (!raw) {
+    return null;
+  }
+
+  let payload;
+
+  try {
+    payload = JSON.parse(
+      raw
+    );
+
+  } catch {
+    clearPersistedAdminSession();
+    return null;
+  }
+
+  if (
+    !payload
+    || payload.version !== 1
+  ) {
+    clearPersistedAdminSession();
+    return null;
+  }
+
+  const authorization = (
+    normalizePersistedAuthorization(
+      payload.authorization
+    )
+  );
+
+  const user = (
+    normalizeAdminSessionUser(
+      payload.user
+    )
+  );
+
+  if (
+    !authorization
+    || !user
+  ) {
+    clearPersistedAdminSession();
+    return null;
+  }
+
+  return {
+    authorization,
+    user,
+  };
+}
+
+
+async function restorePersistedAdminSession() {
+  const persisted = (
+    readPersistedAdminSession()
+  );
+
+  if (!persisted) {
+    return false;
+  }
+
+  let result;
+
+  try {
+    result = await api(
+      '/api/auth/me',
+      {
+        headers: {
+          Authorization:
+            persisted.authorization,
+        },
+      },
+    );
+
+  } catch (error) {
+    if (
+      error instanceof ApiError
+      && error.status === 401
+    ) {
+      clearPersistedAdminSession();
+
+    } else if (
+      error instanceof ApiError
+      && error.status === 403
+    ) {
+      showToast(
+        'Your saved session is not allowed '
+        + 'from this network. Return to an '
+        + 'approved network and refresh.',
+        true,
+      );
+
+    } else {
+      showToast(
+        'The saved session could not be '
+        + 'validated. It remains available '
+        + 'for a later refresh.',
+        true,
+      );
+    }
+
+    return false;
+  }
+
+  const user = (
+    normalizeAdminSessionUser(
+      result?.user
+    )
+  );
+
+  if (
+    !user
+    || user.username
+      !== persisted.user.username
+  ) {
+    clearPersistedAdminSession();
+    return false;
+  }
+
+  state.adminSessionEpoch += 1;
+  state.adminAuthorization = (
+    persisted.authorization
+  );
+  state.adminUser = user;
+
+  persistAdminSession(
+    persisted.authorization,
+    user,
+  );
+
+  const sessionEpoch = (
+    state.adminSessionEpoch
+  );
+
+  const authorization = (
+    state.adminAuthorization
+  );
+
+  try {
+    await loadBotControlCapabilities();
+
+  } catch (error) {
+    if (
+      error instanceof ApiError
+      && error.status === 401
+    ) {
+      return false;
+    }
+
+    showToast(
+      error.message
+      || (
+        'Signed-in session restored, but '
+        + 'some private controls could not '
+        + 'be initialized.'
+      ),
+      true,
+    );
+  }
+
+  if (
+    state.adminSessionEpoch
+      !== sessionEpoch
+    || state.adminAuthorization
+      !== authorization
+  ) {
+    return false;
+  }
+
+  renderAdminState();
+
+  switchTab(
+    state.activeTab
+      || window.location.hash.slice(1)
+      || 'overview',
+    {
+      updateHash: false,
+    },
+  );
+
+  if (
+    state.currentBotData?.bot
+    && canManageAccount(
+      state.currentBotData.bot.account_id
+    )
+  ) {
+    try {
+      await loadCurrentBotRaw();
+
+    } catch {
+      // Other restored private data remains usable.
+    }
+  }
+
+  return true;
+}
+
+
 function setAdminError(message = '') {
   const errorBox = $('#adminError');
   if (!errorBox) return;
@@ -4345,6 +4697,8 @@ function clearTreasurySession() {
 function lockAdmin(showMessage = true) {
   state.adminSessionEpoch += 1;
 
+  clearPersistedAdminSession();
+
   state.adminAuthorization = '';
   state.adminUser = null;
   state.currentRawData = null;
@@ -4558,6 +4912,11 @@ async function unlockAdmin(event) {
 
     await loadBotControlCapabilities();
 
+    persistAdminSession(
+      authorization,
+      result.user,
+    );
+
     formElement.reset();
     $('#adminDialog').close();
     renderAdminState();
@@ -4742,6 +5101,11 @@ async function completeAdminMfa(event) {
     window.resetTradingTab?.();
 
     await loadBotControlCapabilities();
+
+    persistAdminSession(
+      authorization,
+      result.user,
+    );
 
     clearPendingAdminMfa();
 
@@ -23502,6 +23866,7 @@ renderAdminState();
 switchTab(window.location.hash.slice(1) || 'overview', { updateHash: false });
 resetPageScroll();
 loadCore();
+void restorePersistedAdminSession();
 setInterval(loadCore, 60000);
 
 
