@@ -431,6 +431,7 @@ def test_app_script_cache_bust_is_additive() -> None:
             "&a7c488escape=20260922-recovery-escape-guard-v1"
             "&a7c489c=20260922-active-sessions-readonly-v1"
             "&a7c489d=20260923-session-revocation-v1"
+            "&a7c490c=20260923-ip-restrictions-ui-v1"
         )
     ]
 

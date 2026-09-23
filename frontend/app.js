@@ -49,6 +49,10 @@ const state = {
   securitySessions: [],
   securitySessionsLoading: false,
   securitySessionsMutating: false,
+  securityIp: null,
+  securityIpLoading: false,
+  securityIpMutating: false,
+  securityIpDialogEpoch: 0,
   securityTotpDialogEpoch: 0,
   privateBalance: null,
   privateBalanceAccountId: '',
@@ -404,6 +408,1335 @@ function setSecuritySessionsError(
     'hidden',
     !message,
   );
+}
+
+
+function setSecurityIpError(
+  message = '',
+) {
+  const element = $(
+    '#securityIpError'
+  );
+
+  if (!element) return;
+
+  element.textContent = String(
+    message || ''
+  );
+
+  element.classList.toggle(
+    'hidden',
+    !message,
+  );
+}
+
+
+function setSecurityIpDialogError(
+  selector,
+  message = '',
+) {
+  const element = $(
+    selector
+  );
+
+  if (!element) return;
+
+  element.textContent = String(
+    message || ''
+  );
+
+  element.classList.toggle(
+    'hidden',
+    !message,
+  );
+}
+
+
+function normalizeSecurityIpResponse(
+  result,
+  expectedUsername,
+) {
+  const policy = (
+    result?.policy
+    || null
+  );
+
+  const username = String(
+    policy?.username || ''
+  ).trim().toLowerCase();
+
+  const expected = String(
+    expectedUsername || ''
+  ).trim().toLowerCase();
+
+  if (
+    !policy
+    || !username
+    || username !== expected
+    || !Array.isArray(
+      policy.allowlist
+    )
+    || typeof policy.enabled
+      !== 'boolean'
+    || typeof result
+      ?.global_enforcement_enabled
+      !== 'boolean'
+    || typeof result
+      ?.enforcement_active
+      !== 'boolean'
+    || result?.gate_write_performed
+      !== false
+  ) {
+    throw new Error(
+      'Authentication service returned '
+      + 'an invalid IP restriction response.'
+    );
+  }
+
+  if (
+    result.enforcement_active
+    && !result.global_enforcement_enabled
+  ) {
+    throw new Error(
+      'Authentication service returned '
+      + 'an inconsistent enforcement state.'
+    );
+  }
+
+  const allowlist = (
+    policy.allowlist.map(
+      item => {
+        const network = String(
+          item?.network || ''
+        ).trim();
+
+        const label = String(
+          item?.label || ''
+        ).trim();
+
+        if (!network) {
+          throw new Error(
+            'Authentication service returned '
+            + 'an invalid allowlist entry.'
+          );
+        }
+
+        return {
+          id: Number(
+            item?.id || 0
+          ),
+          network,
+          label,
+          created_at: String(
+            item?.created_at || ''
+          ).trim(),
+        };
+      },
+    )
+  );
+
+  return {
+    policy: {
+      username,
+      enabled:
+        policy.enabled === true,
+      updated_by: String(
+        policy?.updated_by || ''
+      ).trim(),
+      created_at: String(
+        policy?.created_at || ''
+      ).trim(),
+      updated_at: String(
+        policy?.updated_at || ''
+      ).trim(),
+      allowlist,
+    },
+    observed_client_ip: String(
+      result?.observed_client_ip || ''
+    ).trim(),
+    observed_client_network: String(
+      result?.observed_client_network || ''
+    ).trim(),
+    global_enforcement_enabled:
+      result.global_enforcement_enabled === true,
+    enforcement_active:
+      result.enforcement_active === true,
+  };
+}
+
+
+function renderSecurityIpRestrictions() {
+  const status = $(
+    '#securityIpStatus'
+  );
+
+  const observed = $(
+    '#securityIpObservedAddress'
+  );
+
+  const network = $(
+    '#securityIpObservedNetwork'
+  );
+
+  const global = $(
+    '#securityIpGlobalEnforcement'
+  );
+
+  const meta = $(
+    '#securityIpMeta'
+  );
+
+  const list = $(
+    '#securityIpAllowlist'
+  );
+
+  const refresh = $(
+    '#securityIpRefreshButton'
+  );
+
+  const manage = $(
+    '#securityIpManageButton'
+  );
+
+  if (
+    !status
+    || !observed
+    || !network
+    || !global
+    || !meta
+    || !list
+    || !refresh
+    || !manage
+  ) {
+    return;
+  }
+
+  status.classList.remove(
+    'enabled',
+    'planned',
+    'warning',
+  );
+
+  list.replaceChildren();
+
+  const authenticated = Boolean(
+    state.adminUser
+    && state.adminAuthorization
+  );
+
+  const busy = (
+    state.securityIpLoading
+    || state.securityIpMutating
+  );
+
+  refresh.disabled = (
+    !authenticated
+    || busy
+  );
+
+  manage.disabled = (
+    !authenticated
+    || busy
+    || state.adminUser?.auth_source
+      !== 'file'
+  );
+
+  if (!authenticated) {
+    status.textContent = 'Locked';
+    observed.textContent = '—';
+    network.textContent = '—';
+    global.textContent = '—';
+    meta.textContent = '';
+    return;
+  }
+
+  if (state.securityIpLoading) {
+    status.textContent = 'Loading…';
+    observed.textContent = '—';
+    network.textContent = '—';
+    global.textContent = '—';
+    meta.textContent = (
+      'Reading network-access settings.'
+    );
+
+    return;
+  }
+
+  const data = (
+    state.securityIp
+  );
+
+  if (!data) {
+    status.textContent = 'Unavailable';
+    observed.textContent = '—';
+    network.textContent = '—';
+    global.textContent = '—';
+    meta.textContent = (
+      'IP restriction settings could '
+      + 'not be loaded.'
+    );
+
+    return;
+  }
+
+  observed.textContent = (
+    data.observed_client_ip
+    || 'Unavailable'
+  );
+
+  network.textContent = (
+    data.observed_client_network
+    || 'Unavailable'
+  );
+
+  global.textContent = (
+    data.global_enforcement_enabled
+      ? 'On'
+      : 'Off'
+  );
+
+  if (
+    data.enforcement_active
+  ) {
+    status.textContent = 'Enforced';
+    status.classList.add(
+      'enabled'
+    );
+  } else if (
+    data.policy.enabled
+  ) {
+    status.textContent = 'Prepared';
+    status.classList.add(
+      'planned'
+    );
+  } else {
+    status.textContent = 'Off';
+  }
+
+  if (
+    !data.global_enforcement_enabled
+  ) {
+    meta.textContent = (
+      'Global enforcement is off. '
+      + 'An enabled policy is only prepared '
+      + 'for the later enforcement rollout '
+      + 'and does not block access yet.'
+    );
+  } else if (
+    data.enforcement_active
+  ) {
+    meta.textContent = (
+      'This account is currently subject '
+      + 'to its saved IP allowlist.'
+    );
+  } else {
+    meta.textContent = (
+      'Global enforcement is available, '
+      + 'but this account policy is off.'
+    );
+  }
+
+  const entries = (
+    data.policy.allowlist
+  );
+
+  if (!entries.length) {
+    const empty = (
+      document.createElement('p')
+    );
+
+    empty.className = (
+      'security-ip-empty'
+    );
+
+    empty.textContent = (
+      'No approved networks are saved.'
+    );
+
+    list.append(
+      empty
+    );
+
+    return;
+  }
+
+  entries.forEach(
+    item => {
+      const row = (
+        document.createElement('div')
+      );
+
+      row.className = (
+        'security-ip-allowlist-row'
+      );
+
+      const identity = (
+        document.createElement('div')
+      );
+
+      identity.className = (
+        'security-ip-allowlist-identity'
+      );
+
+      const networkValue = (
+        document.createElement('strong')
+      );
+
+      networkValue.textContent = (
+        item.network
+      );
+
+      const label = (
+        document.createElement('span')
+      );
+
+      label.textContent = (
+        item.label
+        || 'No description'
+      );
+
+      identity.append(
+        networkValue,
+        label,
+      );
+
+      row.append(
+        identity
+      );
+
+      list.append(
+        row
+      );
+    },
+  );
+}
+
+
+async function loadSecurityIpRestrictions({
+  quiet = false,
+} = {}) {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    state.securityIp = null;
+    state.securityIpLoading = false;
+
+    setSecurityIpError('');
+    renderSecurityIpRestrictions();
+
+    return;
+  }
+
+  const sessionEpoch = (
+    state.adminSessionEpoch
+  );
+
+  const authorization = (
+    state.adminAuthorization
+  );
+
+  const expectedUsername = (
+    state.adminUser.username
+  );
+
+  state.securityIpLoading = true;
+
+  setSecurityIpError('');
+  renderSecurityIpRestrictions();
+
+  try {
+    const result = await adminApi(
+      '/api/auth/ip-restrictions'
+    );
+
+    if (
+      state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    state.securityIp = (
+      normalizeSecurityIpResponse(
+        result,
+        expectedUsername,
+      )
+    );
+
+    setSecurityIpError('');
+
+  } catch (error) {
+    if (
+      staleAdminSessionError(error)
+      || state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    state.securityIp = null;
+
+    const message = (
+      error instanceof TypeError
+        ? (
+          'The dashboard could not contact '
+          + 'the IP restriction service.'
+        )
+        : (
+          error.message
+          || 'Unable to load IP restrictions.'
+        )
+    );
+
+    setSecurityIpError(
+      message
+    );
+
+    if (!quiet) {
+      showToast(
+        message,
+        true,
+      );
+    }
+
+  } finally {
+    if (
+      state.adminSessionEpoch
+        === sessionEpoch
+      && state.adminAuthorization
+        === authorization
+    ) {
+      state.securityIpLoading = false;
+      renderSecurityIpRestrictions();
+    }
+  }
+}
+
+
+function refreshSecurityIpRestrictions() {
+  if (
+    state.securityIpMutating
+  ) {
+    return;
+  }
+
+  void loadSecurityIpRestrictions({
+    quiet: false,
+  });
+}
+
+
+function addSecurityIpEditorRow(
+  network = '',
+  label = '',
+) {
+  const container = $(
+    '#securityIpEditorRows'
+  );
+
+  if (!container) return;
+
+  const row = (
+    document.createElement('div')
+  );
+
+  row.className = (
+    'security-ip-editor-row'
+  );
+
+  const networkLabel = (
+    document.createElement('label')
+  );
+
+  networkLabel.className = (
+    'security-ip-field'
+  );
+
+  const networkTitle = (
+    document.createElement('span')
+  );
+
+  networkTitle.textContent = (
+    'IP address or CIDR'
+  );
+
+  const networkInput = (
+    document.createElement('input')
+  );
+
+  networkInput.type = 'text';
+  networkInput.autocomplete = 'off';
+  networkInput.spellcheck = false;
+  networkInput.maxLength = 64;
+  networkInput.placeholder = (
+    'e.g. 203.0.113.8 or 203.0.113.0/24'
+  );
+  networkInput.value = String(
+    network || ''
+  );
+
+  networkInput.dataset.securityIpNetwork = (
+    'true'
+  );
+
+  networkLabel.append(
+    networkTitle,
+    networkInput,
+  );
+
+  const descriptionLabel = (
+    document.createElement('label')
+  );
+
+  descriptionLabel.className = (
+    'security-ip-field'
+  );
+
+  const descriptionTitle = (
+    document.createElement('span')
+  );
+
+  descriptionTitle.textContent = (
+    'Description'
+  );
+
+  const descriptionInput = (
+    document.createElement('input')
+  );
+
+  descriptionInput.type = 'text';
+  descriptionInput.autocomplete = 'off';
+  descriptionInput.maxLength = 128;
+  descriptionInput.placeholder = (
+    'e.g. Office or VPN'
+  );
+  descriptionInput.value = String(
+    label || ''
+  );
+
+  descriptionInput.dataset.securityIpLabel = (
+    'true'
+  );
+
+  descriptionLabel.append(
+    descriptionTitle,
+    descriptionInput,
+  );
+
+  const remove = (
+    document.createElement('button')
+  );
+
+  remove.type = 'button';
+
+  remove.className = (
+    'button secondary '
+    + 'security-ip-remove'
+  );
+
+  remove.textContent = 'Remove';
+
+  remove.addEventListener(
+    'click',
+    () => {
+      row.remove();
+    },
+  );
+
+  row.append(
+    networkLabel,
+    descriptionLabel,
+    remove,
+  );
+
+  container.append(
+    row
+  );
+}
+
+
+function closeSecurityIpDialog({
+  force = false,
+} = {}) {
+  if (
+    state.securityIpMutating
+    && !force
+  ) {
+    return;
+  }
+
+  const dialog = $(
+    '#securityIpDialog'
+  );
+
+  $('#securityIpForm')
+    ?.reset();
+
+  $('#securityIpRecoveryForm')
+    ?.reset();
+
+  $('#securityIpEditorRows')
+    ?.replaceChildren();
+
+  setSecurityIpDialogError(
+    '#securityIpDialogError',
+    '',
+  );
+
+  setSecurityIpDialogError(
+    '#securityIpRecoveryError',
+    '',
+  );
+
+  if (dialog?.open) {
+    dialog.close();
+  }
+}
+
+
+function openSecurityIpDialog() {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    openAdminDialog();
+    return;
+  }
+
+  if (
+    state.adminUser.auth_source
+    !== 'file'
+  ) {
+    showToast(
+      'IP restriction changes require '
+      + 'a dashboard-managed account.',
+      true,
+    );
+
+    return;
+  }
+
+  if (!state.securityIp) {
+    showToast(
+      'IP restriction settings are not '
+      + 'available yet.',
+      true,
+    );
+
+    void loadSecurityIpRestrictions({
+      quiet: false,
+    });
+
+    return;
+  }
+
+  state.securityIpDialogEpoch += 1;
+
+  const dialog = $(
+    '#securityIpDialog'
+  );
+
+  if (!dialog) {
+    showToast(
+      'IP restriction dialog is unavailable.',
+      true,
+    );
+    return;
+  }
+
+  const identity = $(
+    '#securityIpDialogIdentity'
+  );
+
+  if (identity) {
+    identity.textContent = (
+      `Signed in as ${
+        state.adminUser.username
+      }.`
+    );
+  }
+
+  $('#securityIpDialogObservedAddress')
+    .textContent = (
+      state.securityIp
+        .observed_client_ip
+      || 'Unavailable'
+    );
+
+  $('#securityIpDialogObservedNetwork')
+    .textContent = (
+      state.securityIp
+        .observed_client_network
+      || 'Unavailable'
+    );
+
+  const safety = $(
+    '#securityIpSafetyCopy'
+  );
+
+  if (safety) {
+    safety.textContent = (
+      state.securityIp
+        .global_enforcement_enabled
+        ? (
+          state.securityIp
+            .enforcement_active
+            ? (
+              'Global enforcement is on and '
+              + 'this account policy is active.'
+            )
+            : (
+              'Global enforcement is on, but '
+              + 'this account policy is off.'
+            )
+        )
+        : (
+          'Global IP enforcement is currently '
+          + 'off. Saving an enabled policy '
+          + 'prepares it for the later '
+          + 'enforcement rollout but does '
+          + 'not block access yet.'
+        )
+    );
+  }
+
+  const enabled = $(
+    '#securityIpEnabled'
+  );
+
+  enabled.checked = (
+    state.securityIp
+      .policy.enabled === true
+  );
+
+  const rows = $(
+    '#securityIpEditorRows'
+  );
+
+  rows.replaceChildren();
+
+  state.securityIp
+    .policy.allowlist
+    .forEach(
+      item => {
+        addSecurityIpEditorRow(
+          item.network,
+          item.label,
+        );
+      },
+    );
+
+  const addCurrent = $(
+    '#securityIpAddCurrent'
+  );
+
+  addCurrent.disabled = (
+    !state.securityIp
+      .observed_client_network
+  );
+
+  const recovery = $(
+    '#securityIpAdminRecovery'
+  );
+
+  recovery?.classList.toggle(
+    'hidden',
+    state.adminUser.role
+      !== 'super_admin',
+  );
+
+  setSecurityIpDialogError(
+    '#securityIpDialogError',
+    '',
+  );
+
+  setSecurityIpDialogError(
+    '#securityIpRecoveryError',
+    '',
+  );
+
+  if (!dialog.open) {
+    dialog.showModal();
+  }
+
+  window.setTimeout(
+    () => {
+      $('#securityIpEnabled')
+        ?.focus();
+    },
+    0,
+  );
+}
+
+
+function collectSecurityIpAllowlist() {
+  return $$(
+    '.security-ip-editor-row',
+    $('#securityIpEditorRows'),
+  )
+    .map(
+      row => ({
+        network: String(
+          row.querySelector(
+            '[data-security-ip-network]'
+          )?.value
+          || ''
+        ).trim(),
+        label: String(
+          row.querySelector(
+            '[data-security-ip-label]'
+          )?.value
+          || ''
+        ).trim(),
+      })
+    )
+    .filter(
+      item => item.network
+    );
+}
+
+
+async function submitSecurityIpRestrictions(
+  event,
+) {
+  event.preventDefault();
+
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+    || state.securityIpMutating
+  ) {
+    if (
+      !state.adminUser
+      || !state.adminAuthorization
+    ) {
+      closeSecurityIpDialog({
+        force: true,
+      });
+
+      openAdminDialog();
+    }
+
+    return;
+  }
+
+  const currentPassword = String(
+    $('#securityIpCurrentPassword')
+      ?.value
+    || ''
+  );
+
+  const reason = String(
+    $('#securityIpReason')
+      ?.value
+    || ''
+  ).trim();
+
+  const enabled = Boolean(
+    $('#securityIpEnabled')
+      ?.checked
+  );
+
+  const allowlist = (
+    collectSecurityIpAllowlist()
+  );
+
+  setSecurityIpDialogError(
+    '#securityIpDialogError',
+    '',
+  );
+
+  if (!currentPassword) {
+    setSecurityIpDialogError(
+      '#securityIpDialogError',
+      'Enter your current password.',
+    );
+
+    $('#securityIpCurrentPassword')
+      ?.focus();
+
+    return;
+  }
+
+  if (
+    enabled
+    && !allowlist.length
+  ) {
+    setSecurityIpDialogError(
+      '#securityIpDialogError',
+      (
+        'Add at least one approved network '
+        + 'before preparing IP restrictions.'
+      ),
+    );
+
+    return;
+  }
+
+  const sessionEpoch = (
+    state.adminSessionEpoch
+  );
+
+  const authorization = (
+    state.adminAuthorization
+  );
+
+  const expectedUsername = (
+    state.adminUser.username
+  );
+
+  state.securityIpMutating = true;
+
+  const save = $(
+    '#saveSecurityIpPolicy'
+  );
+
+  if (save) {
+    save.disabled = true;
+  }
+
+  renderSecurityIpRestrictions();
+
+  try {
+    const result = await adminApi(
+      '/api/auth/ip-restrictions',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          enabled,
+          allowlist,
+          current_password:
+            currentPassword,
+          reason,
+        }),
+      },
+    );
+
+    if (
+      state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    const normalized = (
+      normalizeSecurityIpResponse(
+        result,
+        expectedUsername,
+      )
+    );
+
+    /*
+     * A7C490C is intentionally configuration-only.
+     * The backend must still report that request
+     * enforcement is inactive.
+     */
+    if (
+      normalized.enforcement_active
+      !== false
+    ) {
+      throw new Error(
+        'IP enforcement became active during '
+        + 'the configuration-only rollout.'
+      );
+    }
+
+    state.securityIp = (
+      normalized
+    );
+
+    closeSecurityIpDialog({
+      force: true,
+    });
+
+    setSecurityIpError('');
+    renderSecurityIpRestrictions();
+
+    showToast(
+      normalized.policy.enabled
+        ? (
+          normalized.global_enforcement_enabled
+            ? 'IP restriction policy saved.'
+            : (
+              'IP restrictions prepared. '
+              + 'Global enforcement is still off.'
+            )
+        )
+        : 'IP restriction policy saved as off.'
+    );
+
+  } catch (error) {
+    if (
+      staleAdminSessionError(error)
+      || state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    const message = (
+      error instanceof TypeError
+        ? (
+          'The dashboard could not contact '
+          + 'the IP restriction service.'
+        )
+        : (
+          error.message
+          || 'Unable to save IP restrictions.'
+        )
+    );
+
+    setSecurityIpDialogError(
+      '#securityIpDialogError',
+      message,
+    );
+
+    showToast(
+      message,
+      true,
+    );
+
+  } finally {
+    if (
+      state.adminSessionEpoch
+        === sessionEpoch
+      && state.adminAuthorization
+        === authorization
+    ) {
+      state.securityIpMutating = false;
+
+      if (save) {
+        save.disabled = false;
+      }
+
+      renderSecurityIpRestrictions();
+    }
+  }
+}
+
+
+async function submitSecurityIpAdminRecovery(
+  event,
+) {
+  event.preventDefault();
+
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+    || state.adminUser.role
+      !== 'super_admin'
+    || state.securityIpMutating
+  ) {
+    return;
+  }
+
+  const targetUsername = String(
+    $('#securityIpRecoveryUsername')
+      ?.value
+    || ''
+  ).trim().toLowerCase();
+
+  const currentPassword = String(
+    $('#securityIpRecoveryPassword')
+      ?.value
+    || ''
+  );
+
+  const reason = String(
+    $('#securityIpRecoveryReason')
+      ?.value
+    || ''
+  ).trim();
+
+  setSecurityIpDialogError(
+    '#securityIpRecoveryError',
+    '',
+  );
+
+  if (
+    !targetUsername
+    || !currentPassword
+    || !reason
+  ) {
+    setSecurityIpDialogError(
+      '#securityIpRecoveryError',
+      (
+        'Enter the target username, your '
+        + 'current password and a recovery reason.'
+      ),
+    );
+
+    return;
+  }
+
+  const confirmed = window.confirm(
+    (
+      `Disable IP restrictions for ${
+        targetUsername
+      }? Saved allowlist entries will be preserved.`
+    )
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const sessionEpoch = (
+    state.adminSessionEpoch
+  );
+
+  const authorization = (
+    state.adminAuthorization
+  );
+
+  state.securityIpMutating = true;
+
+  const submit = $(
+    '#securityIpRecoverySubmit'
+  );
+
+  if (submit) {
+    submit.disabled = true;
+  }
+
+  renderSecurityIpRestrictions();
+
+  try {
+    const result = await adminApi(
+      (
+        '/api/auth/ip-restrictions/users/'
+        + encodeURIComponent(
+          targetUsername
+        )
+        + '/disable'
+      ),
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password:
+            currentPassword,
+          reason,
+        }),
+      },
+    );
+
+    if (
+      state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    const normalized = (
+      normalizeSecurityIpResponse(
+        result,
+        targetUsername,
+      )
+    );
+
+    if (
+      normalized.policy.enabled
+      || normalized.enforcement_active
+    ) {
+      throw new Error(
+        'Authentication service returned '
+        + 'an invalid recovery result.'
+      );
+    }
+
+    if (
+      targetUsername
+      === state.adminUser.username
+    ) {
+      state.securityIp = (
+        normalized
+      );
+    }
+
+    $('#securityIpRecoveryForm')
+      ?.reset();
+
+    setSecurityIpDialogError(
+      '#securityIpRecoveryError',
+      '',
+    );
+
+    renderSecurityIpRestrictions();
+
+    showToast(
+      result?.status === 'disabled'
+        ? (
+          `IP restrictions disabled for ${
+            targetUsername
+          }. Saved networks were preserved.`
+        )
+        : (
+          `IP restrictions for ${
+            targetUsername
+          } were already off.`
+        )
+    );
+
+  } catch (error) {
+    if (
+      staleAdminSessionError(error)
+      || state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    const message = (
+      error instanceof TypeError
+        ? (
+          'The dashboard could not contact '
+          + 'the IP restriction service.'
+        )
+        : (
+          error.message
+          || 'Unable to run administrator recovery.'
+        )
+    );
+
+    setSecurityIpDialogError(
+      '#securityIpRecoveryError',
+      message,
+    );
+
+    showToast(
+      message,
+      true,
+    );
+
+  } finally {
+    if (
+      state.adminSessionEpoch
+        === sessionEpoch
+      && state.adminAuthorization
+        === authorization
+    ) {
+      state.securityIpMutating = false;
+
+      if (submit) {
+        submit.disabled = false;
+      }
+
+      renderSecurityIpRestrictions();
+    }
+  }
 }
 
 
@@ -1566,6 +2899,7 @@ function renderSecurityPage() {
   }
 
   renderSecuritySessions();
+  renderSecurityIpRestrictions();
 
   const status = $('#securityTotpStatus');
   const meta = $('#securityTotpMeta');
@@ -1773,6 +3107,10 @@ async function loadSecurityOverview({
   await loadSecuritySessions({
     quiet,
   });
+
+  await loadSecurityIpRestrictions({
+    quiet,
+  });
 }
 
 
@@ -1782,8 +3120,16 @@ function clearSecurityState() {
   state.securitySessions = [];
   state.securitySessionsLoading = false;
   state.securitySessionsMutating = false;
+  state.securityIp = null;
+  state.securityIpLoading = false;
+  state.securityIpMutating = false;
 
   setSecuritySessionsError('');
+  setSecurityIpError('');
+
+  closeSecurityIpDialog({
+    force: true,
+  });
 
   closeSecurityTotpDialog({
     force: true,
@@ -21809,6 +23155,105 @@ function bindEvents() {
       }
     },
   );
+  $('#securityIpRefreshButton')?.addEventListener(
+    'click',
+    refreshSecurityIpRestrictions,
+  );
+
+  $('#securityIpManageButton')?.addEventListener(
+    'click',
+    openSecurityIpDialog,
+  );
+
+  $('#securityIpAddNetwork')?.addEventListener(
+    'click',
+    () => {
+      addSecurityIpEditorRow();
+    },
+  );
+
+  $('#securityIpAddCurrent')?.addEventListener(
+    'click',
+    () => {
+      const current = String(
+        state.securityIp
+          ?.observed_client_network
+        || ''
+      ).trim();
+
+      if (!current) {
+        return;
+      }
+
+      const existing = (
+        collectSecurityIpAllowlist()
+          .some(
+            item => (
+              item.network
+              === current
+            ),
+          )
+      );
+
+      if (!existing) {
+        addSecurityIpEditorRow(
+          current,
+          'Current connection',
+        );
+      }
+    },
+  );
+
+  $('#securityIpForm')?.addEventListener(
+    'submit',
+    submitSecurityIpRestrictions,
+  );
+
+  $('#securityIpRecoveryForm')?.addEventListener(
+    'submit',
+    submitSecurityIpAdminRecovery,
+  );
+
+  $('#closeSecurityIpDialog')?.addEventListener(
+    'click',
+    () => {
+      closeSecurityIpDialog();
+    },
+  );
+
+  $('#cancelSecurityIpDialog')?.addEventListener(
+    'click',
+    () => {
+      closeSecurityIpDialog();
+    },
+  );
+
+  $('#securityIpDialog')?.addEventListener(
+    'cancel',
+    event => {
+      if (
+        state.securityIpMutating
+      ) {
+        event.preventDefault();
+        return;
+      }
+
+      closeSecurityIpDialog();
+    },
+  );
+
+  $('#securityIpDialog')?.addEventListener(
+    'click',
+    event => {
+      if (
+        event.target
+        === $('#securityIpDialog')
+      ) {
+        closeSecurityIpDialog();
+      }
+    },
+  );
+
   $('#addRuleButton').addEventListener('click', () => { if (!state.adminUser) { openAdminDialog(); return; } populateFilterOptions(); $('#ruleDialog').showModal(); });
   $('#closeRuleDialog').addEventListener('click', () => $('#ruleDialog').close()); $('#cancelRule').addEventListener('click', () => $('#ruleDialog').close());
   $('#ruleForm').addEventListener('submit', createRule);

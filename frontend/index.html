@@ -84,7 +84,7 @@
   <link rel="stylesheet" href="./aurora-system.css?v=20260906-aurora-a7c156-v1" data-dashboard-ui-stylesheet="aurora" disabled>
   <link
     rel="stylesheet"
-    href="./aurora-security.css?v=20260923-session-revocation-a7c489d-v1"
+    href="./aurora-security.css?v=20260923-ip-restrictions-ui-a7c490c-v1"
     data-dashboard-ui-stylesheet="aurora"
     disabled
   >
@@ -2838,7 +2838,10 @@
             </div>
           </article>
 
-          <article class="panel security-card security-card-planned">
+          <article
+            class="panel security-card security-card-ip"
+            id="securityIpCard"
+          >
             <div class="security-card-heading">
               <div>
                 <span class="security-card-kicker">
@@ -2847,15 +2850,74 @@
                 <h2>IP restrictions</h2>
               </div>
 
-              <span class="security-status-pill planned">
-                Planned
+              <span
+                id="securityIpStatus"
+                class="security-status-pill"
+              >
+                Loading…
               </span>
             </div>
 
             <p>
-              Optionally restrict this account to approved IP
-              addresses or network ranges.
+              Prepare approved IP addresses or network ranges for
+              this dashboard account. The address shown here is
+              the network identity observed by the backend, not a
+              permanent device identity.
             </p>
+
+            <div
+              id="securityIpError"
+              class="form-error hidden security-ip-error"
+              role="alert"
+              aria-live="polite"
+            ></div>
+
+            <div class="security-ip-facts">
+              <div>
+                <span>Observed IP</span>
+                <strong id="securityIpObservedAddress">—</strong>
+              </div>
+
+              <div>
+                <span>Observed host network</span>
+                <strong id="securityIpObservedNetwork">—</strong>
+              </div>
+
+              <div>
+                <span>Global enforcement</span>
+                <strong id="securityIpGlobalEnforcement">—</strong>
+              </div>
+            </div>
+
+            <p
+              id="securityIpMeta"
+              class="security-card-meta security-ip-meta"
+            ></p>
+
+            <div
+              id="securityIpAllowlist"
+              class="security-ip-allowlist"
+              aria-live="polite"
+            ></div>
+
+            <div class="security-card-actions">
+              <button
+                type="button"
+                class="button secondary"
+                id="securityIpRefreshButton"
+              >
+                Refresh network access
+              </button>
+
+              <button
+                type="button"
+                class="button secondary"
+                id="securityIpManageButton"
+                disabled
+              >
+                Manage IP restrictions
+              </button>
+            </div>
           </article>
 
           <article class="panel security-card security-card-planned">
@@ -3458,6 +3520,237 @@
 
 
   <dialog
+    id="securityIpDialog"
+    class="small-dialog security-ip-dialog"
+    aria-labelledby="securityIpDialogTitle"
+  >
+    <div class="dialog-header">
+      <div>
+        <h2 id="securityIpDialogTitle">
+          IP restrictions
+        </h2>
+
+        <p id="securityIpDialogIdentity">
+          Configure network access for this dashboard account.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeSecurityIpDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <div class="security-ip-dialog-content">
+      <div class="security-ip-safety">
+        <strong>
+          Configuration is not enforcement.
+        </strong>
+
+        <p id="securityIpSafetyCopy">
+          Global IP enforcement is currently off. Saving an
+          enabled policy prepares it for the later enforcement
+          rollout but does not block access yet.
+        </p>
+      </div>
+
+      <div class="security-ip-current">
+        <div>
+          <span>Backend-observed IP</span>
+          <strong id="securityIpDialogObservedAddress">—</strong>
+        </div>
+
+        <div>
+          <span>Exact host network</span>
+          <strong id="securityIpDialogObservedNetwork">—</strong>
+        </div>
+      </div>
+
+      <form
+        id="securityIpForm"
+        class="security-ip-form"
+      >
+        <label class="security-ip-enable">
+          <input
+            id="securityIpEnabled"
+            name="enabled"
+            type="checkbox"
+          >
+
+          <span>
+            Prepare this account for IP-restricted access
+          </span>
+        </label>
+
+        <div class="security-ip-editor-head">
+          <div>
+            <strong>Approved networks</strong>
+            <p>
+              Add IPv4/IPv6 addresses or CIDR ranges.
+              Single addresses are saved as /32 or /128.
+            </p>
+          </div>
+
+          <div class="security-ip-editor-actions">
+            <button
+              type="button"
+              class="button secondary"
+              id="securityIpAddCurrent"
+            >
+              Add current connection
+            </button>
+
+            <button
+              type="button"
+              class="button secondary"
+              id="securityIpAddNetwork"
+            >
+              Add network
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="securityIpEditorRows"
+          class="security-ip-editor-rows"
+        ></div>
+
+        <label class="security-ip-field">
+          <span>Current password</span>
+
+          <input
+            id="securityIpCurrentPassword"
+            name="current_password"
+            type="password"
+            autocomplete="current-password"
+            maxlength="1024"
+            required
+          >
+        </label>
+
+        <label class="security-ip-field">
+          <span>Change note</span>
+
+          <textarea
+            id="securityIpReason"
+            name="reason"
+            rows="3"
+            maxlength="1000"
+            placeholder="Optional note for the local security audit"
+          ></textarea>
+        </label>
+
+        <div
+          id="securityIpDialogError"
+          class="form-error hidden"
+          role="alert"
+          aria-live="assertive"
+        ></div>
+
+        <div class="form-actions">
+          <button
+            type="button"
+            class="button secondary"
+            id="cancelSecurityIpDialog"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            class="button primary"
+            id="saveSecurityIpPolicy"
+          >
+            Save network policy
+          </button>
+        </div>
+      </form>
+
+      <section
+        id="securityIpAdminRecovery"
+        class="security-ip-recovery hidden"
+        aria-label="Administrator IP restriction recovery"
+      >
+        <div class="security-ip-recovery-heading">
+          <div>
+            <span class="security-card-kicker">
+              ROOTADMIN RECOVERY
+            </span>
+            <h3>Disable another user's restriction</h3>
+          </div>
+        </div>
+
+        <p>
+          Recovery only. This disables the target user's IP
+          restriction while preserving their saved allowlist.
+          Your current network does not need to match theirs.
+        </p>
+
+        <form id="securityIpRecoveryForm">
+          <label class="security-ip-field">
+            <span>Dashboard username</span>
+
+            <input
+              id="securityIpRecoveryUsername"
+              name="target_username"
+              type="text"
+              autocomplete="off"
+              maxlength="64"
+              required
+            >
+          </label>
+
+          <label class="security-ip-field">
+            <span>Your current password</span>
+
+            <input
+              id="securityIpRecoveryPassword"
+              name="current_password"
+              type="password"
+              autocomplete="current-password"
+              maxlength="1024"
+              required
+            >
+          </label>
+
+          <label class="security-ip-field">
+            <span>Recovery reason</span>
+
+            <textarea
+              id="securityIpRecoveryReason"
+              name="reason"
+              rows="3"
+              maxlength="1000"
+              required
+              placeholder="Document why administrator recovery is required"
+            ></textarea>
+          </label>
+
+          <div
+            id="securityIpRecoveryError"
+            class="form-error hidden"
+            role="alert"
+            aria-live="assertive"
+          ></div>
+
+          <div class="form-actions">
+            <button
+              type="submit"
+              class="button danger"
+              id="securityIpRecoverySubmit"
+            >
+              Disable user's IP restriction
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </dialog>
+
+
+  <dialog
     id="securityTotpDialog"
     class="small-dialog security-totp-dialog"
     aria-labelledby="securityTotpDialogTitle"
@@ -3694,7 +3987,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260906-aurora-a7c148-v1"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1"
     defer
   ></script>
   <script

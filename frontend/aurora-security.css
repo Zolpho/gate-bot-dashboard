@@ -1199,3 +1199,569 @@ html[data-dashboard-ui="aurora"]
     flex-direction: column;
   }
 }
+
+/* ============================================================
+ * 09. IP RESTRICTIONS
+ * ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-card-ip {
+  grid-column: 1 / -1;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-error {
+  margin:
+    0 0 13px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-facts {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+
+  margin-bottom: 13px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-facts > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 4px;
+
+  padding:
+    10px 11px;
+
+  border:
+    1px solid
+    rgba(110, 201, 169, 0.08);
+
+  border-radius: 9px;
+
+  background:
+    rgba(2, 20, 13, 0.42);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-facts span,
+html[data-dashboard-ui="aurora"]
+.security-ip-current span {
+  color:
+    rgba(136, 177, 162, 0.54);
+
+  font-size: 0.58rem;
+  font-weight: 700;
+
+  letter-spacing: 0.045em;
+
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-facts strong,
+html[data-dashboard-ui="aurora"]
+.security-ip-current strong {
+  overflow-wrap: anywhere;
+
+  color:
+    rgba(216, 243, 233, 0.86);
+
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-meta {
+  margin-bottom:
+    13px !important;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-allowlist {
+  display: grid;
+
+  gap: 8px;
+
+  margin-bottom: 13px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-allowlist-row {
+  min-width: 0;
+
+  padding:
+    10px 12px;
+
+  border:
+    1px solid
+    rgba(115, 205, 174, 0.10);
+
+  border-radius: 9px;
+
+  background:
+    rgba(1, 15, 10, 0.44);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-allowlist-identity {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-allowlist-identity strong {
+  overflow-wrap: anywhere;
+
+  color:
+    rgba(229, 250, 242, 0.90);
+
+  font:
+    0.72rem/1.4
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-allowlist-identity span {
+  color:
+    rgba(151, 191, 176, 0.62);
+
+  font-size: 0.67rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-ip-empty {
+  margin: 0;
+
+  padding:
+    13px;
+
+  border:
+    1px dashed
+    rgba(126, 191, 168, 0.13);
+
+  border-radius: 10px;
+
+  color:
+    rgba(149, 188, 174, 0.58);
+
+  font-size: 0.72rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-dialog {
+  width:
+    min(
+      760px,
+      calc(100vw - 32px)
+    );
+
+  max-width: none;
+
+  padding: 0;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(112, 235, 190, 0.22);
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 24, 17, 0.99),
+      rgba(3, 14, 10, 0.995)
+    );
+
+  color:
+    var(--text);
+
+  box-shadow:
+    0 30px 90px
+      rgba(0, 0, 0, 0.54);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-dialog::backdrop {
+  background:
+    rgba(1, 8, 5, 0.74);
+
+  backdrop-filter:
+    blur(5px);
+
+  -webkit-backdrop-filter:
+    blur(5px);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-dialog-content {
+  max-height:
+    min(
+      78vh,
+      820px
+    );
+
+  overflow: auto;
+
+  padding:
+    18px 20px 22px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-safety {
+  margin-bottom: 14px;
+
+  padding:
+    13px 14px;
+
+  border:
+    1px solid
+    rgba(233, 189, 103, 0.18);
+
+  border-radius: 11px;
+
+  background:
+    rgba(156, 112, 37, 0.07);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-safety strong {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    rgba(238, 204, 138, 0.92);
+
+  font-size: 0.72rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-safety p,
+html[data-dashboard-ui="aurora"]
+.security-ip-recovery > p,
+html[data-dashboard-ui="aurora"]
+.security-ip-editor-head p {
+  margin: 0;
+
+  color:
+    rgba(170, 204, 191, 0.70);
+
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-current {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+
+  margin-bottom: 16px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-current > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 4px;
+
+  padding:
+    10px 11px;
+
+  border:
+    1px solid
+    rgba(110, 201, 169, 0.10);
+
+  border-radius: 9px;
+
+  background:
+    rgba(2, 20, 13, 0.42);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-form {
+  display: grid;
+
+  gap: 14px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-enable {
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  padding:
+    11px 12px;
+
+  border:
+    1px solid
+    rgba(107, 226, 185, 0.13);
+
+  border-radius: 10px;
+
+  background:
+    rgba(7, 35, 24, 0.46);
+
+  color:
+    rgba(220, 245, 235, 0.86);
+
+  font-size: 0.74rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-editor-head {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 14px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-editor-head strong {
+  color:
+    rgba(232, 252, 244, 0.92);
+
+  font-size: 0.78rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-editor-actions {
+  flex: 0 0 auto;
+
+  display: flex;
+
+  gap: 7px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-editor-rows {
+  display: grid;
+
+  gap: 9px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-editor-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 0.7fr)
+    auto;
+
+  align-items: end;
+
+  gap: 8px;
+
+  padding:
+    10px;
+
+  border:
+    1px solid
+    rgba(110, 201, 169, 0.10);
+
+  border-radius: 10px;
+
+  background:
+    rgba(1, 15, 10, 0.46);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-field {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 5px;
+
+  color:
+    rgba(158, 195, 181, 0.72);
+
+  font-size: 0.66rem;
+  font-weight: 650;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-field input,
+html[data-dashboard-ui="aurora"]
+.security-ip-field textarea,
+html[data-dashboard-ui="aurora"]
+.security-ip-editor-row input {
+  width: 100%;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-remove {
+  min-height: 37px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-recovery {
+  margin-top: 22px;
+
+  padding-top: 18px;
+
+  border-top:
+    1px solid
+    rgba(238, 133, 121, 0.15);
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-recovery-heading {
+  margin-bottom: 8px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-recovery-heading h3 {
+  margin:
+    3px 0 0;
+
+  color:
+    rgba(250, 233, 229, 0.91);
+
+  font-size: 0.9rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+.security-ip-recovery form {
+  display: grid;
+
+  gap: 12px;
+
+  margin-top: 13px;
+}
+
+
+@media (max-width: 700px) {
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-ip-facts,
+  html[data-dashboard-ui="aurora"]
+  .security-ip-current {
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  .security-ip-editor-head {
+    flex-direction: column;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  .security-ip-editor-actions {
+    width: 100%;
+
+    flex-wrap: wrap;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  .security-ip-editor-row {
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  .security-ip-remove {
+    width: 100%;
+  }
+}
+
+
+@media (max-width: 560px) {
+  html[data-dashboard-ui="aurora"]
+  .security-ip-dialog {
+    width:
+      calc(100vw - 16px);
+
+    border-radius: 14px;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  .security-ip-dialog-content {
+    padding:
+      15px;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  .security-ip-editor-actions {
+    display: grid;
+
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  .security-ip-editor-actions
+  .button {
+    width: 100%;
+  }
+}
