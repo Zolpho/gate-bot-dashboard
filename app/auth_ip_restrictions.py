@@ -343,12 +343,8 @@ def client_ip_matches_allowlist(
     networks: Iterable[str],
 ) -> bool:
     """
-    Pure matcher.
-
-    A7C490B1 deliberately does not call this function from
-    login or Bearer-session authorization. It is used only to
-    validate that a user cannot stage an enabled policy which
-    excludes the connection currently configuring it.
+    Pure IPv4/IPv6 matcher used by both policy validation and
+    the read-only enforcement decision primitive.
     """
 
     address = ipaddress.ip_address(

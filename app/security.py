@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import (
     HTTPAuthorizationCredentials,
     HTTPBasic,
@@ -245,7 +245,67 @@ def authenticate_credentials(
     return user
 
 
+def _request_client_identifier(
+    request: Request,
+) -> str | None:
+    """
+    Return only Starlette/Uvicorn's normalized request.client host.
+
+    The application does not parse forwarding headers. Uvicorn's
+    trusted-proxy configuration remains the sole forwarding-header
+    trust boundary.
+    """
+
+    client = request.client
+
+    if client is None:
+        return None
+
+    value = str(
+        client.host or ""
+    ).strip()
+
+    return value or None
+
+
+def _ip_access_denied_error() -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail="IP access denied",
+    )
+
+
+def _require_basic_ip_access(
+    *,
+    user: DashboardUser,
+    settings: Settings,
+    client_identifier: str | None,
+) -> None:
+    from .auth_ip_restrictions import (
+        evaluate_ip_restriction_access,
+    )
+
+    decision = (
+        evaluate_ip_restriction_access(
+            username=user.username,
+            client_ip=client_identifier,
+            global_enforcement_enabled=(
+                settings
+                .dashboard_ip_restrictions_enforcement_enabled
+            ),
+        )
+    )
+
+    if not bool(
+        decision.get(
+            "allowed"
+        )
+    ):
+        raise _ip_access_denied_error()
+
+
 def require_user(
+    request: Request,
     credentials: Annotated[
         HTTPBasicCredentials | None,
         Depends(_basic),
@@ -259,18 +319,36 @@ def require_user(
         Depends(get_settings),
     ],
 ) -> DashboardUser:
+    client_identifier = (
+        _request_client_identifier(
+            request
+        )
+    )
+
     if bearer_credentials is not None:
         # Local import deliberately avoids the module-level cycle:
         # auth_login imports DashboardUser and identity helpers from
         # this module.
         from .auth_login import (
+            IpRestrictionDenied,
             resolve_bearer_session,
         )
 
-        resolved = resolve_bearer_session(
-            bearer_credentials.credentials,
-            settings=settings,
-        )
+        try:
+            resolved = (
+                resolve_bearer_session(
+                    bearer_credentials.credentials,
+                    settings=settings,
+                    client_identifier=(
+                        client_identifier
+                    ),
+                )
+            )
+
+        except IpRestrictionDenied as exc:
+            raise (
+                _ip_access_denied_error()
+            ) from exc
 
         if resolved is None:
             raise _bearer_authentication_error()
@@ -287,10 +365,20 @@ def require_user(
 
         return user
 
-    return authenticate_credentials(
+    user = authenticate_credentials(
         credentials,
         settings,
     )
+
+    _require_basic_ip_access(
+        user=user,
+        settings=settings,
+        client_identifier=(
+            client_identifier
+        ),
+    )
+
+    return user
 
 
 def require_super_admin(user: Annotated[DashboardUser, Depends(require_user)]) -> DashboardUser:

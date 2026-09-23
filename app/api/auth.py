@@ -25,6 +25,7 @@ from ..auth_ip_restrictions import (
     update_ip_restriction_policy,
 )
 from ..auth_login import (
+    IpRestrictionDenied,
     LoginDenied,
     MfaEnrollmentRequired,
     begin_passkey_mfa_login,
@@ -745,6 +746,12 @@ def password_login(
             exc
         )
 
+    except IpRestrictionDenied as exc:
+        raise HTTPException(
+            status_code=403,
+            detail="IP access denied",
+        ) from exc
+
     except MfaEnrollmentRequired as exc:
         raise HTTPException(
             status_code=403,
@@ -840,6 +847,12 @@ def mfa_login(
         _raise_auth_rate_limit(
             exc
         )
+
+    except IpRestrictionDenied as exc:
+        raise HTTPException(
+            status_code=403,
+            detail="IP access denied",
+        ) from exc
 
     except LoginDenied as exc:
         raise HTTPException(
@@ -1034,6 +1047,12 @@ def complete_passkey_login(
         _raise_auth_rate_limit(
             exc
         )
+
+    except IpRestrictionDenied as exc:
+        raise HTTPException(
+            status_code=403,
+            detail="IP access denied",
+        ) from exc
 
     except (
         LoginDenied,
@@ -1303,8 +1322,9 @@ def current_ip_restrictions(
     configuration and the canonical client address observed by
     Starlette/Uvicorn.
 
-    B1 is configuration-only. No login or Bearer request is
-    blocked by this policy.
+    When the global enforcement arm and this user policy are
+    both enabled, require_user has already validated the current
+    request network before this endpoint executes.
     """
 
     if (
@@ -1352,10 +1372,14 @@ def current_ip_restrictions(
                 settings
                 .dashboard_ip_restrictions_enforcement_enabled
             ),
-        # A7C490B1 deliberately has no request-blocking
-        # integration yet.
         "enforcement_active":
-            False,
+            bool(
+                settings
+                .dashboard_ip_restrictions_enforcement_enabled
+                and policy[
+                    "enabled"
+                ]
+            ),
         "gate_write_performed":
             False,
     }
@@ -1381,7 +1405,9 @@ def replace_current_ip_restrictions(
     enabled additionally requires the current request.client
     address to be contained in the requested allowlist.
 
-    This does not activate request blocking.
+    With global enforcement armed, saving an enabled policy
+    makes that policy active immediately. The current-connection
+    inclusion rule prevents the saving request from excluding itself.
     """
 
     if (
@@ -1464,7 +1490,15 @@ def replace_current_ip_restrictions(
                 .dashboard_ip_restrictions_enforcement_enabled
             ),
         "enforcement_active":
-            False,
+            bool(
+                settings
+                .dashboard_ip_restrictions_enforcement_enabled
+                and result[
+                    "policy"
+                ][
+                    "enabled"
+                ]
+            ),
         "gate_write_performed":
             False,
     }
@@ -1495,8 +1529,8 @@ def administrator_disable_ip_restrictions(
     re-enablement.
 
     The administrator's current network does not need to be in
-    the target user's allowlist. Actual IP enforcement remains
-    absent in A7C490B2.
+    the target user's allowlist. The administrator's own policy,
+    however, is still enforced by require_super_admin/require_user.
     """
 
     if (

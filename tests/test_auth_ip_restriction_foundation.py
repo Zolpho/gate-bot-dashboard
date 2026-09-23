@@ -455,7 +455,7 @@ def test_policy_snapshot_returns_durable_allowlist() -> None:
         )
 
 
-def test_ip_foundation_is_not_wired_to_auth_enforcement_yet() -> None:
+def test_ip_enforcement_wiring_is_limited_to_auth_boundaries() -> None:
     import ast
 
     root = (
@@ -464,20 +464,24 @@ def test_ip_foundation_is_not_wired_to_auth_enforcement_yet() -> None:
         .parents[1]
     )
 
-    allowed_foundation_files = {
-        # B1 may expose/configure policy through the auth API,
-        # but enforcement must still not appear in the login
-        # or authorization path.
+    allowed_files = {
         "app/api/auth.py",
         "app/auth_ip_restrictions.py",
+        "app/auth_login.py",
         "app/config.py",
         "app/migrations.py",
         "app/models.py",
+        "app/security.py",
     }
 
-    unexpected_references = []
+    references_by_file: dict[
+        str,
+        set[str],
+    ] = {}
 
-    for path in sorted(
+    unexpected = []
+
+    for candidate in sorted(
         (
             root
             / "app"
@@ -486,18 +490,12 @@ def test_ip_foundation_is_not_wired_to_auth_enforcement_yet() -> None:
         )
     ):
         relative = str(
-            path.relative_to(
+            candidate.relative_to(
                 root
             )
         )
 
-        if (
-            relative
-            in allowed_foundation_files
-        ):
-            continue
-
-        source = path.read_text(
+        source = candidate.read_text(
             encoding="utf-8"
         )
 
@@ -505,7 +503,7 @@ def test_ip_foundation_is_not_wired_to_auth_enforcement_yet() -> None:
             source
         )
 
-        references = set()
+        references: set[str] = set()
 
         for node in ast.walk(
             tree
@@ -529,10 +527,21 @@ def test_ip_foundation_is_not_wired_to_auth_enforcement_yet() -> None:
                 for alias in node.names:
                     if (
                         alias.name
+                        == (
+                            "evaluate_"
+                            "ip_restriction_access"
+                        )
+                    ):
+                        references.add(
+                            "decision primitive"
+                        )
+
+                    if (
+                        alias.name
                         == "DashboardAuthIpPolicy"
                     ):
                         references.add(
-                            "DashboardAuthIpPolicy import"
+                            "policy model"
                         )
 
             elif isinstance(
@@ -553,21 +562,21 @@ def test_ip_foundation_is_not_wired_to_auth_enforcement_yet() -> None:
             ):
                 if (
                     node.id
-                    == "DashboardAuthIpPolicy"
+                    == (
+                        "evaluate_"
+                        "ip_restriction_access"
+                    )
                 ):
                     references.add(
-                        "DashboardAuthIpPolicy reference"
+                        "decision primitive"
                     )
 
                 if (
                     node.id
-                    == (
-                        "dashboard_ip_restrictions_"
-                        "enforcement_enabled"
-                    )
+                    == "DashboardAuthIpPolicy"
                 ):
                     references.add(
-                        "global enforcement reference"
+                        "policy model"
                     )
 
             elif isinstance(
@@ -582,17 +591,50 @@ def test_ip_foundation_is_not_wired_to_auth_enforcement_yet() -> None:
                     )
                 ):
                     references.add(
-                        "global enforcement reference"
+                        "global enforcement arm"
                     )
 
         if references:
-            unexpected_references.append(
-                (
-                    relative,
-                    sorted(
-                        references
-                    ),
-                )
-            )
+            references_by_file[
+                relative
+            ] = references
 
-    assert unexpected_references == []
+            if relative not in allowed_files:
+                unexpected.append(
+                    (
+                        relative,
+                        sorted(
+                            references
+                        ),
+                    )
+                )
+
+    assert unexpected == []
+
+    assert (
+        "decision primitive"
+        in references_by_file[
+            "app/auth_login.py"
+        ]
+    )
+
+    assert (
+        "decision primitive"
+        in references_by_file[
+            "app/security.py"
+        ]
+    )
+
+    # Enforcement remains entirely within authentication/security
+    # boundaries. No treasury/trading/bot-control module may acquire
+    # direct policy or decision dependencies.
+    for relative in references_by_file:
+        assert not relative.startswith(
+            (
+                "app/api/treasury",
+                "app/api/trading",
+                "app/bot_control",
+                "app/treasury",
+                "app/trading",
+            )
+        )

@@ -6,6 +6,9 @@ from typing import Any
 
 from sqlalchemy import text
 
+from .auth_ip_restrictions import (
+    evaluate_ip_restriction_access,
+)
 from .auth_passkey import (
     PasskeyStateError,
     PasskeyVerificationError,
@@ -67,6 +70,13 @@ class LoginError(RuntimeError):
 
 class LoginDenied(LoginError):
     """Authentication or MFA verification failed."""
+
+
+class IpRestrictionDenied(LoginDenied):
+    """
+    Valid dashboard authentication cannot proceed from the
+    currently observed network.
+    """
 
 
 class MfaEnrollmentRequired(LoginError):
@@ -157,6 +167,35 @@ def _fingerprint(
     )
 
 
+def _require_ip_access(
+    *,
+    user: DashboardUser,
+    settings: Settings,
+    client_identifier: str | None,
+) -> dict[str, Any]:
+    decision = (
+        evaluate_ip_restriction_access(
+            username=user.username,
+            client_ip=client_identifier,
+            global_enforcement_enabled=(
+                settings
+                .dashboard_ip_restrictions_enforcement_enabled
+            ),
+        )
+    )
+
+    if not bool(
+        decision.get(
+            "allowed"
+        )
+    ):
+        raise IpRestrictionDenied(
+            "IP access denied"
+        )
+
+    return decision
+
+
 def _authenticated_result(
     *,
     user: DashboardUser,
@@ -168,6 +207,14 @@ def _authenticated_result(
     user_agent: str | None,
     now: datetime | None,
 ) -> dict[str, Any]:
+    _require_ip_access(
+        user=user,
+        settings=settings,
+        client_identifier=(
+            client_identifier
+        ),
+    )
+
     token, session = (
         create_auth_session(
             username=user.username,
@@ -257,6 +304,16 @@ def begin_password_login(
         raise LoginDenied(
             "Invalid username or password"
         )
+
+    # Do not issue an MFA challenge to a valid identity
+    # from a network that would be unable to complete login.
+    _require_ip_access(
+        user=user,
+        settings=settings,
+        client_identifier=(
+            client_identifier
+        ),
+    )
 
     fingerprint = (
         _fingerprint(
@@ -669,6 +726,17 @@ def complete_passkey_mfa_login(
                 "Login challenge is no longer valid"
             )
 
+        # Re-check the current network at the actual
+        # session-issuance boundary. A challenge may have been
+        # started on another connection.
+        _require_ip_access(
+            user=user,
+            settings=settings,
+            client_identifier=(
+                client_identifier
+            ),
+        )
+
         try:
             passkey_result = (
                 verify_passkey_authentication_challenge_in_session(
@@ -984,6 +1052,17 @@ def complete_mfa_login(
                 "Login challenge is no longer valid"
             )
 
+        # Do not consume a valid factor or parent challenge
+        # when the current network is denied. The user may return
+        # to an approved network and complete the same challenge.
+        _require_ip_access(
+            user=user,
+            settings=settings,
+            client_identifier=(
+                client_identifier
+            ),
+        )
+
         if normalized_method == "totp":
             accepted = (
                 verify_totp_for_user_in_session(
@@ -1100,6 +1179,7 @@ def resolve_bearer_session(
     token: str,
     *,
     settings: Settings,
+    client_identifier: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any] | None:
     """
@@ -1204,6 +1284,17 @@ def resolve_bearer_session(
             now=now,
         )
         return None
+
+    # IP denial is deliberately non-destructive. The token
+    # remains valid and may be used again from an approved network
+    # or after administrator recovery disables the target policy.
+    _require_ip_access(
+        user=user,
+        settings=settings,
+        client_identifier=(
+            client_identifier
+        ),
+    )
 
     touched_session = (
         touch_auth_session(
