@@ -290,6 +290,16 @@ class GateClient:
             json_body=payload,
         )
 
+    async def create_infinite_grid(
+        self,
+        payload: dict[str, Any],
+    ) -> GateResponse:
+        return await self.request(
+            "POST",
+            "/bot/infinite-grid/create",
+            json_body=payload,
+        )
+
     async def stop_bot(self, strategy_id: str, strategy_type: str) -> GateResponse:
         return await self.request(
             "POST",
