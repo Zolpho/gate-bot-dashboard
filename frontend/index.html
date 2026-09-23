@@ -2546,10 +2546,15 @@
                     step="any"
                     value="1"
                     placeholder="1.0"
+                    aria-describedby="infiniteGridProfitHint"
                     required
                   >
                   <span>%</span>
                 </div>
+
+                <small id="infiniteGridProfitHint">
+                  Must be greater than 0.4% and less than 100%.
+                </small>
               </label>
 
               <label>
@@ -2590,7 +2595,12 @@
                       min="0"
                       step="any"
                       placeholder="Optional"
+                      aria-describedby="infiniteGridTriggerHint"
                     >
+
+                    <small id="infiniteGridTriggerHint">
+                      If set, must be below the current market price.
+                    </small>
                   </label>
 
                   <label>

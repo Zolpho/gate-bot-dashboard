@@ -500,3 +500,99 @@ def test_review_discloses_human_percent_and_gate_ratio() -> None:
         "grid.profit_per_grid"
         in block
     )
+
+
+def test_preview_discloses_infinity_validation_boundaries() -> None:
+    block = infinity_html_block()
+
+    assert (
+        'aria-describedby="infiniteGridProfitHint"'
+        in block
+    )
+
+    assert (
+        'id="infiniteGridProfitHint"'
+        in block
+    )
+
+    assert (
+        "Must be greater than 0.4% "
+        "and less than 100%."
+        in block
+    )
+
+    assert (
+        'aria-describedby="infiniteGridTriggerHint"'
+        in block
+    )
+
+    assert (
+        'id="infiniteGridTriggerHint"'
+        in block
+    )
+
+    assert (
+        "If set, must be below the "
+        "current market price."
+        in block
+    )
+
+
+def test_preview_keeps_one_percent_default() -> None:
+    block = infinity_html_block()
+
+    profit_position = block.index(
+        'name="profit_per_grid_percent"'
+    )
+
+    profit_block = block[
+        profit_position:
+        block.index(
+            "</label>",
+            profit_position,
+        )
+    ]
+
+    assert (
+        'value="1"'
+        in profit_block
+    )
+
+    assert (
+        "<span>%</span>"
+        in profit_block
+    )
+
+
+def test_review_renders_prepare_validation_messages() -> None:
+    start = PREVIEW.index(
+        "function renderInfinityGridReview("
+    )
+
+    end = PREVIEW.index(
+        "\n\n  async function prepareInfiniteGrid(",
+        start,
+    )
+
+    block = PREVIEW[
+        start:end
+    ]
+
+    for token in (
+        "prepared.can_create",
+        "prepared.errors",
+        "prepared.warnings",
+        "errors.forEach",
+        "warnings.forEach",
+        "bot-control-message error",
+        "bot-control-message warning",
+        "escapeHtml(",
+        "message",
+    ):
+        assert token in block
+
+    assert (
+        "Preflight failed. "
+        "No Gate write was performed."
+        in block
+    )
