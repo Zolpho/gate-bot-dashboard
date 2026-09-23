@@ -184,10 +184,24 @@ def test_active_sessions_card_is_live_read_only_workspace() -> None:
         in HTML
     )
 
+    revoke_others = document.elements[
+        "securitySessionsRevokeOthersButton"
+    ]
+
+    assert (
+        revoke_others["tag"]
+        == "button"
+    )
+
+    assert (
+        "Revoke all other sessions"
+        in HTML
+    )
+
     assert (
         "Session revocation controls "
         "will be added separately."
-        in HTML
+        not in HTML
     )
 
 
@@ -197,6 +211,7 @@ def test_active_sessions_state_is_memory_only() -> None:
     for token in (
         "securitySessions: []",
         "securitySessionsLoading: false",
+        "securitySessionsMutating: false",
     ):
         assert token in state
 
@@ -428,45 +443,227 @@ def test_manual_refresh_is_read_only_and_bound() -> None:
         assert token in bind
 
 
-def test_active_sessions_frontend_has_no_revocation_surface_yet() -> None:
+def test_individual_session_revocation_is_audited_api_flow() -> None:
+    revoke = function_block(
+        "revokeSecuritySession"
+    )
+
+    for token in (
+        "window.confirm(",
+        "'/api/auth/sessions/'",
+        "+ `${session.id}/revoke`",
+        "method: 'POST'",
+        "result?.status !== 'revoked'",
+        "result?.gate_write_performed",
+        "revoked?.current",
+        "revoked?.revoked_at",
+        "state.securitySessionsMutating = true;",
+    ):
+        assert token in revoke
+
+    for forbidden in (
+        "/api/treasury/",
+        "/api/trading/",
+        "/api/bot-control/",
+        "/api/bots/",
+        "/api/sync",
+    ):
+        assert forbidden not in revoke
+
+
+def test_current_session_revocation_forces_local_logout() -> None:
+    revoke = function_block(
+        "revokeSecuritySession"
+    )
+
+    current_branch = revoke[
+        revoke.index(
+            "if (current) {"
+        ):
+    ]
+
+    for token in (
+        "lockAdmin(false);",
+        "switchTab(",
+        "'overview'",
+        "openAdminDialog();",
+        "Sign in again.",
+    ):
+        assert token in current_branch
+
     assert (
-        APP.count(
-            "'/api/auth/sessions'"
+        current_branch.index(
+            "lockAdmin(false);"
         )
-        == 1
+        < current_branch.index(
+            "openAdminDialog();"
+        )
+    )
+
+
+def test_other_session_revocation_preserves_current_browser() -> None:
+    revoke = function_block(
+        "revokeSecuritySession"
     )
 
     assert (
-        "/api/auth/sessions/revoke-others"
-        not in APP
+        "state.securitySessions.filter("
+        in revoke
+    )
+
+    assert (
+        "item.id !== session.id"
+        in revoke
+    )
+
+    assert (
+        "'Session revoked.'"
+        in revoke
+    )
+
+
+def test_revoke_all_others_preserves_current_session() -> None:
+    revoke = function_block(
+        "revokeOtherSecuritySessions"
+    )
+
+    for token in (
+        "window.confirm(",
+        "'/api/auth/sessions/revoke-others'",
+        "method: 'POST'",
+        "result?.status !== 'revoked'",
+        "result?.gate_write_performed",
+        "current_session_id",
+        "revoked_session_ids",
+        "revoked_count",
+        "state.securitySessions = [",
+        "current,",
+    ):
+        assert token in revoke
+
+    assert (
+        "revokedIds.includes("
+        in revoke
+    )
+
+    assert (
+        "current.id"
+        in revoke
+    )
+
+
+def test_session_mutations_are_stale_safe_and_serialized() -> None:
+    for name in (
+        "revokeSecuritySession",
+        "revokeOtherSecuritySessions",
+    ):
+        operation = function_block(
+            name
+        )
+
+        for token in (
+            "state.securitySessionsMutating",
+            "state.adminSessionEpoch",
+            "state.adminAuthorization",
+            "staleAdminSessionError(error)",
+        ):
+            assert token in operation
+
+    renderer = function_block(
+        "renderSecuritySessions"
+    )
+
+    for token in (
+        "state.securitySessionsMutating",
+        "revokeButton.disabled",
+        "revokeOthers.disabled",
+        "refresh.disabled",
+    ):
+        assert token in renderer
+
+
+def test_session_action_buttons_use_safe_dynamic_dom() -> None:
+    renderer = function_block(
+        "renderSecuritySessions"
+    )
+
+    for token in (
+        "document.createElement('button')",
+        "revokeButton.type = 'button';",
+        "'Sign out this session'",
+        "'Revoke session'",
+        "revokeButton.addEventListener(",
+        "void revokeSecuritySession(",
+    ):
+        assert token in renderer
+
+    for forbidden in (
+        "innerHTML",
+        "insertAdjacentHTML",
+        "outerHTML",
+    ):
+        assert forbidden not in renderer
+
+
+def test_bulk_revoke_button_is_bound() -> None:
+    bind = function_block(
+        "bindEvents"
+    )
+
+    for token in (
+        "'#securitySessionsRevokeOthersButton'",
+        "revokeOtherSecuritySessions,",
+    ):
+        assert token in bind
+
+
+def test_security_clear_resets_mutation_state() -> None:
+    clear = function_block(
+        "clearSecurityState"
+    )
+
+    assert (
+        "state.securitySessionsMutating = false;"
+        in clear
+    )
+
+
+def test_session_revocation_frontend_uses_only_session_api() -> None:
+    mutation_blocks = "".join(
+        (
+            function_block(
+                "revokeSecuritySession"
+            ),
+            function_block(
+                "revokeOtherSecuritySessions"
+            ),
+        )
     )
 
     assert (
         "/api/auth/sessions/"
-        not in APP
+        in mutation_blocks
     )
 
-    card_start = HTML.index(
-        'id="securitySessionsCard"'
+    assert (
+        "/api/auth/sessions/revoke-others"
+        in mutation_blocks
     )
-
-    card_end = HTML.index(
-        "</article>",
-        card_start,
-    )
-
-    card = HTML[
-        card_start:
-        card_end
-    ]
 
     for forbidden in (
-        "Revoke",
-        "Sign out session",
-        "Sign out all",
-        "revoke-others",
+        "/api/treasury/",
+        "/api/trading/",
+        "/api/bot-control/",
+        "/api/bots/",
+        "/api/sync",
+        "token_hash",
+        "credential_fingerprint",
+        "localStorage",
+        "sessionStorage",
+        "indexedDB",
+        "document.cookie",
     ):
-        assert forbidden not in card
+        assert forbidden not in mutation_blocks
 
 
 def test_active_sessions_aurora_layout_is_registered() -> None:

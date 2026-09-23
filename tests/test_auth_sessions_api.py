@@ -503,6 +503,175 @@ def test_revoke_others_preserves_current_session() -> None:
         _clear_rootadmin_auth_state()
 
 
+def test_user_can_revoke_current_session_and_audit_it() -> None:
+    init_db()
+    _clear_rootadmin_auth_state()
+
+    try:
+        with TestClient(app) as client:
+            current = _login(
+                client
+            )
+
+            listing = client.get(
+                "/api/auth/sessions",
+                headers=_bearer(
+                    current
+                ),
+            )
+
+            assert (
+                listing.status_code
+                == 200
+            )
+
+            current_session = next(
+                session
+                for session
+                in listing.json()[
+                    "sessions"
+                ]
+                if session[
+                    "current"
+                ]
+            )
+
+            revoke = client.post(
+                (
+                    "/api/auth/sessions/"
+                    f"{current_session['id']}"
+                    "/revoke"
+                ),
+                headers=_bearer(
+                    current
+                ),
+            )
+
+            assert (
+                revoke.status_code
+                == 200
+            )
+
+            body = revoke.json()
+
+            assert (
+                body[
+                    "status"
+                ]
+                == "revoked"
+            )
+
+            assert (
+                body[
+                    "gate_write_performed"
+                ]
+                is False
+            )
+
+            assert (
+                body[
+                    "session"
+                ][
+                    "id"
+                ]
+                == current_session[
+                    "id"
+                ]
+            )
+
+            assert (
+                body[
+                    "session"
+                ][
+                    "current"
+                ]
+                is True
+            )
+
+            assert (
+                body[
+                    "session"
+                ][
+                    "revoked_at"
+                ]
+            )
+
+            me = client.get(
+                "/api/auth/me",
+                headers=_bearer(
+                    current
+                ),
+            )
+
+            assert (
+                me.status_code
+                == 401
+            )
+
+        with session_scope() as db:
+            events = list(
+                db.scalars(
+                    select(
+                        DashboardAuthEvent
+                    ).where(
+                        DashboardAuthEvent
+                        .target_username
+                        == "rootadmin",
+                        DashboardAuthEvent
+                        .action
+                        == "session_revoked",
+                    )
+                )
+            )
+
+            assert len(
+                events
+            ) == 1
+
+            event = events[0]
+
+            metadata = json.loads(
+                event.metadata_json
+            )
+
+            assert (
+                metadata[
+                    "session_id"
+                ]
+                == current_session[
+                    "id"
+                ]
+            )
+
+            assert (
+                metadata[
+                    "current_session"
+                ]
+                is True
+            )
+
+            assert (
+                metadata[
+                    "source"
+                ]
+                == (
+                    "security_"
+                    "active_sessions"
+                )
+            )
+
+            assert (
+                event.reason
+                == (
+                    "User revoked an active "
+                    "dashboard session."
+                )
+            )
+
+    finally:
+        _clear_rootadmin_auth_state()
+
+
 def test_session_management_requires_bearer_session() -> None:
     init_db()
     _clear_rootadmin_auth_state()

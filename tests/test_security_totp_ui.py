@@ -1029,13 +1029,14 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "&a7c488copy=20260922-authenticator-copy-v1"
             "&a7c488escape=20260922-recovery-escape-guard-v1"
             "&a7c489c=20260922-active-sessions-readonly-v1"
+            "&a7c489d=20260923-session-revocation-v1"
         )
     ]
 
     assert security_styles == [
         (
             "./aurora-security.css?"
-            "v=20260922-active-sessions-a7c489c-v1"
+            "v=20260923-session-revocation-a7c489d-v1"
         )
     ]
 

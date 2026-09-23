@@ -717,6 +717,66 @@ html[data-dashboard-ui="aurora"]
 
 
 html[data-dashboard-ui="aurora"]
+#tab-security .security-session-row-actions {
+  display: flex;
+
+  justify-content: flex-end;
+
+  gap: 8px;
+
+  margin-top: 11px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-revoke,
+html[data-dashboard-ui="aurora"]
+#tab-security .security-session-danger {
+  min-height: 32px;
+
+  border-color:
+    rgba(238, 133, 121, 0.22);
+
+  background:
+    rgba(108, 38, 32, 0.12);
+
+  color:
+    rgba(244, 173, 163, 0.84);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security
+.security-session-revoke:hover:not(:disabled),
+html[data-dashboard-ui="aurora"]
+#tab-security
+.security-session-danger:hover:not(:disabled) {
+  border-color:
+    rgba(246, 144, 130, 0.40);
+
+  background:
+    rgba(135, 43, 35, 0.20);
+
+  color:
+    rgba(255, 203, 195, 0.96);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-security
+.security-session-revoke.current {
+  border-color:
+    rgba(233, 189, 103, 0.20);
+
+  background:
+    rgba(156, 112, 37, 0.08);
+
+  color:
+    rgba(230, 197, 133, 0.82);
+}
+
+
+html[data-dashboard-ui="aurora"]
 #tab-security .security-session-empty {
   margin: 0;
 
@@ -765,6 +825,21 @@ html[data-dashboard-ui="aurora"]
   html[data-dashboard-ui="aurora"]
   #tab-security .security-session-user-agent {
     grid-column: auto;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-session-row-actions {
+    align-items: stretch;
+
+    flex-direction: column;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-security .security-session-row-actions
+  .button {
+    width: 100%;
   }
 }
 

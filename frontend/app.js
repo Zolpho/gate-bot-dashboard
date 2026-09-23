@@ -48,6 +48,7 @@ const state = {
   securityTotpLoading: false,
   securitySessions: [],
   securitySessionsLoading: false,
+  securitySessionsMutating: false,
   securityTotpDialogEpoch: 0,
   privateBalance: null,
   privateBalanceAccountId: '',
@@ -472,10 +473,15 @@ function renderSecuritySessions() {
     '#securitySessionsRefreshButton'
   );
 
+  const revokeOthers = $(
+    '#securitySessionsRevokeOthersButton'
+  );
+
   if (
     !status
     || !list
     || !refresh
+    || !revokeOthers
   ) {
     return;
   }
@@ -492,9 +498,19 @@ function renderSecuritySessions() {
     && state.adminAuthorization
   );
 
+  const busy = (
+    state.securitySessionsLoading
+    || state.securitySessionsMutating
+  );
+
   refresh.disabled = (
     !authenticated
-    || state.securitySessionsLoading
+    || busy
+  );
+
+  revokeOthers.disabled = true;
+  revokeOthers.classList.add(
+    'hidden'
   );
 
   if (!authenticated) {
@@ -538,6 +554,24 @@ function renderSecuritySessions() {
 
   status.classList.add(
     'enabled',
+  );
+
+  const otherSessions = (
+    sessions.filter(
+      session => (
+        session.current !== true
+      ),
+    )
+  );
+
+  revokeOthers.classList.toggle(
+    'hidden',
+    otherSessions.length === 0,
+  );
+
+  revokeOthers.disabled = (
+    busy
+    || otherSessions.length === 0
   );
 
   if (!sessions.length) {
@@ -760,9 +794,57 @@ function renderSecuritySessions() {
       );
     }
 
+    const actions = (
+      document.createElement('div')
+    );
+
+    actions.className = (
+      'security-session-row-actions'
+    );
+
+    const revokeButton = (
+      document.createElement('button')
+    );
+
+    revokeButton.type = 'button';
+
+    revokeButton.className = (
+      'button secondary '
+      + 'security-session-revoke'
+      + (
+        current
+          ? ' current'
+          : ''
+      )
+    );
+
+    revokeButton.textContent = (
+      current
+        ? 'Sign out this session'
+        : 'Revoke session'
+    );
+
+    revokeButton.disabled = (
+      state.securitySessionsMutating
+    );
+
+    revokeButton.addEventListener(
+      'click',
+      () => {
+        void revokeSecuritySession(
+          session.id
+        );
+      },
+    );
+
+    actions.append(
+      revokeButton
+    );
+
     row.append(
       heading,
       facts,
+      actions,
     );
 
     list.append(
@@ -945,9 +1027,472 @@ async function loadSecuritySessions({
 
 
 function refreshSecuritySessions() {
+  if (
+    state.securitySessionsMutating
+  ) {
+    return;
+  }
+
   void loadSecuritySessions({
     quiet: false,
   });
+}
+
+
+function securitySessionMutationMessage(
+  error,
+  fallback,
+) {
+  if (
+    error instanceof TypeError
+  ) {
+    return (
+      'The dashboard could not contact '
+      + 'the session service.'
+    );
+  }
+
+  return (
+    error?.message
+    || fallback
+  );
+}
+
+
+async function revokeSecuritySession(
+  sessionId,
+) {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+    || state.securitySessionsMutating
+  ) {
+    if (
+      !state.adminUser
+      || !state.adminAuthorization
+    ) {
+      openAdminDialog();
+    }
+
+    return;
+  }
+
+  const normalizedId = Number(
+    sessionId
+  );
+
+  const session = (
+    state.securitySessions.find(
+      item => (
+        item.id === normalizedId
+      ),
+    )
+  );
+
+  if (!session) {
+    await loadSecuritySessions({
+      quiet: false,
+    });
+
+    return;
+  }
+
+  const current = (
+    session.current === true
+  );
+
+  const confirmed = window.confirm(
+    current
+      ? (
+          'Sign out this session? '
+          + 'This browser will return '
+          + 'to the account login screen.'
+        )
+      : (
+          'Revoke this active session? '
+          + 'That browser or device will '
+          + 'need to sign in again.'
+        ),
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const sessionEpoch = (
+    state.adminSessionEpoch
+  );
+
+  const authorization = (
+    state.adminAuthorization
+  );
+
+  state.securitySessionsMutating = true;
+
+  setSecuritySessionsError('');
+  renderSecuritySessions();
+
+  try {
+    const result = await adminApi(
+      (
+        '/api/auth/sessions/'
+        + `${session.id}/revoke`
+      ),
+      {
+        method: 'POST',
+      },
+    );
+
+    if (
+      state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    const revoked = (
+      result?.session
+      || null
+    );
+
+    if (
+      result?.status !== 'revoked'
+      || result?.gate_write_performed
+        !== false
+      || Number(
+        revoked?.id
+      ) !== session.id
+      || revoked?.current
+        !== current
+      || !String(
+        revoked?.revoked_at || ''
+      ).trim()
+    ) {
+      throw new Error(
+        'Authentication service returned '
+        + 'an invalid revocation response.'
+      );
+    }
+
+    if (current) {
+      lockAdmin(false);
+
+      switchTab(
+        'overview'
+      );
+
+      openAdminDialog();
+
+      showToast(
+        'This dashboard session was revoked. '
+        + 'Sign in again.'
+      );
+
+      return;
+    }
+
+    state.securitySessions = (
+      state.securitySessions.filter(
+        item => (
+          item.id !== session.id
+        ),
+      )
+    );
+
+    setSecuritySessionsError('');
+
+    showToast(
+      'Session revoked.'
+    );
+
+  } catch (error) {
+    if (
+      staleAdminSessionError(error)
+      || state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    if (
+      error instanceof ApiError
+      && error.status === 404
+    ) {
+      showToast(
+        'That session is already inactive. '
+        + 'Refreshing the session list.',
+        true,
+      );
+
+      await loadSecuritySessions({
+        quiet: true,
+      });
+
+      return;
+    }
+
+    const message = (
+      securitySessionMutationMessage(
+        error,
+        'Unable to revoke the session.',
+      )
+    );
+
+    setSecuritySessionsError(
+      message
+    );
+
+    showToast(
+      message,
+      true,
+    );
+
+  } finally {
+    if (
+      state.adminSessionEpoch
+        === sessionEpoch
+      && state.adminAuthorization
+        === authorization
+    ) {
+      state.securitySessionsMutating = false;
+      renderSecuritySessions();
+    }
+  }
+}
+
+
+async function revokeOtherSecuritySessions() {
+  if (
+    !state.adminUser
+    || !state.adminAuthorization
+    || state.securitySessionsMutating
+  ) {
+    if (
+      !state.adminUser
+      || !state.adminAuthorization
+    ) {
+      openAdminDialog();
+    }
+
+    return;
+  }
+
+  const current = (
+    state.securitySessions.find(
+      session => (
+        session.current === true
+      ),
+    )
+  );
+
+  const others = (
+    state.securitySessions.filter(
+      session => (
+        session.current !== true
+      ),
+    )
+  );
+
+  if (!current) {
+    await loadSecuritySessions({
+      quiet: false,
+    });
+
+    return;
+  }
+
+  if (!others.length) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    (
+      'Revoke all other active sessions? '
+      + `${others.length} session`
+      + (
+        others.length === 1
+          ? ''
+          : 's'
+      )
+      + ' will need to sign in again. '
+      + 'This session will remain signed in.'
+    ),
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const sessionEpoch = (
+    state.adminSessionEpoch
+  );
+
+  const authorization = (
+    state.adminAuthorization
+  );
+
+  state.securitySessionsMutating = true;
+
+  setSecuritySessionsError('');
+  renderSecuritySessions();
+
+  try {
+    const result = await adminApi(
+      '/api/auth/sessions/revoke-others',
+      {
+        method: 'POST',
+      },
+    );
+
+    if (
+      state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    const revokedIds = (
+      Array.isArray(
+        result?.revoked_session_ids
+      )
+        ? result.revoked_session_ids.map(
+            value => Number(
+              value
+            )
+          )
+        : null
+    );
+
+    const revokedCount = Number(
+      result?.revoked_count
+    );
+
+    const currentSessionId = Number(
+      result?.current_session_id
+    );
+
+    const validIds = (
+      revokedIds !== null
+      && revokedIds.every(
+        value => (
+          Number.isInteger(value)
+          && value > 0
+        ),
+      )
+      && new Set(
+        revokedIds
+      ).size === revokedIds.length
+    );
+
+    if (
+      result?.status !== 'revoked'
+      || result?.gate_write_performed
+        !== false
+      || currentSessionId
+        !== current.id
+      || !Number.isInteger(
+        revokedCount
+      )
+      || revokedCount < 0
+      || !validIds
+      || revokedIds.length
+        !== revokedCount
+      || revokedIds.includes(
+        current.id
+      )
+    ) {
+      throw new Error(
+        'Authentication service returned '
+        + 'an invalid bulk-revocation response.'
+      );
+    }
+
+    state.securitySessions = [
+      current,
+    ];
+
+    setSecuritySessionsError('');
+
+    showToast(
+      (
+        `${revokedCount} other `
+        + (
+          revokedCount === 1
+            ? 'session'
+            : 'sessions'
+        )
+        + ' revoked.'
+      )
+    );
+
+  } catch (error) {
+    if (
+      staleAdminSessionError(error)
+      || state.adminSessionEpoch
+        !== sessionEpoch
+      || state.adminAuthorization
+        !== authorization
+    ) {
+      return;
+    }
+
+    if (
+      error instanceof ApiError
+      && error.status === 409
+    ) {
+      lockAdmin(false);
+
+      switchTab(
+        'overview'
+      );
+
+      openAdminDialog();
+
+      showToast(
+        'The current dashboard session '
+        + 'is no longer active. Sign in again.',
+        true,
+      );
+
+      return;
+    }
+
+    const message = (
+      securitySessionMutationMessage(
+        error,
+        (
+          'Unable to revoke the other '
+          + 'active sessions.'
+        ),
+      )
+    );
+
+    setSecuritySessionsError(
+      message
+    );
+
+    showToast(
+      message,
+      true,
+    );
+
+  } finally {
+    if (
+      state.adminSessionEpoch
+        === sessionEpoch
+      && state.adminAuthorization
+        === authorization
+    ) {
+      state.securitySessionsMutating = false;
+      renderSecuritySessions();
+    }
+  }
 }
 
 
@@ -1236,6 +1781,7 @@ function clearSecurityState() {
   state.securityTotpLoading = false;
   state.securitySessions = [];
   state.securitySessionsLoading = false;
+  state.securitySessionsMutating = false;
 
   setSecuritySessionsError('');
 
@@ -21326,6 +21872,11 @@ function bindEvents() {
   $('#securitySessionsRefreshButton')?.addEventListener(
     'click',
     refreshSecuritySessions,
+  );
+
+  $('#securitySessionsRevokeOthersButton')?.addEventListener(
+    'click',
+    revokeOtherSecuritySessions,
   );
 
   $('#securityTotpEnrollForm')?.addEventListener(

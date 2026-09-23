@@ -84,7 +84,7 @@
   <link rel="stylesheet" href="./aurora-system.css?v=20260906-aurora-a7c156-v1" data-dashboard-ui-stylesheet="aurora" disabled>
   <link
     rel="stylesheet"
-    href="./aurora-security.css?v=20260922-active-sessions-a7c489c-v1"
+    href="./aurora-security.css?v=20260923-session-revocation-a7c489d-v1"
     data-dashboard-ui-stylesheet="aurora"
     disabled
   >
@@ -2802,7 +2802,7 @@
             <p>
               Review signed-in dashboard sessions and the client
               information observed when each session was created.
-              Session revocation controls will be added separately.
+              Revoke sessions you no longer recognize or use.
             </p>
 
             <div
@@ -2825,6 +2825,15 @@
                 id="securitySessionsRefreshButton"
               >
                 Refresh sessions
+              </button>
+
+              <button
+                type="button"
+                class="button secondary security-session-danger hidden"
+                id="securitySessionsRevokeOthersButton"
+                disabled
+              >
+                Revoke all other sessions
               </button>
             </div>
           </article>
@@ -3685,7 +3694,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260906-aurora-a7c148-v1"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1"
     defer
   ></script>
   <script
