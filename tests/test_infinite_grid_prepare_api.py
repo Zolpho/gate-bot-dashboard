@@ -483,3 +483,307 @@ def test_prepare_preserves_account_authorization(
         ReadOnlyGateClient.calls
         == []
     )
+
+
+
+def _assert_read_only_prepare_contract(
+    result: dict,
+    *,
+    ready: bool,
+) -> None:
+    assert (
+        result["write_performed"]
+        is False
+    )
+
+    assert (
+        result["can_create"]
+        is ready
+    )
+
+    assert (
+        result["status"]
+        == (
+            "ready"
+            if ready
+            else "invalid"
+        )
+    )
+
+    assert (
+        ReadOnlyGateClient.calls
+        == [
+            (
+                "pair",
+                "EQTY_USDT",
+            ),
+            (
+                "ticker",
+                "EQTY_USDT",
+            ),
+            (
+                "balances",
+                None,
+            ),
+        ]
+    )
+
+
+def test_prepare_propagates_gate_minimum_profit_error(
+    prepare_env,
+) -> None:
+    result = asyncio.run(
+        bc.prepare_infinite_grid(
+            request(
+                profit_per_grid="0.004",
+            ),
+            user(),
+        )
+    )
+
+    _assert_read_only_prepare_contract(
+        result,
+        ready=False,
+    )
+
+    assert any(
+        "greater than 0.4%"
+        in item
+        for item in result[
+            "errors"
+        ]
+    )
+
+    assert (
+        result[
+            "gate_create_payload_preview"
+        ][
+            "create_params"
+        ][
+            "profit_per_grid"
+        ]
+        == "0.004"
+    )
+
+
+def test_prepare_accepts_profit_just_above_gate_minimum(
+    prepare_env,
+) -> None:
+    result = asyncio.run(
+        bc.prepare_infinite_grid(
+            request(
+                profit_per_grid="0.0041",
+            ),
+            user(),
+        )
+    )
+
+    _assert_read_only_prepare_contract(
+        result,
+        ready=True,
+    )
+
+    assert not any(
+        "Profit per grid"
+        in item
+        for item in result[
+            "errors"
+        ]
+    )
+
+
+def test_prepare_propagates_gate_maximum_profit_error(
+    prepare_env,
+) -> None:
+    result = asyncio.run(
+        bc.prepare_infinite_grid(
+            request(
+                profit_per_grid="1",
+            ),
+            user(),
+        )
+    )
+
+    _assert_read_only_prepare_contract(
+        result,
+        ready=False,
+    )
+
+    assert any(
+        "less than 100%"
+        in item
+        for item in result[
+            "errors"
+        ]
+    )
+
+    assert (
+        result[
+            "gate_create_payload_preview"
+        ][
+            "create_params"
+        ][
+            "profit_per_grid"
+        ]
+        == "1"
+    )
+
+
+def test_prepare_accepts_profit_just_below_gate_maximum(
+    prepare_env,
+) -> None:
+    result = asyncio.run(
+        bc.prepare_infinite_grid(
+            request(
+                profit_per_grid="0.999",
+            ),
+            user(),
+        )
+    )
+
+    _assert_read_only_prepare_contract(
+        result,
+        ready=True,
+    )
+
+    assert not any(
+        "Profit per grid"
+        in item
+        for item in result[
+            "errors"
+        ]
+    )
+
+
+def test_prepare_propagates_trigger_equal_market_error(
+    prepare_env,
+) -> None:
+    result = asyncio.run(
+        bc.prepare_infinite_grid(
+            request(
+                trigger_price="0.001700",
+            ),
+            user(),
+        )
+    )
+
+    _assert_read_only_prepare_contract(
+        result,
+        ready=False,
+    )
+
+    assert any(
+        "Trigger price must be below"
+        in item
+        for item in result[
+            "errors"
+        ]
+    )
+
+    assert (
+        result[
+            "gate_create_payload_preview"
+        ][
+            "create_params"
+        ][
+            "trigger_price"
+        ]
+        == "0.0017"
+    )
+
+
+def test_prepare_accepts_trigger_below_market(
+    prepare_env,
+) -> None:
+    result = asyncio.run(
+        bc.prepare_infinite_grid(
+            request(
+                trigger_price="0.001600",
+            ),
+            user(),
+        )
+    )
+
+    _assert_read_only_prepare_contract(
+        result,
+        ready=True,
+    )
+
+    assert not any(
+        "Trigger price"
+        in item
+        for item in result[
+            "errors"
+        ]
+    )
+
+
+def test_prepare_rejects_trigger_when_market_price_unavailable(
+    prepare_env,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def ticker_without_last(
+        self,
+        market: str,
+    ) -> GateResponse:
+        self.calls.append(
+            (
+                "ticker",
+                market,
+            )
+        )
+
+        return GateResponse(
+            data=[
+                {
+                    "currency_pair":
+                        market,
+                    "last":
+                        None,
+                    "highest_bid":
+                        "0.001699",
+                    "lowest_ask":
+                        "0.001701",
+                }
+            ],
+            status_code=200,
+            headers={},
+            raw={},
+        )
+
+    monkeypatch.setattr(
+        ReadOnlyGateClient,
+        "list_spot_tickers",
+        ticker_without_last,
+    )
+
+    result = asyncio.run(
+        bc.prepare_infinite_grid(
+            request(
+                trigger_price="0.001600",
+            ),
+            user(),
+        )
+    )
+
+    _assert_read_only_prepare_contract(
+        result,
+        ready=False,
+    )
+
+    assert any(
+        "cannot be validated"
+        in item
+        for item in result[
+            "errors"
+        ]
+    )
+
+    assert (
+        result[
+            "market_snapshot"
+        ][
+            "last"
+        ]
+        is None
+    )
