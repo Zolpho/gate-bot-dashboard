@@ -400,3 +400,238 @@ def test_gate_client_uses_exact_infinite_grid_endpoint() -> None:
             payload,
         )
     ]
+
+
+def _validate_profit_per_grid(
+    value: str,
+) -> list[str]:
+    errors, _, _ = (
+        validate_infinite_grid(
+            money=Decimal("10"),
+            price_floor=Decimal("1"),
+            profit_per_grid=Decimal(
+                value
+            ),
+            grid_num=10,
+            price_type=1,
+            price_precision=6,
+            trade_status="tradable",
+            min_quote_amount=Decimal(
+                "1"
+            ),
+            available_quote=Decimal(
+                "100"
+            ),
+            current_price=Decimal(
+                "2"
+            ),
+        )
+    )
+
+    return errors
+
+
+def test_rejects_profit_per_grid_at_gate_minimum() -> None:
+    errors = _validate_profit_per_grid(
+        "0.004"
+    )
+
+    assert any(
+        "greater than 0.4%"
+        in item
+        for item in errors
+    )
+
+
+def test_rejects_profit_per_grid_below_gate_minimum() -> None:
+    errors = _validate_profit_per_grid(
+        "0.0039"
+    )
+
+    assert any(
+        "greater than 0.4%"
+        in item
+        for item in errors
+    )
+
+
+def test_accepts_profit_per_grid_above_gate_minimum() -> None:
+    errors = _validate_profit_per_grid(
+        "0.0041"
+    )
+
+    assert not any(
+        "Profit per grid"
+        in item
+        for item in errors
+    )
+
+
+def test_rejects_profit_per_grid_at_gate_maximum() -> None:
+    errors = _validate_profit_per_grid(
+        "1"
+    )
+
+    assert any(
+        "less than 100%"
+        in item
+        for item in errors
+    )
+
+
+def test_rejects_profit_per_grid_above_gate_maximum() -> None:
+    errors = _validate_profit_per_grid(
+        "1.01"
+    )
+
+    assert any(
+        "less than 100%"
+        in item
+        for item in errors
+    )
+
+
+def test_accepts_profit_per_grid_below_gate_maximum() -> None:
+    errors = _validate_profit_per_grid(
+        "0.999"
+    )
+
+    assert not any(
+        "Profit per grid"
+        in item
+        for item in errors
+    )
+
+
+def test_rejects_trigger_price_equal_to_market() -> None:
+    errors, _, _ = (
+        validate_infinite_grid(
+            money=Decimal("10"),
+            price_floor=Decimal("1"),
+            profit_per_grid=Decimal(
+                "0.01"
+            ),
+            grid_num=10,
+            price_type=1,
+            price_precision=6,
+            trade_status="tradable",
+            min_quote_amount=Decimal(
+                "1"
+            ),
+            available_quote=Decimal(
+                "100"
+            ),
+            current_price=Decimal(
+                "2"
+            ),
+            trigger_price=Decimal(
+                "2"
+            ),
+        )
+    )
+
+    assert any(
+        "Trigger price must be below"
+        in item
+        for item in errors
+    )
+
+
+def test_rejects_trigger_price_above_market() -> None:
+    errors, _, _ = (
+        validate_infinite_grid(
+            money=Decimal("10"),
+            price_floor=Decimal("1"),
+            profit_per_grid=Decimal(
+                "0.01"
+            ),
+            grid_num=10,
+            price_type=1,
+            price_precision=6,
+            trade_status="tradable",
+            min_quote_amount=Decimal(
+                "1"
+            ),
+            available_quote=Decimal(
+                "100"
+            ),
+            current_price=Decimal(
+                "2"
+            ),
+            trigger_price=Decimal(
+                "2.1"
+            ),
+        )
+    )
+
+    assert any(
+        "Trigger price must be below"
+        in item
+        for item in errors
+    )
+
+
+def test_accepts_trigger_price_below_market() -> None:
+    errors, _, _ = (
+        validate_infinite_grid(
+            money=Decimal("10"),
+            price_floor=Decimal("1"),
+            profit_per_grid=Decimal(
+                "0.01"
+            ),
+            grid_num=10,
+            price_type=1,
+            price_precision=6,
+            trade_status="tradable",
+            min_quote_amount=Decimal(
+                "1"
+            ),
+            available_quote=Decimal(
+                "100"
+            ),
+            current_price=Decimal(
+                "2"
+            ),
+            trigger_price=Decimal(
+                "1.9"
+            ),
+        )
+    )
+
+    assert not any(
+        "Trigger price"
+        in item
+        for item in errors
+    )
+
+
+def test_trigger_price_requires_current_market_price() -> None:
+    errors, _, _ = (
+        validate_infinite_grid(
+            money=Decimal("10"),
+            price_floor=Decimal("1"),
+            profit_per_grid=Decimal(
+                "0.01"
+            ),
+            grid_num=10,
+            price_type=1,
+            price_precision=6,
+            trade_status="tradable",
+            min_quote_amount=Decimal(
+                "1"
+            ),
+            available_quote=Decimal(
+                "100"
+            ),
+            current_price=None,
+            trigger_price=Decimal(
+                "1.9"
+            ),
+        )
+    )
+
+    assert any(
+        "cannot be validated"
+        in item
+        for item in errors
+    )

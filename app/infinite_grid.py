@@ -9,6 +9,14 @@ from .spot_grid import (
 )
 
 
+# Gate documents Infinite Grid profit-per-grid in percentage
+# terms as strictly greater than 0.4% and strictly less
+# than 100%. The API payload uses a ratio, so those limits
+# are represented here as 0.004 and 1 respectively.
+GATE_MIN_PROFIT_PER_GRID = Decimal("0.004")
+GATE_MAX_PROFIT_PER_GRID = Decimal("1")
+
+
 def build_infinite_grid_payload(
     *,
     market: str,
@@ -104,11 +112,11 @@ def validate_infinite_grid(
     list[str],
     dict[str, Any],
 ]:
-    """Perform only locally-supported Infinity Grid checks.
+    """Perform locally-supported Infinity Grid checks.
 
-    This deliberately does not invent undocumented Gate limits
-    for profit_per_grid, grid_num, or optional strategy fields.
-    Gate remains authoritative for server-only constraints.
+    Enforce constraints Gate currently documents for Infinite
+    Grid and avoid inventing unpublished limits. In particular,
+    no undocumented maximum grid count is imposed here.
     """
 
     errors: list[str] = []
@@ -124,9 +132,22 @@ def validate_infinite_grid(
             "Price floor must be greater than zero."
         )
 
-    if profit_per_grid <= 0:
+    if (
+        profit_per_grid
+        <= GATE_MIN_PROFIT_PER_GRID
+    ):
         errors.append(
-            "Profit per grid must be greater than zero."
+            "Profit per grid must be greater than "
+            "0.4% (Gate documented limit)."
+        )
+
+    if (
+        profit_per_grid
+        >= GATE_MAX_PROFIT_PER_GRID
+    ):
+        errors.append(
+            "Profit per grid must be less than "
+            "100% (Gate documented limit)."
         )
 
     if (
@@ -196,6 +217,25 @@ def validate_infinite_grid(
                 f"{name} has more than "
                 f"{price_precision} decimal places."
             )
+
+    if (
+        trigger_price is not None
+        and current_price is None
+    ):
+        errors.append(
+            "Current market price is unavailable, so "
+            "the trigger price cannot be validated."
+        )
+
+    if (
+        trigger_price is not None
+        and current_price is not None
+        and trigger_price >= current_price
+    ):
+        errors.append(
+            "Trigger price must be below the current "
+            "market price (Gate documented limit)."
+        )
 
     if (
         current_price is not None
