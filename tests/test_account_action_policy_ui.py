@@ -18,9 +18,14 @@ FEATURE = (
     / "frontend/account-permissions.js"
 ).read_text()
 
-CSS = (
+AURORA_CSS = (
     ROOT
     / "frontend/aurora-account-permissions.css"
+).read_text()
+
+CLASSIC_CSS = (
+    ROOT
+    / "frontend/classic-account-permissions.css"
 ).read_text()
 
 
@@ -106,31 +111,106 @@ def test_permissions_workspace_is_canonical_but_hidden() -> None:
     assert dialog["tag"] == "dialog"
 
 
-def test_permissions_assets_are_aurora_owned() -> None:
+def test_permissions_have_interface_owned_stylesheets() -> None:
     document = inventory()
 
-    stylesheet = next(
-        item
+    by_path = {
+        item.get("href", "").split("?")[0]:
+            item
         for item in document.links
-        if (
-            item.get("href", "").split("?")[0]
-            == "./aurora-account-permissions.css"
+    }
+
+    classic = by_path[
+        "./classic-account-permissions.css"
+    ]
+
+    aurora = by_path[
+        "./aurora-account-permissions.css"
+    ]
+
+    assert (
+        classic.get(
+            "data-dashboard-ui-stylesheet"
         )
+        == "classic"
     )
 
     assert (
-        stylesheet.get(
+        aurora.get(
             "data-dashboard-ui-stylesheet"
         )
         == "aurora"
     )
 
-    assert "disabled" in stylesheet
+    assert "disabled" in classic
+    assert "disabled" in aurora
+
+    assert (
+        classic.get("href")
+        == (
+            "./classic-account-permissions.css?"
+            "v=20260923-classic-permissions-a7c491b2-v1"
+        )
+    )
+
+    assert (
+        'html[data-dashboard-ui="classic"]'
+        in CLASSIC_CSS
+    )
 
     assert (
         'html[data-dashboard-ui="aurora"]'
-        in CSS
+        not in CLASSIC_CSS
     )
+
+    assert (
+        'html[data-dashboard-ui="aurora"]'
+        in AURORA_CSS
+    )
+
+
+def test_classic_permissions_cover_full_workspace() -> None:
+    for selector in (
+        "#accountPermissionsButton",
+        ".account-permissions-dialog",
+        ".account-permissions-header",
+        ".account-permissions-body",
+        ".account-permissions-safety",
+        ".account-permissions-list",
+        ".account-policy-card",
+        ".account-policy-meta",
+        ".account-policy-capabilities",
+        ".account-policy-switch",
+        ".account-policy-save-zone",
+        ".account-policy-save-zone textarea",
+        ".account-policy-history",
+        ".account-policy-event",
+        ".account-permissions-footer",
+    ):
+        assert selector in CLASSIC_CSS
+
+
+def test_classic_permissions_switch_is_custom_styled() -> None:
+    for token in (
+        ".account-policy-switch input",
+        "opacity: 0;",
+        ".account-policy-switch-track",
+        ".account-policy-switch-track::after",
+        "input:checked",
+        "translateX(16px)",
+        "input:focus-visible",
+    ):
+        assert token in CLASSIC_CSS
+
+
+def test_classic_permissions_responsive_contract() -> None:
+    for breakpoint in (
+        "@media (max-width: 900px)",
+        "@media (max-width: 820px)",
+        "@media (max-width: 560px)",
+        "@media (prefers-reduced-motion: reduce)",
+    ):
+        assert breakpoint in CLASSIC_CSS
 
 
 def test_permissions_feature_loads_after_app() -> None:
@@ -330,5 +410,9 @@ def test_permissions_css_does_not_target_frozen_wallet_ui() -> None:
         ".wallet-tab",
     )
 
-    for selector in forbidden:
-        assert selector not in CSS
+    for stylesheet in (
+        AURORA_CSS,
+        CLASSIC_CSS,
+    ):
+        for selector in forbidden:
+            assert selector not in stylesheet
