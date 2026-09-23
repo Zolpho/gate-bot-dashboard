@@ -15,7 +15,7 @@ APP = (
 
 FEATURE = (
     ROOT
-    / "frontend/aurora-account-permissions.js"
+    / "frontend/account-permissions.js"
 ).read_text()
 
 CSS = (
@@ -154,7 +154,7 @@ def test_permissions_feature_loads_after_app() -> None:
         for index, source
         in enumerate(sources)
         if source.startswith(
-            "./aurora-account-permissions.js?"
+            "./account-permissions.js?"
         )
     )
 
@@ -180,8 +180,8 @@ def test_permissions_feature_loads_after_app() -> None:
     assert (
         sources[feature_index]
         == (
-            "./aurora-account-permissions.js?"
-            "v=20260913-account-permissions-a7c486-v1"
+            "./account-permissions.js?"
+            "v=20260923-classic-permissions-a7c491b1-v1"
         )
     )
 
@@ -207,17 +207,7 @@ def test_app_contains_only_permissions_lifecycle_hooks() -> None:
     )
 
 
-def test_feature_is_rootadmin_and_aurora_only() -> None:
-    assert (
-        "dataset.dashboardUi"
-        in FEATURE
-    )
-
-    assert (
-        "!== 'aurora'"
-        in FEATURE
-    )
-
+def test_feature_is_rootadmin_and_interface_shared() -> None:
     assert (
         "state.adminUser.role === 'super_admin'"
         in FEATURE
@@ -225,6 +215,21 @@ def test_feature_is_rootadmin_and_aurora_only() -> None:
 
     assert (
         "/api/auth/account-policies"
+        in FEATURE
+    )
+
+    assert (
+        "dataset.dashboardUi"
+        not in FEATURE
+    )
+
+    assert (
+        "!== 'aurora'"
+        not in FEATURE
+    )
+
+    assert (
+        "Shared by Classic and Aurora."
         in FEATURE
     )
 

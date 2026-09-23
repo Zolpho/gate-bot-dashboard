@@ -2,20 +2,14 @@
   'use strict';
 
   /*
-   * A7C486 — Aurora-only rootadmin Wallet-account
-   * authorization control surface.
+   * Rootadmin Wallet-account authorization control surface.
+   *
+   * Shared by Classic and Aurora.
    *
    * This module changes local dashboard policy only.
    * No Treasury, Trading, Bot Control, Bot, or Gate
    * execution endpoint is referenced here.
    */
-
-  if (
-    document.documentElement.dataset.dashboardUi
-    !== 'aurora'
-  ) {
-    return;
-  }
 
   const permissionsState = {
     items: [],
