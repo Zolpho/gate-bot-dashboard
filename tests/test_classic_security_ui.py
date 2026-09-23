@@ -105,7 +105,7 @@ def test_classic_security_stylesheet_is_registered() -> None:
         stylesheet.get("href")
         == (
             "./classic-security.css?"
-            "v=20260923-classic-security-a7c491a-v1"
+            "v=20260923-classic-security-a7c491a1-v1"
         )
     )
 
@@ -223,6 +223,20 @@ def test_classic_ip_checkbox_resets_global_input_geometry() -> None:
         "box-sizing: border-box;",
     ):
         assert token in checkbox
+
+
+def test_classic_security_textareas_are_not_browser_default() -> None:
+    for token in (
+        ".security-ip-field textarea {",
+        "min-height: 78px;",
+        "resize: vertical;",
+        "var(--bg);",
+        "var(--text);",
+        "font: inherit;",
+        ".security-ip-field textarea::placeholder",
+        ".security-ip-field textarea:focus",
+    ):
+        assert token in CSS
 
 
 def test_classic_security_responsive_contract() -> None:

@@ -1405,6 +1405,61 @@ html[data-dashboard-ui="classic"]
 
 
 html[data-dashboard-ui="classic"]
+.security-ip-field textarea {
+  min-height: 78px;
+
+  padding:
+    10px 11px;
+
+  resize: vertical;
+
+  border:
+    1px solid
+    var(--border);
+
+  border-radius: 9px;
+
+  background:
+    var(--bg);
+
+  color:
+    var(--text);
+
+  font: inherit;
+  line-height: 1.45;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-field textarea::placeholder {
+  color:
+    var(--muted);
+
+  opacity: 0.68;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-field textarea:hover {
+  border-color:
+    #3a534a;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-field textarea:focus {
+  outline: none;
+
+  border-color:
+    var(--accent);
+
+  box-shadow:
+    0 0 0 2px
+    rgba(23, 211, 154, 0.10);
+}
+
+
+html[data-dashboard-ui="classic"]
 .security-ip-remove {
   min-height: 38px;
 }
