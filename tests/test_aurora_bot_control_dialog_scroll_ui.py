@@ -292,7 +292,7 @@ def test_classic_dialog_shells_remain_clipped_flex_columns():
 
 def test_only_aurora_bot_control_cache_key_changed():
     bot_control_version = (
-        "20260923-infinity-preview-m4-v1"
+        "20260923-bot-control-market-m42-v2"
     )
 
     app_base_version = (

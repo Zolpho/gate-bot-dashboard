@@ -260,7 +260,7 @@ def test_pair_marks_are_adjacent_not_overlapped():
 
 def test_changed_assets_use_new_cache_key():
     bot_control_version = (
-        "20260923-infinity-preview-m4-v1"
+        "20260923-bot-control-market-m42-v2"
     )
 
     app_base_version = (

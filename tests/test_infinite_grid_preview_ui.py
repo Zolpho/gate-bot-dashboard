@@ -102,7 +102,7 @@ def test_preview_assets_are_registered() -> None:
 
     assert (
         "./bot-control.css?"
-        "v=20260923-infinity-preview-m4-v1"
+        "v=20260923-bot-control-market-m42-v2"
         in HTML
     )
 
