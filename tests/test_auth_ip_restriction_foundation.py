@@ -465,6 +465,10 @@ def test_ip_foundation_is_not_wired_to_auth_enforcement_yet() -> None:
     )
 
     allowed_foundation_files = {
+        # B1 may expose/configure policy through the auth API,
+        # but enforcement must still not appear in the login
+        # or authorization path.
+        "app/api/auth.py",
         "app/auth_ip_restrictions.py",
         "app/config.py",
         "app/migrations.py",

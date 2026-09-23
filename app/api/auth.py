@@ -16,6 +16,13 @@ from ..account_action_policy import (
     update_account_action_policy,
 )
 from ..accounts import AccountConfigError, enabled_gate_accounts
+from ..auth_ip_restrictions import (
+    AuthIpRestrictionError,
+    client_ip_host_network,
+    get_ip_restriction_policy,
+    normalize_client_ip,
+    update_ip_restriction_policy,
+)
 from ..auth_login import (
     LoginDenied,
     MfaEnrollmentRequired,
@@ -237,6 +244,51 @@ class MfaResetRequest(BaseModel):
     )
 
 
+class IpAllowlistEntryRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    network: str = Field(
+        min_length=1,
+        max_length=64,
+    )
+
+    label: str = Field(
+        default="",
+        max_length=128,
+    )
+
+
+class IpRestrictionUpdateRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    enabled: StrictBool
+
+    allowlist: list[
+        IpAllowlistEntryRequest
+    ] = Field(
+        default_factory=list,
+        max_length=64,
+    )
+
+    current_password: str = Field(
+        min_length=1,
+        max_length=1024,
+    )
+
+    reason: str = Field(
+        default="",
+        max_length=1000,
+    )
+
+
 def _totp_qr_data_uri(
     provisioning_uri: str,
 ) -> str:
@@ -352,6 +404,53 @@ def _request_client_identifier(
     ).strip()
 
     return value or None
+
+
+def _observed_client_ip(
+    request: Request,
+) -> tuple[
+    str | None,
+    str | None,
+]:
+    """
+    Return only a canonical address derived from request.client.
+
+    Forwarding-header trust remains exclusively at the Uvicorn
+    boundary. The application does not parse X-Forwarded-For,
+    X-Real-IP or Forwarded.
+    """
+
+    raw = _request_client_identifier(
+        request
+    )
+
+    if raw is None:
+        return (
+            None,
+            None,
+        )
+
+    try:
+        address = normalize_client_ip(
+            raw
+        )
+
+        network = (
+            client_ip_host_network(
+                address
+            )
+        )
+
+    except AuthIpRestrictionError:
+        return (
+            None,
+            None,
+        )
+
+    return (
+        address,
+        network,
+    )
 
 
 def _request_user_agent(
@@ -1162,6 +1261,190 @@ def revoke_other_active_sessions(
         "status":
             "revoked",
         **result,
+        "gate_write_performed":
+            False,
+    }
+
+
+@router.get("/ip-restrictions")
+def current_ip_restrictions(
+    request: Request,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Return the authenticated user's local IP-restriction
+    configuration and the canonical client address observed by
+    Starlette/Uvicorn.
+
+    B1 is configuration-only. No login or Bearer request is
+    blocked by this policy.
+    """
+
+    if (
+        _request_bearer_token(
+            request
+        )
+        is None
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Bearer session required",
+        )
+
+    observed_ip, observed_network = (
+        _observed_client_ip(
+            request
+        )
+    )
+
+    try:
+        policy = (
+            get_ip_restriction_policy(
+                username=user.username,
+            )
+        )
+
+    except AuthIpRestrictionError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "IP restriction service "
+                "is not available"
+            ),
+        ) from exc
+
+    return {
+        "policy":
+            policy,
+        "observed_client_ip":
+            observed_ip,
+        "observed_client_network":
+            observed_network,
+        "global_enforcement_enabled":
+            (
+                settings
+                .dashboard_ip_restrictions_enforcement_enabled
+            ),
+        # A7C490B1 deliberately has no request-blocking
+        # integration yet.
+        "enforcement_active":
+            False,
+        "gate_write_performed":
+            False,
+    }
+
+
+@router.put("/ip-restrictions")
+def replace_current_ip_restrictions(
+    request: Request,
+    payload: IpRestrictionUpdateRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Atomically replace the authenticated user's local policy.
+
+    Fresh password confirmation is required. Marking a policy
+    enabled additionally requires the current request.client
+    address to be contained in the requested allowlist.
+
+    This does not activate request blocking.
+    """
+
+    if (
+        _request_bearer_token(
+            request
+        )
+        is None
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Bearer session required",
+        )
+
+    observed_ip, observed_network = (
+        _observed_client_ip(
+            request
+        )
+    )
+
+    _confirm_current_password(
+        user,
+        payload.current_password,
+        settings=settings,
+        client_identifier=(
+            observed_ip
+        ),
+    )
+
+    try:
+        result = (
+            update_ip_restriction_policy(
+                username=user.username,
+                actor_username=(
+                    user.username
+                ),
+                enabled=bool(
+                    payload.enabled
+                ),
+                allowlist=[
+                    item.model_dump()
+                    for item
+                    in payload.allowlist
+                ],
+                observed_client_ip=(
+                    observed_ip
+                ),
+                reason=(
+                    payload.reason
+                ),
+                source=(
+                    "security_ip_restrictions"
+                ),
+            )
+        )
+
+    except AuthIpRestrictionError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(
+                exc
+            ),
+        ) from exc
+
+    return {
+        "status": (
+            "updated"
+            if result[
+                "changed"
+            ]
+            else "unchanged"
+        ),
+        **result,
+        "observed_client_ip":
+            observed_ip,
+        "observed_client_network":
+            observed_network,
+        "global_enforcement_enabled":
+            (
+                settings
+                .dashboard_ip_restrictions_enforcement_enabled
+            ),
+        "enforcement_active":
+            False,
         "gate_write_performed":
             False,
     }
