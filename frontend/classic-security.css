@@ -1,0 +1,1622 @@
+/*
+ * Gate Bots — Classic Security presentation
+ * A7C491A
+ *
+ * Presentation only.
+ *
+ * Authentication, sessions, MFA, IP restriction state,
+ * recovery behavior and all API operations remain owned
+ * by the shared app.js/backend implementation.
+ */
+
+
+/* ============================================================
+ * 01. PAGE / ACCOUNT SUMMARY
+ * ============================================================ */
+
+html[data-dashboard-ui="classic"]
+#tab-security {
+  --classic-security-border:
+    rgba(109, 154, 139, 0.20);
+
+  --classic-security-border-strong:
+    rgba(75, 208, 163, 0.34);
+
+  --classic-security-soft:
+    rgba(143, 165, 157, 0.84);
+
+  --classic-security-surface:
+    rgba(13, 24, 21, 0.92);
+
+  --classic-security-surface-2:
+    rgba(17, 30, 26, 0.88);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-page-error {
+  margin-bottom: 16px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-account-panel {
+  margin-bottom: 16px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security
+.security-account-panel
+.panel-header {
+  align-items: center;
+
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+
+  border-bottom:
+    1px solid
+    var(--classic-security-border);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-account-facts {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    var(--classic-security-border);
+
+  border-radius: 11px;
+
+  background:
+    rgba(7, 16, 13, 0.40);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-account-facts > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 4px;
+
+  padding:
+    12px 14px;
+
+  border-right:
+    1px solid
+    var(--classic-security-border);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security
+.security-account-facts > div:last-child {
+  border-right: 0;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-account-facts span {
+  color:
+    var(--muted);
+
+  font-size: 0.65rem;
+  font-weight: 700;
+
+  letter-spacing: 0.055em;
+
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-account-facts strong {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color:
+    var(--text);
+
+  font-size: 0.82rem;
+  font-weight: 700;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ============================================================
+ * 02. SECURITY CARDS
+ * ============================================================ */
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 16px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-card {
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  padding: 18px;
+
+  border-color:
+    var(--classic-security-border);
+
+  background:
+    linear-gradient(
+      145deg,
+      var(--surface),
+      rgba(13, 24, 21, 0.76)
+    );
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-card-heading {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  margin-bottom: 12px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-card-heading h2 {
+  margin:
+    3px 0 0;
+
+  font-size: 1rem;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-card-kicker {
+  color:
+    var(--accent);
+
+  font-size: 0.61rem;
+  font-weight: 800;
+
+  letter-spacing: 0.09em;
+
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-card > p {
+  margin:
+    0 0 14px;
+
+  color:
+    var(--muted);
+
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-card-meta {
+  min-height: 1.2em;
+
+  margin-top: -5px !important;
+
+  color:
+    var(--muted) !important;
+
+  font-size: 0.72rem !important;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-card-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  margin-top: auto;
+  padding-top: 2px;
+
+  flex-wrap: wrap;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security
+.security-card-actions .button {
+  min-height: 36px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-card-planned {
+  border-style: dashed;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(13, 24, 21, 0.70),
+      rgba(9, 18, 15, 0.66)
+    );
+}
+
+
+/* ============================================================
+ * 03. STATUS PILLS
+ * ============================================================ */
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-status-pill {
+  flex: 0 0 auto;
+
+  padding:
+    5px 9px;
+
+  border:
+    1px solid
+    var(--border);
+
+  border-radius: 999px;
+
+  background:
+    rgba(7, 16, 13, 0.48);
+
+  color:
+    var(--muted);
+
+  font-size: 0.67rem;
+  font-weight: 720;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-status-pill.enabled {
+  border-color:
+    rgba(32, 212, 155, 0.34);
+
+  background:
+    rgba(32, 212, 155, 0.08);
+
+  color:
+    var(--positive);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-status-pill.planned {
+  border-color:
+    rgba(241, 189, 100, 0.30);
+
+  background:
+    rgba(241, 189, 100, 0.07);
+
+  color:
+    var(--warning);
+}
+
+
+/* ============================================================
+ * 04. ACTIVE SESSIONS
+ * ============================================================ */
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-card-sessions {
+  grid-column: 1 / -1;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-error {
+  margin:
+    0 0 13px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-list {
+  display: grid;
+
+  gap: 10px;
+
+  margin-bottom: 14px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-row {
+  min-width: 0;
+
+  padding:
+    14px;
+
+  border:
+    1px solid
+    var(--classic-security-border);
+
+  border-radius: 11px;
+
+  background:
+    rgba(7, 16, 13, 0.42);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-row.current {
+  border-color:
+    var(--classic-security-border-strong);
+
+  background:
+    linear-gradient(
+      120deg,
+      rgba(23, 211, 154, 0.08),
+      rgba(7, 16, 13, 0.46)
+    );
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-heading {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 12px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-identity {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-identity strong {
+  color:
+    var(--text);
+
+  font-size: 0.84rem;
+  font-weight: 730;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-identity span {
+  color:
+    var(--muted);
+
+  font-size: 0.71rem;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-badge {
+  flex: 0 0 auto;
+
+  padding:
+    4px 8px;
+
+  border:
+    1px solid
+    var(--border);
+
+  border-radius: 999px;
+
+  color:
+    var(--muted);
+
+  font-size: 0.62rem;
+  font-weight: 720;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-badge.current {
+  border-color:
+    rgba(32, 212, 155, 0.34);
+
+  background:
+    rgba(32, 212, 155, 0.08);
+
+  color:
+    var(--positive);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-facts {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-fact {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 4px;
+
+  padding:
+    10px;
+
+  border:
+    1px solid
+    rgba(109, 154, 139, 0.14);
+
+  border-radius: 9px;
+
+  background:
+    rgba(17, 30, 26, 0.52);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-fact span {
+  color:
+    var(--muted);
+
+  font-size: 0.60rem;
+  font-weight: 720;
+
+  letter-spacing: 0.045em;
+
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-fact strong {
+  min-width: 0;
+
+  overflow-wrap: anywhere;
+
+  color:
+    var(--text);
+
+  font-size: 0.71rem;
+  font-weight: 620;
+  line-height: 1.4;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-user-agent {
+  grid-column: 1 / -1;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-user-agent strong {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size: 0.66rem;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-row-actions {
+  display: flex;
+
+  justify-content: flex-end;
+
+  gap: 8px;
+
+  margin-top: 11px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-revoke,
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-danger {
+  border-color:
+    rgba(255, 110, 124, 0.38);
+
+  background:
+    rgba(255, 110, 124, 0.08);
+
+  color:
+    var(--negative);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security
+.security-session-revoke.current {
+  border-color:
+    rgba(241, 189, 100, 0.38);
+
+  background:
+    rgba(241, 189, 100, 0.07);
+
+  color:
+    var(--warning);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-session-empty {
+  margin: 0;
+
+  padding:
+    14px;
+
+  border:
+    1px dashed
+    var(--classic-security-border);
+
+  border-radius: 10px;
+
+  color:
+    var(--muted);
+
+  font-size: 0.74rem;
+}
+
+
+/* ============================================================
+ * 05. IP RESTRICTIONS CARD
+ * ============================================================ */
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-card-ip {
+  grid-column: 1 / -1;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-ip-error {
+  margin:
+    0 0 13px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-ip-facts {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+
+  margin-bottom: 13px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-ip-facts > div,
+html[data-dashboard-ui="classic"]
+.security-ip-current > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 4px;
+
+  padding:
+    10px 11px;
+
+  border:
+    1px solid
+    rgba(109, 154, 139, 0.14);
+
+  border-radius: 9px;
+
+  background:
+    rgba(17, 30, 26, 0.52);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-ip-facts span,
+html[data-dashboard-ui="classic"]
+.security-ip-current span {
+  color:
+    var(--muted);
+
+  font-size: 0.60rem;
+  font-weight: 720;
+
+  letter-spacing: 0.045em;
+
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-ip-facts strong,
+html[data-dashboard-ui="classic"]
+.security-ip-current strong {
+  overflow-wrap: anywhere;
+
+  color:
+    var(--text);
+
+  font-size: 0.74rem;
+  font-weight: 680;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-ip-meta {
+  margin-bottom:
+    13px !important;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-ip-allowlist {
+  display: grid;
+
+  gap: 8px;
+
+  margin-bottom: 13px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-ip-allowlist-row {
+  min-width: 0;
+
+  padding:
+    11px 12px;
+
+  border:
+    1px solid
+    var(--classic-security-border);
+
+  border-radius: 9px;
+
+  background:
+    rgba(7, 16, 13, 0.44);
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-ip-allowlist-identity {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security
+.security-ip-allowlist-identity strong {
+  overflow-wrap: anywhere;
+
+  color:
+    var(--text);
+
+  font:
+    0.74rem/1.4
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security
+.security-ip-allowlist-identity span {
+  color:
+    var(--muted);
+
+  font-size: 0.69rem;
+}
+
+
+html[data-dashboard-ui="classic"]
+#tab-security .security-ip-empty {
+  margin: 0;
+
+  padding:
+    13px;
+
+  border:
+    1px dashed
+    var(--classic-security-border);
+
+  border-radius: 10px;
+
+  color:
+    var(--muted);
+
+  font-size: 0.74rem;
+}
+
+
+/* ============================================================
+ * 06. AUTHENTICATOR DIALOG
+ * ============================================================ */
+
+html[data-dashboard-ui="classic"]
+.security-totp-dialog {
+  width:
+    min(
+      620px,
+      calc(100vw - 32px)
+    );
+
+  max-width: none;
+
+  padding: 0;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    var(--border);
+
+  border-radius: 16px;
+
+  background:
+    var(--surface);
+
+  color:
+    var(--text);
+
+  box-shadow:
+    0 28px 80px
+    rgba(0, 0, 0, 0.48);
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-dialog::backdrop,
+html[data-dashboard-ui="classic"]
+.security-ip-dialog::backdrop {
+  background:
+    rgba(0, 0, 0, 0.68);
+
+  backdrop-filter:
+    blur(3px);
+
+  -webkit-backdrop-filter:
+    blur(3px);
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-dialog .dialog-header,
+html[data-dashboard-ui="classic"]
+.security-ip-dialog .dialog-header {
+  padding:
+    18px 20px 16px;
+
+  border-bottom:
+    1px solid
+    var(--border);
+
+  background:
+    var(--surface-2);
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-stage {
+  padding:
+    20px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-safety,
+html[data-dashboard-ui="classic"]
+.security-totp-recovery-warning {
+  margin-bottom: 14px;
+
+  padding:
+    13px 14px;
+
+  border:
+    1px solid
+    rgba(32, 212, 155, 0.20);
+
+  border-radius: 10px;
+
+  background:
+    rgba(32, 212, 155, 0.05);
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-safety strong,
+html[data-dashboard-ui="classic"]
+.security-totp-recovery-warning strong {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    var(--positive);
+
+  font-size: 0.72rem;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-safety p,
+html[data-dashboard-ui="classic"]
+.security-totp-recovery-warning p {
+  margin: 0;
+
+  color:
+    var(--muted);
+
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-setup-grid {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 0.9fr)
+    minmax(0, 1.1fr);
+
+  gap: 16px;
+
+  margin-bottom: 18px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-qr-panel,
+html[data-dashboard-ui="classic"]
+.security-totp-manual-panel {
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-label {
+  color:
+    var(--muted);
+
+  font-size: 0.66rem;
+  font-weight: 720;
+
+  letter-spacing: 0.055em;
+
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-qr-surface {
+  display: grid;
+
+  place-items: center;
+
+  min-height: 230px;
+
+  padding: 10px;
+
+  border-radius: 12px;
+
+  background:
+    #f2fff9;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-qr-surface img {
+  display: block;
+
+  width:
+    min(
+      220px,
+      100%
+    );
+
+  height: auto;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-secret {
+  min-height: 46px;
+
+  display: flex;
+
+  align-items: center;
+
+  padding:
+    10px 11px;
+
+  overflow-wrap: anywhere;
+
+  border:
+    1px solid
+    var(--border);
+
+  border-radius: 9px;
+
+  background:
+    var(--bg);
+
+  color:
+    var(--text);
+
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-manual-panel > p {
+  margin: 0;
+
+  color:
+    var(--muted);
+
+  font-size: 0.70rem;
+  line-height: 1.45;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-confirm-form {
+  padding-top: 16px;
+
+  border-top:
+    1px solid
+    var(--border);
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-recovery-codes {
+  min-height: 150px;
+
+  margin:
+    0 0 15px;
+
+  padding:
+    15px;
+
+  overflow: auto;
+
+  border:
+    1px solid
+    var(--border);
+
+  border-radius: 10px;
+
+  background:
+    var(--bg);
+
+  color:
+    var(--text);
+
+  font:
+    0.82rem/1.7
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-totp-recovery-actions {
+  display: flex;
+
+  justify-content: flex-end;
+
+  gap: 9px;
+}
+
+
+/* ============================================================
+ * 07. IP RESTRICTION DIALOG
+ * ============================================================ */
+
+html[data-dashboard-ui="classic"]
+.security-ip-dialog {
+  width:
+    min(
+      760px,
+      calc(100vw - 32px)
+    );
+
+  max-width: none;
+
+  padding: 0;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    var(--border);
+
+  border-radius: 16px;
+
+  background:
+    var(--surface);
+
+  color:
+    var(--text);
+
+  box-shadow:
+    0 28px 80px
+    rgba(0, 0, 0, 0.48);
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-dialog-content {
+  max-height:
+    min(
+      78vh,
+      820px
+    );
+
+  overflow: auto;
+
+  padding:
+    18px 20px 22px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-safety {
+  margin-bottom: 14px;
+
+  padding:
+    13px 14px;
+
+  border:
+    1px solid
+    rgba(241, 189, 100, 0.28);
+
+  border-radius: 10px;
+
+  background:
+    rgba(241, 189, 100, 0.06);
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-safety strong {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    var(--warning);
+
+  font-size: 0.74rem;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-safety p,
+html[data-dashboard-ui="classic"]
+.security-ip-recovery > p,
+html[data-dashboard-ui="classic"]
+.security-ip-editor-head p {
+  margin: 0;
+
+  color:
+    var(--muted);
+
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-current {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+
+  margin-bottom: 16px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-form {
+  display: grid;
+
+  gap: 14px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-enable {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding:
+    11px 12px;
+
+  border:
+    1px solid
+    var(--classic-security-border);
+
+  border-radius: 10px;
+
+  background:
+    var(--surface-2);
+
+  color:
+    var(--text);
+
+  font-size: 0.76rem;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-enable
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+
+  flex:
+    0 0 18px;
+
+  width: 18px;
+  height: 18px;
+
+  min-width: 18px;
+  min-height: 18px;
+
+  max-width: 18px;
+  max-height: 18px;
+
+  margin: 0;
+  padding: 0;
+
+  box-sizing: border-box;
+
+  border:
+    1px solid
+    rgba(143, 165, 157, 0.60);
+
+  border-radius: 4px;
+
+  background-color:
+    var(--bg);
+
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size:
+    12px 12px;
+
+  cursor: pointer;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-enable
+input[type="checkbox"]:hover:not(:disabled) {
+  border-color:
+    var(--accent);
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-enable
+input[type="checkbox"]:checked {
+  border-color:
+    var(--positive);
+
+  background-color:
+    var(--positive);
+
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5 6.4 12 13 4.5' fill='none' stroke='%23031610' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-enable
+input[type="checkbox"]:focus-visible {
+  outline:
+    2px solid
+    rgba(23, 211, 154, 0.55);
+
+  outline-offset: 3px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-enable
+input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.5;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-editor-head {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 14px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-editor-head strong {
+  font-size: 0.80rem;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-editor-actions {
+  flex: 0 0 auto;
+
+  display: flex;
+
+  gap: 7px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-editor-rows {
+  display: grid;
+
+  gap: 9px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-editor-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 0.7fr)
+    auto;
+
+  align-items: end;
+
+  gap: 8px;
+
+  padding:
+    10px;
+
+  border:
+    1px solid
+    var(--classic-security-border);
+
+  border-radius: 10px;
+
+  background:
+    rgba(7, 16, 13, 0.40);
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-field {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 5px;
+
+  color:
+    var(--muted);
+
+  font-size: 0.69rem;
+  font-weight: 650;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-field input,
+html[data-dashboard-ui="classic"]
+.security-ip-field textarea,
+html[data-dashboard-ui="classic"]
+.security-ip-editor-row input {
+  width: 100%;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-remove {
+  min-height: 38px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-recovery {
+  margin-top: 22px;
+
+  padding-top: 18px;
+
+  border-top:
+    1px solid
+    rgba(255, 110, 124, 0.28);
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-recovery-heading {
+  margin-bottom: 8px;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-recovery-heading h3 {
+  margin:
+    3px 0 0;
+
+  color:
+    var(--text);
+
+  font-size: 0.92rem;
+}
+
+
+html[data-dashboard-ui="classic"]
+.security-ip-recovery form {
+  display: grid;
+
+  gap: 12px;
+
+  margin-top: 13px;
+}
+
+
+/* ============================================================
+ * 08. RESPONSIVE
+ * ============================================================ */
+
+@media (max-width: 920px) {
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-session-facts {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+
+@media (max-width: 760px) {
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-card-sessions,
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-card-ip {
+    grid-column: auto;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-account-facts {
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-account-facts > div {
+    border-right: 0;
+
+    border-bottom:
+      1px solid
+      var(--classic-security-border);
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #tab-security
+  .security-account-facts > div:last-child {
+    border-bottom: 0;
+  }
+}
+
+
+@media (max-width: 700px) {
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-ip-facts,
+  html[data-dashboard-ui="classic"]
+  .security-ip-current {
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .security-ip-editor-head {
+    flex-direction: column;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .security-ip-editor-actions {
+    width: 100%;
+
+    flex-wrap: wrap;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .security-ip-editor-row {
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .security-ip-remove {
+    width: 100%;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .security-totp-setup-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+@media (max-width: 560px) {
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-card-heading,
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-session-heading {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-session-facts {
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-session-user-agent {
+    grid-column: auto;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-session-row-actions,
+  html[data-dashboard-ui="classic"]
+  .security-totp-recovery-actions {
+    align-items: stretch;
+
+    flex-direction: column;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #tab-security .security-session-row-actions .button,
+  html[data-dashboard-ui="classic"]
+  .security-totp-recovery-actions .button {
+    width: 100%;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .security-totp-dialog,
+  html[data-dashboard-ui="classic"]
+  .security-ip-dialog {
+    width:
+      calc(100vw - 16px);
+
+    border-radius: 13px;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .security-totp-stage,
+  html[data-dashboard-ui="classic"]
+  .security-ip-dialog-content {
+    padding: 15px;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .security-ip-editor-actions {
+    display: grid;
+
+    grid-template-columns: 1fr;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .security-ip-editor-actions .button {
+    width: 100%;
+  }
+}
