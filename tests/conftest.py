@@ -58,6 +58,9 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
 os.environ["DEMO_MODE"] = "true"
 os.environ["POLL_SECONDS"] = "3600"
 os.environ["APP_ENV"] = "test"
+os.environ[
+    "DASHBOARD_IP_RESTRICTIONS_ENFORCEMENT_ENABLED"
+] = "false"
 os.environ["GATE_TREASURY_FILE"] = (
     "/tmp/gate_treasury_test_missing.json"
 )

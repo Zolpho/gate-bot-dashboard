@@ -56,8 +56,17 @@ def _clear_policy(
         )
 
 
-def test_ip_restriction_global_enforcement_defaults_off() -> None:
-    settings = Settings()
+def test_ip_restriction_global_enforcement_defaults_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(
+        "DASHBOARD_IP_RESTRICTIONS_ENFORCEMENT_ENABLED",
+        raising=False,
+    )
+
+    settings = Settings(
+        _env_file=None,
+    )
 
     assert (
         settings

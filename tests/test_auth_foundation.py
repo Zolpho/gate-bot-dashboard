@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import create_engine, inspect
 
 from app import models as _models  # noqa: F401
@@ -7,8 +8,17 @@ from app.config import Settings
 from app.db import Base
 
 
-def test_auth_foundation_settings_default_fail_open_for_rollout() -> None:
-    settings = Settings()
+def test_auth_foundation_settings_default_fail_open_for_rollout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(
+        "DASHBOARD_IP_RESTRICTIONS_ENFORCEMENT_ENABLED",
+        raising=False,
+    )
+
+    settings = Settings(
+        _env_file=None,
+    )
 
     assert settings.dashboard_mfa_required is False
     assert (
