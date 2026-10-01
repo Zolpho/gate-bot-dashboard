@@ -23,6 +23,9 @@ from ..bot_control import (
     BotControlConfigError,
     get_bot_control_account,
 )
+from ..bot_control_actions import (
+    SPOT_GRID_CREATE_ACTION,
+)
 from ..bot_control_audit import (
     IdempotencyConflict,
     count_requests,
@@ -1137,6 +1140,7 @@ async def create_spot_grid(
         live_decision = (
             evaluate_live_create_policy(
                 settings=settings,
+                action=SPOT_GRID_CREATE_ACTION,
                 account_id=account_id,
                 market=prepared["market"]["id"],
                 quote_currency=(

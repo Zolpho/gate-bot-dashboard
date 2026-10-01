@@ -4,6 +4,9 @@ from datetime import timedelta
 from typing import Any
 
 from .accounts import GateAccountConfig
+from .bot_control_actions import (
+    CREATE_ACTIONS,
+)
 from .bot_adapter import (
     decimal_or_none,
     normalize_status,
@@ -69,7 +72,7 @@ def _gate_payload(
     )
 
 
-def match_spot_grid_candidates(
+def match_create_candidates(
     record: dict[str, Any],
     items: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -204,6 +207,13 @@ def match_spot_grid_candidates(
         })
 
     return matches
+
+
+# Compatibility alias for existing callers and tests.
+# Candidate matching itself is strategy-type aware.
+match_spot_grid_candidates = (
+    match_create_candidates
+)
 
 
 def classify_stop_status(
@@ -446,7 +456,7 @@ async def reconcile_request_against_gate(
             monitor_account,
         ) as client:
 
-            if action == "spot_grid_create":
+            if action in CREATE_ACTIONS:
                 if strategy_id:
                     detail_response = (
                         await client.get_bot_detail(
@@ -508,7 +518,7 @@ async def reconcile_request_against_gate(
                 )
 
                 candidates = (
-                    match_spot_grid_candidates(
+                    match_create_candidates(
                         record,
                         items,
                     )

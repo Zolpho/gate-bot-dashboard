@@ -282,6 +282,12 @@ class Settings(BaseSettings):
     bot_stop_duplicate_cooldown_seconds: int = 300
 
     allow_bot_create: bool = False
+
+    # Infinity Grid Create has an additional fail-closed
+    # rollout arm. A future Infinity create route must
+    # require this independently of ALLOW_BOT_CREATE.
+    allow_infinite_grid_create: bool = False
+
     bot_create_simulation: bool = False
     bot_create_confirmation_text: str = "CREATE"
     bot_create_duplicate_cooldown_seconds: int = 600

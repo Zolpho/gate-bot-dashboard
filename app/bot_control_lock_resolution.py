@@ -6,6 +6,9 @@ from typing import Any
 
 from sqlalchemy import select
 
+from .bot_control_actions import (
+    CREATE_ACTIONS,
+)
 from .config import Settings
 from .db import session_scope, utcnow
 from .models import (
@@ -122,7 +125,7 @@ def decide_reconciliation_lock_action(
     outcome: str,
 ) -> str:
     if (
-        action == "spot_grid_create"
+        action in CREATE_ACTIONS
         and outcome == "confirmed_created"
     ):
         return "cooldown"
@@ -147,7 +150,7 @@ def _cooldown_seconds(
     action: str,
     settings: Settings,
 ) -> int:
-    if action == "spot_grid_create":
+    if action in CREATE_ACTIONS:
         return max(
             0,
             int(

@@ -67,6 +67,7 @@ def test_wildcard_allows_any_account():
 
 def test_create_maximum_is_available_quote_balance():
     decision = evaluate_live_create_policy(
+        action="spot_grid_create",
         settings=settings_for_test(),
         account_id="zolnode",
         market="ETH_BTC",
@@ -106,6 +107,7 @@ def test_create_maximum_is_available_quote_balance():
 
 def test_create_can_use_full_available_balance():
     decision = evaluate_live_create_policy(
+        action="spot_grid_create",
         settings=settings_for_test(),
         account_id="zolnode",
         market="BTC_USDT",
@@ -123,6 +125,7 @@ def test_create_can_use_full_available_balance():
 
 def test_create_rejects_above_available_balance():
     decision = evaluate_live_create_policy(
+        action="spot_grid_create",
         settings=settings_for_test(),
         account_id="zolnode",
         market="BTC_USDT",
@@ -153,6 +156,7 @@ def test_no_market_allowlist():
 
     for market, quote in markets:
         decision = evaluate_live_create_policy(
+            action="spot_grid_create",
             settings=settings_for_test(),
             account_id="zolnode",
             market=market,

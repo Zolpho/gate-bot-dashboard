@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+from .bot_control_actions import (
+    CREATE_ACTIONS,
+)
 from .config import Settings
 
 
@@ -83,17 +86,29 @@ def evaluate_live_account_policy(
 def evaluate_live_create_policy(
     *,
     settings: Settings,
+    action: str,
     account_id: str,
     market: str,
     quote_currency: str,
     requested_investment: Decimal,
     available_quote: Decimal,
 ) -> LivePolicyDecision:
+    if action not in CREATE_ACTIONS:
+        return _decision(
+            allowed=False,
+            reason="unsupported_create_action",
+            message=(
+                "Unsupported Bot Control create action."
+            ),
+            account_id=account_id,
+            action=action,
+        )
+
     account_decision = (
         evaluate_live_account_policy(
             settings=settings,
             account_id=account_id,
-            action="spot_grid_create",
+            action=action,
         )
     )
 
@@ -146,7 +161,7 @@ def evaluate_live_create_policy(
         allowed=True,
         reason="allowed",
         message=(
-            "Live Spot Grid request passed the "
+            "Live Bot Create request passed the "
             "execution safety policy."
         ),
         account_id=account_id,

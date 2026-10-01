@@ -12,15 +12,13 @@ from sqlalchemy import (
     text,
 )
 
+from .bot_control_actions import (
+    CREATE_ACTIONS,
+    MUTATION_ACTIONS,
+)
 from .config import Settings
 from .db import SessionLocal, engine, utcnow
 from .models import BotControlRateLimitEvent
-
-
-MUTATION_ACTIONS = {
-    "spot_grid_create",
-    "bot_stop",
-}
 
 
 @dataclass(frozen=True)
@@ -93,7 +91,7 @@ def policy_for_action(
     if not settings.bot_control_rate_limit_enabled:
         return None
 
-    if action == "spot_grid_create":
+    if action in CREATE_ACTIONS:
         return RateLimitPolicy(
             user_limit=_bounded_limit(
                 settings
