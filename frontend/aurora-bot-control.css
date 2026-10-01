@@ -203,6 +203,11 @@
   grid-column: 1 / -1;
 }
 
+#tab-bot-control .bot-control-form > label {
+  align-self: start;
+  align-content: start;
+}
+
 #tab-bot-control .bot-control-form input,
 #tab-bot-control .bot-control-form select,
 #tab-bot-control .bot-control-activity-page-size select {
@@ -265,35 +270,69 @@
     minmax(0, 1fr)
     auto;
   align-items: stretch;
-}
-
-#tab-bot-control .input-with-suffix input {
-  border-radius:
-    0.74rem
-    0
-    0
-    0.74rem;
-}
-
-#tab-bot-control .input-with-suffix span {
-  display: grid;
-  place-items: center;
-  min-width: 3.5rem;
-  padding: 0 0.65rem;
+  overflow: hidden;
   border:
     1px solid
     rgba(78, 220, 178, 0.16);
-  border-left: 0;
-  border-radius:
-    0
-    0.74rem
-    0.74rem
-    0;
+  border-radius: 0.74rem;
   background:
-    rgba(9, 52, 43, 0.55);
+    rgba(1, 19, 16, 0.76);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease;
+}
+
+#tab-bot-control .input-with-suffix:hover {
+  border-color:
+    rgba(82, 230, 185, 0.26);
+  background:
+    rgba(2, 25, 21, 0.88);
+}
+
+#tab-bot-control .input-with-suffix:focus-within {
+  border-color:
+    rgba(91, 244, 197, 0.53);
+  box-shadow:
+    0 0 0 3px
+      rgba(64, 232, 180, 0.08);
+}
+
+#tab-bot-control .input-with-suffix input,
+#tab-bot-control .input-with-suffix input:hover,
+#tab-bot-control .input-with-suffix input:focus {
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+#tab-bot-control .input-with-suffix span {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding:
+    0
+    0.8rem
+    0
+    0.3rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: rgba(132, 193, 170, 0.8);
   font-size: 0.7rem;
   font-weight: 700;
+}
+
+#botControlRequestDialog .bot-control-technical-section {
+  display: grid;
+  gap: 0.55rem;
+}
+
+#botControlRequestDialog
+.bot-control-technical-section summary {
+  color: rgba(193, 220, 210, 0.86);
 }
 
 #tab-bot-control .aurora-bot-control-market-input-symbols {

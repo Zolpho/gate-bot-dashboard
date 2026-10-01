@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
   <link rel="stylesheet" href="./wallet-tab.css?v=20260830-wallet-ux-j19-v2">
   <link rel="stylesheet" href="./treasury.css?v=20260830-wallet-ux-j21-v2">
-  <link rel="stylesheet" href="./bot-control.css?v=20260923-bot-control-market-m42-v2">
+  <link rel="stylesheet" href="./bot-control.css?v=20260923-bot-control-market-m42-v2&amp;m46a=20261001-bot-control-ui-polish-v1">
   <link rel="stylesheet" href="./trading.css?v=20260823-trading-refine-v3">
   <link rel="stylesheet" href="./trading-limit.css?v=20260823-sticky-book-v1">
   <link
@@ -75,7 +75,7 @@
   >
   <link
     rel="stylesheet"
-    href="./aurora-bot-control.css?v=20260912-aurora-bot-control-live-warning-a7c282-v1"
+    href="./aurora-bot-control.css?v=20260912-aurora-bot-control-live-warning-a7c282-v1&amp;m46a=20261001-bot-control-ui-polish-v1"
     data-dashboard-ui-stylesheet="aurora"
     disabled
   >
@@ -2169,7 +2169,7 @@
             <div class="panel-header">
               <div>
                 <div class="bot-control-create-title-row">
-                  <h2>Create Spot Grid</h2>
+                  <h2>Spot Grid</h2>
 
                   <span
                     id="spotGridAccountChip"
@@ -3446,8 +3446,11 @@
       </section>
 
 
-      <section>
-        <h3>Lock resolution history</h3>
+      <section
+        id="botControlLockResolutionSection"
+        class="hidden"
+      >
+        <h3>Lock history</h3>
 
         <div
           id="botControlLockResolutionHistory"
@@ -3501,21 +3504,25 @@
         </div>
       </section>
 
-      <details open>
-        <summary>Original request</summary>
-        <pre
-          id="botControlRequestJson"
-          class="bot-control-json"
-        ></pre>
-      </details>
+      <section class="bot-control-technical-section">
+        <h3>Technical details</h3>
 
-      <details>
-        <summary>Original response</summary>
-        <pre
-          id="botControlResponseJson"
-          class="bot-control-json"
-        ></pre>
-      </details>
+        <details>
+          <summary>Request data</summary>
+          <pre
+            id="botControlRequestJson"
+            class="bot-control-json"
+          ></pre>
+        </details>
+
+        <details>
+          <summary>Gate response data</summary>
+          <pre
+            id="botControlResponseJson"
+            class="bot-control-json"
+          ></pre>
+        </details>
+      </section>
 
     </div>
   </dialog>
@@ -4392,7 +4399,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260923-bot-control-market-m42-v2"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1"
     defer
   ></script>
   <script

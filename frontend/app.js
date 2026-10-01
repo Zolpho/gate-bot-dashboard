@@ -7482,9 +7482,7 @@ function botControlGateWriteEvidence(
       statusClass: 'success',
       label: 'CONFIRMED',
       detail: (
-        'The durable Bot Control response records '
-        + 'write_performed=true. Gate accepted the '
-        + 'live submission.'
+        'Gate accepted this live request successfully.'
       ),
     };
   }
@@ -7917,6 +7915,15 @@ function renderBotControlRequestDetail(
     detail.action
     || '',
   );
+
+  renderBotControlLockResolutions(
+    detail.lock_resolutions
+    || [],
+  );
+
+  renderManualLockRelease(
+    detail
+  );
 }
 
 
@@ -7925,17 +7932,30 @@ function renderBotControlLockResolutions(rows) {
     '#botControlLockResolutionHistory'
   );
 
-  if (!element) return;
+  const section = $(
+    '#botControlLockResolutionSection'
+  );
+
+  if (
+    !element
+    || !section
+  ) {
+    return;
+  }
 
   if (!rows?.length) {
-    element.innerHTML = (
-      '<div class="empty-state">'
-      + 'No lock-resolution decisions recorded.'
-      + '</div>'
+    element.innerHTML = '';
+
+    section.classList.add(
+      'hidden'
     );
 
     return;
   }
+
+  section.classList.remove(
+    'hidden'
+  );
 
   element.innerHTML = rows.map(row => {
     return (

@@ -25,6 +25,11 @@
   grid-column: 1 / -1;
 }
 
+.bot-control-form > label {
+  align-self: start;
+  align-content: start;
+}
+
 .bot-control-form input,
 .bot-control-form select,
 .bot-control-confirm-input input {
@@ -34,22 +39,49 @@
 .input-with-suffix {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: stretch;
   border: 1px solid var(--border);
   border-radius: 9px;
   background: var(--surface-2);
   overflow: hidden;
+  transition:
+    border-color .15s ease,
+    box-shadow .15s ease;
 }
 
 .input-with-suffix input {
   border: 0;
   border-radius: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.input-with-suffix input:focus {
+  outline: none;
 }
 
 .input-with-suffix span {
-  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px 0 6px;
+  border: 0;
+  background: transparent;
   color: var(--muted);
   font-size: .75rem;
+  font-weight: 600;
+}
+
+.input-with-suffix:focus-within {
+  border-color: rgba(23, 211, 154, .55);
+  box-shadow:
+    0 0 0 2px
+      rgba(23, 211, 154, .08);
+}
+
+.bot-control-technical-section {
+  display: grid;
+  gap: 10px;
 }
 
 .bot-control-advanced {
