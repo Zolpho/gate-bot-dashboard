@@ -154,7 +154,11 @@ def test_generic_error_rejected_and_monitor_paths_remain():
         "renderBotControlRequestDetail"
     )
 
-    assert ": detail.error" in block
+    assert (
+        "botControlRequestDisplayError("
+        in block
+    )
+
     assert "detail.status === 'rejected'" in block
 
     assert (
@@ -254,3 +258,50 @@ def test_no_active_lock_display_is_preserved():
     )
 
     assert "'No active lock'" in block
+
+def test_infinity_action_has_human_label():
+    block = function(
+        "botControlActionLabel"
+    )
+
+    assert (
+        "action === 'infinite_grid_create'"
+        in block
+    )
+
+    assert (
+        "return 'Create Infinity Grid'"
+        in block
+    )
+
+
+def test_infinity_minimum_error_hides_gate_internals():
+    block = function(
+        "botControlRequestDisplayError"
+    )
+
+    assert (
+        "Infinity Grid not created:"
+        in block
+    )
+
+    assert (
+        "Gate's minimum"
+        in block
+    )
+
+    assert (
+        "grid_infinite.go"
+        not in block
+    )
+
+
+def test_request_summary_separates_result_from_transport():
+    block = function(
+        "renderBotControlRequestDetail"
+    )
+
+    assert "Gate result" in block
+    assert "gateResult" in block
+    assert "HTTP ${gateHttp}" in block
+    assert "Gate code ${gateBusinessCode}" in block

@@ -1038,6 +1038,7 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "&infinitym45c=20261001-config-provenance-v1"
             "&m46a=20261001-bot-control-ui-polish-v1"
             "&m48a=20261001-apr-min-window-v1"
+            "&m410a=20261001-native-infinity-estimator-v1"
         )
     ]
 

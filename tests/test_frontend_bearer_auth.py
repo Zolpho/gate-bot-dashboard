@@ -640,6 +640,7 @@ def test_app_script_cache_bust_is_additive() -> None:
             "&infinitym45c=20261001-config-provenance-v1"
             "&m46a=20261001-bot-control-ui-polish-v1"
             "&m48a=20261001-apr-min-window-v1"
+            "&m410a=20261001-native-infinity-estimator-v1"
         )
     ]
 

@@ -6444,6 +6444,10 @@ function botControlActionLabel(action) {
     return 'Create Spot Grid';
   }
 
+  if (action === 'infinite_grid_create') {
+    return 'Create Infinity Grid';
+  }
+
   if (action === 'bot_stop') {
     return 'Stop Bot';
   }
@@ -7582,6 +7586,66 @@ function botControlGateWriteEvidence(
 }
 
 
+function botControlRequestDisplayError(
+  detail,
+) {
+  const raw = String(
+    detail?.error
+    || ''
+  );
+
+  const action = String(
+    detail?.action
+    || ''
+  ).toLowerCase();
+
+  const status = String(
+    detail?.status
+    || ''
+  ).toLowerCase();
+
+  if (
+    action === 'infinite_grid_create'
+    && status === 'rejected'
+  ) {
+    const message = String(
+      detail?.response?.message
+      || raw
+    );
+
+    const match = message.match(
+      /invest money\.([0-9]+(?:\.[0-9]+)?)\s*<\s*min invest money\.([0-9]+(?:\.[0-9]+)?)/i
+    );
+
+    if (match) {
+      const market = String(
+        detail?.request
+          ?.gate_payload
+          ?.market
+        || ''
+      ).toUpperCase();
+
+      const quote = (
+        market.split('_')[1]
+        || 'quote currency'
+      );
+
+      return (
+        'Infinity Grid not created: '
+        + `${match[1]} ${quote} is below `
+        + `Gate's minimum of ${match[2]} `
+        + `${quote} for these settings. `
+        + 'Gate may recalculate this dynamic '
+        + 'minimum when market conditions or '
+        + 'strategy settings change.'
+      );
+    }
+  }
+
+  return raw;
+}
+
+
 function renderBotControlRequestDetail(
   detail,
 ) {
@@ -7635,6 +7699,53 @@ function renderBotControlRequestDetail(
     && detail.gate_status_code !== undefined
       ? String(detail.gate_status_code)
       : '—'
+  );
+
+  const gateBusinessCode = (
+    response?.code !== null
+    && response?.code !== undefined
+      ? String(response.code)
+      : (
+          detail.gate_label
+            ? String(detail.gate_label)
+            : ''
+        )
+  );
+
+  const gateResult = (
+    simulation
+    || requestStatus === 'blocked'
+      ? 'Not sent'
+      : requestStatus === 'rejected'
+        ? 'Rejected'
+        : (
+            ['succeeded', 'completed'].includes(
+              requestStatus
+            )
+              ? 'Accepted'
+              : requestStatus === 'uncertain'
+                ? 'Uncertain'
+                : gateHttp
+          )
+  );
+
+  const gateTransportDetail = (
+    gateResult === 'Not sent'
+      ? ''
+      : [
+          (
+            gateHttp !== '—'
+              ? `HTTP ${gateHttp}`
+              : ''
+          ),
+          (
+            gateBusinessCode
+              ? `Gate code ${gateBusinessCode}`
+              : ''
+          ),
+        ]
+          .filter(Boolean)
+          .join(' · ')
   );
 
   const reconciliations = (
@@ -7737,16 +7848,18 @@ function renderBotControlRequestDetail(
       </div>
 
       <div class="bot-control-request-metric">
-        <span>Gate HTTP</span>
+        <span>Gate result</span>
         <strong>
-          ${escapeHtml(gateHttp)}
+          ${escapeHtml(gateResult)}
         </strong>
 
         ${
-          detail.gate_label
+          gateTransportDetail
             ? (
               '<small>'
-              + escapeHtml(detail.gate_label)
+              + escapeHtml(
+                  gateTransportDetail
+                )
               + '</small>'
             )
             : ''
@@ -7817,7 +7930,13 @@ function renderBotControlRequestDetail(
 
   const errorBox = $('#botControlRequestError');
 
-  if (detail.error) {
+  const displayError = (
+    botControlRequestDisplayError(
+      detail
+    )
+  );
+
+  if (displayError) {
     errorBox.textContent = (
       historicalLockConflict
         ? (
@@ -7826,7 +7945,7 @@ function renderBotControlRequestDetail(
             + 'operation held the strategy lock. '
             + 'The Stop operation did not reach Gate.'
           )
-        : detail.error
+        : displayError
     );
 
     errorBox.classList.remove('hidden');

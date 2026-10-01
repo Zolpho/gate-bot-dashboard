@@ -79,6 +79,8 @@ from ..gate_client import (
 )
 from ..infinite_grid import (
     build_infinite_grid_payload,
+    estimate_infinite_grid_requirements,
+    format_infinite_grid_minimum_rejection,
     validate_infinite_grid,
 )
 from ..models import Bot
@@ -806,6 +808,44 @@ async def prepare_infinite_grid(
         stop_loss=request.stop_loss,
     )
 
+    infinity_estimate = (
+        estimate_infinite_grid_requirements(
+            market=market,
+            current_price=current_price,
+            price_floor=request.price_floor,
+            profit_per_grid=(
+                request.profit_per_grid
+            ),
+        )
+    )
+
+    recommended = (
+        infinity_estimate.get(
+            "recommended_minimum"
+        )
+    )
+
+    if (
+        infinity_estimate.get(
+            "calibrated"
+        )
+        and recommended
+        and request.money
+        < Decimal(
+            str(
+                recommended
+            )
+        )
+    ):
+        warnings.append(
+            "Investment is below the locally "
+            f"recommended Infinity minimum of "
+            f"{recommended} {quote}. "
+            "This is an EQTY/USDT estimate, not "
+            "a Gate guarantee; Gate remains "
+            "authoritative at submission."
+        )
+
     return {
         "status": (
             "ready"
@@ -899,6 +939,9 @@ async def prepare_infinite_grid(
         },
 
         "grid": grid_math,
+
+        "infinity_estimate":
+            infinity_estimate,
 
         "errors": errors,
         "warnings": warnings,
@@ -1431,6 +1474,22 @@ async def create_infinite_grid(
             else "uncertain"
         )
 
+        rejection_message = (
+            format_infinite_grid_minimum_rejection(
+                response=exc.response,
+                error=str(exc),
+                market=str(
+                    payload.get(
+                        "market"
+                    )
+                    or ""
+                ),
+            )
+            if terminal_status
+            == "rejected"
+            else None
+        )
+
         mark_request(
             request.request_id,
             status=terminal_status,
@@ -1455,8 +1514,13 @@ async def create_infinite_grid(
             status_code=502,
             detail={
                 "message": (
-                    "Gate rejected Infinity Grid "
-                    "creation."
+                    (
+                        rejection_message
+                        or (
+                            "Gate rejected Infinity Grid "
+                            "creation."
+                        )
+                    )
                     if terminal_status
                     == "rejected"
                     else (

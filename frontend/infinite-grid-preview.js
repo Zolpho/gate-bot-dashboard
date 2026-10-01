@@ -657,16 +657,6 @@
       formElement
     );
 
-    const gridNum = optionalValue(
-      form,
-      'grid_num',
-    );
-
-    const priceType = optionalValue(
-      form,
-      'price_type',
-    );
-
     return {
       account_id: String(
         form.get('account_id')
@@ -696,18 +686,6 @@
         form.get('profit_per_grid_percent')
         || ''
       ).trim(),
-
-      grid_num: (
-        gridNum === null
-          ? null
-          : Number(gridNum)
-      ),
-
-      price_type: (
-        priceType === null
-          ? null
-          : Number(priceType)
-      ),
 
       trigger_price: optionalValue(
         form,
@@ -810,6 +788,11 @@
 
     const grid = (
       prepared.grid
+      || {}
+    );
+
+    const estimate = (
+      prepared.infinity_estimate
       || {}
     );
 
@@ -947,19 +930,48 @@
         ),
 
         reviewMetric(
-          'Number of grids',
+          'Estimated levels to floor',
           (
-            grid.grid_num
-            ?? 'Gate default'
+            estimate.estimated_levels_to_floor
+            ?? '—'
           ),
         ),
 
         reviewMetric(
-          'Grid type',
+          'Estimated Gate minimum',
           (
-            grid.price_type
-            || 'Gate default'
+            estimate.calibrated
+            && estimate.estimated_gate_minimum
+              ? (
+                  `${
+                    estimate.estimated_gate_minimum
+                  } ${
+                    market.quote || ''
+                  }`
+                )
+              : 'Not calibrated for these settings'
           ),
+        ),
+
+        reviewMetric(
+          'Recommended minimum',
+          (
+            estimate.calibrated
+            && estimate.recommended_minimum
+              ? (
+                  `${
+                    estimate.recommended_minimum
+                  } ${
+                    market.quote || ''
+                  }`
+                )
+              : '—'
+          ),
+        ),
+
+        reviewMetric(
+          'Infinity ladder',
+          'Native geometric · Gate-derived levels',
         ),
 
         reviewMetric(
@@ -986,6 +998,18 @@
     );
 
     const messages = [];
+
+    if (
+      !estimate.calibrated
+    ) {
+      messages.push(
+        '<div class="bot-control-message warning">'
+        + 'Minimum-investment estimation is not '
+        + 'calibrated for these settings. Gate remains '
+        + 'authoritative at submission.'
+        + '</div>'
+      );
+    }
 
     errors.forEach(
       message => {
@@ -1016,8 +1040,7 @@
     );
 
     if (
-      !errors.length
-      && !warnings.length
+      !messages.length
     ) {
       messages.push(
         '<div class="bot-control-message success">'
@@ -1210,6 +1233,11 @@
       || {}
     );
 
+    const estimate = (
+      prepared.infinity_estimate
+      || {}
+    );
+
     const optionalRows = [];
 
     if (draft.trigger_price) {
@@ -1334,20 +1362,32 @@
         ),
 
         infinityConfirmRow(
-          'Number of grids',
+          'Estimated levels to floor',
           String(
-            draft.grid_num
-            ?? 'Gate default'
+            estimate.estimated_levels_to_floor
+            ?? '—'
           ),
         ),
 
         infinityConfirmRow(
-          'Grid type',
+          'Recommended minimum',
           (
-            Number(draft.price_type) === 0
-              ? 'Arithmetic'
-              : 'Geometric'
+            estimate.calibrated
+            && estimate.recommended_minimum
+              ? (
+                  `${
+                    estimate.recommended_minimum
+                  } ${
+                    market.quote || ''
+                  }`
+                )
+              : 'Not calibrated'
           ),
+        ),
+
+        infinityConfirmRow(
+          'Grid model',
+          'Native geometric',
         ),
 
         ...optionalRows,

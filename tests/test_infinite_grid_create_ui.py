@@ -292,3 +292,35 @@ def test_modified_assets_are_cache_busted() -> None:
         "v=20261001-infinity-create-ui-m44f-v1"
         in HTML
     )
+
+def test_native_infinity_create_does_not_send_grid_overrides() -> None:
+    start = PREVIEW.index(
+        "function infinityGridDraftFromForm("
+    )
+
+    end = PREVIEW.index(
+        "\n\n  function infinityGridPreparePayloadFromDraft(",
+        start,
+    )
+
+    block = PREVIEW[
+        start:end
+    ]
+
+    assert (
+        "grid_num"
+        not in block
+    )
+
+    assert (
+        "price_type"
+        not in block
+    )
+
+
+def test_m410a_frontend_cache_marker_is_present() -> None:
+    assert (
+        "m410a="
+        "20261001-native-infinity-estimator-v1"
+        in HTML
+    )

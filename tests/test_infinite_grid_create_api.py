@@ -1078,6 +1078,95 @@ def test_gate_business_rejection_is_terminal_rejected(
     ] == []
 
 
+def test_gate_minimum_rejection_returns_friendly_message(
+    route_env,
+):
+    FakeGateClient.failure = (
+        GateAPIError(
+            (
+                "Gate bot API error 400: "
+                "bot-service/gts.createInfinite"
+                "(grid_infinite.go:27): "
+                "invest money.20 "
+                "< min invest money.126.456285"
+            ),
+            status_code=200,
+            label="400",
+            response={
+                "code":
+                    400,
+                "label":
+                    "GRID_USER_INVEST_MONEY_NOT_ENOUGH",
+                "message": (
+                    "bot-service/gts.createInfinite"
+                    "(grid_infinite.go:27): "
+                    "invest money.20 "
+                    "< min invest money.126.456285"
+                ),
+            },
+        )
+    )
+
+    with pytest.raises(
+        HTTPException,
+    ) as caught:
+        run(
+            request(
+                request_id=(
+                    "infinity-minimum-copy-001"
+                ),
+                money="20",
+            )
+        )
+
+    detail = caught.value.detail
+
+    assert (
+        detail[
+            "status"
+        ]
+        == "rejected"
+    )
+
+    assert (
+        detail[
+            "message"
+        ]
+        == (
+            "Infinity Grid not created: "
+            "20 USDT is below Gate's minimum of "
+            "126.456285 USDT for these settings. "
+            "Gate may recalculate this dynamic minimum "
+            "when market conditions or strategy settings change."
+        )
+    )
+
+    assert (
+        "grid_infinite.go"
+        not in detail[
+            "message"
+        ]
+    )
+
+    assert (
+        "grid_infinite.go"
+        in detail[
+            "gate_error"
+        ]
+    )
+
+    assert route_env[
+        "released"
+    ] == [
+        {
+            "lock_key":
+                "create-intent:test",
+            "owner_request_id":
+                "infinity-minimum-copy-001",
+        }
+    ]
+
+
 def test_frontend_infinity_create_uses_dashboard_api_only(
 ) -> None:
     from pathlib import Path

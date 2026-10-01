@@ -135,8 +135,6 @@ def test_preview_workspace_contains_required_fields() -> None:
         'name="money"',
         'name="price_floor"',
         'name="profit_per_grid_percent"',
-        'name="grid_num"',
-        'name="price_type"',
         'name="trigger_price"',
         'name="stop_profit"',
         'name="stop_loss"',
@@ -228,38 +226,40 @@ def test_prepare_calls_only_prepare_endpoint() -> None:
         assert forbidden not in block
 
 
-def test_optional_gate_defaults_remain_optional() -> None:
+def test_native_infinity_form_omits_grid_count_and_type() -> None:
+    block = infinity_html_block()
+
+    assert (
+        'name="grid_num"'
+        not in block
+    )
+
+    assert (
+        'name="price_type"'
+        not in block
+    )
+
     start = PREVIEW.index(
         "function infinityGridDraftFromForm("
     )
 
     end = PREVIEW.index(
-        "\n\n  function reviewMetric(",
+        "\n\n  function infinityGridPreparePayloadFromDraft(",
         start,
     )
 
-    block = PREVIEW[
+    draft = PREVIEW[
         start:end
     ]
 
     assert (
-        "grid_num: ("
-        in block
+        "grid_num"
+        not in draft
     )
 
     assert (
-        "price_type: ("
-        in block
-    )
-
-    assert (
-        "gridNum === null"
-        in block
-    )
-
-    assert (
-        "priceType === null"
-        in block
+        "price_type"
+        not in draft
     )
 
 
@@ -281,8 +281,10 @@ def test_review_explains_infinity_semantics() -> None:
         "Price floor",
         "Profit per grid",
         "Gate profit ratio",
-        "Number of grids",
-        "Gate default",
+        "Estimated levels to floor",
+        "Estimated Gate minimum",
+        "Recommended minimum",
+        "Native geometric",
         "Upper price",
         "No fixed upper bound",
         "Gate market status",
@@ -525,8 +527,12 @@ def test_preview_discloses_infinity_validation_boundaries() -> None:
     )
 
     assert (
-        "Must be greater than 0.4% "
-        "and less than 100%."
+        "Minimum 0.2%; must remain below 100%."
+        in block
+    )
+
+    assert (
+        'min="0.2"'
         in block
     )
 
@@ -604,4 +610,35 @@ def test_review_renders_prepare_validation_messages() -> None:
         "Preflight failed. "
         "No Gate write was performed."
         in block
+    )
+
+def test_review_renders_infinity_estimator_metadata() -> None:
+    start = PREVIEW.index(
+        "function renderInfinityGridReview("
+    )
+
+    end = PREVIEW.index(
+        "\n\n  async function prepareInfiniteGrid(",
+        start,
+    )
+
+    block = PREVIEW[
+        start:end
+    ]
+
+    for token in (
+        "prepared.infinity_estimate",
+        "'Estimated levels to floor'",
+        "'Estimated Gate minimum'",
+        "'Recommended minimum'",
+        "'Native geometric · Gate-derived levels'",
+    ):
+        assert token in block
+
+
+def test_m410a_cache_marker_is_present() -> None:
+    assert (
+        "m410a="
+        "20261001-native-infinity-estimator-v1"
+        in HTML
     )

@@ -294,6 +294,38 @@ def test_prepare_is_read_only_and_returns_exact_preview(
         "has_fixed_upper_bound"
     ] is False
 
+    estimate = result[
+        "infinity_estimate"
+    ]
+
+    assert (
+        estimate[
+            "calibrated"
+        ]
+        is True
+    )
+
+    assert (
+        estimate[
+            "estimated_levels_to_floor"
+        ]
+        == 13
+    )
+
+    assert (
+        estimate[
+            "estimated_gate_minimum"
+        ]
+        == "134.960525"
+    )
+
+    assert (
+        estimate[
+            "recommended_minimum"
+        ]
+        == "140"
+    )
+
     assert result[
         "gate_create_payload_preview"
     ] == {
@@ -529,13 +561,13 @@ def _assert_read_only_prepare_contract(
     )
 
 
-def test_prepare_propagates_gate_minimum_profit_error(
+def test_prepare_rejects_profit_below_live_gate_minimum(
     prepare_env,
 ) -> None:
     result = asyncio.run(
         bc.prepare_infinite_grid(
             request(
-                profit_per_grid="0.004",
+                profit_per_grid="0.0019",
             ),
             user(),
         )
@@ -547,7 +579,7 @@ def test_prepare_propagates_gate_minimum_profit_error(
     )
 
     assert any(
-        "greater than 0.4%"
+        "at least 0.2%"
         in item
         for item in result[
             "errors"
@@ -562,17 +594,17 @@ def test_prepare_propagates_gate_minimum_profit_error(
         ][
             "profit_per_grid"
         ]
-        == "0.004"
+        == "0.0019"
     )
 
 
-def test_prepare_accepts_profit_just_above_gate_minimum(
+def test_prepare_accepts_profit_at_live_gate_minimum(
     prepare_env,
 ) -> None:
     result = asyncio.run(
         bc.prepare_infinite_grid(
             request(
-                profit_per_grid="0.0041",
+                profit_per_grid="0.002",
             ),
             user(),
         )
@@ -589,6 +621,17 @@ def test_prepare_accepts_profit_just_above_gate_minimum(
         for item in result[
             "errors"
         ]
+    )
+
+    assert (
+        result[
+            "gate_create_payload_preview"
+        ][
+            "create_params"
+        ][
+            "profit_per_grid"
+        ]
+        == "0.002"
     )
 
 
@@ -786,4 +829,47 @@ def test_prepare_rejects_trigger_when_market_price_unavailable(
             "last"
         ]
         is None
+    )
+
+def test_prepare_warns_below_local_recommendation_without_blocking(
+    prepare_env,
+) -> None:
+    result = asyncio.run(
+        bc.prepare_infinite_grid(
+            request(
+                money="100",
+                price_floor="0.0015",
+                profit_per_grid="0.01",
+            ),
+            user(),
+        )
+    )
+
+    assert (
+        result[
+            "status"
+        ]
+        == "ready"
+    )
+
+    assert (
+        result[
+            "can_create"
+        ]
+        is True
+    )
+
+    assert any(
+        "locally recommended Infinity minimum"
+        in warning
+        for warning in result[
+            "warnings"
+        ]
+    )
+
+    assert (
+        result[
+            "write_performed"
+        ]
+        is False
     )

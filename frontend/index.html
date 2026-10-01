@@ -2544,7 +2544,7 @@
                   <input
                     name="profit_per_grid_percent"
                     type="number"
-                    min="0"
+                    min="0.2"
                     step="any"
                     value="1"
                     placeholder="1.0"
@@ -2555,32 +2555,10 @@
                 </div>
 
                 <small id="infiniteGridProfitHint">
-                  Must be greater than 0.4% and less than 100%.
+                  Minimum 0.2%; must remain below 100%.
+                  Gate uses native geometric spacing and derives
+                  the ladder from current price, floor and ROI.
                 </small>
-              </label>
-
-              <label>
-                Number of grids
-                <input
-                  name="grid_num"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value="10"
-                  required
-                >
-              </label>
-
-              <label class="full">
-                Grid type
-                <select name="price_type">
-                  <option value="0">
-                    Arithmetic
-                  </option>
-                  <option value="1" selected>
-                    Geometric
-                  </option>
-                </select>
               </label>
 
               <details class="bot-control-advanced full">
@@ -4399,7 +4377,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260923-bot-control-market-m42-v2"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1"
     defer
   ></script>
   <script
@@ -4407,7 +4385,7 @@
     defer
   ></script>
   <script
-    src="./infinite-grid-preview.js?v=20261001-infinity-create-ui-m44f-v1"
+    src="./infinite-grid-preview.js?v=20261001-infinity-create-ui-m44f-v1&amp;m410a=20261001-native-infinity-estimator-v1"
     defer
   ></script>
   <script
