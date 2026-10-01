@@ -2440,7 +2440,7 @@
             <div class="panel-header">
               <div>
                 <div class="bot-control-create-title-row">
-                  <h2>Infinity Grid preview</h2>
+                  <h2>Infinity Grid</h2>
 
                   <span
                     id="infiniteGridAccountChip"
@@ -2451,8 +2451,8 @@
 
                 <p>
                   Validate Infinity Grid parameters against
-                  live Gate market data. This preview cannot
-                  create a bot.
+                  live Gate market data, then use the gated
+                  confirmation flow when creation is armed.
                 </p>
               </div>
 
@@ -2460,9 +2460,11 @@
                 <span
                   class="status-badge disabled"
                   id="infiniteGridPreviewState"
-                >PREVIEW ONLY</span>
+                >REVIEW ONLY</span>
 
-                <small>No create path</small>
+                <small
+                  id="infiniteGridCreateStateDetail"
+                >Infinity Create rollout disabled</small>
               </div>
             </div>
 
@@ -2663,7 +2665,7 @@
 
                 <p>
                   Live Gate market data, balance and exact
-                  payload preview. No write action is exposed.
+                  payload preview before final confirmation.
                 </p>
               </div>
             </div>
@@ -2703,12 +2705,21 @@
                 <pre id="infiniteGridPayloadPreview"></pre>
               </details>
 
-              <div class="bot-control-validation">
-                <div class="bot-control-message warning">
-                  Preview only. Infinity Grid creation is not
-                  enabled in this dashboard milestone.
-                </div>
+              <div class="form-actions">
+                <button
+                  type="button"
+                  class="button primary"
+                  id="openInfiniteGridConfirmation"
+                  disabled
+                >
+                  Final confirmation
+                </button>
               </div>
+
+              <div
+                id="infiniteGridCreateResult"
+                class="bot-control-result hidden"
+              ></div>
             </div>
           </article>
 
@@ -3585,6 +3596,87 @@
     </div>
   </dialog>
 
+
+  <dialog
+    id="infiniteGridConfirmDialog"
+    class="small-dialog bot-control-confirm-dialog"
+  >
+    <div class="dialog-header">
+      <div>
+        <h2>Confirm Infinity Grid creation</h2>
+        <p>
+          This is the final step before a Gate Bot Control
+          write request.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-button"
+        id="closeInfiniteGridConfirmDialog"
+        aria-label="Close"
+      >×</button>
+    </div>
+
+    <div class="bot-control-confirm-content">
+
+      <div
+        id="infiniteGridConfirmSummary"
+        class="bot-control-confirm-summary"
+      ></div>
+
+      <div
+        id="infiniteGridCreateNotice"
+        class="bot-control-safety-notice"
+      >
+        Infinity Grid creation is currently disabled by its
+        independent rollout arm.
+      </div>
+
+      <label class="bot-control-confirm-input">
+        Type
+        <strong
+          id="infiniteGridRequiredConfirmation"
+        >CREATE</strong>
+        to confirm
+
+        <input
+          id="infiniteGridConfirmText"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="CREATE"
+        >
+      </label>
+
+      <p
+        id="infiniteGridConfirmError"
+        class="form-error hidden"
+        role="alert"
+      ></p>
+
+      <div class="form-actions">
+        <button
+          type="button"
+          class="button secondary"
+          id="cancelInfiniteGridCreate"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="button danger"
+          id="confirmInfiniteGridCreate"
+          disabled
+        >
+          Create Infinity Grid
+        </button>
+      </div>
+
+    </div>
+  </dialog>
+
 <dialog id="ruleDialog" class="small-dialog">
     <div class="dialog-header"><div><h2>Create alert rule</h2><p>Rules run locally after each snapshot.</p></div><button class="icon-button" id="closeRuleDialog" aria-label="Close">×</button></div>
     <form id="ruleForm" class="form-grid">
@@ -4300,7 +4392,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260923-bot-control-market-m42-v2"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1"
     defer
   ></script>
   <script
@@ -4308,7 +4400,7 @@
     defer
   ></script>
   <script
-    src="./infinite-grid-preview.js?v=20260923-infinity-profit-percent-m41-v1"
+    src="./infinite-grid-preview.js?v=20261001-infinity-create-ui-m44f-v1"
     defer
   ></script>
   <script

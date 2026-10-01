@@ -8308,6 +8308,31 @@ function botCreationAvailable() {
 }
 
 
+function infinityGridCreationArmed() {
+  return Boolean(
+    state.health?.allow_infinite_grid_create
+  );
+}
+
+
+function infinityGridSubmissionAvailableForAccount(
+  accountId,
+) {
+  /*
+   * The Infinity rollout arm is independent of both
+   * global Bot Create mode and Wallet-account live
+   * eligibility. The server checks it first even in
+   * simulation mode, so the browser must do the same.
+   */
+  return Boolean(
+    infinityGridCreationArmed()
+    && botCreationSubmissionAvailableForAccount(
+      accountId
+    )
+  );
+}
+
+
 function botStopEnabled() {
   return Boolean(
     state.health?.allow_bot_stop

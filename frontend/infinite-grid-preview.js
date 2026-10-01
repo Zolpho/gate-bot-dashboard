@@ -4,6 +4,13 @@
   const previewState = {
     prepared: null,
     draft: null,
+
+    /*
+     * Preserve one request ID across an ambiguous/retryable
+     * browser submission. The backend remains authoritative
+     * for idempotency.
+     */
+    requestId: '',
   };
 
   const query = selector => (
@@ -48,6 +55,7 @@
   ) {
     previewState.prepared = null;
     previewState.draft = null;
+    previewState.requestId = '';
 
     query(
       '#infiniteGridReview'
@@ -96,6 +104,52 @@
 
     if (payload) {
       payload.textContent = '';
+    }
+
+    const result = query(
+      '#infiniteGridCreateResult'
+    );
+
+    if (result) {
+      result.textContent = '';
+      result.classList.add(
+        'hidden'
+      );
+    }
+
+    const openButton = query(
+      '#openInfiniteGridConfirmation'
+    );
+
+    if (openButton) {
+      openButton.disabled = true;
+    }
+
+    const confirmationText = query(
+      '#infiniteGridConfirmText'
+    );
+
+    if (confirmationText) {
+      confirmationText.value = '';
+    }
+
+    const confirmationError = query(
+      '#infiniteGridConfirmError'
+    );
+
+    if (confirmationError) {
+      confirmationError.textContent = '';
+      confirmationError.classList.add(
+        'hidden'
+      );
+    }
+
+    const dialog = query(
+      '#infiniteGridConfirmDialog'
+    );
+
+    if (dialog?.open) {
+      dialog.close();
     }
   }
 
@@ -379,6 +433,9 @@
     ) {
       renderSidebarSyncScope();
     }
+
+    renderInfinityGridCreateState();
+    updateInfinityGridConfirmButton();
   }
 
 
@@ -402,6 +459,117 @@
     workspace.setAttribute(
       'aria-hidden',
       String(!available),
+    );
+
+    renderInfinityGridCreateState();
+    updateInfinityGridConfirmButton();
+  }
+
+
+  function infinityGridCreateAvailableForAccount(
+    accountId,
+  ) {
+    return Boolean(
+      typeof infinityGridSubmissionAvailableForAccount
+        === 'function'
+      && infinityGridSubmissionAvailableForAccount(
+        accountId
+      )
+    );
+  }
+
+
+  function renderInfinityGridCreateState() {
+    const badge = query(
+      '#infiniteGridPreviewState'
+    );
+
+    const detail = query(
+      '#infiniteGridCreateStateDetail'
+    );
+
+    if (!badge) {
+      return;
+    }
+
+    const armed = Boolean(
+      typeof infinityGridCreationArmed
+        === 'function'
+      && infinityGridCreationArmed()
+    );
+
+    const simulation = Boolean(
+      typeof botCreationSimulation
+        === 'function'
+      && botCreationSimulation()
+    );
+
+    const liveGloballyEnabled = Boolean(
+      typeof botCreationLive
+        === 'function'
+      && botCreationLive()
+    );
+
+    const liveForAccount = Boolean(
+      armed
+      && liveGloballyEnabled
+      && typeof botControlAccountLiveEnabled
+        === 'function'
+      && botControlAccountLiveEnabled(
+        selectedInfinityAccountId()
+      )
+    );
+
+    if (!armed) {
+      badge.textContent = 'REVIEW ONLY';
+
+      if (detail) {
+        detail.textContent = (
+          'Infinity Create rollout disabled'
+        );
+      }
+
+    } else if (simulation) {
+      badge.textContent = 'SIMULATION';
+
+      if (detail) {
+        detail.textContent = 'No Gate write';
+      }
+
+    } else if (liveForAccount) {
+      badge.textContent = 'LIVE WRITE';
+
+      if (detail) {
+        detail.textContent = (
+          'Real Gate Infinity create enabled'
+        );
+      }
+
+    } else if (liveGloballyEnabled) {
+      badge.textContent = 'REVIEW ONLY';
+
+      if (detail) {
+        detail.textContent = (
+          'Creation not armed for this account'
+        );
+      }
+
+    } else {
+      badge.textContent = 'REVIEW ONLY';
+
+      if (detail) {
+        detail.textContent = 'Creation disabled';
+      }
+    }
+
+    badge.className = (
+      `status-badge ${
+        liveForAccount
+          ? 'warning'
+          : armed && simulation
+            ? 'running'
+            : 'disabled'
+      }`
     );
   }
 
@@ -664,7 +832,7 @@
           ready
             ? (
               'Preflight passed. No Gate write was performed. '
-              + 'Infinity Grid remains preview-only.'
+              + 'Review the values below before final confirmation.'
             )
             : (
               'Preflight failed. No Gate write was performed.'
@@ -882,6 +1050,720 @@
         )
       );
     }
+
+    const openButton = query(
+      '#openInfiniteGridConfirmation'
+    );
+
+    if (openButton) {
+      openButton.disabled = (
+        !ready
+        || !infinityGridCreateAvailableForAccount(
+          draft.account_id
+          || selectedInfinityAccountId()
+        )
+      );
+    }
+
+    query(
+      '#infiniteGridCreateResult'
+    )?.classList.add(
+      'hidden'
+    );
+
+    renderInfinityGridCreateState();
+  }
+
+
+  function infinityConfirmRow(
+    label,
+    value,
+  ) {
+    return (
+      '<div class="bot-control-confirm-row">'
+      + `<span>${
+        escapeHtml(label)
+      }</span>`
+      + `<strong>${
+        escapeHtml(
+          value ?? '—'
+        )
+      }</strong>`
+      + '</div>'
+    );
+  }
+
+
+  function updateInfinityGridConfirmButton() {
+    const button = query(
+      '#confirmInfiniteGridCreate'
+    );
+
+    if (!button) {
+      return;
+    }
+
+    const accountId = (
+      previewState.draft?.account_id
+      || selectedInfinityAccountId()
+    );
+
+    const available = (
+      infinityGridCreateAvailableForAccount(
+        accountId
+      )
+    );
+
+    const required = (
+      typeof botCreationRequiredConfirmation
+        === 'function'
+        ? botCreationRequiredConfirmation()
+        : ''
+    );
+
+    button.disabled = !(
+      available
+      && previewState.prepared?.can_create
+      && query(
+        '#infiniteGridConfirmText'
+      )?.value === required
+    );
+
+    button.textContent = (
+      typeof botCreationSimulation
+        === 'function'
+      && botCreationSimulation()
+      && typeof botCreationEnabled
+        === 'function'
+      && !botCreationEnabled()
+        ? 'Simulate Infinity Grid'
+        : (
+          typeof botCreationLive
+            === 'function'
+          && botCreationLive()
+            ? 'Create live Infinity Grid'
+            : 'Create Infinity Grid'
+        )
+    );
+  }
+
+
+  function openInfiniteGridConfirmation() {
+    const prepared = (
+      previewState.prepared
+    );
+
+    const draft = (
+      previewState.draft
+    );
+
+    if (
+      !prepared?.can_create
+      || !draft
+    ) {
+      return;
+    }
+
+    const accountId = String(
+      draft.account_id || ''
+    )
+      .trim()
+      .toLowerCase();
+
+    if (
+      !infinityGridCreateAvailableForAccount(
+        accountId
+      )
+    ) {
+      showToast(
+        (
+          typeof infinityGridCreationArmed
+            === 'function'
+          && !infinityGridCreationArmed()
+        )
+          ? (
+            'Infinity Grid creation is still '
+            + 'disabled by its rollout arm.'
+          )
+          : (
+            'Infinity Grid creation is not '
+            + 'available for this account.'
+          ),
+        true,
+      );
+
+      return;
+    }
+
+    const market = (
+      prepared.market
+      || {}
+    );
+
+    const balance = (
+      prepared.balance
+      || {}
+    );
+
+    const grid = (
+      prepared.grid
+      || {}
+    );
+
+    const optionalRows = [];
+
+    if (draft.trigger_price) {
+      optionalRows.push(
+        infinityConfirmRow(
+          'Trigger price',
+          (
+            `${draft.trigger_price} ${
+              market.quote || ''
+            }`
+          ),
+        ),
+      );
+    }
+
+    if (draft.stop_profit) {
+      optionalRows.push(
+        infinityConfirmRow(
+          'Take-profit price',
+          (
+            `${draft.stop_profit} ${
+              market.quote || ''
+            }`
+          ),
+        ),
+      );
+    }
+
+    if (draft.stop_loss) {
+      optionalRows.push(
+        infinityConfirmRow(
+          'Stop-loss price',
+          (
+            `${draft.stop_loss} ${
+              market.quote || ''
+            }`
+          ),
+        ),
+      );
+    }
+
+    const summary = query(
+      '#infiniteGridConfirmSummary'
+    );
+
+    if (summary) {
+      summary.innerHTML = [
+        infinityConfirmRow(
+          'Account',
+          (
+            prepared.account?.name
+            || prepared.account?.id
+          ),
+        ),
+
+        infinityConfirmRow(
+          'Market',
+          market.id,
+        ),
+
+        infinityConfirmRow(
+          'Current market price',
+          prepared.market_snapshot?.last
+            ? (
+              `${
+                prepared.market_snapshot.last
+              } ${market.quote || ''}`
+            )
+            : '—',
+        ),
+
+        infinityConfirmRow(
+          'Investment',
+          (
+            `${draft.money} ${
+              market.quote || ''
+            }`
+          ),
+        ),
+
+        infinityConfirmRow(
+          'Available before creation',
+          (
+            `${balance.available || '—'} ${
+              balance.currency || ''
+            }`
+          ),
+        ),
+
+        infinityConfirmRow(
+          'Remaining after investment',
+          (
+            balance.remaining_after_investment
+              !== null
+            && balance.remaining_after_investment
+              !== undefined
+          )
+            ? (
+              `${
+                balance.remaining_after_investment
+              } ${balance.currency || ''}`
+            )
+            : '—',
+        ),
+
+        infinityConfirmRow(
+          'Price floor',
+          (
+            `${
+              grid.price_floor
+              || draft.price_floor
+              || '—'
+            } ${market.quote || ''}`
+          ),
+        ),
+
+        infinityConfirmRow(
+          'Profit per grid',
+          (
+            `${draft.profit_per_grid_percent}%`
+          ),
+        ),
+
+        infinityConfirmRow(
+          'Number of grids',
+          String(
+            draft.grid_num
+            ?? 'Gate default'
+          ),
+        ),
+
+        infinityConfirmRow(
+          'Grid type',
+          (
+            Number(draft.price_type) === 0
+              ? 'Arithmetic'
+              : 'Geometric'
+          ),
+        ),
+
+        ...optionalRows,
+      ].join('');
+    }
+
+    const simulation = (
+      botCreationSimulation()
+    );
+
+    const live = Boolean(
+      botCreationLive()
+      && botControlAccountLiveEnabled(
+        accountId
+      )
+    );
+
+    const notice = query(
+      '#infiniteGridCreateNotice'
+    );
+
+    if (notice) {
+      notice.classList.toggle(
+        'enabled',
+        live,
+      );
+
+      notice.textContent = live
+        ? (
+          'LIVE GATE WRITE ENABLED. Submitting this '
+          + 'confirmation sends a real Infinity Grid '
+          + 'creation request to Gate and can place '
+          + 'live orders.'
+        )
+        : simulation
+          ? (
+            'SIMULATION MODE. This exercises the complete '
+            + 'Bot Control workflow and audit trail, but '
+            + 'NO request is sent to Gate.'
+          )
+          : (
+            'Infinity Grid creation is unavailable. '
+            + 'No Gate write can be submitted.'
+          );
+    }
+
+    const required = (
+      botCreationRequiredConfirmation()
+    );
+
+    const requiredElement = query(
+      '#infiniteGridRequiredConfirmation'
+    );
+
+    if (requiredElement) {
+      requiredElement.textContent = required;
+    }
+
+    const input = query(
+      '#infiniteGridConfirmText'
+    );
+
+    if (input) {
+      input.placeholder = required;
+      input.value = '';
+    }
+
+    const error = query(
+      '#infiniteGridConfirmError'
+    );
+
+    if (error) {
+      error.textContent = '';
+      error.classList.add(
+        'hidden'
+      );
+    }
+
+    updateInfinityGridConfirmButton();
+
+    const dialog = query(
+      '#infiniteGridConfirmDialog'
+    );
+
+    if (
+      dialog
+      && !dialog.open
+    ) {
+      dialog.showModal();
+    }
+
+    setTimeout(
+      () => query(
+        '#infiniteGridConfirmText'
+      )?.focus(),
+      0,
+    );
+  }
+
+
+  async function submitInfiniteGridCreate() {
+    const prepared = (
+      previewState.prepared
+    );
+
+    const draft = (
+      previewState.draft
+    );
+
+    if (
+      !prepared?.can_create
+      || !draft
+    ) {
+      return;
+    }
+
+    const accountId = String(
+      draft.account_id || ''
+    )
+      .trim()
+      .toLowerCase();
+
+    if (
+      !infinityGridCreateAvailableForAccount(
+        accountId
+      )
+    ) {
+      return;
+    }
+
+    const button = query(
+      '#confirmInfiniteGridCreate'
+    );
+
+    const errorBox = query(
+      '#infiniteGridConfirmError'
+    );
+
+    const modeBefore = (
+      botCreationMode()
+    );
+
+    const armBefore = (
+      infinityGridCreationArmed()
+    );
+
+    const availableBefore = (
+      infinityGridCreateAvailableForAccount(
+        accountId
+      )
+    );
+
+    try {
+      await refreshBotControlRuntimeHealth();
+
+      state.botControlCapabilities = (
+        await adminApi(
+          '/api/auth/capabilities'
+        )
+      );
+
+      renderBotControlAccess();
+
+    } catch (error) {
+      if (errorBox) {
+        errorBox.textContent = (
+          'Unable to refresh Bot Control safety '
+          + 'state. No Infinity Create request '
+          + 'was submitted.'
+        );
+
+        errorBox.classList.remove(
+          'hidden'
+        );
+      }
+
+      return;
+    }
+
+    const modeAfter = (
+      botCreationMode()
+    );
+
+    const armAfter = (
+      infinityGridCreationArmed()
+    );
+
+    const availableAfter = (
+      infinityGridCreateAvailableForAccount(
+        accountId
+      )
+    );
+
+    if (
+      modeAfter !== modeBefore
+      || armAfter !== armBefore
+      || availableAfter !== availableBefore
+      || !availableAfter
+    ) {
+      query(
+        '#infiniteGridConfirmDialog'
+      )?.close();
+
+      showToast(
+        'Infinity Grid safety state changed on '
+        + 'the server. No Create request was '
+        + 'submitted. Review the strategy again.',
+        true,
+      );
+
+      return;
+    }
+
+    const required = (
+      botCreationRequiredConfirmation()
+    );
+
+    if (
+      query(
+        '#infiniteGridConfirmText'
+      )?.value !== required
+    ) {
+      return;
+    }
+
+    if (!previewState.requestId) {
+      previewState.requestId = (
+        generateBotControlRequestId(
+          'infinite-grid'
+        )
+      );
+    }
+
+    const requestId = (
+      previewState.requestId
+    );
+
+    const payload = {
+      ...infinityGridPreparePayloadFromDraft(
+        draft
+      ),
+
+      request_id:
+        requestId,
+
+      confirmation:
+        required,
+    };
+
+    if (button) {
+      button.disabled = true;
+
+      button.textContent = (
+        botCreationLive()
+          ? 'Submitting to Gate…'
+          : 'Simulating…'
+      );
+    }
+
+    if (errorBox) {
+      errorBox.textContent = '';
+      errorBox.classList.add(
+        'hidden'
+      );
+    }
+
+    let result;
+
+    /*
+     * Only the backend Create mutation belongs in this
+     * try/catch. If it returns successfully, later UI
+     * refresh failures must never be presented as a
+     * failed/unknown Create submission.
+     */
+    try {
+      result = await adminApi(
+        '/api/bot-control/infinite-grid/create',
+        {
+          method: 'POST',
+          body: JSON.stringify(
+            payload
+          ),
+        },
+      );
+
+    } catch (error) {
+      /*
+       * Keep the SAME request ID. Backend audit and
+       * idempotency decide whether replay is safe.
+       */
+      if (errorBox) {
+        errorBox.textContent = (
+          botControlErrorMessage(
+            error
+          )
+        );
+
+        errorBox.classList.remove(
+          'hidden'
+        );
+      }
+
+      updateInfinityGridConfirmButton();
+      return;
+    }
+
+    const simulated = Boolean(
+      result.simulation
+      || result.status === 'simulated'
+    );
+
+    query(
+      '#infiniteGridConfirmDialog'
+    )?.close();
+
+    const inspector = query(
+      '#apiInspector'
+    );
+
+    if (inspector) {
+      inspector.textContent = (
+        JSON.stringify(
+          result,
+          null,
+          2,
+        )
+      );
+    }
+
+    const resultBox = query(
+      '#infiniteGridCreateResult'
+    );
+
+    if (resultBox) {
+      resultBox.innerHTML = (
+        `<strong>${
+          simulated
+            ? (
+              'Simulation completed. '
+              + 'No Gate write performed.'
+            )
+            : 'Gate submission completed.'
+        }</strong>`
+        + '<br>'
+        + `Request ID: ${
+          escapeHtml(
+            requestId
+          )
+        }`
+        + '<br>'
+        + (
+          simulated
+            ? (
+              'Strategy ID: none · '
+              + 'simulation only'
+            )
+            : (
+              `Strategy ID: ${
+                escapeHtml(
+                  result.strategy?.strategy_id
+                  || result.gate?.data?.strategy_id
+                  || 'pending'
+                )
+              }`
+            )
+        )
+      );
+
+      resultBox.classList.remove(
+        'hidden'
+      );
+    }
+
+    showToast(
+      simulated
+        ? (
+          'Infinity Grid simulation completed. '
+          + `Request ${requestId}.`
+        )
+        : (
+          'Infinity Grid creation submitted to Gate. '
+          + `Request ${requestId}.`
+        )
+    );
+
+    await openBotControlRequestDetail(
+      requestId
+    );
+
+    try {
+      await loadBotControlActivity({
+        quiet: true,
+      });
+
+    } catch (_error) {
+      showToast(
+        'Create succeeded, but Bot Control '
+        + 'Activity could not be refreshed. '
+        + `Request ${requestId}.`,
+        true,
+      );
+    }
+
+    try {
+      await loadCore();
+
+    } catch (_error) {
+      showToast(
+        'Create succeeded, but the dashboard '
+        + 'could not be refreshed. '
+        + `Request ${requestId}.`,
+        true,
+      );
+    }
+
+    updateInfinityGridConfirmButton();
   }
 
 
@@ -911,6 +1793,7 @@
 
     previewState.prepared = null;
     previewState.draft = null;
+    previewState.requestId = '';
 
     const draft = (
       infinityGridDraftFromForm(
@@ -1026,6 +1909,63 @@
           event.currentTarget.value
         )
       ),
+    );
+
+    query(
+      '#openInfiniteGridConfirmation'
+    )?.addEventListener(
+      'click',
+      openInfiniteGridConfirmation,
+    );
+
+    query(
+      '#infiniteGridConfirmText'
+    )?.addEventListener(
+      'input',
+      updateInfinityGridConfirmButton,
+    );
+
+    query(
+      '#confirmInfiniteGridCreate'
+    )?.addEventListener(
+      'click',
+      submitInfiniteGridCreate,
+    );
+
+    query(
+      '#closeInfiniteGridConfirmDialog'
+    )?.addEventListener(
+      'click',
+      () => query(
+        '#infiniteGridConfirmDialog'
+      )?.close(),
+    );
+
+    query(
+      '#cancelInfiniteGridCreate'
+    )?.addEventListener(
+      'click',
+      () => query(
+        '#infiniteGridConfirmDialog'
+      )?.close(),
+    );
+
+    query(
+      '#infiniteGridConfirmDialog'
+    )?.addEventListener(
+      'click',
+      event => {
+        if (
+          event.target
+          === query(
+            '#infiniteGridConfirmDialog'
+          )
+        ) {
+          query(
+            '#infiniteGridConfirmDialog'
+          )?.close();
+        }
+      },
     );
 
     renderInfiniteGridPreviewAccess();

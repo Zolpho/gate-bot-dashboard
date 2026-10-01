@@ -198,6 +198,9 @@ def health(
         "bot_stop_simulation": settings.bot_stop_simulation,
         "allow_bot_create": settings.allow_bot_create,
         "bot_create_simulation": settings.bot_create_simulation,
+        "allow_infinite_grid_create": (
+            settings.allow_infinite_grid_create
+        ),
 
         # Treasury live-write flags report the actual runtime
         # arming state. Production normally remains disarmed.

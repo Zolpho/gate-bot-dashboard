@@ -255,6 +255,7 @@ def test_permissions_feature_loads_after_app() -> None:
             "&a7c490d21=20260923-refresh-safe-session-v1"
             "&a7c490d31=20260923-ip-live-save-v1"
             "&infinitym4=20260923-preview-only-v1"
+            "&infinitym44f=20261001-create-ui-v1"
         )
     )
 

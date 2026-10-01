@@ -1055,30 +1055,75 @@ def test_gate_business_rejection_is_terminal_rejected(
     )
 
 
-def test_frontend_still_has_no_infinity_create_wiring(
+def test_frontend_infinity_create_uses_dashboard_api_only(
 ) -> None:
     from pathlib import Path
 
-    for path in (
-        Path("frontend/index.html"),
-        Path(
-            "frontend/"
-            "infinite-grid-preview.js"
-        ),
+    html = Path(
+        "frontend/index.html"
+    ).read_text()
+
+    app = Path(
+        "frontend/app.js"
+    ).read_text()
+
+    controller = Path(
+        "frontend/"
+        "infinite-grid-preview.js"
+    ).read_text()
+
+    dashboard_endpoint = (
+        "/api/bot-control/"
+        "infinite-grid/create"
+    )
+
+    native_gate_endpoint = (
+        "/bot/infinite-grid/create"
+    )
+
+    assert (
+        dashboard_endpoint
+        in controller
+    )
+
+    assert (
+        controller.count(
+            dashboard_endpoint
+        )
+        == 1
+    )
+
+    assert (
+        dashboard_endpoint
+        not in app
+    )
+
+    assert (
+        dashboard_endpoint
+        not in html
+    )
+
+    for frontend_source in (
+        html,
+        app,
+        controller,
     ):
-        source = path.read_text()
-
         assert (
-            "/infinite-grid/create"
-            not in source
+            native_gate_endpoint
+            not in frontend_source
         )
 
-        assert (
-            "createInfiniteGrid"
-            not in source
-        )
+    assert (
+        "submitInfiniteGridCreate"
+        in controller
+    )
 
-        assert (
-            "Create Infinity Grid"
-            not in source
-        )
+    assert (
+        "Create Infinity Grid"
+        in html
+    )
+
+    assert (
+        "Final confirmation"
+        in html
+    )

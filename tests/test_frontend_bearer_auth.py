@@ -636,6 +636,7 @@ def test_app_script_cache_bust_is_additive() -> None:
             "&a7c490d21=20260923-refresh-safe-session-v1"
             "&a7c490d31=20260923-ip-live-save-v1"
             "&infinitym4=20260923-preview-only-v1"
+            "&infinitym44f=20261001-create-ui-v1"
         )
     ]
 

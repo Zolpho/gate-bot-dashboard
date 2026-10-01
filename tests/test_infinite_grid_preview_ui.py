@@ -90,13 +90,13 @@ def function_block(
 def test_preview_assets_are_registered() -> None:
     assert (
         "./infinite-grid-preview.js?"
-        "v=20260923-infinity-profit-percent-m41-v1"
+        "v=20261001-infinity-create-ui-m44f-v1"
         in HTML
     )
 
     assert (
-        "infinitym4="
-        "20260923-preview-only-v1"
+        "infinitym44f="
+        "20261001-create-ui-v1"
         in HTML
     )
 
@@ -144,51 +144,45 @@ def test_preview_workspace_contains_required_fields() -> None:
         assert field in block
 
 
-def test_preview_workspace_exposes_no_create_control() -> None:
+def test_workspace_exposes_gated_create_control() -> None:
     block = infinity_html_block()
 
-    for forbidden in (
+    for token in (
         "Final confirmation",
-        "Create Infinity Grid",
-        "Confirm Infinity",
-        "infinite-grid/create",
-        "createInfiniteGrid",
+        'id="openInfiniteGridConfirmation"',
+        'id="infiniteGridCreateResult"',
+        "REVIEW ONLY",
+        "Infinity Create rollout disabled",
     ):
-        assert forbidden not in block
+        assert token in block
 
     assert (
         "Review Infinity Grid"
         in block
     )
 
+def test_infinity_create_endpoint_is_controller_only() -> None:
     assert (
-        "PREVIEW ONLY"
-        in block
+        "/api/bot-control/"
+        "infinite-grid/create"
+        in PREVIEW
     )
 
     assert (
-        "No create path"
-        in block
+        "/api/bot-control/"
+        "infinite-grid/create"
+        not in APP
     )
 
-
-def test_frontend_has_no_infinity_create_endpoint() -> None:
     for source in (
         HTML,
         APP,
         PREVIEW,
     ):
         assert (
-            "/api/bot-control/"
-            "infinite-grid/create"
-            not in source
-        )
-
-        assert (
             "/bot/infinite-grid/create"
             not in source
         )
-
 
 def test_prepare_calls_only_prepare_endpoint() -> None:
     start = PREVIEW.index(
@@ -292,7 +286,7 @@ def test_review_explains_infinity_semantics() -> None:
         "Upper price",
         "No fixed upper bound",
         "Gate market status",
-        "Infinity Grid remains preview-only.",
+        "Review the values below before final confirmation.",
     ):
         assert token in block
 
@@ -325,7 +319,7 @@ def test_account_scope_is_synchronized() -> None:
     )
 
 
-def test_shared_app_has_only_lifecycle_hooks() -> None:
+def test_shared_app_exposes_infinity_safety_helpers() -> None:
     assert (
         "window.renderInfiniteGridPreviewAccess?.();"
         in APP
@@ -337,15 +331,24 @@ def test_shared_app_has_only_lifecycle_hooks() -> None:
     )
 
     assert (
-        "/api/bot-control/infinite-grid/prepare"
-        not in APP
+        "function infinityGridCreationArmed("
+        in APP
     )
 
     assert (
-        "infiniteGridPayloadPreview"
-        not in APP
+        "function infinityGridSubmissionAvailableForAccount("
+        in APP
     )
 
+    assert (
+        "state.health?.allow_infinite_grid_create"
+        in APP
+    )
+
+    assert (
+        "/api/bot-control/infinite-grid/create"
+        not in APP
+    )
 
 def test_preview_uses_existing_bot_control_layout() -> None:
     block = infinity_html_block()
@@ -367,16 +370,22 @@ def test_preview_uses_existing_bot_control_layout() -> None:
     )
 
 
-def test_preview_controller_has_no_write_confirmation_flow() -> None:
-    for forbidden in (
-        "submitInfiniteGridCreate",
+def test_controller_has_gated_confirmation_flow() -> None:
+    for required in (
         "openInfiniteGridConfirmation",
-        "confirmInfiniteGrid",
-        "botControlRequestId",
-        "reserve",
-        "operation_lock",
+        "updateInfinityGridConfirmButton",
+        "submitInfiniteGridCreate",
+        "previewState.requestId",
+        "/api/bot-control/infinite-grid/create",
+        "refreshBotControlRuntimeHealth()",
+        "'/api/auth/capabilities'",
     ):
-        assert forbidden not in PREVIEW
+        assert required in PREVIEW
+
+    assert (
+        "/bot/infinite-grid/create"
+        not in PREVIEW
+    )
 
 def test_profit_per_grid_uses_explicit_percent_semantics() -> None:
     block = infinity_html_block()

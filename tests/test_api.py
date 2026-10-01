@@ -18,6 +18,10 @@ def test_public_dashboard_and_account_scoped_actions() -> None:
         assert health.status_code == 200
         assert health.json()["mode"] == "demo"
         assert health.json()["action_auth"]["enabled_user_count"] == 3
+        assert (
+            health.json()["allow_infinite_grid_create"]
+            is False
+        )
 
         preflight = client.options(
             "/api/auth/me",
