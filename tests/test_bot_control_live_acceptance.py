@@ -36,6 +36,9 @@ class FakeGateClient:
     create_calls: list[dict] = []
     stop_calls: list[tuple[str, str]] = []
 
+    create_failure: Exception | None = None
+    stop_failure: Exception | None = None
+
     def __init__(
         self,
         *args,
@@ -61,6 +64,12 @@ class FakeGateClient:
         self.__class__.create_calls.append(
             payload
         )
+
+        if (
+            self.__class__.create_failure
+            is not None
+        ):
+            raise self.__class__.create_failure
 
         return SimpleNamespace(
             status_code=200,
@@ -92,6 +101,12 @@ class FakeGateClient:
                 strategy_type,
             )
         )
+
+        if (
+            self.__class__.stop_failure
+            is not None
+        ):
+            raise self.__class__.stop_failure
 
         return SimpleNamespace(
             status_code=200,
@@ -265,10 +280,13 @@ def route_env(
 
     FakeGateClient.create_calls = []
     FakeGateClient.stop_calls = []
+    FakeGateClient.create_failure = None
+    FakeGateClient.stop_failure = None
 
     state = {
         "available": "100",
         "can_create": True,
+        "released": [],
         "bot": {
             "id": 900001,
             "account_id": "zolnode",
@@ -455,10 +473,21 @@ def route_env(
         lambda *args, **kwargs: None,
     )
 
+    def fake_release_operation_lock(
+        **kwargs,
+    ):
+        state[
+            "released"
+        ].append(
+            dict(kwargs)
+        )
+
+        return True
+
     monkeypatch.setattr(
         bc,
         "release_operation_lock",
-        lambda **kwargs: True,
+        fake_release_operation_lock,
     )
 
     monkeypatch.setattr(
@@ -1903,3 +1932,234 @@ def test_trading_policy_off_preserves_bot_stop(
         FakeGateClient.create_calls
         == []
     )
+def test_live_create_business_rejection_releases_operation_lock(
+    client,
+    route_env,
+    monkeypatch,
+):
+    configure_create(
+        monkeypatch,
+        simulation=False,
+        allow=True,
+        armed=True,
+        accounts="zolnode",
+    )
+
+    FakeGateClient.create_failure = (
+        bc.GateAPIError(
+            "synthetic Gate business rejection",
+            status_code=200,
+            label="400",
+            response={
+                "code": 400,
+                "label": "INVALID_PARAM",
+            },
+        )
+    )
+
+    request_id = (
+        "accept-create-gate-rejected-001"
+    )
+
+    response = client.post(
+        "/api/bot-control/spot-grid/create",
+        headers=auth(),
+        json=create_body(
+            request_id=request_id,
+            confirmation="LIVE CREATE",
+        ),
+    )
+
+    assert response.status_code == 502
+
+    detail = response.json()[
+        "detail"
+    ]
+
+    assert (
+        detail["status"]
+        == "rejected"
+    )
+
+    assert len(
+        FakeGateClient.create_calls
+    ) == 1
+
+    assert route_env[
+        "released"
+    ] == [
+        {
+            "lock_key":
+                "acceptance-create-lock",
+            "owner_request_id":
+                request_id,
+        }
+    ]
+
+
+def test_live_create_network_failure_keeps_operation_lock(
+    client,
+    route_env,
+    monkeypatch,
+):
+    configure_create(
+        monkeypatch,
+        simulation=False,
+        allow=True,
+        armed=True,
+        accounts="zolnode",
+    )
+
+    FakeGateClient.create_failure = (
+        bc.GateAPIError(
+            "synthetic network timeout",
+            status_code=None,
+        )
+    )
+
+    response = client.post(
+        "/api/bot-control/spot-grid/create",
+        headers=auth(),
+        json=create_body(
+            request_id=(
+                "accept-create-uncertain-001"
+            ),
+            confirmation="LIVE CREATE",
+        ),
+    )
+
+    assert response.status_code == 502
+
+    detail = response.json()[
+        "detail"
+    ]
+
+    assert (
+        detail["status"]
+        == "uncertain"
+    )
+
+    assert route_env[
+        "released"
+    ] == []
+
+
+def test_live_stop_business_rejection_releases_operation_lock(
+    client,
+    route_env,
+    monkeypatch,
+):
+    configure_stop(
+        monkeypatch,
+        simulation=False,
+        allow=True,
+        armed=True,
+        accounts="zolnode",
+    )
+
+    FakeGateClient.stop_failure = (
+        bc.GateAPIError(
+            "synthetic Gate business rejection",
+            status_code=200,
+            label="400",
+            response={
+                "code": 400,
+                "label": "INVALID_PARAM",
+            },
+        )
+    )
+
+    request_id = (
+        "accept-stop-gate-rejected-001"
+    )
+
+    response = client.post(
+        "/api/bot-control/bots/900001/stop",
+        headers=auth(),
+        json=stop_body(
+            request_id=request_id,
+            confirmation="LIVE STOP",
+        ),
+    )
+
+    assert response.status_code == 502
+
+    detail = response.json()[
+        "detail"
+    ]
+
+    assert (
+        detail["status"]
+        == "rejected"
+    )
+
+    assert FakeGateClient.stop_calls == [
+        (
+            "FAKE-STOP-STRATEGY",
+            "spot_grid",
+        )
+    ]
+
+    assert route_env[
+        "released"
+    ] == [
+        {
+            "lock_key":
+                bc.strategy_lock_key(
+                    account_id="zolnode",
+                    strategy_type="spot_grid",
+                    strategy_id=(
+                        "FAKE-STOP-STRATEGY"
+                    ),
+                ),
+            "owner_request_id":
+                request_id,
+        }
+    ]
+
+
+def test_live_stop_network_failure_keeps_operation_lock(
+    client,
+    route_env,
+    monkeypatch,
+):
+    configure_stop(
+        monkeypatch,
+        simulation=False,
+        allow=True,
+        armed=True,
+        accounts="zolnode",
+    )
+
+    FakeGateClient.stop_failure = (
+        bc.GateAPIError(
+            "synthetic network timeout",
+            status_code=None,
+        )
+    )
+
+    response = client.post(
+        "/api/bot-control/bots/900001/stop",
+        headers=auth(),
+        json=stop_body(
+            request_id=(
+                "accept-stop-uncertain-001"
+            ),
+            confirmation="LIVE STOP",
+        ),
+    )
+
+    assert response.status_code == 502
+
+    detail = response.json()[
+        "detail"
+    ]
+
+    assert (
+        detail["status"]
+        == "uncertain"
+    )
+
+    assert route_env[
+        "released"
+    ] == []

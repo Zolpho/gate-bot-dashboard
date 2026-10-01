@@ -1443,6 +1443,14 @@ async def create_infinite_grid(
             completed=True,
         )
 
+        if terminal_status == "rejected":
+            release_operation_lock(
+                lock_key=create_lock_key,
+                owner_request_id=(
+                    request.request_id
+                ),
+            )
+
         raise HTTPException(
             status_code=502,
             detail={
@@ -1921,6 +1929,14 @@ async def create_spot_grid(
             gate_label=exc.label,
             completed=True,
         )
+
+        if terminal_status == "rejected":
+            release_operation_lock(
+                lock_key=create_lock_key,
+                owner_request_id=(
+                    request.request_id
+                ),
+            )
 
         raise HTTPException(
             status_code=502,
@@ -2736,6 +2752,14 @@ async def stop_bot_control(
             gate_label=exc.label,
             completed=True,
         )
+
+        if terminal_status == "rejected":
+            release_operation_lock(
+                lock_key=stop_lock_key,
+                owner_request_id=(
+                    request.request_id
+                ),
+            )
 
         raise HTTPException(
             status_code=502,

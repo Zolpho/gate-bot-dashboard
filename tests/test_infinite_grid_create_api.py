@@ -1001,6 +1001,14 @@ def test_gate_network_failure_is_uncertain_and_not_retried(
         uncertain_marks
     ) == 1
 
+    assert route_env[
+        "released"
+    ] == []
+
+    assert route_env[
+        "cooled"
+    ] == []
+
 
 def test_gate_business_rejection_is_terminal_rejected(
     route_env,
@@ -1053,6 +1061,21 @@ def test_gate_business_rejection_is_terminal_rejected(
             "marks"
         ]
     )
+
+    assert route_env[
+        "released"
+    ] == [
+        {
+            "lock_key":
+                "create-intent:test",
+            "owner_request_id":
+                "infinity-rejected-001",
+        }
+    ]
+
+    assert route_env[
+        "cooled"
+    ] == []
 
 
 def test_frontend_infinity_create_uses_dashboard_api_only(
