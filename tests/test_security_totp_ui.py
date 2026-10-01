@@ -1037,6 +1037,7 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "&infinitym44f=20261001-create-ui-v1"
             "&infinitym45c=20261001-config-provenance-v1"
             "&m46a=20261001-bot-control-ui-polish-v1"
+            "&m48a=20261001-apr-min-window-v1"
         )
     ]
 

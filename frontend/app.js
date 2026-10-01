@@ -5437,6 +5437,11 @@ function fmtRatioPct(value, digits = 2) {
     : fmtPct(percentage, digits);
 }
 
+const ANNUALIZED_APR_MIN_RUNTIME_SECONDS = (
+  7 * 24 * 60 * 60
+);
+
+
 function annualizedAprPct(rate, runtimeSeconds) {
   const ratio = numericValue(rate);
   const seconds = numericValue(runtimeSeconds);
@@ -5444,7 +5449,7 @@ function annualizedAprPct(rate, runtimeSeconds) {
   if (
     ratio === null
     || seconds === null
-    || seconds <= 0
+    || seconds < ANNUALIZED_APR_MIN_RUNTIME_SECONDS
   ) {
     return null;
   }
@@ -21742,9 +21747,24 @@ function renderBotDialog(detail, history) {
         : null
     );
 
+  const annualizedAprRuntimeSeconds = numericValue(
+    bot.runtime_seconds
+  );
+
   const annualizedApr = annualizedAprPct(
     rate,
     bot.runtime_seconds,
+  );
+
+  const annualizedAprDisplay = (
+    annualizedAprRuntimeSeconds !== null
+    && annualizedAprRuntimeSeconds > 0
+    && (
+      annualizedAprRuntimeSeconds
+      < ANNUALIZED_APR_MIN_RUNTIME_SECONDS
+    )
+      ? 'After 7d'
+      : fmtPct(annualizedApr)
   );
 
   const stats = [
@@ -21780,7 +21800,7 @@ function renderBotDialog(detail, history) {
     ],
     [
       'Annualized APR',
-      fmtPct(annualizedApr),
+      annualizedAprDisplay,
       annualizedApr,
     ],
     [
