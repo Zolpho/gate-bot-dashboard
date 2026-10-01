@@ -1205,6 +1205,10 @@ def test_trading_policy_exact_runtime_consumers() -> None:
             "app/api/bot_control.py",
             "create_spot_grid",
         ): "account_id",
+        (
+            "app/api/bot_control.py",
+            "create_infinite_grid",
+        ): "account_id",
     }
 
     trading_tree = ast.parse(

@@ -24,6 +24,7 @@ from ..bot_control import (
     get_bot_control_account,
 )
 from ..bot_control_actions import (
+    INFINITE_GRID_CREATE_ACTION,
     SPOT_GRID_CREATE_ACTION,
 )
 from ..bot_control_audit import (
@@ -908,6 +909,25 @@ async def prepare_infinite_grid(
     }
 
 
+
+class InfiniteGridCreateRequest(
+    InfiniteGridPrepareRequest
+):
+    request_id: str = Field(
+        min_length=8,
+        max_length=128,
+        pattern=(
+            r"^[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{7,127}$"
+        ),
+    )
+
+    confirmation: str = Field(
+        min_length=1,
+        max_length=64,
+    )
+
+
 class SpotGridCreateRequest(SpotGridPrepareRequest):
     request_id: str = Field(
         min_length=8,
@@ -991,6 +1011,548 @@ def _existing_control_result(
             "error": record.get("error"),
         },
     )
+
+
+
+@router.post("/infinite-grid/create")
+async def create_infinite_grid(
+    request: InfiniteGridCreateRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_user),
+    ],
+):
+    # Infinity Grid has an additional independent rollout
+    # arm. This guard is deliberately first so enabling the
+    # existing global Bot Create controls can never
+    # implicitly enable Infinity Grid creation.
+    if not settings.allow_infinite_grid_create:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "Infinity Grid creation is disabled "
+                    "by its independent rollout gate."
+                ),
+                "reason": (
+                    "infinite_grid_create_disabled"
+                ),
+                "write_performed": False,
+            },
+        )
+
+    # The existing global Bot Create/simulation gate
+    # remains independently authoritative.
+    if (
+        not settings.allow_bot_create
+        and not settings.bot_create_simulation
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "Bot creation and simulation "
+                    "are disabled"
+                ),
+                "reason": (
+                    "bot_create_disabled"
+                ),
+                "write_performed": False,
+            },
+        )
+
+    live_execution = (
+        not settings.bot_create_simulation
+    )
+
+    required_confirmation = (
+        settings
+        .bot_control_live_create_confirmation_text
+        if live_execution
+        else settings.bot_create_confirmation_text
+    )
+
+    if (
+        request.confirmation
+        != required_confirmation
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "Invalid Bot Control "
+                    "confirmation text"
+                ),
+                "mode": (
+                    "live"
+                    if live_execution
+                    else "simulation"
+                ),
+                "required_confirmation": (
+                    required_confirmation
+                ),
+                "write_performed": False,
+            },
+        )
+
+    account_id = require_account_access(
+        user,
+        request.account_id,
+    )
+
+    intent = build_infinite_grid_payload(
+        market=request.market.strip().upper(),
+        money=request.money,
+        price_floor=request.price_floor,
+        profit_per_grid=(
+            request.profit_per_grid
+        ),
+        grid_num=request.grid_num,
+        price_type=request.price_type,
+        trigger_price=request.trigger_price,
+        stop_profit=request.stop_profit,
+        stop_loss=request.stop_loss,
+    )
+
+    audit_payload = {
+        "account_id": account_id,
+        "operation":
+            INFINITE_GRID_CREATE_ACTION,
+        "gate_payload": intent,
+    }
+
+    try:
+        existing = find_matching_request(
+            request_id=request.request_id,
+            account_id=account_id,
+            username=user.username,
+            action=(
+                INFINITE_GRID_CREATE_ACTION
+            ),
+            payload=audit_payload,
+        )
+
+    except IdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    if existing is not None:
+        return _existing_control_result(
+            existing
+        )
+
+    _enforce_bot_control_rate_limit(
+        user=user,
+        account_id=account_id,
+        action=INFINITE_GRID_CREATE_ACTION,
+    )
+
+    # Re-run the complete read-only Infinity preflight
+    # immediately before reserving any write intent.
+    prepared = await prepare_infinite_grid(
+        request,
+        user,
+    )
+
+    if not prepared["can_create"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Infinity Grid validation failed. "
+                    "No Gate write was performed."
+                ),
+                "errors": prepared["errors"],
+                "warnings": prepared["warnings"],
+                "write_performed": False,
+            },
+        )
+
+    if live_execution:
+        available_quote = as_decimal(
+            prepared["balance"].get(
+                "available"
+            )
+        )
+
+        if available_quote is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "Live safety policy could not "
+                        "determine the available quote "
+                        "balance. No Gate write was "
+                        "performed."
+                    ),
+                    "reason": (
+                        "available_balance_unknown"
+                    ),
+                    "write_performed": False,
+                },
+            )
+
+        live_decision = (
+            evaluate_live_create_policy(
+                settings=settings,
+                action=(
+                    INFINITE_GRID_CREATE_ACTION
+                ),
+                account_id=account_id,
+                market=prepared["market"]["id"],
+                quote_currency=(
+                    prepared["market"]["quote"]
+                ),
+                requested_investment=(
+                    request.money
+                ),
+                available_quote=available_quote,
+            )
+        )
+
+        if not live_decision.allowed:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "message": (
+                        "Bot Control live safety "
+                        "policy rejected this request."
+                    ),
+                    **live_decision.safe_dict(),
+                    "write_performed": False,
+                },
+            )
+
+        try:
+            require_account_action_allowed(
+                account_id=account_id,
+                capability="trading",
+            )
+
+        except AccountActionPolicyDenied as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    **exc.safe_dict(
+                        operation=(
+                            INFINITE_GRID_CREATE_ACTION
+                        ),
+                    ),
+                    "gate_write_performed":
+                        False,
+                    "write_performed":
+                        False,
+                },
+            ) from exc
+
+    try:
+        control_account = (
+            get_bot_control_account(
+                account_id
+            )
+        )
+
+    except BotControlConfigError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    if control_account is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Bot Control credentials are not "
+                f"configured for {account_id}"
+            ),
+        )
+
+    # Atomic request reservation prevents a second request
+    # with the same request_id from submitting to Gate.
+    try:
+        audit_record, created = (
+            reserve_request(
+                request_id=(
+                    request.request_id
+                ),
+                account_id=account_id,
+                username=user.username,
+                action=(
+                    INFINITE_GRID_CREATE_ACTION
+                ),
+                payload=audit_payload,
+            )
+        )
+
+    except IdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    if not created:
+        return _existing_control_result(
+            audit_record
+        )
+
+    create_lock_key, intent_hash = (
+        create_intent_lock(
+            account_id=account_id,
+            gate_payload=intent,
+        )
+    )
+
+    try:
+        operation_lock = (
+            acquire_operation_lock(
+                lock_key=create_lock_key,
+                lock_type="create_intent",
+                account_id=account_id,
+                action=(
+                    INFINITE_GRID_CREATE_ACTION
+                ),
+                owner_request_id=(
+                    request.request_id
+                ),
+                username=user.username,
+                strategy_type="infinite_grid",
+                market=str(
+                    intent.get("market")
+                    or ""
+                ),
+                intent_hash=intent_hash,
+            )
+        )
+
+    except OperationLocked as exc:
+        message = (
+            "An identical Infinity Grid creation "
+            "operation is already protected by "
+            "another Bot Control request."
+        )
+
+        mark_request(
+            request.request_id,
+            status="blocked",
+            error=message,
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": message,
+                "request_id": (
+                    request.request_id
+                ),
+                "conflicting_lock": (
+                    exc.lock
+                ),
+                "write_performed": False,
+            },
+        ) from exc
+
+    mark_request(
+        request.request_id,
+        status="submitting",
+    )
+
+    payload = prepared[
+        "gate_create_payload_preview"
+    ]
+
+    # Simulation traverses authorization, fresh preflight,
+    # idempotency, reservation and locking, then stops
+    # before GateClient.create_infinite_grid().
+    if settings.bot_create_simulation:
+        simulated_result = {
+            "status": "simulated",
+            "write_performed": False,
+            "simulation": True,
+            "credential_profile":
+                "bot_control",
+            "request_id":
+                request.request_id,
+            "idempotent_replay": False,
+            "account_id": account_id,
+            "authorized_user":
+                user.username,
+            "gate_create_payload":
+                payload,
+            "strategy": {
+                "strategy_id": None,
+                "strategy_type":
+                    "infinite_grid",
+                "market":
+                    payload.get("market"),
+                "status":
+                    "not_submitted",
+                "jump_url": None,
+            },
+        }
+
+        mark_request(
+            request.request_id,
+            status="simulated",
+            response=simulated_result,
+            completed=True,
+        )
+
+        release_operation_lock(
+            lock_key=create_lock_key,
+            owner_request_id=(
+                request.request_id
+            ),
+        )
+
+        return simulated_result
+
+    # This is the only Gate write reachable from the
+    # Infinity Create route. GateClient itself performs
+    # exactly one POST and contains no retry loop.
+    try:
+        async with GateClient(
+            settings,
+            control_account,
+        ) as client:
+            response = (
+                await client
+                .create_infinite_grid(
+                    payload
+                )
+            )
+
+    except GateAPIError as exc:
+        terminal_status = (
+            "rejected"
+            if exc.status_code is not None
+            else "uncertain"
+        )
+
+        mark_request(
+            request.request_id,
+            status=terminal_status,
+            response=exc.response,
+            error=str(exc),
+            gate_status_code=(
+                exc.status_code
+            ),
+            gate_label=exc.label,
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": (
+                    "Gate rejected Infinity Grid "
+                    "creation."
+                    if terminal_status
+                    == "rejected"
+                    else (
+                        "Gate submission outcome is "
+                        "uncertain. Do not retry "
+                        "automatically."
+                    )
+                ),
+                "request_id":
+                    request.request_id,
+                "status":
+                    terminal_status,
+                "gate_error":
+                    str(exc),
+            },
+        ) from exc
+
+    except Exception as exc:
+        mark_request(
+            request.request_id,
+            status="uncertain",
+            error=str(exc),
+            completed=True,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": (
+                    "Unexpected error after Gate "
+                    "submission began. Outcome is "
+                    "uncertain; do not retry."
+                ),
+                "request_id":
+                    request.request_id,
+            },
+        ) from exc
+
+    data = (
+        response.data
+        if isinstance(
+            response.data,
+            dict,
+        )
+        else {}
+    )
+
+    strategy_id = str(
+        data.get("strategy_id")
+        or ""
+    )
+
+    result = {
+        "status": "submitted",
+        "write_performed": True,
+        "credential_profile":
+            "bot_control",
+        "request_id":
+            request.request_id,
+        "idempotent_replay": False,
+        "account_id": account_id,
+        "authorized_user":
+            user.username,
+        "strategy": {
+            "strategy_id": (
+                strategy_id or None
+            ),
+            "strategy_type": (
+                data.get("strategy_type")
+                or "infinite_grid"
+            ),
+            "market":
+                data.get("market"),
+            "status":
+                data.get("status"),
+            "jump_url":
+                data.get("jump_url"),
+        },
+        "gate": response.raw,
+    }
+
+    mark_request(
+        request.request_id,
+        status="succeeded",
+        response=result,
+        strategy_id=strategy_id,
+        gate_status_code=(
+            response.status_code
+        ),
+        completed=True,
+    )
+
+    cooldown_operation_lock(
+        lock_key=create_lock_key,
+        owner_request_id=(
+            request.request_id
+        ),
+        seconds=(
+            settings
+            .bot_create_duplicate_cooldown_seconds
+        ),
+    )
+
+    return result
 
 
 @router.post("/spot-grid/create")

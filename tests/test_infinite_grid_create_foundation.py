@@ -330,7 +330,7 @@ def test_infinity_reconciliation_uses_create_handler(
     ]
 
 
-def test_foundation_exposes_no_infinity_create_route(
+def test_infinity_create_route_is_registered(
 ) -> None:
     tree = ast.parse(
         Path(
@@ -381,5 +381,5 @@ def test_foundation_exposes_no_infinity_create_route(
 
     assert (
         "/infinite-grid/create"
-        not in routes
+        in routes
     )
