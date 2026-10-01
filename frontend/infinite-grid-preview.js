@@ -724,16 +724,109 @@
   }
 
 
+  function formatInfinityDisplayNumber(
+    value,
+    maximumFractionDigits = 2,
+  ) {
+    const raw = String(
+      value ?? ''
+    ).trim();
+
+    if (!raw) {
+      return '—';
+    }
+
+    const number = Number(
+      raw
+    );
+
+    if (
+      !Number.isFinite(
+        number
+      )
+    ) {
+      return raw;
+    }
+
+    return new Intl.NumberFormat(
+      'en-US',
+      {
+        minimumFractionDigits: 0,
+        maximumFractionDigits,
+      },
+    ).format(
+      number
+    );
+  }
+
+
+  function infinityAmountText(
+    value,
+    currency = '',
+    {
+      approximate = false,
+      maximumFractionDigits = 2,
+    } = {},
+  ) {
+    const formatted = (
+      formatInfinityDisplayNumber(
+        value,
+        maximumFractionDigits,
+      )
+    );
+
+    if (formatted === '—') {
+      return formatted;
+    }
+
+    return (
+      `${approximate ? '≈' : ''}${formatted}`
+      + `${currency ? ` ${currency}` : ''}`
+    );
+  }
+
+
+  function infinityExactAmountTitle(
+    label,
+    value,
+    currency = '',
+  ) {
+    const raw = String(
+      value ?? ''
+    ).trim();
+
+    if (!raw) {
+      return '';
+    }
+
+    return (
+      `${label}: ${raw}`
+      + `${currency ? ` ${currency}` : ''}`
+    );
+  }
+
+
   function reviewMetric(
     label,
     value,
+    title = '',
   ) {
+    const titleAttribute = (
+      title
+        ? (
+          ` title="${
+            escapeHtml(title)
+          }"`
+        )
+        : ''
+    );
+
     return (
       '<div class="bot-control-review-item">'
       + `<span>${
         escapeHtml(label)
       }</span>`
-      + `<strong>${
+      + `<strong${titleAttribute}>${
         escapeHtml(
           value ?? '—'
         )
@@ -867,14 +960,14 @@
 
         reviewMetric(
           'Available balance',
-          (
-            `${
-              balance.available
-              || '—'
-            } ${
-              balance.currency
-              || ''
-            }`
+          infinityAmountText(
+            balance.available,
+            balance.currency,
+          ),
+          infinityExactAmountTitle(
+            'Exact available balance',
+            balance.available,
+            balance.currency,
           ),
         ),
 
@@ -887,13 +980,17 @@
               !== undefined
           )
             ? (
-              `${
-                balance.remaining_after_investment
-              } ${
-                balance.currency || ''
-              }`
+              infinityAmountText(
+                balance.remaining_after_investment,
+                balance.currency,
+              )
             )
             : '—',
+          infinityExactAmountTitle(
+            'Exact remaining balance',
+            balance.remaining_after_investment,
+            balance.currency,
+          ),
         ),
 
         reviewMetric(
@@ -938,18 +1035,34 @@
         ),
 
         reviewMetric(
-          'Estimated Gate minimum',
+          'Local minimum estimate',
           (
             estimate.calibrated
             && estimate.estimated_gate_minimum
               ? (
-                  `${
-                    estimate.estimated_gate_minimum
-                  } ${
-                    market.quote || ''
-                  }`
+                infinityAmountText(
+                  estimate.estimated_gate_minimum,
+                  market.quote,
+                  {
+                    approximate: true,
+                    maximumFractionDigits: 2,
+                  },
                 )
+              )
               : 'Not calibrated for these settings'
+          ),
+          (
+            estimate.calibrated
+            && estimate.estimated_gate_minimum
+              ? (
+                infinityExactAmountTitle(
+                  'Exact local estimate',
+                  estimate.estimated_gate_minimum,
+                  market.quote,
+                )
+                + '. Gate remains authoritative at submission.'
+              )
+              : ''
           ),
         ),
 
@@ -1044,7 +1157,9 @@
     ) {
       messages.push(
         '<div class="bot-control-message success">'
-        + 'No validation warnings.'
+        + 'No validation warnings. The local minimum '
+        + 'estimate is advisory; Gate remains '
+        + 'authoritative at submission.'
         + '</div>'
       );
     }
@@ -1101,13 +1216,24 @@
   function infinityConfirmRow(
     label,
     value,
+    title = '',
   ) {
+    const titleAttribute = (
+      title
+        ? (
+          ` title="${
+            escapeHtml(title)
+          }"`
+        )
+        : ''
+    );
+
     return (
       '<div class="bot-control-confirm-row">'
       + `<span>${
         escapeHtml(label)
       }</span>`
-      + `<strong>${
+      + `<strong${titleAttribute}>${
         escapeHtml(
           value ?? '—'
         )
@@ -1320,10 +1446,14 @@
 
         infinityConfirmRow(
           'Available before creation',
-          (
-            `${balance.available || '—'} ${
-              balance.currency || ''
-            }`
+          infinityAmountText(
+            balance.available,
+            balance.currency,
+          ),
+          infinityExactAmountTitle(
+            'Exact available balance',
+            balance.available,
+            balance.currency,
           ),
         ),
 
@@ -1336,11 +1466,17 @@
               !== undefined
           )
             ? (
-              `${
-                balance.remaining_after_investment
-              } ${balance.currency || ''}`
+              infinityAmountText(
+                balance.remaining_after_investment,
+                balance.currency,
+              )
             )
             : '—',
+          infinityExactAmountTitle(
+            'Exact remaining balance',
+            balance.remaining_after_investment,
+            balance.currency,
+          ),
         ),
 
         infinityConfirmRow(

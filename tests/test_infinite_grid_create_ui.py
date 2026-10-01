@@ -324,3 +324,11 @@ def test_m410a_frontend_cache_marker_is_present() -> None:
         "20261001-native-infinity-estimator-v1"
         in HTML
     )
+
+
+def test_m410b_frontend_cache_marker_is_present() -> None:
+    assert (
+        "m410b="
+        "20261001-infinity-display-polish-v1"
+        in HTML
+    )

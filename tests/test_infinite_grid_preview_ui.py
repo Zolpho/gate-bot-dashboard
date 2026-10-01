@@ -282,7 +282,7 @@ def test_review_explains_infinity_semantics() -> None:
         "Profit per grid",
         "Gate profit ratio",
         "Estimated levels to floor",
-        "Estimated Gate minimum",
+        "Local minimum estimate",
         "Recommended minimum",
         "Native geometric",
         "Upper price",
@@ -629,7 +629,7 @@ def test_review_renders_infinity_estimator_metadata() -> None:
     for token in (
         "prepared.infinity_estimate",
         "'Estimated levels to floor'",
-        "'Estimated Gate minimum'",
+        "'Local minimum estimate'",
         "'Recommended minimum'",
         "'Native geometric · Gate-derived levels'",
     ):
@@ -640,5 +640,112 @@ def test_m410a_cache_marker_is_present() -> None:
     assert (
         "m410a="
         "20261001-native-infinity-estimator-v1"
+        in HTML
+    )
+
+
+def test_review_polishes_money_without_changing_source_precision() -> None:
+    for token in (
+        "function formatInfinityDisplayNumber(",
+        "new Intl.NumberFormat(",
+        "maximumFractionDigits",
+        "function infinityAmountText(",
+        "approximate = false",
+        "function infinityExactAmountTitle(",
+        "'Available balance'",
+        "'Remaining balance'",
+        "'Local minimum estimate'",
+        "approximate: true",
+        "'Exact local estimate'",
+        "Gate remains authoritative at submission.",
+    ):
+        assert token in PREVIEW
+
+    assert (
+        "'Estimated Gate minimum'"
+        not in PREVIEW
+    )
+
+
+def test_review_keeps_exact_values_in_native_tooltips() -> None:
+    review_start = PREVIEW.index(
+        "function renderInfinityGridReview("
+    )
+
+    review_end = PREVIEW.index(
+        "\n\n  async function prepareInfiniteGrid(",
+        review_start,
+    )
+
+    review = PREVIEW[
+        review_start:review_end
+    ]
+
+    for token in (
+        "infinityExactAmountTitle(",
+        "'Exact available balance'",
+        "'Exact remaining balance'",
+        "'Exact local estimate'",
+    ):
+        assert token in review
+
+
+def test_confirmation_uses_readable_balance_formatting() -> None:
+    start = PREVIEW.index(
+        "function openInfiniteGridConfirmation("
+    )
+
+    end = PREVIEW.index(
+        "\n\n  async function submitInfiniteGridCreate(",
+        start,
+    )
+
+    block = PREVIEW[
+        start:end
+    ]
+
+    for token in (
+        "'Available before creation'",
+        "'Remaining after investment'",
+        "infinityAmountText(",
+        "infinityExactAmountTitle(",
+    ):
+        assert token in block
+
+
+def test_clean_review_keeps_gate_authoritative_caveat() -> None:
+    start = PREVIEW.index(
+        "function renderInfinityGridReview("
+    )
+
+    end = PREVIEW.index(
+        "\n\n  async function prepareInfiniteGrid(",
+        start,
+    )
+
+    block = PREVIEW[
+        start:end
+    ]
+
+    assert (
+        "No validation warnings. The local minimum "
+        in block
+    )
+
+    assert (
+        "Gate remains "
+        in block
+    )
+
+    assert (
+        "authoritative at submission."
+        in block
+    )
+
+
+def test_m410b_cache_marker_is_present() -> None:
+    assert (
+        "m410b="
+        "20261001-infinity-display-polish-v1"
         in HTML
     )
