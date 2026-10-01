@@ -9,6 +9,9 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..accounts import AccountConfigError
+from ..bot_configuration import (
+    bot_create_configuration,
+)
 from ..bot_control import (
     BotControlConfigError,
     get_bot_control_account,
@@ -112,8 +115,20 @@ def get_bot(bot_id: int, db: Session = Depends(get_db)):  # type: ignore[no-unty
         for snapshot in points
         if snapshot.current_value is not None
     ]
+    bot_payload = bot_to_dict(
+        bot,
+        include_raw=False,
+    )
+
+    bot_payload[
+        "create_configuration"
+    ] = bot_create_configuration(
+        db,
+        bot,
+    )
+
     return {
-        "bot": bot_to_dict(bot, include_raw=False),
+        "bot": bot_payload,
         "analytics": calculate_drawdown(drawdown_points),
         "raw_data_requires_auth": True,
     }

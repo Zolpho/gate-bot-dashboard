@@ -21833,6 +21833,21 @@ function renderBotDialog(detail, history) {
     ? bot.position_value
     : calculatedPositionValue;
 
+  const createConfiguration = (
+    bot.create_configuration?.source
+    === 'bot_control_create_audit'
+      ? bot.create_configuration
+      : null
+  );
+
+  const configuredGridType = (
+    createConfiguration?.price_type === 0
+      ? 'Arithmetic'
+      : createConfiguration?.price_type === 1
+        ? 'Geometric'
+        : null
+  );
+
   const definitions = [
     ['Account', bot.account_name],
     ['Account ID', bot.account_id],
@@ -21877,6 +21892,40 @@ function renderBotDialog(detail, history) {
     fmtNumber(bot.grid_count, 0),
     hasValue(bot.grid_count),
   );
+
+  if (createConfiguration) {
+    addDefinition(
+      'Configured grids',
+      fmtNumber(
+        createConfiguration.grid_count,
+        0,
+      ),
+      hasValue(
+        createConfiguration.grid_count
+      ),
+    );
+
+    addDefinition(
+      'Configured profit per grid',
+      fmtRatioPct(
+        createConfiguration.profit_per_grid
+      ),
+      hasValue(
+        createConfiguration.profit_per_grid
+      ),
+    );
+
+    addDefinition(
+      'Configured grid type',
+      configuredGridType,
+      Boolean(configuredGridType),
+    );
+
+    addDefinition(
+      'Configuration source',
+      'Bot Control create audit',
+    );
+  }
 
   addDefinition(
     'Finished rounds',

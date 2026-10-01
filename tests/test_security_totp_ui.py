@@ -1035,6 +1035,7 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "&a7c490d31=20260923-ip-live-save-v1"
             "&infinitym4=20260923-preview-only-v1"
             "&infinitym44f=20261001-create-ui-v1"
+            "&infinitym45c=20261001-config-provenance-v1"
         )
     ]
 
