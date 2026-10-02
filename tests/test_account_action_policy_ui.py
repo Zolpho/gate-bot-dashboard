@@ -260,6 +260,7 @@ def test_permissions_feature_loads_after_app() -> None:
             "&m46a=20261001-bot-control-ui-polish-v1"
             "&m48a=20261001-apr-min-window-v1"
             "&m410a=20261001-native-infinity-estimator-v1"
+            "&m411b=20261002-grid-earnings-v1"
         )
     )
 

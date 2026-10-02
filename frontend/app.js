@@ -19641,9 +19641,13 @@ function drawSeriesChart(
   const width = rect.width;
   const height = rect.height;
 
+  const showRightAxis = (
+    options.showRightAxis !== false
+  );
+
   const pad = {
     left: 86,
-    right: 86,
+    right: showRightAxis ? 86 : 28,
     top: 20,
     bottom: 52,
   };
@@ -19803,12 +19807,14 @@ function drawSeriesChart(
       yPosition,
     );
 
-    ctx.textAlign = 'left';
-    ctx.fillText(
-      chartAxisMoney(rightValue),
-      width - pad.right + 10,
-      yPosition,
-    );
+    if (showRightAxis) {
+      ctx.textAlign = 'left';
+      ctx.fillText(
+        chartAxisMoney(rightValue),
+        width - pad.right + 10,
+        yPosition,
+      );
+    }
   }
 
   const xTicks = 4;
@@ -19862,23 +19868,25 @@ function drawSeriesChart(
   );
   ctx.restore();
 
-  ctx.save();
-  ctx.translate(
-    width - 14,
-    pad.top + plotH / 2,
-  );
-  ctx.rotate(Math.PI / 2);
-  ctx.fillStyle = rightColor;
-  ctx.font = '600 11px system-ui';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(
-    options.rightAxisLabel
-      || 'PnL (USDT)',
-    0,
-    0,
-  );
-  ctx.restore();
+  if (showRightAxis) {
+    ctx.save();
+    ctx.translate(
+      width - 14,
+      pad.top + plotH / 2,
+    );
+    ctx.rotate(Math.PI / 2);
+    ctx.fillStyle = rightColor;
+    ctx.font = '600 11px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(
+      options.rightAxisLabel
+        || 'PnL (USDT)',
+      0,
+      0,
+    );
+    ctx.restore();
+  }
 
   ctx.fillStyle = muted;
   ctx.font = '600 11px system-ui';
@@ -22315,12 +22323,288 @@ function renderBotRaw() {
 }
 
 
+function gridEarningsHistory(
+  bot,
+  history,
+) {
+  const strategyType = String(
+    bot?.strategy_type || ''
+  ).trim().toLowerCase();
+
+  if (
+    strategyType !== 'spot_grid'
+    && strategyType !== 'infinite_grid'
+  ) {
+    return [];
+  }
+
+  const observed = (
+    Array.isArray(history)
+      ? history
+      : []
+  )
+    .map(snapshot => ({
+      ...snapshot,
+      cumulative_grid_earnings:
+        numericValue(
+          snapshot.grid_profit
+        ),
+    }))
+    .filter(snapshot => (
+      snapshot.cumulative_grid_earnings
+      !== null
+      && Number.isFinite(
+        new Date(
+          snapshot.captured_at
+        ).valueOf()
+      )
+    ))
+    .sort(
+      (left, right) => (
+        new Date(
+          left.captured_at
+        ).valueOf()
+        - new Date(
+          right.captured_at
+        ).valueOf()
+      ),
+    );
+
+  if (!observed.length) {
+    return [];
+  }
+
+  const stepped = [
+    observed[0],
+  ];
+
+  let previousValue = (
+    observed[0]
+      .cumulative_grid_earnings
+  );
+
+  for (
+    let index = 1;
+    index < observed.length;
+    index += 1
+  ) {
+    const point = observed[index];
+    const value = (
+      point.cumulative_grid_earnings
+    );
+
+    if (value === previousValue) {
+      continue;
+    }
+
+    stepped.push({
+      ...point,
+      cumulative_grid_earnings:
+        previousValue,
+    });
+
+    stepped.push(
+      point
+    );
+
+    previousValue = value;
+  }
+
+  const finalObserved = (
+    observed[
+      observed.length - 1
+    ]
+  );
+
+  const finalStepped = (
+    stepped[
+      stepped.length - 1
+    ]
+  );
+
+  if (
+    finalStepped.captured_at
+    !== finalObserved.captured_at
+  ) {
+    stepped.push({
+      ...finalObserved,
+      cumulative_grid_earnings:
+        previousValue,
+    });
+  }
+
+  return stepped;
+}
+
+
+function drawGridEarningsChart() {
+  const bot = (
+    state.currentBotData?.bot
+  );
+
+  const panel = $(
+    '#gridEarningsPanel'
+  );
+
+  const empty = $(
+    '#gridEarningsEmpty'
+  );
+
+  const chartWrap = $(
+    '#gridEarningsChartWrap'
+  );
+
+  const summary = $(
+    '#gridEarningsSummary'
+  );
+
+  const canvas = $(
+    '#botGridEarningsChart'
+  );
+
+  if (
+    !bot
+    || !panel
+    || !empty
+    || !chartWrap
+    || !summary
+    || !canvas
+  ) {
+    return;
+  }
+
+  const strategyType = String(
+    bot.strategy_type || ''
+  ).trim().toLowerCase();
+
+  const supported = (
+    strategyType === 'spot_grid'
+    || strategyType === 'infinite_grid'
+  );
+
+  panel.classList.toggle(
+    'hidden',
+    !supported,
+  );
+
+  if (!supported) {
+    return;
+  }
+
+  const points = (
+    gridEarningsHistory(
+      bot,
+      state.currentBotHistory,
+    )
+  );
+
+  if (!points.length) {
+    chartWrap.classList.add(
+      'hidden'
+    );
+
+    empty.classList.remove(
+      'hidden'
+    );
+
+    if (
+      strategyType
+      === 'infinite_grid'
+    ) {
+      empty.textContent = (
+        'Gate currently provides no grid_profit '
+        + 'history for this Infinite Grid strategy. '
+        + 'Total profit is not substituted because '
+        + 'it is not proven to represent realized '
+        + 'grid earnings.'
+      );
+    } else {
+      empty.textContent = (
+        'No Gate grid_profit observations are '
+        + 'available in the selected period.'
+      );
+    }
+
+    summary.textContent = (
+      'No cumulative grid-earnings series '
+      + 'available for this period.'
+    );
+
+    canvas._chartMeta = null;
+
+    return;
+  }
+
+  empty.classList.add(
+    'hidden'
+  );
+
+  chartWrap.classList.remove(
+    'hidden'
+  );
+
+  const latest = (
+    points[
+      points.length - 1
+    ].cumulative_grid_earnings
+  );
+
+  const {
+    quote: quoteAsset,
+  } = marketAssets(
+    bot.market
+  );
+
+  summary.textContent = (
+    `Latest ${
+      fmtQuoteValue(
+        latest,
+        quoteAsset,
+      )
+    } · Gate grid_profit`
+  );
+
+  const css = getComputedStyle(
+    document.documentElement
+  );
+
+  drawSeriesChart(
+    canvas,
+    points,
+    [
+      {
+        key:
+          'cumulative_grid_earnings',
+        color:
+          css.getPropertyValue(
+            '--accent'
+          ).trim(),
+        fill:
+          'rgba(23,211,154,.14)',
+      },
+    ],
+    {
+      leftAxisLabel:
+        `Grid earnings (${
+          quoteAsset || 'quote'
+        })`,
+      xAxisLabel:
+        'Snapshot date and time',
+      leftIncludeZero: true,
+      showRightAxis: false,
+    },
+  );
+}
+
+
 function drawBotChart() {
   const css = getComputedStyle(document.documentElement);
   drawSeriesChart($('#botChart'), state.currentBotHistory, [
     { key: 'current_value', color: css.getPropertyValue('--accent').trim(), fill: 'rgba(23,211,154,.14)' },
     { key: 'total_profit', color: css.getPropertyValue('--blue').trim() },
   ]);
+
+  drawGridEarningsChart();
 }
 
 async function stopCurrentBot() {

@@ -867,3 +867,32 @@
     width: 100%;
   }
 }
+
+
+
+/* =========================================================
+   M4.11B cumulative grid earnings
+   ========================================================= */
+
+#botDialog .grid-earnings-chart {
+  margin-top: 0;
+}
+
+#botDialog .grid-earnings-empty {
+  display: flex;
+  min-height: 116px;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  border:
+    1px dashed
+    rgba(96, 173, 147, 0.2);
+  border-radius: 12px;
+  background:
+    rgba(3, 22, 18, 0.52);
+  color:
+    rgba(180, 211, 198, 0.67);
+  font-size: 0.76rem;
+  line-height: 1.55;
+  text-align: center;
+}
