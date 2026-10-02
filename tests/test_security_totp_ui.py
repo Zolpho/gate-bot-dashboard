@@ -1043,6 +1043,8 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "&m411d=20261002-cumulative-return-v1"
             "&m411d3=20261002-cumulative-return-fast-v1"
             "&m411d4=20261002-cumulative-return-only-v1"
+            "&m412a=20261002-overview-series-contrast-v1"
+            "&m412g=20261002-premium-overview-chart-v1"
         )
     ]
 

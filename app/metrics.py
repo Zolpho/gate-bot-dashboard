@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from bisect import bisect_left
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -406,11 +407,228 @@ def overview(session: Session, account_id: str | None = None) -> dict[str, Any]:
     }
 
 
+PORTFOLIO_HISTORY_BRIDGE_WINDOW = timedelta(
+    minutes=3
+)
+
+
+PortfolioHistoryValues = tuple[
+    Decimal | None,
+    Decimal | None,
+    Decimal | None,
+    Decimal | None,
+]
+
+
+def _aggregate_portfolio_history_minutes(
+    latest_per_bot_minute: dict[
+        tuple[datetime, int],
+        PortfolioHistoryValues,
+    ],
+    eligible_minutes: set[datetime],
+    *,
+    bridge_window: timedelta = (
+        PORTFOLIO_HISTORY_BRIDGE_WINDOW
+    ),
+) -> list[dict[str, Any]]:
+    """
+    Build minute-level portfolio totals.
+
+    A collector cycle can cross a minute boundary between
+    Wallet accounts. In that case one minute may contain only
+    part of the active portfolio and would otherwise appear as
+    a false vertical cliff.
+
+    For an absent bot, reuse its immediately preceding value
+    only when that same bot has a later observation and the
+    complete observation gap is short. This bridges temporary
+    collection skew without carrying a bot past the beginning
+    or end of its observed lifecycle.
+    """
+
+    values_by_bot: dict[
+        int,
+        dict[
+            datetime,
+            PortfolioHistoryValues,
+        ],
+    ] = defaultdict(dict)
+
+    for (
+        minute,
+        bot_id,
+    ), values in latest_per_bot_minute.items():
+        values_by_bot[
+            bot_id
+        ][
+            minute
+        ] = values
+
+    minutes_by_bot = {
+        bot_id: sorted(
+            values.keys()
+        )
+        for (
+            bot_id,
+            values,
+        ) in values_by_bot.items()
+    }
+
+    result: list[
+        dict[str, Any]
+    ] = []
+
+    for minute in sorted(
+        eligible_minutes
+    ):
+        invest = Decimal("0")
+        current_value = Decimal("0")
+        pnl = Decimal("0")
+
+        observed_bot_count = 0
+        carried_forward_bot_count = 0
+
+        for (
+            bot_id,
+            minute_values,
+        ) in values_by_bot.items():
+            values = minute_values.get(
+                minute
+            )
+
+            if values is not None:
+                observed_bot_count += 1
+            else:
+                bot_minutes = minutes_by_bot[
+                    bot_id
+                ]
+
+                position = bisect_left(
+                    bot_minutes,
+                    minute,
+                )
+
+                if (
+                    position == 0
+                    or position
+                    >= len(bot_minutes)
+                ):
+                    # No observation on both sides: this may
+                    # be before the bot started or after it
+                    # stopped. Never bridge a lifecycle edge.
+                    continue
+
+                previous_minute = bot_minutes[
+                    position - 1
+                ]
+
+                next_minute = bot_minutes[
+                    position
+                ]
+
+                if (
+                    next_minute
+                    - previous_minute
+                    > bridge_window
+                ):
+                    # A longer data outage should remain
+                    # visible as missing/incomplete history.
+                    continue
+
+                values = minute_values[
+                    previous_minute
+                ]
+
+                carried_forward_bot_count += 1
+
+            (
+                invest_amount,
+                bot_current_value,
+                total_profit,
+                bot_pnl,
+            ) = values
+
+            invest += (
+                invest_amount
+                or Decimal("0")
+            )
+
+            current_value += (
+                bot_current_value
+                or Decimal("0")
+            )
+
+            pnl += (
+                total_profit
+                if total_profit
+                is not None
+                else (
+                    bot_pnl
+                    or Decimal("0")
+                )
+            )
+
+        bot_count = (
+            observed_bot_count
+            + carried_forward_bot_count
+        )
+
+        if bot_count == 0:
+            continue
+
+        result.append(
+            {
+                "captured_at": (
+                    minute.isoformat()
+                ),
+                "invest_amount": float(
+                    invest
+                ),
+                "current_value": float(
+                    current_value
+                ),
+                "pnl": float(
+                    pnl
+                ),
+                "roi_pct": (
+                    float(
+                        pnl
+                        / invest
+                        * Decimal("100")
+                    )
+                    if invest
+                    else None
+                ),
+                "bot_count": bot_count,
+                "observed_bot_count": (
+                    observed_bot_count
+                ),
+                "carried_forward_bot_count": (
+                    carried_forward_bot_count
+                ),
+            }
+        )
+
+    return result
+
+
 def portfolio_history(
     session: Session,
     since: datetime,
     account_id: str | None = None,
 ) -> list[dict[str, Any]]:
+    normalized_since = (
+        as_utc(since)
+        or since.replace(
+            tzinfo=timezone.utc
+        )
+    )
+
+    query_since = (
+        normalized_since
+        - PORTFOLIO_HISTORY_BRIDGE_WINDOW
+    )
+
     stmt = (
         select(
             BotSnapshot.captured_at,
@@ -425,7 +643,8 @@ def portfolio_history(
             Bot.id == BotSnapshot.bot_id,
         )
         .where(
-            BotSnapshot.captured_at >= since
+            BotSnapshot.captured_at
+            >= query_since
         )
         .order_by(
             BotSnapshot.captured_at.asc(),
@@ -435,21 +654,27 @@ def portfolio_history(
 
     if account_id:
         stmt = stmt.where(
-            Bot.account_id == account_id
+            Bot.account_id
+            == account_id
         )
 
-    # Keep only the latest snapshot for each bot within
-    # each minute. This avoids inflating portfolio totals
-    # when POLL_SECONDS is less than 60.
+    # Keep only the latest snapshot for each bot within each
+    # minute. Polling can be faster than one minute.
     latest_per_bot_minute: dict[
-        tuple[str, int],
         tuple[
-            Decimal | None,
-            Decimal | None,
-            Decimal | None,
-            Decimal | None,
+            datetime,
+            int,
         ],
+        PortfolioHistoryValues,
     ] = {}
+
+    # Output only minute buckets that genuinely contain at
+    # least one snapshot at/after the requested boundary.
+    # The slightly earlier query rows exist solely to seed
+    # safe short-gap bridging at the start of the range.
+    eligible_minutes: set[
+        datetime
+    ] = set()
 
     for (
         captured_at,
@@ -469,7 +694,7 @@ def portfolio_history(
         minute = captured.replace(
             second=0,
             microsecond=0,
-        ).isoformat()
+        )
 
         latest_per_bot_minute[
             (
@@ -483,103 +708,12 @@ def portfolio_history(
             pnl,
         )
 
-    buckets: dict[
-        str,
-        dict[str, Any],
-    ] = defaultdict(
-        lambda: {
-            "invest_amount": Decimal("0"),
-            "current_value": Decimal("0"),
-            "pnl": Decimal("0"),
-            "bots": set(),
-        }
-    )
-
-    for (
-        minute,
-        bot_id,
-    ), values in (
-        latest_per_bot_minute.items()
-    ):
-        (
-            invest_amount,
-            current_value,
-            total_profit,
-            pnl,
-        ) = values
-
-        bucket = buckets[
-            minute
-        ]
-
-        bucket["bots"].add(
-            bot_id
-        )
-
-        bucket[
-            "invest_amount"
-        ] += (
-            invest_amount
-            or Decimal("0")
-        )
-
-        bucket[
-            "current_value"
-        ] += (
-            current_value
-            or Decimal("0")
-        )
-
-        bucket["pnl"] += (
-            total_profit
-            if total_profit
-            is not None
-            else (
-                pnl
-                or Decimal("0")
+        if captured >= normalized_since:
+            eligible_minutes.add(
+                minute
             )
-        )
 
-    result: list[
-        dict[str, Any]
-    ] = []
-
-    for timestamp, bucket in sorted(
-        buckets.items()
-    ):
-        invest = bucket[
-            "invest_amount"
-        ]
-
-        pnl = bucket["pnl"]
-
-        result.append(
-            {
-                "captured_at": timestamp,
-                "invest_amount": float(
-                    invest
-                ),
-                "current_value": float(
-                    bucket[
-                        "current_value"
-                    ]
-                ),
-                "pnl": float(
-                    pnl
-                ),
-                "roi_pct": (
-                    float(
-                        pnl
-                        / invest
-                        * Decimal("100")
-                    )
-                    if invest
-                    else None
-                ),
-                "bot_count": len(
-                    bucket["bots"]
-                ),
-            }
-        )
-
-    return result
+    return _aggregate_portfolio_history_minutes(
+        latest_per_bot_minute,
+        eligible_minutes,
+    )

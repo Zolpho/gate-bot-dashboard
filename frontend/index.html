@@ -94,7 +94,7 @@
     data-dashboard-ui-stylesheet="aurora"
     disabled
   >
-  <link rel="stylesheet" href="./aurora-overview.css?v=20260906-aurora-a7c156-v1" data-dashboard-ui-stylesheet="aurora" disabled>
+  <link rel="stylesheet" href="./aurora-overview.css?v=20260906-aurora-a7c156-v1&amp;m412a=20261002-overview-series-contrast-v1&amp;m412g=20261002-premium-overview-chart-v1&amp;m412i=20261002-final-premium-polish-v1" data-dashboard-ui-stylesheet="aurora" disabled>
   <link
     rel="stylesheet"
     href="./classic-account-permissions.css?v=20260923-classic-permissions-a7c491b2-v1"
@@ -205,6 +205,16 @@
     class="chart-crosshair hidden"
     aria-hidden="true"
   ></div>
+  <i
+    id="portfolioChartValuePoint"
+    class="chart-hover-point value hidden"
+    aria-hidden="true"
+  ></i>
+  <i
+    id="portfolioChartPnlPoint"
+    class="chart-hover-point pnl hidden"
+    aria-hidden="true"
+  ></i>
   <div
     id="portfolioChartTooltip"
     class="chart-tooltip hidden"
@@ -4400,7 +4410,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260923-bot-control-market-m42-v2"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1&amp;m411d4=20261002-cumulative-return-only-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1&amp;m411d4=20261002-cumulative-return-only-v1&amp;m412a=20261002-overview-series-contrast-v1&amp;m412g=20261002-premium-overview-chart-v1"
     defer
   ></script>
   <script

@@ -19654,7 +19654,11 @@ function drawSeriesChart(
     left: 86,
     right: showRightAxis ? 86 : 28,
     top: 20,
-    bottom: 52,
+    bottom: (
+      options.xAxisLabel === false
+        ? 36
+        : 52
+    ),
   };
 
   const plotW = Math.max(
@@ -19683,9 +19687,22 @@ function drawSeriesChart(
     .getPropertyValue('--surface')
     .trim();
 
+  const gridColor = (
+    options.gridColor
+    || border
+  );
+
+  const axisTextColor = (
+    options.axisTextColor
+    || muted
+  );
+
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = surface;
-  ctx.fillRect(0, 0, width, height);
+
+  if (!options.transparentBackground) {
+    ctx.fillStyle = surface;
+    ctx.fillRect(0, 0, width, height);
+  }
 
   const chartPoints = points
     .filter(point => {
@@ -19781,7 +19798,7 @@ function drawSeriesChart(
     const fraction = index / tickCount;
     const yPosition = pad.top + plotH * fraction;
 
-    ctx.strokeStyle = border;
+    ctx.strokeStyle = gridColor;
     ctx.beginPath();
     ctx.moveTo(pad.left, yPosition);
     ctx.lineTo(
@@ -19802,7 +19819,7 @@ function drawSeriesChart(
       * fraction
     );
 
-    ctx.fillStyle = muted;
+    ctx.fillStyle = axisTextColor;
     ctx.textBaseline = 'middle';
 
     ctx.textAlign = 'right';
@@ -19829,7 +19846,7 @@ function drawSeriesChart(
     const timestamp = xMin + xSpan * fraction;
     const xPosition = x(timestamp);
 
-    ctx.fillStyle = muted;
+    ctx.fillStyle = axisTextColor;
     ctx.textBaseline = 'top';
 
     if (index === 0) {
@@ -19862,6 +19879,10 @@ function drawSeriesChart(
   );
   ctx.rotate(-Math.PI / 2);
   ctx.fillStyle = leftColor;
+  ctx.globalAlpha = (
+    options.axisLabelAlpha
+    ?? 1
+  );
   ctx.font = '600 11px system-ui';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -19881,6 +19902,10 @@ function drawSeriesChart(
     );
     ctx.rotate(Math.PI / 2);
     ctx.fillStyle = rightColor;
+    ctx.globalAlpha = (
+      options.axisLabelAlpha
+      ?? 1
+    );
     ctx.font = '600 11px system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -19893,15 +19918,51 @@ function drawSeriesChart(
     ctx.restore();
   }
 
-  ctx.fillStyle = muted;
-  ctx.font = '600 11px system-ui';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  ctx.fillText(
-    options.xAxisLabel || 'Snapshot time',
-    pad.left + plotW / 2,
-    height - 2,
-  );
+  if (options.xAxisLabel !== false) {
+    ctx.fillStyle = axisTextColor;
+    ctx.font = '600 11px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(
+      options.xAxisLabel || 'Snapshot time',
+      pad.left + plotW / 2,
+      height - 2,
+    );
+  }
+
+  if (
+    options.rightZeroLine
+    && rightValues.length
+    && rightRange.min <= 0
+    && rightRange.max >= 0
+  ) {
+    const zeroY = yFor(
+      0,
+      'right',
+    );
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(
+      pad.left,
+      zeroY,
+    );
+    ctx.lineTo(
+      width - pad.right,
+      zeroY,
+    );
+    ctx.strokeStyle = (
+      options.rightZeroLineColor
+      || gridColor
+    );
+    ctx.lineWidth = 1;
+    ctx.setLineDash([
+      4,
+      5,
+    ]);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   normalizedSeries.forEach((item, index) => {
     const coordinates = [];
@@ -20062,12 +20123,24 @@ function drawSeriesChart(
 
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = (
-          index === 0
-            ? 2.2
-            : 1.8
+          item.lineWidth
+          ?? (
+            index === 0
+              ? 2.2
+              : 1.8
+          )
         );
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
+
+        if (item.shadowBlur) {
+          ctx.shadowBlur = item.shadowBlur;
+          ctx.shadowColor = (
+            item.shadowColor
+            || strokeColor
+          );
+        }
+
         ctx.stroke();
 
         ctx.restore();
@@ -20136,11 +20209,35 @@ function drawSeriesChart(
       ctx.fill();
     }
 
+    ctx.save();
+
     buildLinePath();
 
     ctx.strokeStyle = item.color;
-    ctx.lineWidth = index === 0 ? 2.2 : 1.8;
+    ctx.lineWidth = (
+      item.lineWidth
+      ?? (
+        index === 0
+          ? 2.2
+          : 1.8
+      )
+    );
+
+    if (item.rounded) {
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+    }
+
+    if (item.shadowBlur) {
+      ctx.shadowBlur = item.shadowBlur;
+      ctx.shadowColor = (
+        item.shadowColor
+        || item.color
+      );
+    }
+
     ctx.stroke();
+    ctx.restore();
   });
 
   canvas._chartMeta = {
@@ -20152,6 +20249,7 @@ function drawSeriesChart(
     pad,
     plotW,
     plotH,
+    yFor,
   };
 }
 
@@ -20159,11 +20257,15 @@ function bindPortfolioChartTooltip() {
   const canvas = $('#portfolioChart');
   const tooltip = $('#portfolioChartTooltip');
   const crosshair = $('#portfolioChartCrosshair');
+  const valuePoint = $('#portfolioChartValuePoint');
+  const pnlPoint = $('#portfolioChartPnlPoint');
 
   if (
     !canvas
     || !tooltip
     || !crosshair
+    || !valuePoint
+    || !pnlPoint
     || canvas.dataset.tooltipBound
   ) {
     return;
@@ -20174,6 +20276,8 @@ function bindPortfolioChartTooltip() {
   const hide = () => {
     tooltip.classList.add('hidden');
     crosshair.classList.add('hidden');
+    valuePoint.classList.add('hidden');
+    pnlPoint.classList.add('hidden');
   };
 
   canvas.addEventListener(
@@ -20252,12 +20356,12 @@ function bindPortfolioChartTooltip() {
         `<strong class="chart-tooltip-time">`
         + `${escapeHtml(fmtDate(point.captured_at))}`
         + `</strong>`
-        + `<span>`
+        + `<span class="chart-tooltip-row value">`
         + `<i class="tooltip-dot value"></i>`
         + `Current value`
         + `<b>${escapeHtml(fmtMoney(point.current_value))}</b>`
         + `</span>`
-        + `<span>`
+        + `<span class="chart-tooltip-row pnl">`
         + `<i class="tooltip-dot pnl"></i>`
         + `Total PnL`
         + `<b>${escapeHtml(fmtMoney(point.pnl))}</b>`
@@ -20270,6 +20374,46 @@ function bindPortfolioChartTooltip() {
       crosshair.style.left = `${pointX}px`;
       crosshair.style.top = `${meta.pad.top}px`;
       crosshair.style.height = `${meta.plotH}px`;
+
+      const positionHoverPoint = (
+        element,
+        value,
+        axis,
+      ) => {
+        const numeric = Number(
+          value
+        );
+
+        if (
+          !Number.isFinite(numeric)
+          || typeof meta.yFor !== 'function'
+        ) {
+          element.classList.add('hidden');
+          return;
+        }
+
+        element.style.left = `${pointX}px`;
+        element.style.top = `${
+          meta.yFor(
+            numeric,
+            axis,
+          )
+        }px`;
+
+        element.classList.remove('hidden');
+      };
+
+      positionHoverPoint(
+        valuePoint,
+        point.current_value,
+        'left',
+      );
+
+      positionHoverPoint(
+        pnlPoint,
+        point.pnl,
+        'right',
+      );
 
       const tooltipWidth = tooltip.offsetWidth;
       const tooltipHeight = tooltip.offsetHeight;
@@ -20312,6 +20456,105 @@ function drawPortfolioChart() {
     document.documentElement,
   );
 
+  const chartCss = getComputedStyle(
+    $('#portfolioChart'),
+  );
+
+  const currentValueColor = (
+    chartCss
+      .getPropertyValue(
+        '--overview-current-value-color'
+      )
+      .trim()
+    || css
+      .getPropertyValue('--accent')
+      .trim()
+  );
+
+  const totalPnlColor = (
+    chartCss
+      .getPropertyValue(
+        '--overview-total-pnl-color'
+      )
+      .trim()
+    || css
+      .getPropertyValue('--blue')
+      .trim()
+  );
+
+  const premiumChart = (
+    chartCss
+      .getPropertyValue(
+        '--overview-premium-chart'
+      )
+      .trim()
+    === '1'
+  );
+
+  const currentValueFill = (
+    chartCss
+      .getPropertyValue(
+        '--overview-current-value-fill'
+      )
+      .trim()
+    || 'rgba(23,211,154,.16)'
+  );
+
+  const currentValueLineWidth = (
+    Number.parseFloat(
+      chartCss
+        .getPropertyValue(
+          '--overview-current-value-line-width'
+        )
+        .trim()
+    )
+    || 2.2
+  );
+
+  const totalPnlLineWidth = (
+    Number.parseFloat(
+      chartCss
+        .getPropertyValue(
+          '--overview-total-pnl-line-width'
+        )
+        .trim()
+    )
+    || 1.8
+  );
+
+  const currentValueShadow = (
+    chartCss
+      .getPropertyValue(
+        '--overview-current-value-shadow'
+      )
+      .trim()
+    || 'transparent'
+  );
+
+  const gridColor = (
+    chartCss
+      .getPropertyValue(
+        '--overview-chart-grid-color'
+      )
+      .trim()
+  );
+
+  const axisTextColor = (
+    chartCss
+      .getPropertyValue(
+        '--overview-chart-axis-color'
+      )
+      .trim()
+  );
+
+  const zeroLineColor = (
+    chartCss
+      .getPropertyValue(
+        '--overview-chart-zero-color'
+      )
+      .trim()
+  );
+
   drawSeriesChart(
     $('#portfolioChart'),
     state.history,
@@ -20320,25 +20563,57 @@ function drawPortfolioChart() {
         key: 'current_value',
         label: 'Current value',
         axis: 'left',
-        color: css
-          .getPropertyValue('--accent')
-          .trim(),
-        fill: 'rgba(23,211,154,.16)',
+        color: currentValueColor,
+        fill: currentValueFill,
+        lineWidth: currentValueLineWidth,
+        rounded: premiumChart,
+        shadowColor: currentValueShadow,
+        shadowBlur: (
+          premiumChart
+            ? 5
+            : 0
+        ),
       },
       {
         key: 'pnl',
         label: 'Total PnL',
         axis: 'right',
-        color: css
-          .getPropertyValue('--blue')
-          .trim(),
+        color: totalPnlColor,
+        lineWidth: totalPnlLineWidth,
+        rounded: premiumChart,
       },
     ],
     {
       leftAxisLabel: 'Current value (USDT)',
       rightAxisLabel: 'Total PnL (USDT)',
-      xAxisLabel: 'Snapshot date and time',
+      xAxisLabel: (
+        premiumChart
+          ? false
+          : 'Snapshot date and time'
+      ),
       rightIncludeZero: true,
+      transparentBackground: premiumChart,
+      gridColor: (
+        premiumChart
+          ? gridColor
+          : undefined
+      ),
+      axisTextColor: (
+        premiumChart
+          ? axisTextColor
+          : undefined
+      ),
+      axisLabelAlpha: (
+        premiumChart
+          ? 0.74
+          : 1
+      ),
+      rightZeroLine: premiumChart,
+      rightZeroLineColor: (
+        premiumChart
+          ? zeroLineColor
+          : undefined
+      ),
     },
   );
 
