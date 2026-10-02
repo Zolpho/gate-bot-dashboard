@@ -69,7 +69,7 @@
   >
   <link
     rel="stylesheet"
-    href="./aurora-bot-details.css?v=20260912-aurora-bot-details-scroll-a7c248-v1&amp;m411b=20261002-grid-earnings-v1"
+    href="./aurora-bot-details.css?v=20260912-aurora-bot-details-scroll-a7c248-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1"
     data-dashboard-ui-stylesheet="aurora"
     disabled
   >
@@ -3271,29 +3271,28 @@
     <div class="dialog-header"><div><h2 id="dialogTitle">Bot details</h2><p id="dialogSubtitle"></p></div><button class="icon-button" id="closeDialog" aria-label="Close">×</button></div>
     <div class="dialog-content">
       <div id="botDetailMetrics" class="detail-metrics"></div>
-      <article class="detail-chart"><div class="panel-header"><div><h3>Equity and drawdown</h3><p id="drawdownSummary"></p></div><select id="botHistoryRange"><option value="24">24 hours</option><option value="168" selected>7 days</option><option value="720">30 days</option><option value="8760">1 year</option></select></div><div class="chart-wrap small"><canvas id="botChart"></canvas></div></article>
       <article
-        id="gridEarningsPanel"
-        class="detail-chart grid-earnings-chart hidden"
+        id="cumulativeReturnPanel"
+        class="detail-chart cumulative-return-chart hidden"
       >
         <div class="panel-header">
           <div>
-            <h3>Cumulative realized grid earnings</h3>
-            <p id="gridEarningsSummary"></p>
+            <h3>Cumulative Return</h3>
+            <p id="cumulativeReturnSummary"></p>
           </div>
         </div>
 
         <div
-          id="gridEarningsEmpty"
-          class="grid-earnings-empty hidden"
+          id="cumulativeReturnEmpty"
+          class="cumulative-return-empty hidden"
           role="status"
         ></div>
 
         <div
-          id="gridEarningsChartWrap"
+          id="cumulativeReturnChartWrap"
           class="chart-wrap small"
         >
-          <canvas id="botGridEarningsChart"></canvas>
+          <canvas id="botCumulativeReturnChart"></canvas>
         </div>
       </article>
       <div class="detail-columns"><section><h3>Strategy information</h3><dl id="botDefinitionList" class="definition-list"></dl></section><section><h3>Gate dynamic data <span class="admin-only-label">account login</span></h3><div class="raw-tabs"><button class="raw-tab active" data-raw="metrics">Metrics</button><button class="raw-tab" data-raw="position">Position</button><button class="raw-tab" data-raw="base_info">Base info</button><button class="raw-tab" data-raw="raw_detail">Raw</button></div><pre id="botRaw">Unlock the matching account to inspect Gate raw data.</pre></section></div>
@@ -4401,7 +4400,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260923-bot-control-market-m42-v2"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1&amp;m411b=20261002-grid-earnings-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1&amp;m411d4=20261002-cumulative-return-only-v1"
     defer
   ></script>
   <script

@@ -871,14 +871,14 @@
 
 
 /* =========================================================
-   M4.11B cumulative grid earnings
+   M4.11D Gate-style cumulative return
    ========================================================= */
 
-#botDialog .grid-earnings-chart {
+#botDialog .cumulative-return-chart {
   margin-top: 0;
 }
 
-#botDialog .grid-earnings-empty {
+#botDialog .cumulative-return-empty {
   display: flex;
   min-height: 116px;
   align-items: center;
@@ -895,4 +895,32 @@
   font-size: 0.76rem;
   line-height: 1.55;
   text-align: center;
+}
+
+/* M4.11D-R3 async cumulative-return loading */
+
+#botDialog .cumulative-return-empty.loading {
+  gap: 10px;
+}
+
+#botDialog .cumulative-return-empty.loading::before {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border:
+    2px solid
+    rgba(122, 255, 207, 0.18);
+  border-top-color:
+    var(--accent);
+  border-radius: 50%;
+  content: "";
+  animation:
+    aurora-cumulative-return-spin
+    0.8s linear infinite;
+}
+
+@keyframes aurora-cumulative-return-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

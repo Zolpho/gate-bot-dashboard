@@ -33,7 +33,12 @@ const state = {
   syncRuns: [],
   currentBot: null,
   currentBotData: null,
-  currentBotHistory: [],
+  currentBotCumulativeHistory: [],
+  currentBotCumulativeMeta: null,
+  currentBotCumulativeLoading: false,
+  currentBotCumulativeError: '',
+  botCumulativeHistoryCache: {},
+  botCumulativeHistoryRequests: {},
   currentRawData: null,
   currentRawKey: 'metrics',
   selectedAccount: '',
@@ -19914,6 +19919,177 @@ function drawSeriesChart(
 
     if (!coordinates.length) return;
 
+    const buildLinePath = () => {
+      ctx.beginPath();
+
+      coordinates.forEach(
+        (
+          coordinate,
+          pointIndex,
+        ) => {
+          if (pointIndex === 0) {
+            ctx.moveTo(
+              coordinate.x,
+              coordinate.y,
+            );
+          } else {
+            ctx.lineTo(
+              coordinate.x,
+              coordinate.y,
+            );
+          }
+        },
+      );
+    };
+
+    if (item.zeroSplit) {
+      const zeroY = yFor(
+        0,
+        item.axis,
+      );
+
+      const plotBottom = (
+        pad.top + plotH
+      );
+
+      const fillRegion = (
+        fillColor,
+        clipTop,
+        clipBottom,
+      ) => {
+        if (
+          !fillColor
+          || clipBottom <= clipTop
+        ) {
+          return;
+        }
+
+        ctx.save();
+
+        ctx.beginPath();
+        ctx.rect(
+          pad.left,
+          clipTop,
+          plotW,
+          clipBottom - clipTop,
+        );
+        ctx.clip();
+
+        ctx.beginPath();
+        ctx.moveTo(
+          coordinates[0].x,
+          zeroY,
+        );
+
+        coordinates.forEach(
+          coordinate => {
+            ctx.lineTo(
+              coordinate.x,
+              coordinate.y,
+            );
+          },
+        );
+
+        ctx.lineTo(
+          coordinates[
+            coordinates.length - 1
+          ].x,
+          zeroY,
+        );
+
+        ctx.closePath();
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+
+        ctx.restore();
+      };
+
+      fillRegion(
+        item.positiveFill,
+        pad.top,
+        zeroY,
+      );
+
+      fillRegion(
+        item.negativeFill,
+        zeroY,
+        plotBottom,
+      );
+
+      ctx.save();
+
+      ctx.beginPath();
+      ctx.moveTo(
+        pad.left,
+        zeroY,
+      );
+      ctx.lineTo(
+        width - pad.right,
+        zeroY,
+      );
+
+      ctx.strokeStyle = border;
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      ctx.restore();
+
+      const strokeRegion = (
+        strokeColor,
+        clipTop,
+        clipBottom,
+      ) => {
+        if (
+          !strokeColor
+          || clipBottom <= clipTop
+        ) {
+          return;
+        }
+
+        ctx.save();
+
+        ctx.beginPath();
+        ctx.rect(
+          pad.left,
+          clipTop,
+          plotW,
+          clipBottom - clipTop,
+        );
+        ctx.clip();
+
+        buildLinePath();
+
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = (
+          index === 0
+            ? 2.2
+            : 1.8
+        );
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        ctx.restore();
+      };
+
+      strokeRegion(
+        item.positiveColor
+          || item.color,
+        pad.top,
+        zeroY,
+      );
+
+      strokeRegion(
+        item.negativeColor
+          || item.color,
+        zeroY,
+        plotBottom,
+      );
+
+      return;
+    }
+
     if (item.fill) {
       ctx.beginPath();
       ctx.moveTo(
@@ -19921,22 +20097,19 @@ function drawSeriesChart(
         pad.top + plotH,
       );
 
-      coordinates.forEach((coordinate, pointIndex) => {
-        if (pointIndex === 0) {
+      coordinates.forEach(
+        coordinate => {
           ctx.lineTo(
             coordinate.x,
             coordinate.y,
           );
-        } else {
-          ctx.lineTo(
-            coordinate.x,
-            coordinate.y,
-          );
-        }
-      });
+        },
+      );
 
       ctx.lineTo(
-        coordinates[coordinates.length - 1].x,
+        coordinates[
+          coordinates.length - 1
+        ].x,
         pad.top + plotH,
       );
 
@@ -19949,7 +20122,11 @@ function drawSeriesChart(
         pad.top + plotH,
       );
 
-      gradient.addColorStop(0, item.fill);
+      gradient.addColorStop(
+        0,
+        item.fill,
+      );
+
       gradient.addColorStop(
         1,
         'rgba(0,0,0,0)',
@@ -19959,21 +20136,7 @@ function drawSeriesChart(
       ctx.fill();
     }
 
-    ctx.beginPath();
-
-    coordinates.forEach((coordinate, pointIndex) => {
-      if (pointIndex === 0) {
-        ctx.moveTo(
-          coordinate.x,
-          coordinate.y,
-        );
-      } else {
-        ctx.lineTo(
-          coordinate.x,
-          coordinate.y,
-        );
-      }
-    });
+    buildLinePath();
 
     ctx.strokeStyle = item.color;
     ctx.lineWidth = index === 0 ? 2.2 : 1.8;
@@ -21833,24 +21996,290 @@ async function syncNow() {
   finally { button.disabled = false; button.textContent = 'Sync Gate'; }
 }
 
-async function openBot(botId) {
-  try {
-    const hours = Number($('#botHistoryRange').value);
-    const [detail, history] = await Promise.all([
-      api(`/api/bots/${botId}`),
-      api(`/api/bots/${botId}/history?hours=${hours}`),
-    ]);
-    state.currentBot = botId;
-    state.currentBotData = detail;
-    state.currentBotHistory = history.items;
-    state.currentRawData = null;
-    renderBotDialog(detail, history);
-    if (!$('#botDialog').open) $('#botDialog').showModal();
-    if (canManageAccount(detail.bot.account_id)) await loadCurrentBotRaw();
-  } catch (error) { showToast(error.message, true); }
+const CUMULATIVE_RETURN_HOURS = (
+  24 * 365
+);
+
+const CUMULATIVE_RETURN_MAX_POINTS = (
+  1600
+);
+
+const CUMULATIVE_RETURN_CACHE_MS = (
+  60 * 1000
+);
+
+
+function cumulativeReturnCacheEntry(
+  botId,
+) {
+  const key = String(
+    botId
+  );
+
+  const entry = (
+    state.botCumulativeHistoryCache[
+      key
+    ]
+  );
+
+  if (!entry) {
+    return null;
+  }
+
+  if (
+    Date.now()
+    - entry.fetchedAt
+    > CUMULATIVE_RETURN_CACHE_MS
+  ) {
+    return null;
+  }
+
+  return entry;
 }
 
-function renderBotDialog(detail, history) {
+
+async function fetchCumulativeReturnHistory(
+  botId,
+) {
+  const key = String(
+    botId
+  );
+
+  const cached = (
+    cumulativeReturnCacheEntry(
+      botId
+    )
+  );
+
+  if (cached) {
+    return cached;
+  }
+
+  if (
+    !state
+      .botCumulativeHistoryRequests[
+        key
+      ]
+  ) {
+    const request = (
+      api(
+        `/api/bots/${botId}/pnl-history`
+        + `?hours=${CUMULATIVE_RETURN_HOURS}`
+        + `&max_points=${CUMULATIVE_RETURN_MAX_POINTS}`
+      )
+      .then(result => {
+        const entry = {
+          items:
+            Array.isArray(
+              result.items
+            )
+              ? result.items
+              : [],
+          meta: {
+            sourcePoints:
+              Number(
+                result.source_points
+              ) || 0,
+            plottedPoints:
+              Number(
+                result.plotted_points
+              ) || 0,
+            downsampled:
+              Boolean(
+                result.downsampled
+              ),
+          },
+          fetchedAt:
+            Date.now(),
+        };
+
+        state
+          .botCumulativeHistoryCache[
+            key
+          ] = entry;
+
+        return entry;
+      })
+      .finally(() => {
+        delete state
+          .botCumulativeHistoryRequests[
+            key
+          ];
+      })
+    );
+
+    state
+      .botCumulativeHistoryRequests[
+        key
+      ] = request;
+  }
+
+  return state
+    .botCumulativeHistoryRequests[
+      key
+    ];
+}
+
+
+async function loadCumulativeReturnHistory(
+  botId,
+) {
+  const cached = (
+    cumulativeReturnCacheEntry(
+      botId
+    )
+  );
+
+  if (
+    state.currentBot
+    === botId
+  ) {
+    if (cached) {
+      state.currentBotCumulativeHistory = (
+        cached.items
+      );
+
+      state.currentBotCumulativeMeta = (
+        cached.meta
+      );
+
+      state.currentBotCumulativeLoading = (
+        false
+      );
+
+      state.currentBotCumulativeError = '';
+
+      drawCumulativeReturnChart();
+
+      return;
+    }
+
+    state.currentBotCumulativeHistory = [];
+    state.currentBotCumulativeMeta = null;
+    state.currentBotCumulativeLoading = true;
+    state.currentBotCumulativeError = '';
+
+    drawCumulativeReturnChart();
+  }
+
+  try {
+    const entry = await (
+      fetchCumulativeReturnHistory(
+        botId
+      )
+    );
+
+    if (
+      state.currentBot
+      !== botId
+    ) {
+      return;
+    }
+
+    state.currentBotCumulativeHistory = (
+      entry.items
+    );
+
+    state.currentBotCumulativeMeta = (
+      entry.meta
+    );
+
+    state.currentBotCumulativeError = '';
+
+  } catch (error) {
+    if (
+      state.currentBot
+      !== botId
+    ) {
+      return;
+    }
+
+    state.currentBotCumulativeHistory = [];
+    state.currentBotCumulativeMeta = null;
+
+    state.currentBotCumulativeError = (
+      error?.message
+      || 'Unable to load cumulative return.'
+    );
+
+  } finally {
+    if (
+      state.currentBot
+      === botId
+    ) {
+      state.currentBotCumulativeLoading = (
+        false
+      );
+
+      drawCumulativeReturnChart();
+    }
+  }
+}
+
+
+async function openBot(botId) {
+  try {
+    const detail = await api(
+      `/api/bots/${botId}?include_analytics=false`
+    );
+
+    state.currentBot = botId;
+    state.currentBotData = detail;
+    state.currentRawData = null;
+
+    const cached = (
+      cumulativeReturnCacheEntry(
+        botId
+      )
+    );
+
+    state.currentBotCumulativeHistory = (
+      cached?.items
+      || []
+    );
+
+    state.currentBotCumulativeMeta = (
+      cached?.meta
+      || null
+    );
+
+    state.currentBotCumulativeLoading = (
+      !cached
+    );
+
+    state.currentBotCumulativeError = '';
+
+    renderBotDialog(
+      detail
+    );
+
+    if (
+      !$('#botDialog').open
+    ) {
+      $('#botDialog').showModal();
+    }
+
+    void loadCumulativeReturnHistory(
+      botId
+    );
+
+    if (
+      canManageAccount(
+        detail.bot.account_id
+      )
+    ) {
+      await loadCurrentBotRaw();
+    }
+
+  } catch (error) {
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+function renderBotDialog(detail) {
   const bot = detail.bot;
   $('#dialogTitle').textContent = bot.strategy_name;
   $('#dialogSubtitle').textContent = `${bot.account_name} · ${bot.market} · ${strategyLabel(bot.strategy_type)} · ${bot.strategy_id}`;
@@ -21941,11 +22370,6 @@ function renderBotDialog(detail, history) {
       null,
     ],
     [
-      'Max drawdown',
-      fmtPct(history.analytics?.max_drawdown_pct),
-      -(history.analytics?.max_drawdown_pct || 0),
-    ],
-    [
       'Status',
       botDisplayStatus(bot).label,
       null,
@@ -21963,7 +22387,6 @@ function renderBotDialog(detail, history) {
     ))
     .join('');
 
-  $('#drawdownSummary').textContent = `Max ${fmtPct(history.analytics?.max_drawdown_pct)} · Current ${fmtPct(history.analytics?.current_drawdown_pct)} · Peak ${fmtMoney(history.analytics?.peak_value)}`;
   const {
     base: baseAsset,
     quote: quoteAsset,
@@ -22208,7 +22631,7 @@ function renderBotDialog(detail, history) {
   $$('.raw-tab').forEach(t => t.classList.toggle('active', t.dataset.raw === 'metrics'));
   renderBotRaw();
   updateBotAdminControls(bot);
-  drawBotChart();
+  drawCumulativeReturnChart();
 }
 
 function updateBotAdminControls(bot) {
@@ -22323,7 +22746,7 @@ function renderBotRaw() {
 }
 
 
-function gridEarningsHistory(
+function cumulativeReturnHistory(
   bot,
   history,
 ) {
@@ -22338,20 +22761,20 @@ function gridEarningsHistory(
     return [];
   }
 
-  const observed = (
+  return (
     Array.isArray(history)
       ? history
       : []
   )
     .map(snapshot => ({
       ...snapshot,
-      cumulative_grid_earnings:
+      cumulative_return:
         numericValue(
-          snapshot.grid_profit
+          snapshot.total_profit
         ),
     }))
     .filter(snapshot => (
-      snapshot.cumulative_grid_earnings
+      snapshot.cumulative_return
       !== null
       && Number.isFinite(
         new Date(
@@ -22369,97 +22792,32 @@ function gridEarningsHistory(
         ).valueOf()
       ),
     );
-
-  if (!observed.length) {
-    return [];
-  }
-
-  const stepped = [
-    observed[0],
-  ];
-
-  let previousValue = (
-    observed[0]
-      .cumulative_grid_earnings
-  );
-
-  for (
-    let index = 1;
-    index < observed.length;
-    index += 1
-  ) {
-    const point = observed[index];
-    const value = (
-      point.cumulative_grid_earnings
-    );
-
-    if (value === previousValue) {
-      continue;
-    }
-
-    stepped.push({
-      ...point,
-      cumulative_grid_earnings:
-        previousValue,
-    });
-
-    stepped.push(
-      point
-    );
-
-    previousValue = value;
-  }
-
-  const finalObserved = (
-    observed[
-      observed.length - 1
-    ]
-  );
-
-  const finalStepped = (
-    stepped[
-      stepped.length - 1
-    ]
-  );
-
-  if (
-    finalStepped.captured_at
-    !== finalObserved.captured_at
-  ) {
-    stepped.push({
-      ...finalObserved,
-      cumulative_grid_earnings:
-        previousValue,
-    });
-  }
-
-  return stepped;
 }
 
 
-function drawGridEarningsChart() {
+function drawCumulativeReturnChart() {
   const bot = (
     state.currentBotData?.bot
   );
 
   const panel = $(
-    '#gridEarningsPanel'
+    '#cumulativeReturnPanel'
   );
 
   const empty = $(
-    '#gridEarningsEmpty'
+    '#cumulativeReturnEmpty'
   );
 
   const chartWrap = $(
-    '#gridEarningsChartWrap'
+    '#cumulativeReturnChartWrap'
   );
 
   const summary = $(
-    '#gridEarningsSummary'
+    '#cumulativeReturnSummary'
   );
 
   const canvas = $(
-    '#botGridEarningsChart'
+    '#botCumulativeReturnChart'
   );
 
   if (
@@ -22491,10 +22849,67 @@ function drawGridEarningsChart() {
     return;
   }
 
+  if (
+    state.currentBotCumulativeLoading
+  ) {
+    chartWrap.classList.add(
+      'hidden'
+    );
+
+    empty.classList.remove(
+      'hidden'
+    );
+
+    empty.classList.add(
+      'loading'
+    );
+
+    empty.textContent = (
+      'Loading cumulative return…'
+    );
+
+    summary.textContent = (
+      'Loading up to 1 year of '
+      + 'Total PnL history…'
+    );
+
+    canvas._chartMeta = null;
+
+    return;
+  }
+
+  empty.classList.remove(
+    'loading'
+  );
+
+  if (
+    state.currentBotCumulativeError
+  ) {
+    chartWrap.classList.add(
+      'hidden'
+    );
+
+    empty.classList.remove(
+      'hidden'
+    );
+
+    empty.textContent = (
+      state.currentBotCumulativeError
+    );
+
+    summary.textContent = (
+      'Cumulative Return could not be loaded.'
+    );
+
+    canvas._chartMeta = null;
+
+    return;
+  }
+
   const points = (
-    gridEarningsHistory(
+    cumulativeReturnHistory(
       bot,
-      state.currentBotHistory,
+      state.currentBotCumulativeHistory,
     )
   );
 
@@ -22507,27 +22922,13 @@ function drawGridEarningsChart() {
       'hidden'
     );
 
-    if (
-      strategyType
-      === 'infinite_grid'
-    ) {
-      empty.textContent = (
-        'Gate currently provides no grid_profit '
-        + 'history for this Infinite Grid strategy. '
-        + 'Total profit is not substituted because '
-        + 'it is not proven to represent realized '
-        + 'grid earnings.'
-      );
-    } else {
-      empty.textContent = (
-        'No Gate grid_profit observations are '
-        + 'available in the selected period.'
-      );
-    }
+    empty.textContent = (
+      'No Total PnL history is available '
+      + 'for this strategy.'
+    );
 
     summary.textContent = (
-      'No cumulative grid-earnings series '
-      + 'available for this period.'
+      'No cumulative-return series available.'
     );
 
     canvas._chartMeta = null;
@@ -22546,7 +22947,7 @@ function drawGridEarningsChart() {
   const latest = (
     points[
       points.length - 1
-    ].cumulative_grid_earnings
+    ].cumulative_return
   );
 
   const {
@@ -22555,17 +22956,55 @@ function drawGridEarningsChart() {
     bot.market
   );
 
+  const meta = (
+    state.currentBotCumulativeMeta
+    || {}
+  );
+
+  const sourcePoints = (
+    Number(
+      meta.sourcePoints
+    )
+    || points.length
+  );
+
+  const plottedPoints = (
+    Number(
+      meta.plottedPoints
+    )
+    || points.length
+  );
+
   summary.textContent = (
-    `Latest ${
+    `Latest Total PnL ${
       fmtQuoteValue(
         latest,
         quoteAsset,
       )
-    } · Gate grid_profit`
+    } · ${
+      sourcePoints.toLocaleString()
+    } snapshots · ${
+      plottedPoints.toLocaleString()
+    } plotted`
   );
 
   const css = getComputedStyle(
     document.documentElement
+  );
+
+  const positiveColor = (
+    css.getPropertyValue(
+      '--positive'
+    ).trim()
+    || css.getPropertyValue(
+      '--accent'
+    ).trim()
+  );
+
+  const negativeColor = (
+    css.getPropertyValue(
+      '--negative'
+    ).trim()
   );
 
   drawSeriesChart(
@@ -22574,22 +23013,28 @@ function drawGridEarningsChart() {
     [
       {
         key:
-          'cumulative_grid_earnings',
+          'cumulative_return',
+        axis:
+          'left',
         color:
-          css.getPropertyValue(
-            '--accent'
-          ).trim(),
-        fill:
-          'rgba(23,211,154,.14)',
+          positiveColor,
+        zeroSplit:
+          true,
+        positiveColor,
+        negativeColor,
+        positiveFill:
+          'rgba(23,211,154,.18)',
+        negativeFill:
+          'rgba(255,110,124,.17)',
       },
     ],
     {
       leftAxisLabel:
-        `Grid earnings (${
+        `PnL (${
           quoteAsset || 'quote'
         })`,
       xAxisLabel:
-        'Snapshot date and time',
+        'Bot runtime',
       leftIncludeZero: true,
       showRightAxis: false,
     },
@@ -22597,15 +23042,7 @@ function drawGridEarningsChart() {
 }
 
 
-function drawBotChart() {
-  const css = getComputedStyle(document.documentElement);
-  drawSeriesChart($('#botChart'), state.currentBotHistory, [
-    { key: 'current_value', color: css.getPropertyValue('--accent').trim(), fill: 'rgba(23,211,154,.14)' },
-    { key: 'total_profit', color: css.getPropertyValue('--blue').trim() },
-  ]);
 
-  drawGridEarningsChart();
-}
 
 async function stopCurrentBot() {
   const bot = state.currentBotData?.bot;
@@ -24004,7 +24441,6 @@ function bindEvents() {
   document.addEventListener('change', event => { if (event.target.matches('.rule-toggle')) toggleRule(Number(event.target.dataset.ruleId), event.target.checked); });
   $('#closeDialog').addEventListener('click', () => $('#botDialog').close());
   $('#botDialog').addEventListener('click', event => { if (event.target === $('#botDialog')) $('#botDialog').close(); });
-  $('#botHistoryRange').addEventListener('change', () => state.currentBot && openBot(state.currentBot));
   $$('.raw-tab').forEach(button => button.addEventListener('click', async () => { state.currentRawKey = button.dataset.raw; $$('.raw-tab').forEach(t => t.classList.toggle('active', t === button)); if (!state.currentRawData && state.currentBotData?.bot && canManageAccount(state.currentBotData.bot.account_id)) await loadCurrentBotRaw(); else renderBotRaw(); }));
   $('#stopBotButton').addEventListener(
     'click',
@@ -24343,7 +24779,18 @@ function bindEvents() {
   window.addEventListener('hashchange', () => {
     switchTab(window.location.hash.slice(1), { updateHash: false });
   });
-  window.addEventListener('resize', () => { drawPortfolioChart(); if ($('#botDialog').open) drawBotChart(); });
+  window.addEventListener(
+    'resize',
+    () => {
+      drawPortfolioChart();
+
+      if (
+        $('#botDialog').open
+      ) {
+        drawCumulativeReturnChart();
+      }
+    },
+  );
 }
 
 const footerYear = document.getElementById("footer-year");

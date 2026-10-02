@@ -1040,6 +1040,9 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "&m48a=20261001-apr-min-window-v1"
             "&m410a=20261001-native-infinity-estimator-v1"
             "&m411b=20261002-grid-earnings-v1"
+            "&m411d=20261002-cumulative-return-v1"
+            "&m411d3=20261002-cumulative-return-fast-v1"
+            "&m411d4=20261002-cumulative-return-only-v1"
         )
     ]
 

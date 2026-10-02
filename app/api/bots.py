@@ -96,25 +96,50 @@ def list_bots(
 
 
 @router.get("/{bot_id}")
-def get_bot(bot_id: int, db: Session = Depends(get_db)):  # type: ignore[no-untyped-def]
+def get_bot(
+    bot_id: int,
+    include_analytics: bool = Query(
+        default=True,
+    ),
+    db: Session = Depends(get_db),
+):  # type: ignore[no-untyped-def]
     bot = db.scalar(
         select(Bot).options(
             selectinload(Bot.account),
             selectinload(Bot.archive),
         ).where(Bot.id == bot_id)
     )
+
     if not bot:
-        raise HTTPException(status_code=404, detail="Bot not found")
-    points = db.scalars(
-        select(BotSnapshot)
-        .where(BotSnapshot.bot_id == bot.id)
-        .order_by(BotSnapshot.captured_at.asc())
-    ).all()
-    drawdown_points = [
-        (snapshot.captured_at, snapshot.current_value)
-        for snapshot in points
-        if snapshot.current_value is not None
-    ]
+        raise HTTPException(
+            status_code=404,
+            detail="Bot not found",
+        )
+
+    drawdown_points = []
+
+    if include_analytics:
+        points = db.scalars(
+            select(BotSnapshot)
+            .where(
+                BotSnapshot.bot_id
+                == bot.id
+            )
+            .order_by(
+                BotSnapshot.captured_at
+                .asc()
+            )
+        ).all()
+
+        drawdown_points = [
+            (
+                snapshot.captured_at,
+                snapshot.current_value,
+            )
+            for snapshot in points
+            if snapshot.current_value
+            is not None
+        ]
     bot_payload = bot_to_dict(
         bot,
         include_raw=False,
@@ -129,7 +154,13 @@ def get_bot(bot_id: int, db: Session = Depends(get_db)):  # type: ignore[no-unty
 
     return {
         "bot": bot_payload,
-        "analytics": calculate_drawdown(drawdown_points),
+        "analytics": (
+            calculate_drawdown(
+                drawdown_points
+            )
+            if include_analytics
+            else None
+        ),
         "raw_data_requires_auth": True,
     }
 
@@ -300,6 +331,220 @@ def restore_bot(
         "bot_id": bot.id,
         "account_id": bot.account_id,
         "gate_write_performed": False,
+    }
+
+
+
+def _downsample_total_profit_rows(
+    rows: list[
+        tuple[
+            datetime,
+            object,
+        ]
+    ],
+    max_points: int,
+) -> list[
+    tuple[
+        datetime,
+        object,
+    ]
+]:
+    """
+    Preserve chart shape while bounding browser payload size.
+
+    Keep the first and last observations plus the minimum
+    and maximum Total PnL observation from each chronological
+    bucket. This retains local peaks, troughs and sign changes
+    substantially better than simple every-Nth sampling.
+    """
+
+    if len(rows) <= max_points:
+        return rows
+
+    if max_points < 4:
+        return [
+            rows[0],
+            rows[-1],
+        ][:max_points]
+
+    interior = rows[
+        1:-1
+    ]
+
+    bucket_count = max(
+        1,
+        (max_points - 2) // 2,
+    )
+
+    selected = [
+        rows[0],
+    ]
+
+    for bucket_index in range(
+        bucket_count
+    ):
+        start = (
+            len(interior)
+            * bucket_index
+            // bucket_count
+        )
+
+        stop = (
+            len(interior)
+            * (bucket_index + 1)
+            // bucket_count
+        )
+
+        bucket = interior[
+            start:stop
+        ]
+
+        if not bucket:
+            continue
+
+        minimum_offset = min(
+            range(len(bucket)),
+            key=lambda offset: (
+                bucket[offset][1]
+            ),
+        )
+
+        maximum_offset = max(
+            range(len(bucket)),
+            key=lambda offset: (
+                bucket[offset][1]
+            ),
+        )
+
+        for offset in sorted(
+            {
+                minimum_offset,
+                maximum_offset,
+            }
+        ):
+            row = bucket[
+                offset
+            ]
+
+            if row != selected[-1]:
+                selected.append(
+                    row
+                )
+
+    if rows[-1] != selected[-1]:
+        selected.append(
+            rows[-1]
+        )
+
+    return selected[
+        :max_points
+    ]
+
+
+@router.get("/{bot_id}/pnl-history")
+def get_bot_pnl_history(
+    bot_id: int,
+    hours: int = Query(
+        default=24 * 365,
+        ge=1,
+        le=24 * 365,
+    ),
+    max_points: int = Query(
+        default=1600,
+        ge=200,
+        le=5000,
+    ),
+    db: Session = Depends(get_db),
+):  # type: ignore[no-untyped-def]
+    """
+    Lightweight Total-PnL history for Bot Detail charts.
+
+    This endpoint intentionally returns only the fields needed
+    for Cumulative Return. It is shared by Spot Grid and
+    Infinity Grid and is safe as their snapshot histories grow.
+    """
+
+    if not db.get(
+        Bot,
+        bot_id,
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Bot not found",
+        )
+
+    since = (
+        datetime.now(
+            timezone.utc
+        )
+        - timedelta(
+            hours=hours
+        )
+    )
+
+    raw_rows = db.execute(
+        select(
+            BotSnapshot.captured_at,
+            BotSnapshot.total_profit,
+        )
+        .where(
+            BotSnapshot.bot_id
+            == bot_id,
+            BotSnapshot.captured_at
+            >= since,
+            BotSnapshot.total_profit
+            .is_not(None),
+        )
+        .order_by(
+            BotSnapshot.captured_at
+            .asc()
+        )
+    ).all()
+
+    rows = [
+        (
+            row.captured_at,
+            row.total_profit,
+        )
+        for row in raw_rows
+    ]
+
+    sampled = (
+        _downsample_total_profit_rows(
+            rows,
+            max_points,
+        )
+    )
+
+    return {
+        "hours": hours,
+        "max_points": max_points,
+        "source_points": len(
+            rows
+        ),
+        "plotted_points": len(
+            sampled
+        ),
+        "downsampled": (
+            len(sampled)
+            < len(rows)
+        ),
+        "items": [
+            {
+                "captured_at":
+                    captured_at
+                    .isoformat(),
+                "total_profit":
+                    float(
+                        total_profit
+                    ),
+            }
+            for (
+                captured_at,
+                total_profit,
+            )
+            in sampled
+        ],
     }
 
 
