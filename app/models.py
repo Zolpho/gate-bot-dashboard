@@ -1040,6 +1040,118 @@ class SyncRun(Base):
     account: Mapped[Optional[GateAccount]] = relationship(back_populates="sync_runs")
 
 
+class PublicDonationDestination(Base):
+    """
+    Durable public donation destination trust anchor.
+
+    This table is intentionally separate from DepositAddress.
+
+    DepositAddress is operational/history state and may be
+    updated by authenticated Wallet-account Deposit reads.
+    Public donation trust must not silently change because
+    an internal user viewed a newly returned Gate address.
+
+    The first successful public donation lookup establishes
+    one trusted currency+chain destination. Later address or
+    memo changes block publication until separately reviewed.
+    """
+
+    __tablename__ = "public_donation_destinations"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "currency",
+            "chain_key",
+            name=(
+                "uq_public_donation_destination_"
+                "currency_chain"
+            ),
+        ),
+        Index(
+            "ix_public_donation_destinations_status",
+            "status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    chain_key: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    chain: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    address: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    memo: Mapped[str] = mapped_column(
+        Text,
+        default="",
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        default="trusted",
+        nullable=False,
+    )
+
+    observed_address: Mapped[str] = mapped_column(
+        Text,
+        default="",
+        nullable=False,
+    )
+
+    observed_memo: Mapped[str] = mapped_column(
+        Text,
+        default="",
+        nullable=False,
+    )
+
+    blocked_reason: Mapped[str] = mapped_column(
+        Text,
+        default="",
+        nullable=False,
+    )
+
+    first_published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    last_verified_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+
+    blocked_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+        nullable=False,
+    )
+
+
 DEPOSIT_AMOUNT = Numeric(48, 24)
 
 

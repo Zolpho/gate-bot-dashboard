@@ -15,6 +15,7 @@ from .api import (
     bot_control,
     bots,
     dashboard,
+    donate,
     deposit,
     deposit_history,
     me,
@@ -138,6 +139,7 @@ app.include_router(alerts.router)
 app.include_router(system.router)
 app.include_router(auth.router)
 app.include_router(bot_control.router)
+app.include_router(donate.router)
 app.include_router(deposit.router)
 app.include_router(deposit.private_router)
 app.include_router(deposit_history.router)
