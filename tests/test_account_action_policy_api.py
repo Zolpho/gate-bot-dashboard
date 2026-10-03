@@ -5,9 +5,15 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from app.auth_state import (
+    create_auth_session,
+    credential_fingerprint,
+)
+from app.config import get_settings
 from app.db import session_scope
 from app.main import app
 from app.models import GateAccount
+from app.security import load_dashboard_users
 
 
 def _auth(
@@ -32,6 +38,54 @@ OPERATOR = _auth(
     "zolnode",
     "zolnode-test-password",
 )
+
+
+def _bearer(
+    username: str,
+) -> dict[str, str]:
+    settings = get_settings()
+
+    user = next(
+        item
+        for item
+        in load_dashboard_users(
+            settings
+        )
+        if (
+            item.username
+            == username
+            and item.enabled
+        )
+    )
+
+    token, _session = (
+        create_auth_session(
+            username=user.username,
+            credential_hash=(
+                credential_fingerprint(
+                    username=user.username,
+                    password_hash=(
+                        user.password_hash
+                    ),
+                )
+            ),
+            auth_method="password_totp",
+            mfa_completed=True,
+            ttl_seconds=(
+                settings
+                .dashboard_auth_session_ttl_seconds
+            ),
+            client_ip="testclient",
+            user_agent=(
+                "account-policy-api-test"
+            ),
+        )
+    )
+
+    return {
+        "Authorization":
+            f"Bearer {token}",
+    }
 
 
 def _new_account_id(
@@ -96,7 +150,7 @@ def test_policy_admin_routes_require_super_admin() -> None:
         assert (
             client.get(
                 "/api/auth/account-policies",
-                headers=OPERATOR,
+                headers=_bearer("zolnode"),
             ).status_code
             == 403
         )
@@ -109,7 +163,7 @@ def test_policy_admin_routes_require_super_admin() -> None:
         assert (
             client.get(
                 history_path,
-                headers=OPERATOR,
+                headers=_bearer("zolnode"),
             ).status_code
             == 403
         )
@@ -121,7 +175,7 @@ def test_policy_admin_routes_require_super_admin() -> None:
 
         denied = client.patch(
             update_path,
-            headers=OPERATOR,
+            headers=_bearer("zolnode"),
             json={
                 "trading_enabled": False,
             },
@@ -142,7 +196,7 @@ def test_rootadmin_can_list_update_and_audit_policy() -> None:
 
         listed = client.get(
             "/api/auth/account-policies",
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
         )
 
         assert listed.status_code == 200
@@ -189,7 +243,7 @@ def test_rootadmin_can_list_update_and_audit_policy() -> None:
 
         updated = client.patch(
             update_path,
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
             json={
                 "transfers_enabled": True,
                 "withdrawals_enabled": False,
@@ -274,7 +328,7 @@ def test_rootadmin_can_list_update_and_audit_policy() -> None:
                 "/api/auth/account-policies/"
                 f"{account_id}/events"
             ),
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
         )
 
         assert history.status_code == 200
@@ -297,7 +351,7 @@ def test_rootadmin_can_list_update_and_audit_policy() -> None:
 
         repeated = client.patch(
             update_path,
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
             json={
                 "transfers_enabled": True,
                 "withdrawals_enabled": False,
@@ -328,7 +382,7 @@ def test_rootadmin_can_list_update_and_audit_policy() -> None:
                 "/api/auth/account-policies/"
                 f"{account_id}/events"
             ),
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
         ).json()
 
         assert len(
@@ -351,7 +405,7 @@ def test_policy_api_rejects_invalid_or_unknown_updates() -> None:
                 "/api/auth/account-policies/"
                 + account_id
             ),
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
             json={
                 "reason": "Nothing selected",
             },
@@ -367,7 +421,7 @@ def test_policy_api_rejects_invalid_or_unknown_updates() -> None:
                 "/api/auth/account-policies/"
                 + account_id
             ),
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
             json={
                 "trading_enabled": "true",
             },
@@ -383,7 +437,7 @@ def test_policy_api_rejects_invalid_or_unknown_updates() -> None:
                 "/api/auth/account-policies/"
                 "not-a-real-account"
             ),
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
             json={
                 "trading_enabled": False,
             },
@@ -396,7 +450,7 @@ def test_policy_api_rejects_invalid_or_unknown_updates() -> None:
                 "/api/auth/account-policies/"
                 "not-a-real-account/events"
             ),
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
         )
 
         assert (
@@ -421,7 +475,7 @@ def test_policy_history_limit_is_validated() -> None:
                 f"{account_id}/events"
                 "?limit=0"
             ),
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
         )
 
         assert too_small.status_code == 422
@@ -432,7 +486,7 @@ def test_policy_history_limit_is_validated() -> None:
                 f"{account_id}/events"
                 "?limit=1001"
             ),
-            headers=ROOT,
+            headers=_bearer("rootadmin"),
         )
 
         assert too_large.status_code == 422

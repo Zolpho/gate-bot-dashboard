@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 from uuid import uuid4
 
 import pytest
@@ -28,26 +27,81 @@ def _auth(
     username: str,
     password: str,
 ) -> dict[str, str]:
-    token = base64.b64encode(
-        f"{username}:{password}".encode()
-    ).decode()
+    from app.auth_state import (
+        create_auth_session,
+        credential_fingerprint,
+    )
+    from app.config import get_settings
+    from app.security import (
+        load_dashboard_users,
+        verify_password,
+    )
+
+    settings = get_settings()
+
+    user = next(
+        (
+            item
+            for item
+            in load_dashboard_users(
+                settings
+            )
+            if (
+                item.username
+                == username
+                and item.enabled
+            )
+        ),
+        None,
+    )
+
+    assert user is not None
+    assert verify_password(
+        password,
+        user.password_hash,
+    )
+
+    token, _session = (
+        create_auth_session(
+            username=user.username,
+            credential_hash=(
+                credential_fingerprint(
+                    username=user.username,
+                    password_hash=(
+                        user.password_hash
+                    ),
+                )
+            ),
+            auth_method="password_totp",
+            mfa_completed=True,
+            ttl_seconds=(
+                settings
+                .dashboard_auth_session_ttl_seconds
+            ),
+            client_ip="testclient",
+            user_agent=(
+                "m413d-bearer-write-test"
+            ),
+        )
+    )
 
     return {
-        "Authorization": f"Basic {token}",
+        "Authorization":
+            f"Bearer {token}",
     }
 
 
-ARNOLD = _auth(
+ARNOLD = (
     "arnold",
     "arnold-test-password",
 )
 
-ZOLNODE = _auth(
+ZOLNODE = (
     "zolnode",
     "zolnode-test-password",
 )
 
-ROOT = _auth(
+ROOT = (
     "rootadmin",
     "rootadmin-test-password",
 )
@@ -105,7 +159,7 @@ def test_account_operator_can_create_and_list_own_candidate():
     with TestClient(app) as client:
         response = client.post(
             "/api/treasury/withdrawals/destinations",
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json=_candidate(),
         )
 
@@ -134,7 +188,7 @@ def test_account_operator_can_create_and_list_own_candidate():
                 "destinations"
                 "?owner_account_id=arnold"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
         )
 
         assert listed.status_code == 200
@@ -148,7 +202,7 @@ def test_account_operator_can_create_and_list_own_candidate():
 
         forbidden = client.post(
             "/api/treasury/withdrawals/destinations",
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json={
                 **_candidate(),
                 "owner_account_id": "zolnode",
@@ -162,7 +216,7 @@ def test_account_operator_cannot_approve_destination():
     with TestClient(app) as client:
         created = client.post(
             "/api/treasury/withdrawals/destinations",
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json=_candidate(),
         ).json()
 
@@ -175,7 +229,7 @@ def test_account_operator_cannot_approve_destination():
                 "/api/treasury/withdrawals/"
                 f"destinations/{destination_id}/approve"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json={
                 "confirmation": (
                     "APPROVE WITHDRAWAL DESTINATION "
@@ -195,7 +249,7 @@ def test_super_admin_approval_requires_confirmation_and_is_audited():
     with TestClient(app) as client:
         created = client.post(
             "/api/treasury/withdrawals/destinations",
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json=_candidate(),
         ).json()
 
@@ -208,7 +262,7 @@ def test_super_admin_approval_requires_confirmation_and_is_audited():
                 "/api/treasury/withdrawals/"
                 f"destinations/{destination_id}/approve"
             ),
-            headers=ROOT,
+            headers=_auth(*ROOT),
             json={
                 "confirmation": "APPROVE",
                 "reason": (
@@ -225,7 +279,7 @@ def test_super_admin_approval_requires_confirmation_and_is_audited():
                 "/api/treasury/withdrawals/"
                 f"destinations/{destination_id}/approve"
             ),
-            headers=ROOT,
+            headers=_auth(*ROOT),
             json={
                 "confirmation": (
                     "APPROVE WITHDRAWAL DESTINATION "
@@ -261,7 +315,7 @@ def test_super_admin_approval_requires_confirmation_and_is_audited():
                 "/api/treasury/withdrawals/"
                 f"destinations/{destination_id}"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
         )
 
         assert detail.status_code == 200
@@ -283,7 +337,7 @@ def test_revoked_destination_is_terminal():
     with TestClient(app) as client:
         created = client.post(
             "/api/treasury/withdrawals/destinations",
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json=payload,
         ).json()
 
@@ -296,7 +350,7 @@ def test_revoked_destination_is_terminal():
                 "/api/treasury/withdrawals/"
                 f"destinations/{destination_id}/approve"
             ),
-            headers=ROOT,
+            headers=_auth(*ROOT),
             json={
                 "confirmation": (
                     "APPROVE WITHDRAWAL DESTINATION "
@@ -316,7 +370,7 @@ def test_revoked_destination_is_terminal():
                 "/api/treasury/withdrawals/"
                 f"destinations/{destination_id}/revoke"
             ),
-            headers=ROOT,
+            headers=_auth(*ROOT),
             json={
                 "confirmation": (
                     "REVOKE WITHDRAWAL DESTINATION "
@@ -341,7 +395,7 @@ def test_revoked_destination_is_terminal():
 
         recreated = client.post(
             "/api/treasury/withdrawals/destinations",
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json=payload,
         )
 
@@ -358,7 +412,7 @@ def test_destination_identity_is_chain_and_memo_scoped():
     with TestClient(app) as client:
         first = client.post(
             "/api/treasury/withdrawals/destinations",
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json=_candidate(
                 address=address,
                 chain="ARBEVM",
@@ -368,7 +422,7 @@ def test_destination_identity_is_chain_and_memo_scoped():
 
         second = client.post(
             "/api/treasury/withdrawals/destinations",
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json=_candidate(
                 address=address,
                 chain="ETH",
@@ -378,7 +432,7 @@ def test_destination_identity_is_chain_and_memo_scoped():
 
         third = client.post(
             "/api/treasury/withdrawals/destinations",
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json=_candidate(
                 address=address,
                 chain="ARBEVM",

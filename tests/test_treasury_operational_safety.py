@@ -253,14 +253,67 @@ def _auth(
     username: str,
     password: str,
 ) -> dict[str, str]:
-    import base64
+    from app.auth_state import (
+        create_auth_session,
+        credential_fingerprint,
+    )
+    from app.config import get_settings
+    from app.security import (
+        load_dashboard_users,
+        verify_password,
+    )
 
-    token = base64.b64encode(
-        f"{username}:{password}".encode()
-    ).decode()
+    settings = get_settings()
+
+    user = next(
+        (
+            item
+            for item
+            in load_dashboard_users(
+                settings
+            )
+            if (
+                item.username
+                == username
+                and item.enabled
+            )
+        ),
+        None,
+    )
+
+    assert user is not None
+    assert verify_password(
+        password,
+        user.password_hash,
+    )
+
+    token, _session = (
+        create_auth_session(
+            username=user.username,
+            credential_hash=(
+                credential_fingerprint(
+                    username=user.username,
+                    password_hash=(
+                        user.password_hash
+                    ),
+                )
+            ),
+            auth_method="password_totp",
+            mfa_completed=True,
+            ttl_seconds=(
+                settings
+                .dashboard_auth_session_ttl_seconds
+            ),
+            client_ip="testclient",
+            user_agent=(
+                "m413d-bearer-write-test"
+            ),
+        )
+    )
 
     return {
-        "Authorization": f"Basic {token}"
+        "Authorization":
+            f"Bearer {token}",
     }
 
 

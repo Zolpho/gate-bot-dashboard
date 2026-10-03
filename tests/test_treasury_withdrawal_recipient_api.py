@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -12,26 +11,81 @@ def _auth(
     username: str,
     password: str,
 ) -> dict[str, str]:
-    token = base64.b64encode(
-        f"{username}:{password}".encode()
-    ).decode()
+    from app.auth_state import (
+        create_auth_session,
+        credential_fingerprint,
+    )
+    from app.config import get_settings
+    from app.security import (
+        load_dashboard_users,
+        verify_password,
+    )
+
+    settings = get_settings()
+
+    user = next(
+        (
+            item
+            for item
+            in load_dashboard_users(
+                settings
+            )
+            if (
+                item.username
+                == username
+                and item.enabled
+            )
+        ),
+        None,
+    )
+
+    assert user is not None
+    assert verify_password(
+        password,
+        user.password_hash,
+    )
+
+    token, _session = (
+        create_auth_session(
+            username=user.username,
+            credential_hash=(
+                credential_fingerprint(
+                    username=user.username,
+                    password_hash=(
+                        user.password_hash
+                    ),
+                )
+            ),
+            auth_method="password_totp",
+            mfa_completed=True,
+            ttl_seconds=(
+                settings
+                .dashboard_auth_session_ttl_seconds
+            ),
+            client_ip="testclient",
+            user_agent=(
+                "m413d-bearer-write-test"
+            ),
+        )
+    )
 
     return {
-        "Authorization": f"Basic {token}",
+        "Authorization":
+            f"Bearer {token}",
     }
 
 
-ARNOLD = _auth(
+ARNOLD = (
     "arnold",
     "arnold-test-password",
 )
 
-ZOLNODE = _auth(
+ZOLNODE = (
     "zolnode",
     "zolnode-test-password",
 )
 
-ROOT = _auth(
+ROOT = (
     "rootadmin",
     "rootadmin-test-password",
 )
@@ -48,14 +102,14 @@ def _address() -> str:
 def _create(
     client: TestClient,
     *,
-    headers: dict[str, str] = ARNOLD,
+    headers: tuple[str, str] = ARNOLD,
     owner_account_id: str = "arnold",
     label: str = "My Ledger",
     address: str | None = None,
 ):
     return client.post(
         "/api/treasury/withdrawals/recipients",
-        headers=headers,
+        headers=_auth(*headers),
         json={
             "owner_account_id": owner_account_id,
             "address": address or _address(),
@@ -105,7 +159,7 @@ def test_account_operator_can_create_and_list_own_recipient():
                 "?owner_account_id=arnold"
                 "&status=active"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
         )
 
         assert listed.status_code == 200
@@ -148,7 +202,7 @@ def test_create_recipient_forbids_route_security_fields():
 
         response = client.post(
             "/api/treasury/withdrawals/recipients",
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json=payload,
         )
 
@@ -170,7 +224,7 @@ def test_recipient_detail_is_owner_scoped_and_audited():
                 "/api/treasury/withdrawals/"
                 f"recipients/{recipient_id}"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
         )
 
         assert own.status_code == 200
@@ -199,7 +253,7 @@ def test_recipient_detail_is_owner_scoped_and_audited():
                 "/api/treasury/withdrawals/"
                 f"recipients/{recipient_id}"
             ),
-            headers=ZOLNODE,
+            headers=_auth(*ZOLNODE),
         )
 
         # Opaque IDs must not disclose another user's
@@ -229,7 +283,7 @@ def test_recipient_label_can_be_renamed_but_address_cannot_be_edited():
                 "/api/treasury/withdrawals/"
                 f"recipients/{recipient_id}"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json={
                 "label": "Cold wallet",
             },
@@ -262,7 +316,7 @@ def test_recipient_label_can_be_renamed_but_address_cannot_be_edited():
                 "/api/treasury/withdrawals/"
                 f"recipients/{recipient_id}"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json={
                 "label": "Unsafe edit",
                 "address": _address(),
@@ -279,7 +333,7 @@ def test_recipient_label_can_be_renamed_but_address_cannot_be_edited():
                 "/api/treasury/withdrawals/"
                 f"recipients/{recipient_id}"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
         ).json()
 
         assert [
@@ -311,7 +365,7 @@ def test_recipient_rename_hides_foreign_recipient_existence():
                 "/api/treasury/withdrawals/"
                 f"recipients/{recipient_id}"
             ),
-            headers=ZOLNODE,
+            headers=_auth(*ZOLNODE),
             json={
                 "label": "Not mine",
             },
@@ -336,7 +390,7 @@ def test_recipient_archive_and_restore_are_local_audited_actions():
                 "/api/treasury/withdrawals/"
                 f"recipients/{recipient_id}/archive"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json={
                 "reason": (
                     "Hide this address from normal "
@@ -369,7 +423,7 @@ def test_recipient_archive_and_restore_are_local_audited_actions():
                 "?owner_account_id=arnold"
                 "&status=active"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
         ).json()
 
         assert recipient_id not in {
@@ -384,7 +438,7 @@ def test_recipient_archive_and_restore_are_local_audited_actions():
                 "?owner_account_id=arnold"
                 "&status=archived"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
         ).json()
 
         assert recipient_id in {
@@ -397,7 +451,7 @@ def test_recipient_archive_and_restore_are_local_audited_actions():
                 "/api/treasury/withdrawals/"
                 f"recipients/{recipient_id}/restore"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json={
                 "reason": (
                     "Return this address to normal "
@@ -428,7 +482,7 @@ def test_recipient_archive_and_restore_are_local_audited_actions():
                 "/api/treasury/withdrawals/"
                 f"recipients/{recipient_id}"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
         ).json()
 
         assert [
@@ -456,7 +510,7 @@ def test_recipient_archive_hides_foreign_recipient_existence():
                 "/api/treasury/withdrawals/"
                 f"recipients/{recipient_id}/archive"
             ),
-            headers=ZOLNODE,
+            headers=_auth(*ZOLNODE),
             json={},
         )
 
@@ -481,7 +535,7 @@ def test_super_admin_can_list_all_recipients():
 
         response = client.get(
             "/api/treasury/withdrawals/recipients",
-            headers=ROOT,
+            headers=_auth(*ROOT),
         )
 
         assert response.status_code == 200

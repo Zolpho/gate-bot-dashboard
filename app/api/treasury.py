@@ -20,6 +20,8 @@ from ..security import (
     UserConfigError,
     load_dashboard_users,
     require_account_access,
+    require_bearer_super_admin,
+    require_bearer_user,
     require_super_admin,
     require_user,
 )
@@ -1007,7 +1009,7 @@ async def preview_treasury_user_transfer(
     request: TreasuryUserTransferPreviewRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     participants = (
@@ -1197,7 +1199,7 @@ async def execute_treasury_user_transfer(
     request: TreasuryUserTransferExecutionRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     participants = (
@@ -1393,7 +1395,7 @@ async def reconcile_treasury_user_transfer(
     request_id: str,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     record = get_transfer_request(request_id)
@@ -1502,7 +1504,7 @@ async def simulate_treasury_transfer(
     request: TreasuryTransferSimulationRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     source_account_id = require_account_access(
@@ -1648,7 +1650,7 @@ async def execute_treasury_transfer(
     request: TreasuryTransferExecutionRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     source_account_id = require_account_access(
@@ -1825,7 +1827,7 @@ async def reconcile_treasury_transfer(
     request_id: str,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     record = get_transfer_request(
@@ -2109,7 +2111,7 @@ def release_treasury_transfer_lock(
     request: TreasuryManualLockReleaseRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_super_admin),
+        Depends(require_bearer_super_admin),
     ],
 ):
     row = get_transfer_request(request_id)
@@ -2293,7 +2295,7 @@ def create_treasury_withdrawal_recipient(
     request: TreasuryWithdrawalRecipientCreateRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     owner = require_account_access(
@@ -2433,7 +2435,7 @@ def rename_treasury_withdrawal_recipient(
     request: TreasuryWithdrawalRecipientRenameRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     # Authorize before invoking the mutating service.
@@ -2486,7 +2488,7 @@ def archive_treasury_withdrawal_recipient(
     request: TreasuryWithdrawalRecipientStateRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     _treasury_withdrawal_recipient_for_user(
@@ -2540,7 +2542,7 @@ def restore_treasury_withdrawal_recipient(
     request: TreasuryWithdrawalRecipientStateRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     _treasury_withdrawal_recipient_for_user(
@@ -2595,7 +2597,7 @@ def create_treasury_withdrawal_recipient_destination(
     request: TreasuryWithdrawalRecipientDestinationRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     recipient = (
@@ -2691,7 +2693,7 @@ def create_treasury_withdrawal_destination(
     request: TreasuryWithdrawalDestinationCandidateRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     owner = require_account_access(
@@ -2835,7 +2837,7 @@ def approve_treasury_withdrawal_destination(
     request: TreasuryWithdrawalDestinationDecisionRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_super_admin),
+        Depends(require_bearer_super_admin),
     ],
 ):
     required_confirmation = (
@@ -2903,7 +2905,7 @@ def revoke_treasury_withdrawal_destination(
     request: TreasuryWithdrawalDestinationDecisionRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_super_admin),
+        Depends(require_bearer_super_admin),
     ],
 ):
     required_confirmation = (
@@ -3239,7 +3241,7 @@ async def simulate_treasury_withdrawal_request(
     request: TreasuryWithdrawalSimulationRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     owner = require_account_access(
@@ -4170,7 +4172,7 @@ async def reserve_treasury_withdrawal_request(
     request: TreasuryWithdrawalReservationRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     row = _withdrawal_request_or_http(
@@ -4505,7 +4507,7 @@ async def confirm_treasury_withdrawal_request(
     request: TreasuryWithdrawalConfirmationRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     row = _withdrawal_request_or_http(
@@ -4747,7 +4749,7 @@ async def prepare_treasury_withdrawal_jit(
     request: TreasuryWithdrawalReservationRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     row = _withdrawal_request_or_http(
@@ -5290,7 +5292,7 @@ async def execute_treasury_withdrawal_jit(
     request: TreasuryWithdrawalReservationRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     row = _withdrawal_request_or_http(
@@ -5927,7 +5929,7 @@ async def reconcile_treasury_withdrawal_jit(
     request_id: str,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     row = _withdrawal_request_or_http(
@@ -6178,7 +6180,7 @@ async def execute_treasury_external_withdrawal(
     request: TreasuryWithdrawalReservationRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     row = _withdrawal_request_or_http(
@@ -6592,7 +6594,7 @@ async def reconcile_treasury_external_withdrawal(
     request_id: str,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     row = _withdrawal_request_or_http(
@@ -6679,7 +6681,7 @@ async def settle_treasury_withdrawal_request(
     request: TreasuryWithdrawalSettlementRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_super_admin),
+        Depends(require_bearer_super_admin),
     ],
 ):
     row = _withdrawal_request_or_http(
@@ -6814,7 +6816,7 @@ async def abandon_treasury_withdrawal_request(
     request: TreasuryWithdrawalAbandonRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_super_admin),
+        Depends(require_bearer_super_admin),
     ],
 ):
     row = _withdrawal_request_or_http(
@@ -6942,7 +6944,7 @@ def hold_treasury_withdrawal_funds_on_main(
     request: TreasuryWithdrawalCancellationRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     row = _withdrawal_request_or_http(
@@ -7189,7 +7191,7 @@ def cancel_treasury_withdrawal_request(
     request: TreasuryWithdrawalCancellationRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     row = _withdrawal_request_or_http(

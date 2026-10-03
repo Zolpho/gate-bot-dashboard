@@ -24,7 +24,11 @@ from ..accounts import (
 )
 from ..config import Settings, get_settings
 from ..gate_client import GateAPIError, GateClient
-from ..security import DashboardUser, require_user
+from ..security import (
+    DashboardUser,
+    require_bearer_user,
+    require_user,
+)
 from ..trading_credentials import (
     TradingConfigError,
     get_trading_account,
@@ -1157,7 +1161,7 @@ async def preview_limit_order(
     request: LimitOrderPreviewRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
     settings: Annotated[
         Settings,
@@ -1604,7 +1608,7 @@ async def execute_trading_limit_order(
     request: LimitOrderExecuteRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
     settings: Annotated[
         Settings,
@@ -1734,7 +1738,7 @@ async def cancel_trading_limit_order(
     request: LimitOrderCancelRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
     settings: Annotated[
         Settings,
@@ -1799,7 +1803,7 @@ async def reconcile_trading_limit_order_cancellation(
     request_id: str,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
     settings: Annotated[
         Settings,
@@ -1860,7 +1864,7 @@ async def amend_trading_limit_order(
     request: LimitOrderAmendRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
     settings: Annotated[
         Settings,
@@ -1932,7 +1936,7 @@ async def reconcile_trading_limit_order_amendment(
     amend_request_id: str,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
     settings: Annotated[
         Settings,
@@ -1998,7 +2002,7 @@ async def reconcile_trading_limit_order_request(
     request_id: str,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
     settings: Annotated[
         Settings,

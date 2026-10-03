@@ -304,6 +304,58 @@ def _require_basic_ip_access(
         raise _ip_access_denied_error()
 
 
+def _resolve_bearer_user(
+    *,
+    request: Request,
+    bearer_credentials: HTTPAuthorizationCredentials,
+    settings: Settings,
+) -> DashboardUser:
+    client_identifier = (
+        _request_client_identifier(
+            request
+        )
+    )
+
+    # Local import deliberately avoids the module-level cycle:
+    # auth_login imports DashboardUser and identity helpers from
+    # this module.
+    from .auth_login import (
+        IpRestrictionDenied,
+        resolve_bearer_session,
+    )
+
+    try:
+        resolved = (
+            resolve_bearer_session(
+                bearer_credentials.credentials,
+                settings=settings,
+                client_identifier=(
+                    client_identifier
+                ),
+            )
+        )
+
+    except IpRestrictionDenied as exc:
+        raise (
+            _ip_access_denied_error()
+        ) from exc
+
+    if resolved is None:
+        raise _bearer_authentication_error()
+
+    user = resolved.get(
+        "user"
+    )
+
+    if not isinstance(
+        user,
+        DashboardUser,
+    ):
+        raise _bearer_authentication_error()
+
+    return user
+
+
 def require_user(
     request: Request,
     credentials: Annotated[
@@ -319,51 +371,14 @@ def require_user(
         Depends(get_settings),
     ],
 ) -> DashboardUser:
-    client_identifier = (
-        _request_client_identifier(
-            request
-        )
-    )
-
     if bearer_credentials is not None:
-        # Local import deliberately avoids the module-level cycle:
-        # auth_login imports DashboardUser and identity helpers from
-        # this module.
-        from .auth_login import (
-            IpRestrictionDenied,
-            resolve_bearer_session,
+        return _resolve_bearer_user(
+            request=request,
+            bearer_credentials=(
+                bearer_credentials
+            ),
+            settings=settings,
         )
-
-        try:
-            resolved = (
-                resolve_bearer_session(
-                    bearer_credentials.credentials,
-                    settings=settings,
-                    client_identifier=(
-                        client_identifier
-                    ),
-                )
-            )
-
-        except IpRestrictionDenied as exc:
-            raise (
-                _ip_access_denied_error()
-            ) from exc
-
-        if resolved is None:
-            raise _bearer_authentication_error()
-
-        user = resolved.get(
-            "user"
-        )
-
-        if not isinstance(
-            user,
-            DashboardUser,
-        ):
-            raise _bearer_authentication_error()
-
-        return user
 
     user = authenticate_credentials(
         credentials,
@@ -374,16 +389,61 @@ def require_user(
         user=user,
         settings=settings,
         client_identifier=(
-            client_identifier
+            _request_client_identifier(
+                request
+            )
         ),
     )
 
     return user
 
 
+def require_bearer_user(
+    request: Request,
+    bearer_credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(_bearer),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+) -> DashboardUser:
+    if bearer_credentials is None:
+        raise _bearer_authentication_error(
+            "Bearer session required"
+        )
+
+    return _resolve_bearer_user(
+        request=request,
+        bearer_credentials=(
+            bearer_credentials
+        ),
+        settings=settings,
+    )
+
+
 def require_super_admin(user: Annotated[DashboardUser, Depends(require_user)]) -> DashboardUser:
     if not user.is_super_admin:
         raise HTTPException(status_code=403, detail="Super-admin permission is required")
+    return user
+
+
+
+def require_bearer_super_admin(
+    user: Annotated[
+        DashboardUser,
+        Depends(require_bearer_user),
+    ],
+) -> DashboardUser:
+    if not user.is_super_admin:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Super-admin permission is required"
+            ),
+        )
+
     return user
 
 

@@ -86,6 +86,7 @@ from ..security import (
     UserConfigError,
     change_dashboard_user_password,
     load_dashboard_users,
+    require_bearer_super_admin,
     require_super_admin,
     require_user,
     verify_password,
@@ -2472,7 +2473,7 @@ def change_account_action_policy(
     payload: AccountActionPolicyUpdateRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_super_admin),
+        Depends(require_bearer_super_admin),
     ],
 ):  # type: ignore[no-untyped-def]
     """

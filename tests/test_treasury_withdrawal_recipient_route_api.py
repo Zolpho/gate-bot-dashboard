@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -12,21 +11,76 @@ def _auth(
     username: str,
     password: str,
 ) -> dict[str, str]:
-    token = base64.b64encode(
-        f"{username}:{password}".encode()
-    ).decode()
+    from app.auth_state import (
+        create_auth_session,
+        credential_fingerprint,
+    )
+    from app.config import get_settings
+    from app.security import (
+        load_dashboard_users,
+        verify_password,
+    )
+
+    settings = get_settings()
+
+    user = next(
+        (
+            item
+            for item
+            in load_dashboard_users(
+                settings
+            )
+            if (
+                item.username
+                == username
+                and item.enabled
+            )
+        ),
+        None,
+    )
+
+    assert user is not None
+    assert verify_password(
+        password,
+        user.password_hash,
+    )
+
+    token, _session = (
+        create_auth_session(
+            username=user.username,
+            credential_hash=(
+                credential_fingerprint(
+                    username=user.username,
+                    password_hash=(
+                        user.password_hash
+                    ),
+                )
+            ),
+            auth_method="password_totp",
+            mfa_completed=True,
+            ttl_seconds=(
+                settings
+                .dashboard_auth_session_ttl_seconds
+            ),
+            client_ip="testclient",
+            user_agent=(
+                "m413d-bearer-write-test"
+            ),
+        )
+    )
 
     return {
-        "Authorization": f"Basic {token}",
+        "Authorization":
+            f"Bearer {token}",
     }
 
 
-ARNOLD = _auth(
+ARNOLD = (
     "arnold",
     "arnold-test-password",
 )
 
-ZOLNODE = _auth(
+ZOLNODE = (
     "zolnode",
     "zolnode-test-password",
 )
@@ -43,12 +97,12 @@ def _address() -> str:
 def _recipient(
     client: TestClient,
     *,
-    headers: dict[str, str] = ARNOLD,
+    headers: tuple[str, str] = ARNOLD,
     owner_account_id: str = "arnold",
 ):
     response = client.post(
         "/api/treasury/withdrawals/recipients",
-        headers=headers,
+        headers=_auth(*headers),
         json={
             "owner_account_id": owner_account_id,
             "address": _address(),
@@ -65,7 +119,7 @@ def _route(
     client: TestClient,
     recipient_id: str,
     *,
-    headers: dict[str, str] = ARNOLD,
+    headers: tuple[str, str] = ARNOLD,
     currency: str = "USDT",
     chain: str = "ETH",
     memo: str = "",
@@ -75,7 +129,7 @@ def _route(
             "/api/treasury/withdrawals/"
             f"recipients/{recipient_id}/destinations"
         ),
-        headers=headers,
+        headers=_auth(*headers),
         json={
             "currency": currency,
             "chain": chain,
@@ -151,7 +205,7 @@ def test_recipient_route_request_forbids_raw_address_and_owner():
                 f"{recipient['recipient_id']}/"
                 "destinations"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json={
                 "currency": "USDT",
                 "chain": "ETH",
@@ -194,7 +248,7 @@ def test_archived_recipient_cannot_create_destination_route():
                 f"{recipient['recipient_id']}/"
                 "archive"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json={},
         )
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 
 from fastapi.testclient import TestClient
 
@@ -22,21 +21,76 @@ def _auth(
     username: str,
     password: str,
 ) -> dict[str, str]:
-    token = base64.b64encode(
-        f"{username}:{password}".encode()
-    ).decode()
+    from app.auth_state import (
+        create_auth_session,
+        credential_fingerprint,
+    )
+    from app.config import get_settings
+    from app.security import (
+        load_dashboard_users,
+        verify_password,
+    )
+
+    settings = get_settings()
+
+    user = next(
+        (
+            item
+            for item
+            in load_dashboard_users(
+                settings
+            )
+            if (
+                item.username
+                == username
+                and item.enabled
+            )
+        ),
+        None,
+    )
+
+    assert user is not None
+    assert verify_password(
+        password,
+        user.password_hash,
+    )
+
+    token, _session = (
+        create_auth_session(
+            username=user.username,
+            credential_hash=(
+                credential_fingerprint(
+                    username=user.username,
+                    password_hash=(
+                        user.password_hash
+                    ),
+                )
+            ),
+            auth_method="password_totp",
+            mfa_completed=True,
+            ttl_seconds=(
+                settings
+                .dashboard_auth_session_ttl_seconds
+            ),
+            client_ip="testclient",
+            user_agent=(
+                "m413d-bearer-write-test"
+            ),
+        )
+    )
 
     return {
-        "Authorization": f"Basic {token}"
+        "Authorization":
+            f"Bearer {token}",
     }
 
 
-ARNOLD = _auth(
+ARNOLD = (
     "arnold",
     "arnold-test-password",
 )
 
-ROOT = _auth(
+ROOT = (
     "rootadmin",
     "rootadmin-test-password",
 )
@@ -93,7 +147,7 @@ def test_abandon_route_requires_super_admin(
                 "/api/treasury/withdrawals/"
                 f"requests/{REQUEST_ID}/abandon"
             ),
-            headers=ARNOLD,
+            headers=_auth(*ARNOLD),
             json=_payload(),
         )
 
@@ -192,7 +246,7 @@ def test_super_admin_route_delegates_to_service(
                 "/api/treasury/withdrawals/"
                 f"requests/{REQUEST_ID}/abandon"
             ),
-            headers=ROOT,
+            headers=_auth(*ROOT),
             json=_payload(),
         )
 
@@ -279,7 +333,7 @@ def test_abandon_route_requires_exact_confirmation(
                 "/api/treasury/withdrawals/"
                 f"requests/{REQUEST_ID}/abandon"
             ),
-            headers=ROOT,
+            headers=_auth(*ROOT),
             json=payload,
         )
 
@@ -348,7 +402,7 @@ def test_abandon_route_maps_service_refusal_to_409(
                 "/api/treasury/withdrawals/"
                 f"requests/{REQUEST_ID}/abandon"
             ),
-            headers=ROOT,
+            headers=_auth(*ROOT),
             json=_payload(),
         )
 
@@ -383,7 +437,7 @@ def test_abandon_route_has_static_safety_barriers():
     )
 
     assert (
-        "Depends(require_super_admin)"
+        "Depends(require_bearer_super_admin)"
         in source
     )
 

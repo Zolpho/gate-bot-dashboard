@@ -87,6 +87,7 @@ from ..models import Bot
 from ..security import (
     DashboardUser,
     require_account_access,
+    require_bearer_user,
     require_user,
 )
 from ..spot_grid import (
@@ -235,7 +236,7 @@ async def prepare_spot_grid(
     request: SpotGridPrepareRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     account_id = require_account_access(
@@ -573,7 +574,7 @@ async def prepare_infinite_grid(
     request: InfiniteGridPrepareRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     account_id = require_account_access(
@@ -1062,7 +1063,7 @@ async def create_infinite_grid(
     request: InfiniteGridCreateRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     # Infinity Grid has an additional independent rollout
@@ -1632,7 +1633,7 @@ async def create_spot_grid(
     request: SpotGridCreateRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     # A request is permitted only when either simulation
@@ -2515,7 +2516,7 @@ async def stop_bot_control(
     request: BotStopRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     if (
@@ -3166,7 +3167,7 @@ async def reconcile_bot_control_request(
     request_id: str,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     record = get_request(
@@ -3298,7 +3299,7 @@ def release_bot_control_request_lock(
     request: ManualLockReleaseRequest,
     user: Annotated[
         DashboardUser,
-        Depends(require_user),
+        Depends(require_bearer_user),
     ],
 ):
     if request.confirmation != "RELEASE":

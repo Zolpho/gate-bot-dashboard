@@ -58,6 +58,25 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
 os.environ["DEMO_MODE"] = "true"
 os.environ["POLL_SECONDS"] = "3600"
 os.environ["APP_ENV"] = "test"
+
+# The test process must never inherit production write-enable
+# state from the host .env. Tests that need to exercise an armed
+# policy path must opt in explicitly in that test.
+_TEST_FAIL_CLOSED_WRITE_GATES = (
+    "ALLOW_BOT_CREATE",
+    "ALLOW_BOT_STOP",
+    "ALLOW_INFINITE_GRID_CREATE",
+    "BOT_CONTROL_LIVE_ARMED",
+    "TRADING_LIMIT_ORDERS_ENABLED",
+    "TRADING_ORDER_CANCELS_ENABLED",
+    "TRADING_ORDER_AMENDS_ENABLED",
+    "TREASURY_TRANSFERS_LIVE_ARMED",
+    "TREASURY_USER_TRANSFERS_ENABLED",
+    "TREASURY_WITHDRAWALS_LIVE_ARMED",
+)
+
+for _key in _TEST_FAIL_CLOSED_WRITE_GATES:
+    os.environ[_key] = "false"
 os.environ[
     "DASHBOARD_IP_RESTRICTIONS_ENFORCEMENT_ENABLED"
 ] = "false"
