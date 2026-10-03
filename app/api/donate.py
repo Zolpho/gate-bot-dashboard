@@ -97,6 +97,16 @@ _address_locks: dict[
 
 _signed_refresh_lock = asyncio.Lock()
 
+# The current deployment runs one Uvicorn application
+# process. Serialize only the tiny durable trust
+# verify+commit transaction so simultaneous anonymous
+# first-publication requests cannot race each other.
+#
+# Gate discovery and signed address reads remain outside
+# this lock. If the deployment later adds multiple worker
+# processes, add database-level conflict handling as well.
+_destination_trust_lock = asyncio.Lock()
+
 _last_signed_refresh_at = 0.0
 
 # Prevent anonymous enumeration from creating an
@@ -693,17 +703,21 @@ async def public_donation_address(
         )
     )
 
-    decision = (
-        verify_or_pin_public_destination(
-            db,
-            payload,
+    # Keep durable trust publication atomic with respect
+    # to other anonymous requests in this application
+    # process. Gate reads have already completed above.
+    async with _destination_trust_lock:
+        decision = (
+            verify_or_pin_public_destination(
+                db,
+                payload,
+            )
         )
-    )
 
-    # Persist both first-seen trust and any
-    # fail-closed change observation before
-    # returning a response.
-    db.commit()
+        # Persist both first-seen trust and any
+        # fail-closed change observation before
+        # another request can enter trust verification.
+        db.commit()
 
     if decision.state == "blocked":
         logger.error(

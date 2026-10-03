@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import ast
+import inspect
+import textwrap
 from types import SimpleNamespace
 
 import pytest
@@ -542,6 +545,87 @@ def test_memo_change_also_fails_closed(
 
         assert row.memo == "111"
         assert row.observed_memo == "222"
+
+
+def test_durable_trust_verify_and_commit_are_serialized() -> None:
+    source = textwrap.dedent(
+        inspect.getsource(
+            donate_api.public_donation_address
+        )
+    )
+
+    tree = ast.parse(
+        source
+    )
+
+    trust_sections = []
+
+    for node in ast.walk(tree):
+        if not isinstance(
+            node,
+            ast.AsyncWith,
+        ):
+            continue
+
+        uses_trust_lock = any(
+            (
+                isinstance(
+                    item.context_expr,
+                    ast.Name,
+                )
+                and item.context_expr.id
+                == "_destination_trust_lock"
+            )
+            for item in node.items
+        )
+
+        if uses_trust_lock:
+            trust_sections.append(
+                node
+            )
+
+    assert len(trust_sections) == 1
+
+    trust_section = trust_sections[0]
+
+    verify_calls = 0
+    commit_calls = 0
+
+    for node in ast.walk(
+        trust_section
+    ):
+        if not isinstance(
+            node,
+            ast.Call,
+        ):
+            continue
+
+        if (
+            isinstance(
+                node.func,
+                ast.Name,
+            )
+            and node.func.id
+            == "verify_or_pin_public_destination"
+        ):
+            verify_calls += 1
+
+        if (
+            isinstance(
+                node.func,
+                ast.Attribute,
+            )
+            and isinstance(
+                node.func.value,
+                ast.Name,
+            )
+            and node.func.value.id == "db"
+            and node.func.attr == "commit"
+        ):
+            commit_calls += 1
+
+    assert verify_calls == 1
+    assert commit_calls == 1
 
 
 def test_donate_router_is_get_only() -> None:
