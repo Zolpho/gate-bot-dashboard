@@ -1,0 +1,753 @@
+/* ============================================================
+   M4.14C5B — BOTS MOBILE STRATEGY CARDS
+
+   Shared structural mobile presentation for Classic + Aurora.
+
+   The canonical table DOM and app.js renderers remain intact.
+   At <=560px only, each table row becomes a readable strategy
+   card. Desktop/tablet retain the existing table presentation.
+   ============================================================ */
+
+
+@media (max-width: 560px) {
+
+  /* ----------------------------------------------------------
+     ACTIVE + ARCHIVED TABLE SHELLS
+     ------------------------------------------------------- */
+
+  #tab-bots >
+  .table-panel {
+    overflow: visible;
+
+    padding: 0;
+
+    border: 0;
+    border-radius: 0;
+
+    background: transparent;
+
+    box-shadow: none;
+  }
+
+
+  #tab-bots >
+  .table-panel
+  .table-scroll,
+
+  #tab-bots
+  .archived-bots-content
+  .table-scroll {
+    overflow: visible;
+
+    width: 100%;
+  }
+
+
+  #tab-bots >
+  .table-panel
+  .table-scroll >
+  table,
+
+  #tab-bots
+  .archived-bots-content
+  .table-scroll >
+  table {
+    display: block;
+
+    width: 100%;
+    min-width: 0;
+
+    border-collapse: separate;
+    border-spacing: 0;
+
+    font-size: .82rem;
+  }
+
+
+  /*
+   * Keep the semantic header in the document/accessibility
+   * structure while removing it from the phone visual layout.
+   */
+  #tab-bots >
+  .table-panel
+  thead,
+
+  #tab-bots
+  .archived-bots-content
+  thead {
+    position: absolute;
+
+    width: 1px;
+    height: 1px;
+
+    margin: -1px;
+    padding: 0;
+
+    overflow: hidden;
+
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+
+    white-space: nowrap;
+
+    border: 0;
+  }
+
+
+  #tab-bots >
+  .table-panel
+  tbody,
+
+  #tab-bots
+  .archived-bots-content
+  tbody {
+    display: grid;
+
+    width: 100%;
+
+    gap: 10px;
+  }
+
+
+  #tab-bots
+  .archived-bots-content
+  tbody {
+    padding:
+      12px;
+  }
+
+
+  /* ----------------------------------------------------------
+     STRATEGY CARD
+     ------------------------------------------------------- */
+
+  #tab-bots >
+  .table-panel
+  tbody
+  tr,
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  tr {
+    display: grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+
+    gap:
+      0
+      10px;
+
+    width: 100%;
+
+    padding:
+      14px;
+
+    overflow: hidden;
+
+    border:
+      1px solid
+      var(--border);
+
+    border-radius:
+      14px;
+
+    background:
+      linear-gradient(
+        145deg,
+        var(--surface),
+        rgba(13, 24, 21, .72)
+      );
+
+    box-shadow:
+      0 10px 28px
+      rgba(0, 0, 0, .10);
+
+    opacity: 1;
+  }
+
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  tr {
+    background:
+      linear-gradient(
+        145deg,
+        rgba(13, 24, 21, .82),
+        rgba(7, 16, 14, .82)
+      );
+  }
+
+
+  #tab-bots >
+  .table-panel
+  tbody
+  tr:hover,
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  tr:hover {
+    background:
+      linear-gradient(
+        145deg,
+        var(--surface),
+        rgba(17, 39, 32, .82)
+      );
+
+    box-shadow:
+      inset 2px 0 0
+      rgba(23, 211, 154, .28),
+      0 10px 28px
+      rgba(0, 0, 0, .10);
+  }
+
+
+  /* ----------------------------------------------------------
+     RESET DESKTOP CELL GEOMETRY
+     ------------------------------------------------------- */
+
+  #tab-bots >
+  .table-panel
+  tbody
+  tr >
+  td:nth-child(n),
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  tr >
+  td:nth-child(n) {
+    display: block;
+
+    min-width: 0;
+
+    padding:
+      9px
+      0;
+
+    border: 0;
+
+    white-space: normal;
+
+    text-align: left;
+
+    overflow-wrap: anywhere;
+  }
+
+
+  /* ----------------------------------------------------------
+     STRATEGY IDENTITY
+     ------------------------------------------------------- */
+
+  #tab-bots >
+  .table-panel
+  tbody
+  .strategy-cell,
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  .strategy-cell {
+    grid-column:
+      1 / -1;
+
+    min-width: 0;
+
+    padding-top: 0;
+    padding-bottom: 12px;
+
+    border-bottom:
+      1px solid
+      var(--border);
+  }
+
+
+  #tab-bots
+  .strategy-cell
+  strong {
+    font-size:
+      .94rem;
+
+    line-height:
+      1.3;
+  }
+
+
+  #tab-bots
+  .strategy-cell
+  small {
+    min-width: 0;
+
+    white-space: normal;
+
+    flex-wrap: wrap;
+
+    font-size:
+      .72rem;
+
+    line-height:
+      1.4;
+  }
+
+
+  /* ----------------------------------------------------------
+     MOBILE FIELD LABELS
+     ------------------------------------------------------- */
+
+  #tab-bots >
+  .table-panel
+  tbody
+  tr >
+  td:nth-child(n + 2):nth-child(-n + 8)::before,
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  tr >
+  td:nth-child(n + 2):nth-child(-n + 8)::before {
+    display: block;
+
+    margin-bottom:
+      5px;
+
+    color:
+      var(--muted);
+
+    font-size:
+      .61rem;
+
+    font-weight:
+      700;
+
+    line-height:
+      1.1;
+
+    letter-spacing:
+      .055em;
+
+    text-transform:
+      uppercase;
+  }
+
+
+  /* Active strategy labels. */
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(2)::before {
+    content: "Account";
+  }
+
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(3)::before {
+    content: "Status";
+  }
+
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(4)::before {
+    content: "Invested";
+  }
+
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(5)::before {
+    content: "Current value";
+  }
+
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(6)::before {
+    content: "Total PnL";
+  }
+
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(7)::before {
+    content: "ROI";
+  }
+
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(8)::before {
+    content: "Runtime";
+  }
+
+
+  /* Archived strategy labels. */
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(2)::before {
+    content: "Account";
+  }
+
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(3)::before {
+    content: "Status";
+  }
+
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(4)::before {
+    content: "Invested";
+  }
+
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(5)::before {
+    content: "Final value";
+  }
+
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(6)::before {
+    content: "Total PnL";
+  }
+
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(7)::before {
+    content: "ROI";
+  }
+
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(8)::before {
+    content: "Archived";
+  }
+
+
+  /* ----------------------------------------------------------
+     ACCOUNT + STATUS
+     ------------------------------------------------------- */
+
+  #tab-bots
+  tbody
+  td:nth-child(2),
+
+  #tab-bots
+  tbody
+  td:nth-child(3) {
+    padding-top:
+      11px;
+
+    padding-bottom:
+      10px;
+  }
+
+
+  #tab-bots
+  .account-badge,
+
+  #tab-bots
+  .status-badge {
+    max-width:
+      100%;
+
+    white-space:
+      normal;
+  }
+
+
+  /* ----------------------------------------------------------
+     CORE STRATEGY METRICS
+
+     Invested / Value / PnL / ROI form a compact 2x2 grid.
+     ------------------------------------------------------- */
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(4),
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(5),
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(6),
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(7),
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(4),
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(5),
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(6),
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(7) {
+    margin-top:
+      4px;
+
+    padding:
+      10px;
+
+    border:
+      1px solid
+      rgba(143, 165, 157, .12);
+
+    border-radius:
+      10px;
+
+    background:
+      rgba(255, 255, 255, .015);
+
+    font-variant-numeric:
+      tabular-nums;
+
+    font-size:
+      .82rem;
+
+    font-weight:
+      650;
+  }
+
+
+  /* ----------------------------------------------------------
+     RUNTIME / ARCHIVED TIME
+     ------------------------------------------------------- */
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(8),
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(8) {
+    grid-column:
+      1 / -1;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap:
+      12px;
+
+    margin-top:
+      4px;
+
+    padding:
+      10px
+      0;
+
+    border-top:
+      1px solid
+      var(--border);
+
+    color:
+      var(--text-soft);
+
+    font-variant-numeric:
+      tabular-nums;
+  }
+
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(8)::before,
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(8)::before {
+    margin-bottom: 0;
+  }
+
+
+  /* ----------------------------------------------------------
+     ACTION BAR
+     ------------------------------------------------------- */
+
+  #tab-bots >
+  .table-panel
+  tbody
+  td:nth-child(9),
+
+  #tab-bots
+  .archived-bots-content
+  tbody
+  td:nth-child(9) {
+    grid-column:
+      1 / -1;
+
+    padding-top:
+      10px;
+
+    border-top:
+      1px solid
+      var(--border);
+  }
+
+
+  #tab-bots
+  .bot-row-actions {
+    display: grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+
+    gap:
+      8px;
+
+    width:
+      100%;
+
+    justify-content:
+      stretch;
+
+    white-space:
+      normal;
+  }
+
+
+  #tab-bots
+  .bot-row-actions
+  > :only-child {
+    grid-column:
+      1 / -1;
+  }
+
+
+  #tab-bots
+  .bot-row-actions
+  .row-button,
+
+  #tab-bots
+  .bot-row-actions
+  .text-button {
+    width:
+      100%;
+
+    min-height:
+      40px;
+
+    display:
+      inline-flex;
+
+    align-items:
+      center;
+
+    justify-content:
+      center;
+
+    padding:
+      8px
+      10px;
+
+    border-radius:
+      9px;
+
+    font-size:
+      .74rem;
+
+    font-weight:
+      680;
+
+    line-height:
+      1.15;
+
+    text-align:
+      center;
+  }
+
+
+  #tab-bots
+  .bot-row-actions
+  .row-button {
+    border:
+      1px solid
+      rgba(23, 211, 154, .24);
+
+    background:
+      rgba(23, 211, 154, .065);
+
+    color:
+      var(--accent);
+  }
+
+
+  #tab-bots
+  .bot-archive-action,
+
+  #tab-bots
+  .bot-restore-action {
+    border:
+      1px solid
+      rgba(143, 165, 157, .16);
+
+    background:
+      rgba(255, 255, 255, .018);
+  }
+
+
+  /* ----------------------------------------------------------
+     ARCHIVED WRAPPER
+     ------------------------------------------------------- */
+
+  #tab-bots
+  .archived-bots-content {
+    overflow:
+      hidden;
+  }
+}
