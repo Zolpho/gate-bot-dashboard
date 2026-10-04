@@ -529,6 +529,130 @@
     });
   }
 
+
+  function decorateDonateOptions() {
+    document.querySelectorAll(
+      '#donateCurrencyList '
+      + '[data-donate-currency]'
+    ).forEach(button => {
+      const symbol =
+        button.dataset
+          .donateCurrency;
+
+      const host =
+        button.querySelector(
+          '.deposit-coin-mark'
+        );
+
+      replaceMark(
+        host,
+        'asset',
+        symbol,
+      );
+    });
+
+    document.querySelectorAll(
+      '#donateNetworkList '
+      + '[data-donate-chain]'
+    ).forEach(button => {
+      const chain =
+        button.dataset
+          .donateChain;
+
+      const label =
+        button.querySelector(
+          '.deposit-option-main strong'
+        )?.textContent
+        || chain;
+
+      const host =
+        button.querySelector(
+          '.deposit-coin-mark'
+        );
+
+      replaceMark(
+        host,
+        'network',
+        chain,
+        label,
+      );
+    });
+  }
+
+
+  function decorateDonateFavorites() {
+    document.querySelectorAll(
+      '#donateFavorites '
+      + '[data-donate-currency]'
+    ).forEach(button => {
+      const symbol =
+        button.dataset
+          .donateCurrency;
+
+      prependSymbol(
+        button,
+        'asset',
+        symbol,
+      );
+    });
+  }
+
+
+  function decorateDonateResult() {
+    const asset =
+      document.querySelector(
+        '#donateSelectedAsset'
+      );
+
+    const assetText =
+      asset?.textContent
+        ?.trim() || '';
+
+    if (
+      assetText
+      && assetText !== '—'
+    ) {
+      prependSymbol(
+        asset,
+        'asset',
+        assetText,
+      );
+    }
+
+    const activeNetwork =
+      document.querySelector(
+        '#donateNetworkList '
+        + '[data-donate-chain].active'
+      );
+
+    const chain =
+      activeNetwork?.dataset
+        .donateChain || '';
+
+    const networkLabel =
+      document.querySelector(
+        '#donateSelectedNetwork'
+      );
+
+    const label =
+      networkLabel?.textContent
+        ?.trim() || '';
+
+    if (
+      networkLabel
+      && label
+      && label !== '—'
+    ) {
+      prependSymbol(
+        networkLabel,
+        'network',
+        chain || label,
+        label,
+      );
+    }
+  }
+
+
   function decorateBalance() {
     prependSymbol(
       document.querySelector(
@@ -3506,6 +3630,9 @@
     decorateDepositFavorites();
     decorateDepositResult();
     decorateDepositHistory();
+    decorateDonateOptions();
+    decorateDonateFavorites();
+    decorateDonateResult();
     decorateBalance();
     decorateBotsMarkets();
     decorateOverviewSymbols();

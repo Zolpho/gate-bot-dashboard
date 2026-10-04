@@ -1,0 +1,97 @@
+/*
+ * M4.14C2H — Shared Aurora mobile topbar geometry
+ *
+ * Aurora desktop/tablet topbars intentionally use flexible bases.
+ * At <=560px the base dashboard switches .topbar to a column.
+ * Those horizontal flex bases then become vertical flex bases and
+ * can create large dead areas between the title and controls.
+ *
+ * Reset only geometry that becomes invalid in column mode.
+ * Do not own page-specific control arrangement here.
+ * Classic is intentionally untouched.
+ */
+
+@media (max-width: 560px) {
+  html[data-dashboard-ui="aurora"] .topbar {
+    min-height: 0 !important;
+    height: auto !important;
+
+    align-items: flex-start;
+    justify-content: flex-start;
+    align-content: flex-start;
+
+    row-gap: 12px;
+  }
+
+  html[data-dashboard-ui="aurora"]
+  .topbar > div:first-child {
+    flex: 0 0 auto !important;
+
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  html[data-dashboard-ui="aurora"]
+  .top-actions {
+    flex: 0 0 auto !important;
+
+    align-self: stretch;
+
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+
+/*
+ * C2J — shared Aurora mobile primary navigation containment.
+ *
+ * The public mobile navigation contains five top-level destinations.
+ * Give each one an equal share of the available width so the
+ * rightmost active pill cannot extend beyond the viewport.
+ */
+@media (max-width: 560px) {
+  html[data-dashboard-ui="aurora"]
+  .sidebar nav {
+    display: grid;
+
+    grid-template-columns:
+      repeat(5, minmax(0, 1fr));
+
+    gap: 3px;
+
+    width: 100%;
+    min-width: 0;
+
+    overflow: visible;
+  }
+
+  html[data-dashboard-ui="aurora"]
+  .sidebar .nav-item {
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+
+    justify-content: center;
+
+    gap: 0;
+
+    padding:
+      9px 3px;
+
+    text-align: center;
+
+    font-size: .76rem;
+    line-height: 1.05;
+
+    white-space: nowrap;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  html[data-dashboard-ui="aurora"]
+  .sidebar .nav-item:hover {
+    transform: none;
+  }
+}

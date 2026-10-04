@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./private-balance.css?v=20260823-wallet-card-depth-v1">
   <link rel="stylesheet" href="./deposit.css?v=20260830-wallet-ux-j21-v2">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
+  <link rel="stylesheet" href="./donate.css?v=20261003-m414c2g-mobile-title-flex-v1">
   <link rel="stylesheet" href="./wallet-tab.css?v=20260830-wallet-ux-j19-v2">
   <link rel="stylesheet" href="./treasury.css?v=20260830-wallet-ux-j21-v2">
   <link rel="stylesheet" href="./bot-control.css?v=20260923-bot-control-market-m42-v2&amp;m46a=20261001-bot-control-ui-polish-v1">
@@ -113,6 +114,12 @@
     data-dashboard-ui-stylesheet="aurora"
     disabled
   >
+  <link
+    rel="stylesheet"
+    href="./aurora-mobile-topbar.css?v=20261003-m414c2j-nav-containment-v1"
+    data-dashboard-ui-stylesheet="aurora"
+    disabled
+  >
   <script src="./ui-mode.js?v=20260912-ui-mode-a7c195-v1"></script>
 </head>
 <body>
@@ -142,6 +149,7 @@
           aria-controls="tab-trading"
         ><span>↕</span>Trading</button>
         <button class="nav-item" data-tab="alerts"><span>◇</span>Alerts</button>
+        <button class="nav-item" id="donateNavItem" data-tab="donate" aria-controls="tab-donate"><span>♡</span>Donate</button>
         <button class="nav-item hidden" id="walletNavItem" data-tab="wallet" aria-hidden="true" aria-controls="tab-wallet"><span>◈</span>Wallet</button>
         <button
           class="nav-item hidden"
@@ -940,6 +948,281 @@
             is enabled and the order passes its safety checks.
           </span>
         </div>
+      </section>
+
+      <section
+        class="tab-panel donate-tab-panel"
+        id="tab-donate"
+        aria-labelledby="donateNavItem"
+      >
+        <div class="donate-intro-grid">
+          <article class="panel donate-hero">
+            <span class="donate-kicker">PUBLIC DONATION</span>
+            <h2>Support EQTY DAO Market Making</h2>
+            <p>
+              Choose any Gate-supported deposit asset and an
+              available network. The destination is fixed
+              server-side to EQTY DAO Market Making.
+            </p>
+
+            <div class="donate-trust-row">
+              <span>No Wallet account required</span>
+              <span>Gate network availability</span>
+              <span>Server-verified destination</span>
+            </div>
+          </article>
+
+          <aside class="panel donate-destination-card">
+            <span>Donation destination</span>
+            <strong id="donateDestinationName">
+              EQTY DAO Market Making
+            </strong>
+            <small>
+              Fixed by the server · cannot be changed in the browser
+            </small>
+          </aside>
+        </div>
+
+        <div
+          class="donate-wallet-warning"
+          role="note"
+          aria-label="Donation account warning"
+        >
+          <strong>Donation, not Wallet credit</strong>
+          <span>
+            Funds sent here go to EQTYDAO and are not credited
+            to your connected Wallet account.
+          </span>
+        </div>
+
+        <article class="panel donate-workflow-panel">
+          <div class="panel-header donate-workflow-header">
+            <div>
+              <h2>Make a donation</h2>
+              <p>
+                Select the asset and network first. The real
+                EQTYDAO address is revealed only for a currently
+                available Gate deposit route.
+              </p>
+            </div>
+
+            <span class="mode-badge">
+              PUBLIC · GET ONLY
+            </span>
+          </div>
+
+          <div
+            id="donateError"
+            class="form-error hidden"
+            role="alert"
+            aria-live="assertive"
+          ></div>
+
+          <div
+            id="donateLoading"
+            class="deposit-loading hidden"
+            aria-live="polite"
+          >
+            Loading donation information…
+          </div>
+
+          <div class="donate-flow" aria-label="Donation workflow">
+            <section class="deposit-step">
+              <div class="deposit-step-number">1</div>
+
+              <div class="deposit-step-content">
+                <h3>Select asset</h3>
+
+                <label class="deposit-search">
+                  <span class="sr-only">
+                    Search donation asset
+                  </span>
+
+                  <input
+                    id="donateCurrencySearch"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Search coin name or symbol"
+                  >
+                </label>
+
+                <div class="deposit-favorites-row">
+                  <span class="deposit-favorites-label">
+                    Quick assets
+                  </span>
+
+                  <div
+                    id="donateFavorites"
+                    class="deposit-favorites"
+                  ></div>
+                </div>
+
+                <div
+                  id="donateCurrencyList"
+                  class="deposit-option-list"
+                  role="listbox"
+                  aria-label="Donation currencies"
+                ></div>
+
+                <p
+                  id="donateCurrencyCount"
+                  class="deposit-hint"
+                ></p>
+              </div>
+            </section>
+
+            <section
+              class="deposit-step deposit-step-disabled"
+              id="donateNetworkStep"
+            >
+              <div class="deposit-step-number">2</div>
+
+              <div class="deposit-step-content">
+                <h3>Select network</h3>
+
+                <div
+                  id="donateNetworkList"
+                  class="deposit-option-list compact"
+                  role="listbox"
+                  aria-label="Donation networks"
+                >
+                  <div class="deposit-empty">
+                    Select an asset first.
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section
+              class="deposit-step deposit-step-disabled"
+              id="donateDetailsStep"
+            >
+              <div class="deposit-step-number">3</div>
+
+              <div class="deposit-step-content">
+                <h3>Send donation</h3>
+
+                <div
+                  id="donateDetails"
+                  class="deposit-details hidden"
+                >
+                  <div class="deposit-qr-card">
+                    <div class="deposit-qr-card-head">
+                      <strong>Donation QR</strong>
+                      <span>Address only</span>
+                    </div>
+
+                    <div class="deposit-qr-surface">
+                      <img
+                        id="donateQr"
+                        alt="EQTYDAO donation address QR code"
+                        width="220"
+                        height="220"
+                      >
+                    </div>
+
+                    <div class="deposit-qr-actions">
+                      <button
+                        type="button"
+                        class="button secondary"
+                        data-copy-donate="address"
+                      >
+                        Copy address
+                      </button>
+                    </div>
+
+                    <small>
+                      QR encodes the donation address only.
+                    </small>
+
+                    <small
+                      class="deposit-qr-safety"
+                      id="donateQrSafety"
+                    >
+                      Use only the selected asset and network.
+                    </small>
+                  </div>
+
+                  <div class="deposit-address-fields">
+                    <div class="deposit-selected-summary">
+                      <strong id="donateSelectedAsset">—</strong>
+                      <span id="donateSelectedNetwork">—</span>
+                    </div>
+
+                    <label>Address</label>
+
+                    <div class="deposit-copy-row">
+                      <code id="donateAddress">—</code>
+
+                      <button
+                        type="button"
+                        class="button secondary"
+                        data-copy-donate="address"
+                      >
+                        Copy
+                      </button>
+                    </div>
+
+                    <div
+                      id="donateMemoBlock"
+                      class="hidden"
+                    >
+                      <label id="donateMemoLabel">
+                        Memo / tag
+                      </label>
+
+                      <div class="deposit-copy-row">
+                        <code id="donateMemo">—</code>
+
+                        <button
+                          type="button"
+                          class="button secondary"
+                          data-copy-donate="memo"
+                        >
+                          Copy
+                        </button>
+                      </div>
+
+                      <p class="deposit-memo-warning">
+                        The memo or tag is mandatory when shown.
+                      </p>
+                    </div>
+
+                    <dl class="deposit-definition-list">
+                      <dt>Contract</dt>
+                      <dd id="donateContract">—</dd>
+
+                      <dt>Minimum deposit</dt>
+                      <dd id="donateMinimum">—</dd>
+
+                      <dt>Confirmations</dt>
+                      <dd id="donateConfirmations">—</dd>
+                    </dl>
+
+                    <p
+                      id="donateWarning"
+                      class="deposit-warning"
+                    ></p>
+                  </div>
+                </div>
+
+                <div
+                  id="donateDetailsPlaceholder"
+                  class="deposit-empty"
+                >
+                  Select a network to reveal the EQTYDAO
+                  donation address and QR code.
+                </div>
+              </div>
+            </section>
+          </div>
+        </article>
+
+        <p class="donate-footnote">
+          Donation attribution and the public Donation Ledger
+          will be added in a later milestone. This step only
+          publishes the verified destination needed to donate.
+        </p>
       </section>
 
             <section
@@ -4408,9 +4691,9 @@
     defer
   ></script>
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
-  <script src="./aurora-symbols.js?v=20260923-bot-control-market-m42-v2"></script>
+  <script src="./aurora-symbols.js?v=20260923-bot-control-market-m42-v2&amp;m414c2a=20261003-donate-v1"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1&amp;m411d4=20261002-cumulative-return-only-v1&amp;m412a=20261002-overview-series-contrast-v1&amp;m412g=20261002-premium-overview-chart-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1&amp;m411d4=20261002-cumulative-return-only-v1&amp;m412a=20261002-overview-series-contrast-v1&amp;m412g=20261002-premium-overview-chart-v1&amp;m414c2a=20261003-donate-v1"
     defer
   ></script>
   <script

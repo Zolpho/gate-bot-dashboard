@@ -69,6 +69,12 @@ const state = {
   depositChain: '',
   depositDetails: null,
   depositHistory: [],
+  donateCatalog: [],
+  donateFavorites: [],
+  donateCurrency: '',
+  donateNetworks: [],
+  donateChain: '',
+  donateDetails: null,
   botControlCapabilities: null,
   botControlPrepared: null,
   botControlDraft: null,
@@ -6304,6 +6310,918 @@ function toggleDepositQrSize(button) {
 
   button?.blur();
 }
+
+
+function setDonateLoading(visible) {
+  const element = $('#donateLoading');
+
+  element?.classList.toggle(
+    'hidden',
+    !visible,
+  );
+}
+
+
+function setDonateError(message) {
+  const element = $('#donateError');
+
+  if (!element) return;
+
+  const text = String(
+    message || ''
+  ).trim();
+
+  element.textContent = text;
+
+  element.classList.toggle(
+    'hidden',
+    !text,
+  );
+}
+
+
+function clearDonateDetails() {
+  state.donateChain = '';
+  state.donateDetails = null;
+
+  $('#donateDetails')?.classList.add(
+    'hidden'
+  );
+
+  $('#donateDetailsPlaceholder')
+    ?.classList.remove(
+      'hidden'
+    );
+
+  if ($('#donateDetailsPlaceholder')) {
+    $('#donateDetailsPlaceholder').textContent =
+      'Select a network to reveal the EQTYDAO '
+      + 'donation address and QR code.';
+  }
+
+  if ($('#donateSelectedAsset')) {
+    $('#donateSelectedAsset').textContent = '—';
+  }
+
+  if ($('#donateSelectedNetwork')) {
+    $('#donateSelectedNetwork').textContent = '—';
+  }
+
+  if ($('#donateAddress')) {
+    $('#donateAddress').textContent = '—';
+
+    $('#donateAddress').removeAttribute(
+      'title'
+    );
+  }
+
+  const qr = $('#donateQr');
+
+  if (qr) {
+    qr.removeAttribute('src');
+  }
+
+  if ($('#donateMemo')) {
+    $('#donateMemo').textContent = '—';
+  }
+
+  $('#donateMemoBlock')
+    ?.classList.add(
+      'hidden'
+    );
+
+  if ($('#donateContract')) {
+    $('#donateContract').textContent = '—';
+  }
+
+  if ($('#donateMinimum')) {
+    $('#donateMinimum').textContent = '—';
+  }
+
+  if ($('#donateConfirmations')) {
+    $('#donateConfirmations').textContent = '—';
+  }
+
+  if ($('#donateWarning')) {
+    $('#donateWarning').textContent = '';
+  }
+
+  if ($('#donateQrSafety')) {
+    $('#donateQrSafety').textContent =
+      'Use only the selected asset and network.';
+  }
+
+  $('#donateDetailsStep')
+    ?.classList.add(
+      'deposit-step-disabled'
+    );
+}
+
+
+function clearDonateSelection({
+  keepCatalog = true,
+} = {}) {
+  if (!keepCatalog) {
+    state.donateCatalog = [];
+    state.donateFavorites = [];
+  }
+
+  state.donateCurrency = '';
+  state.donateNetworks = [];
+
+  clearDonateDetails();
+
+  if ($('#donateCurrencySearch')) {
+    $('#donateCurrencySearch').value = '';
+  }
+
+  if ($('#donateNetworkList')) {
+    $('#donateNetworkList').innerHTML =
+      '<div class="deposit-empty">'
+      + 'Select an asset first.'
+      + '</div>';
+  }
+
+  $('#donateNetworkStep')
+    ?.classList.add(
+      'deposit-step-disabled'
+    );
+
+  setDonateError('');
+}
+
+
+function donateAssetMark(symbol) {
+  return escapeHtml(
+    String(
+      symbol || ''
+    ).slice(
+      0,
+      3,
+    )
+  );
+}
+
+
+function renderDonateFavorites() {
+  const container = $('#donateFavorites');
+
+  if (!container) return;
+
+  container.innerHTML =
+    state.donateFavorites.map(symbol => `
+      <button
+        type="button"
+        class="deposit-favorite ${
+          state.donateCurrency === symbol
+            ? 'active'
+            : ''
+        }"
+        data-donate-currency="${
+          escapeHtml(symbol)
+        }"
+      >${escapeHtml(symbol)}</button>
+    `).join('');
+}
+
+
+function renderDonateCurrencies() {
+  const container = $('#donateCurrencyList');
+
+  if (!container) return;
+
+  const query = String(
+    $('#donateCurrencySearch')?.value
+    || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  const filtered =
+    state.donateCatalog.filter(item => (
+      !query
+      || String(
+        item.currency || ''
+      )
+        .toLowerCase()
+        .includes(query)
+      || String(
+        item.name || ''
+      )
+        .toLowerCase()
+        .includes(query)
+    ));
+
+  const visible = (
+    query
+      ? filtered.slice(
+          0,
+          100,
+        )
+      : []
+  );
+
+  container.innerHTML = (
+    query
+      ? (
+          visible.length
+            ? visible.map(item => `
+              <button
+                type="button"
+                class="deposit-option ${
+                  state.donateCurrency
+                    === item.currency
+                    ? 'active'
+                    : ''
+                }"
+                data-donate-currency="${
+                  escapeHtml(
+                    item.currency
+                  )
+                }"
+                ${
+                  item.deposit_available
+                    ? ''
+                    : 'disabled'
+                }
+              >
+                <span class="deposit-option-main">
+                  <i class="deposit-coin-mark">${
+                    donateAssetMark(
+                      item.currency
+                    )
+                  }</i>
+
+                  <span>
+                    <strong>${
+                      escapeHtml(
+                        item.currency
+                      )
+                    }</strong>
+
+                    <small>${
+                      escapeHtml(
+                        item.name
+                        || item.currency
+                      )
+                    }</small>
+                  </span>
+                </span>
+
+                <span class="deposit-option-status ${
+                  item.deposit_available
+                    ? 'available'
+                    : ''
+                }">
+                  ${
+                    item.deposit_available
+                      ? 'Donation available'
+                      : 'Unavailable'
+                  }
+                </span>
+              </button>
+            `).join('')
+            : (
+                '<div class="deposit-empty">'
+                + 'No matching Gate currencies.'
+                + '</div>'
+              )
+        )
+      : (
+          '<div '
+          + 'class="deposit-empty deposit-search-empty">'
+          + (
+              state.donateCurrency
+                ? 'Search to change the selected asset.'
+                : (
+                    'Choose a quick asset above or search '
+                    + 'by coin name or symbol.'
+                  )
+            )
+          + '</div>'
+        )
+  );
+
+  container.classList.toggle(
+    'hidden',
+    Boolean(
+      !query
+      && state.donateCurrency
+    ),
+  );
+
+  const count = $('#donateCurrencyCount');
+
+  if (count) {
+    if (!query) {
+      count.textContent = (
+        `${state.donateCatalog.length} Gate currencies available`
+        + (
+            state.donateCurrency
+              ? ' · search to change asset'
+              : ' · choose a quick asset or search'
+          )
+      );
+    } else {
+      const suffix = (
+        filtered.length > visible.length
+          ? (
+              ` · showing first ${visible.length}; `
+              + 'refine the search'
+            )
+          : ''
+      );
+
+      count.textContent = (
+        `${filtered.length} matching currenc${
+          filtered.length === 1
+            ? 'y'
+            : 'ies'
+        }`
+        + suffix
+      );
+    }
+  }
+
+  renderDonateFavorites();
+}
+
+
+function renderDonateNetworks() {
+  const container = $('#donateNetworkList');
+
+  if (!container) return;
+
+  const networks =
+    state.donateNetworks || [];
+
+  const available =
+    networks.filter(
+      network =>
+        Boolean(
+          network.deposit_enabled
+        )
+    );
+
+  const unavailable =
+    networks.filter(
+      network =>
+        !Boolean(
+          network.deposit_enabled
+        )
+    );
+
+  const renderNetwork =
+    network => {
+      const displayName =
+        String(
+          network.name
+          || network.chain
+          || 'Network'
+        );
+
+      return `
+        <button
+          type="button"
+          class="deposit-option ${
+            state.donateChain
+              === network.chain
+              ? 'active'
+              : ''
+          }"
+          data-donate-chain="${
+            escapeHtml(
+              network.chain
+            )
+          }"
+          ${
+            network.deposit_enabled
+              ? ''
+              : 'disabled'
+          }
+        >
+          <span class="deposit-option-main">
+            <i class="deposit-coin-mark">${
+              donateAssetMark(
+                displayName
+              )
+            }</i>
+
+            <span>
+              <strong>${
+                escapeHtml(
+                  displayName
+                )
+              }</strong>
+
+              <small>
+                ${
+                  network.contract_address
+                    ? (
+                        'Contract '
+                        + escapeHtml(
+                          network.contract_address
+                        )
+                      )
+                    : 'Gate deposit network'
+                }
+              </small>
+            </span>
+          </span>
+
+          <span class="deposit-option-status ${
+            network.deposit_enabled
+              ? 'available'
+              : ''
+          }">
+            ${
+              network.deposit_enabled
+                ? 'Available'
+                : 'Deposits disabled'
+            }
+          </span>
+        </button>
+      `;
+    };
+
+  if (!networks.length) {
+    container.innerHTML =
+      '<div class="deposit-empty">'
+      + 'Gate returned no donation networks '
+      + 'for this asset.'
+      + '</div>';
+
+  } else {
+    const availableHtml = (
+      available.length
+        ? available
+            .map(renderNetwork)
+            .join('')
+        : (
+            '<div class="deposit-empty">'
+            + 'No deposit network is '
+            + 'currently available.'
+            + '</div>'
+          )
+    );
+
+    const unavailableHtml = (
+      unavailable.length
+        ? (
+            '<details '
+            + 'class="deposit-unavailable-networks">'
+            + '<summary>'
+            + `Unavailable networks (${
+              unavailable.length
+            })`
+            + '</summary>'
+            + '<div '
+            + 'class="deposit-unavailable-list">'
+            + unavailable
+                .map(renderNetwork)
+                .join('')
+            + '</div>'
+            + '</details>'
+          )
+        : ''
+    );
+
+    container.innerHTML =
+      availableHtml
+      + unavailableHtml;
+  }
+
+  $('#donateNetworkStep')
+    ?.classList.toggle(
+      'deposit-step-disabled',
+      !networks.length,
+    );
+}
+
+
+async function loadDonateCatalog() {
+  if (state.donateCatalog.length) {
+    renderDonateCurrencies();
+    return;
+  }
+
+  setDonateLoading(true);
+  setDonateError('');
+
+  try {
+    const result = await api(
+      '/api/donate/currencies'
+    );
+
+    state.donateCatalog =
+      result.currencies || [];
+
+    state.donateFavorites =
+      (result.favorites || [])
+        .filter(symbol =>
+          state.donateCatalog.some(
+            item => (
+              item.currency === symbol
+              && item.deposit_available
+            )
+          )
+        );
+
+    if ($('#donateDestinationName')) {
+      $('#donateDestinationName').textContent =
+        result.destination?.name
+        || 'EQTY DAO Market Making';
+    }
+
+    renderDonateCurrencies();
+
+  } catch (error) {
+    setDonateError(
+      error.message
+      || 'Unable to load donation assets.'
+    );
+
+  } finally {
+    setDonateLoading(false);
+  }
+}
+
+
+async function selectDonateCurrency(symbol) {
+  const item =
+    state.donateCatalog.find(
+      entry =>
+        entry.currency === symbol
+    );
+
+  if (
+    !item
+    || !item.deposit_available
+  ) {
+    return;
+  }
+
+  state.donateCurrency = symbol;
+  state.donateNetworks = [];
+
+  clearDonateDetails();
+
+  state.donateCurrency = symbol;
+
+  renderDonateCurrencies();
+
+  if ($('#donateNetworkList')) {
+    $('#donateNetworkList').innerHTML =
+      '<div class="deposit-empty">'
+      + 'Loading networks…'
+      + '</div>';
+  }
+
+  $('#donateNetworkStep')
+    ?.classList.remove(
+      'deposit-step-disabled'
+    );
+
+  setDonateError('');
+
+  const requestedCurrency = symbol;
+
+  try {
+    const result = await api(
+      `/api/donate/${
+        encodeURIComponent(symbol)
+      }/networks`
+    );
+
+    if (
+      state.donateCurrency
+      !== requestedCurrency
+    ) {
+      return;
+    }
+
+    state.donateNetworks =
+      result.networks || [];
+
+    if ($('#donateDestinationName')) {
+      $('#donateDestinationName').textContent =
+        result.destination?.name
+        || 'EQTY DAO Market Making';
+    }
+
+    renderDonateNetworks();
+
+  } catch (error) {
+    if (
+      state.donateCurrency
+      !== requestedCurrency
+    ) {
+      return;
+    }
+
+    state.donateNetworks = [];
+
+    if ($('#donateNetworkList')) {
+      $('#donateNetworkList').innerHTML =
+        '<div class="deposit-empty">'
+        + 'Unable to load networks.'
+        + '</div>';
+    }
+
+    setDonateError(
+      error.message
+      || 'Unable to load donation networks.'
+    );
+  }
+}
+
+
+async function selectDonateNetwork(chain) {
+  const network =
+    state.donateNetworks.find(
+      item =>
+        item.chain === chain
+    );
+
+  if (
+    !network
+    || !network.deposit_enabled
+    || !state.donateCurrency
+  ) {
+    return;
+  }
+
+  const requestedCurrency =
+    state.donateCurrency;
+
+  const requestedChain =
+    network.chain;
+
+  clearDonateDetails();
+
+  state.donateChain =
+    requestedChain;
+
+  renderDonateNetworks();
+
+  $('#donateDetailsStep')
+    ?.classList.remove(
+      'deposit-step-disabled'
+    );
+
+  if ($('#donateDetailsPlaceholder')) {
+    $('#donateDetailsPlaceholder').textContent =
+      'Loading the verified EQTYDAO '
+      + 'donation destination…';
+  }
+
+  setDonateError('');
+
+  try {
+    const result = await api(
+      withParams(
+        `/api/donate/${
+          encodeURIComponent(
+            requestedCurrency
+          )
+        }`,
+        {
+          chain:
+            requestedChain,
+        },
+      )
+    );
+
+    if (
+      state.donateCurrency
+        !== requestedCurrency
+      || state.donateChain
+        !== requestedChain
+    ) {
+      return;
+    }
+
+    state.donateDetails = result;
+
+    renderDonateDetails();
+
+  } catch (error) {
+    if (
+      state.donateCurrency
+        !== requestedCurrency
+      || state.donateChain
+        !== requestedChain
+    ) {
+      return;
+    }
+
+    if ($('#donateDetailsPlaceholder')) {
+      $('#donateDetailsPlaceholder').textContent =
+        'Select a network to reveal the '
+        + 'EQTYDAO donation address and QR code.';
+    }
+
+    setDonateError(
+      error.message
+      || 'Unable to load the donation destination.'
+    );
+  }
+}
+
+
+function renderDonateDetails() {
+  const result =
+    state.donateDetails;
+
+  const network =
+    result?.network;
+
+  if (
+    !result
+    || !network
+  ) {
+    return;
+  }
+
+  const networkName =
+    network.name
+    || network.chain
+    || 'Selected network';
+
+  if ($('#donateDestinationName')) {
+    $('#donateDestinationName').textContent =
+      result.destination?.name
+      || 'EQTY DAO Market Making';
+  }
+
+  $('#donateSelectedAsset').textContent =
+    result.currency;
+
+  $('#donateSelectedNetwork').textContent =
+    networkName;
+
+  $('#donateAddress').textContent =
+    network.address || '—';
+
+  $('#donateAddress')?.setAttribute(
+    'title',
+    network.address || '',
+  );
+
+  const qr = $('#donateQr');
+
+  if (qr) {
+    if (network.qr_svg_data_uri) {
+      qr.src =
+        network.qr_svg_data_uri;
+    } else {
+      qr.removeAttribute(
+        'src'
+      );
+    }
+  }
+
+  $('#donateContract').textContent =
+    network.contract_address
+    || 'Native asset / not provided';
+
+  $('#donateMinimum').textContent =
+    result.minimum_deposit_amount
+      ? (
+          `${result.minimum_deposit_amount} `
+          + result.currency
+        )
+      : 'Not provided';
+
+  $('#donateConfirmations').textContent =
+    network.min_confirmations
+    ?? 'Not provided';
+
+  $('#donateWarning').textContent =
+    result.warning || '';
+
+  $('#donateQrSafety').textContent =
+    `Send only ${result.currency} on ${networkName}. `
+    + 'This address belongs to EQTY DAO Market Making.';
+
+  const memo =
+    network.payment_id;
+
+  $('#donateMemoBlock').classList.toggle(
+    'hidden',
+    !memo,
+  );
+
+  if (memo) {
+    $('#donateMemo').textContent =
+      memo;
+
+    $('#donateMemoLabel').textContent =
+      network.payment_name
+      || 'Memo / tag';
+  }
+
+  $('#donateDetailsPlaceholder')
+    .classList.add(
+      'hidden'
+    );
+
+  $('#donateDetails')
+    .classList.remove(
+      'hidden'
+    );
+}
+
+
+async function copyDonateValue(kind) {
+  const value = (
+    kind === 'memo'
+      ? state.donateDetails
+          ?.network
+          ?.payment_id
+      : state.donateDetails
+          ?.network
+          ?.address
+  );
+
+  if (!value) return;
+
+  try {
+    await navigator.clipboard
+      .writeText(value);
+
+  } catch {
+    const textarea =
+      document.createElement(
+        'textarea'
+      );
+
+    textarea.value = value;
+    textarea.style.position =
+      'fixed';
+    textarea.style.opacity = '0';
+
+    document.body
+      .appendChild(textarea);
+
+    textarea.select();
+
+    document.execCommand(
+      'copy'
+    );
+
+    textarea.remove();
+  }
+
+  const buttons = [
+    ...document.querySelectorAll(
+      `[data-copy-donate="${kind}"]`
+    ),
+  ];
+
+  buttons.forEach(button => {
+    if (
+      !button.dataset
+        .copyDefaultLabel
+    ) {
+      button.dataset.copyDefaultLabel =
+        button.textContent.trim()
+        || 'Copy';
+    }
+
+    button.textContent =
+      'Copied ✓';
+
+    button.classList.add(
+      'is-copied'
+    );
+  });
+
+  window.setTimeout(
+    () => {
+      buttons.forEach(button => {
+        button.textContent =
+          button.dataset
+            .copyDefaultLabel
+          || 'Copy';
+
+        button.classList.remove(
+          'is-copied'
+        );
+      });
+    },
+    1600,
+  );
+
+  showToast(
+    `${
+      kind === 'memo'
+        ? 'Memo / tag'
+        : 'Donation address'
+    } copied.`
+  );
+}
+
 
 function depositHistoryTargetAccount() {
   return privateBalanceTargetAccount();
@@ -19164,6 +20082,7 @@ function switchTab(tab, { updateHash = true } = {}) {
     bots: ['Trading bots', 'Inspect every mapped field and Gate’s dynamic response data'],
     'bot-control': ['Bot Control', 'Prepare, review and safely submit native Gate trading bots'],
     alerts: ['Alerts', 'Local rules evaluated after each bot snapshot'],
+    donate: ['Donate', 'Public EQTYDAO donation destination across Gate-supported assets and networks'],
     wallet: ['Wallet', 'Private balances, deposits and account-scoped wallet activity'],
     trading: ['Trading', 'Live Gate spot chart, order book and account-scoped market view'],
     security: ['Security', 'Manage dashboard sign-in and account protection'],
@@ -19209,6 +20128,7 @@ function switchTab(tab, { updateHash = true } = {}) {
   const globalAccountVisible = (
     ![
       'wallet',
+      'donate',
       'trading',
       'bot-control',
       'security',
@@ -19265,6 +20185,12 @@ function switchTab(tab, { updateHash = true } = {}) {
         load: true,
       },
     );
+  }
+
+  if (
+    target === 'donate'
+  ) {
+    void loadDonateCatalog();
   }
 
   if (
@@ -24648,6 +25574,10 @@ function bindEvents() {
   $('#closeDepositDialog').addEventListener('click', closeDepositDialog);
   $('#depositDialog').addEventListener('click', event => { if (event.target === $('#depositDialog')) closeDepositDialog(); });
   $('#depositCurrencySearch').addEventListener('input', renderDepositCurrencies);
+  $('#donateCurrencySearch')?.addEventListener(
+    'input',
+    renderDonateCurrencies,
+  );
   $('#accountSelector').addEventListener(
     'change',
     changeSelectedAccount,
@@ -24703,6 +25633,46 @@ function bindEvents() {
     }
 
     const del = event.target.closest('.delete-rule'); if (del) deleteRule(Number(del.dataset.ruleId));
+
+    const donateCurrency = event.target.closest(
+      '[data-donate-currency]'
+    );
+
+    if (donateCurrency) {
+      void selectDonateCurrency(
+        donateCurrency.dataset
+          .donateCurrency
+      );
+
+      return;
+    }
+
+    const donateChain = event.target.closest(
+      '[data-donate-chain]'
+    );
+
+    if (donateChain) {
+      void selectDonateNetwork(
+        donateChain.dataset
+          .donateChain
+      );
+
+      return;
+    }
+
+    const donateCopy = event.target.closest(
+      '[data-copy-donate]'
+    );
+
+    if (donateCopy) {
+      void copyDonateValue(
+        donateCopy.dataset
+          .copyDonate
+      );
+
+      return;
+    }
+
     const depositCurrency = event.target.closest('[data-deposit-currency]'); if (depositCurrency) selectDepositCurrency(depositCurrency.dataset.depositCurrency);
     const depositChain = event.target.closest('[data-deposit-chain]'); if (depositChain) selectDepositNetwork(depositChain.dataset.depositChain);
     const depositCopy = event.target.closest('[data-copy-deposit]'); if (depositCopy) copyDepositValue(depositCopy.dataset.copyDeposit);

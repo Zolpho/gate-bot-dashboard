@@ -266,6 +266,7 @@ def test_permissions_feature_loads_after_app() -> None:
             "&m411d4=20261002-cumulative-return-only-v1"
             "&m412a=20261002-overview-series-contrast-v1"
             "&m412g=20261002-premium-overview-chart-v1"
+            "&m414c2a=20261003-donate-v1"
         )
     )
 

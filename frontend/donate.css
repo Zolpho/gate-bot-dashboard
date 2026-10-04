@@ -1,0 +1,298 @@
+/*
+ * M4.14C2A — Public Donate
+ *
+ * The asset/network controls deliberately reuse the established
+ * Deposit presentation classes. Donate-specific layout remains
+ * isolated under .donate-* selectors.
+ */
+
+.donate-tab-panel {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.donate-intro-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.7fr)
+    minmax(260px, .8fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.donate-hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 178px;
+}
+
+.donate-kicker {
+  display: inline-block;
+  width: fit-content;
+  margin-bottom: 12px;
+  color: var(--accent);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.donate-hero h2 {
+  margin-bottom: 8px;
+  font-size: clamp(1.2rem, 2.4vw, 1.7rem);
+}
+
+.donate-hero > p {
+  max-width: 760px;
+  margin-bottom: 16px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.donate-trust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.donate-trust-row span {
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: .76rem;
+}
+
+.donate-destination-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 178px;
+}
+
+.donate-destination-card > span,
+.donate-destination-card > small {
+  color: var(--muted);
+}
+
+.donate-destination-card > span {
+  margin-bottom: 8px;
+  font-size: .76rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.donate-destination-card > strong {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+
+.donate-destination-card > small {
+  line-height: 1.45;
+}
+
+.donate-wallet-warning {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px 16px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 13px 16px;
+  border: 1px solid rgba(241, 189, 100, .42);
+  border-radius: var(--radius);
+  background: rgba(241, 189, 100, .08);
+}
+
+.donate-wallet-warning strong {
+  color: var(--warning);
+  white-space: nowrap;
+}
+
+.donate-wallet-warning span {
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.donate-workflow-panel {
+  margin-bottom: 14px;
+}
+
+.donate-workflow-header {
+  align-items: center;
+}
+
+.donate-workflow-header .mode-badge {
+  white-space: nowrap;
+}
+
+.donate-flow {
+  display: grid;
+  gap: 0;
+}
+
+.donate-workflow-panel .deposit-step:last-child {
+  border-bottom: 0;
+}
+
+.donate-workflow-panel .deposit-option-list {
+  max-height: 390px;
+}
+
+.donate-workflow-panel .deposit-option small {
+  overflow-wrap: anywhere;
+}
+
+.donate-workflow-panel .deposit-copy-row code {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.donate-footnote {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .donate-intro-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .donate-hero,
+  .donate-destination-card {
+    min-height: 0;
+  }
+
+  .donate-wallet-warning {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .donate-wallet-warning strong {
+    white-space: normal;
+  }
+}
+
+/*
+ * C2C responsive visual acceptance polish.
+ *
+ * Scope the shared topbar correction specifically to Donate.
+ * Other dashboard pages retain their accepted responsive geometry.
+ */
+@media (max-width: 600px) {
+  body:has(#tab-donate.active) .topbar {
+    min-height: 0 !important;
+    height: auto !important;
+    justify-content: flex-start !important;
+    align-content: flex-start;
+    gap: 12px;
+  }
+
+  body:has(#tab-donate.active)
+  .topbar > div:first-child {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  body:has(#tab-donate.active) .top-actions {
+    display: grid;
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+    flex: 0 0 auto !important;
+    align-self: stretch;
+    width: 100%;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  body:has(#tab-donate.active)
+  .top-actions > * {
+    min-width: 0;
+  }
+
+  body:has(#tab-donate.active)
+  .top-actions .button,
+  body:has(#tab-donate.active)
+  .top-actions .dashboard-ui-select {
+    width: 100%;
+  }
+
+  body:has(#tab-donate.active)
+  .top-actions #modeBadge {
+    width: max-content;
+    justify-self: start;
+    align-self: center;
+  }
+
+  .donate-workflow-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .donate-workflow-header .mode-badge {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    white-space: nowrap;
+    font-size: .7rem;
+    padding: 5px 8px;
+  }
+
+  .donate-trust-row {
+    display: grid;
+  }
+
+  .donate-trust-row span {
+    width: fit-content;
+  }
+
+  #donateNetworkList
+  .deposit-option-main {
+    min-width: 0;
+  }
+
+  #donateNetworkList
+  .deposit-option-main > span {
+    min-width: 0;
+  }
+
+  #donateNetworkList
+  .deposit-option-main small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+
+/*
+ * The QR card intentionally has a light surface.
+ * Override the dashboard's dark secondary-button treatment
+ * so Copy address reads as an enabled control.
+ */
+.donate-workflow-panel
+.deposit-qr-card
+.button.secondary {
+  color: #073b2b;
+  background: #effff8;
+  border-color: rgba(7, 59, 43, .24);
+  opacity: 1;
+  font-weight: 700;
+  box-shadow:
+    0 5px 14px rgba(0, 0, 0, .12);
+}
+
+.donate-workflow-panel
+.deposit-qr-card
+.button.secondary:hover:not(:disabled) {
+  color: #022d20;
+  background: #dcfff1;
+  border-color: rgba(7, 59, 43, .40);
+}
