@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -7,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db import utcnow
+from .deposits import normalize_currency_symbol
 from .donations import (
     DonationDestinationIdentity,
     donation_destination_identity,
@@ -19,13 +21,19 @@ TRUSTED_STATUS = "trusted"
 BLOCKED_STATUS = "blocked"
 
 
+class DonationDestinationBootstrapError(
+    RuntimeError
+):
+    """Operator bootstrap refused without replacing trust."""
+
+
 @dataclass(
     frozen=True,
     slots=True,
 )
 class DonationDestinationDecision:
     state: str
-    destination_id: int
+    destination_id: int | None
 
 
 def _text(value: Any) -> str:
@@ -34,6 +42,14 @@ def _text(value: Any) -> str:
         if value is not None
         else ""
     ).strip()
+
+
+def _chain_key(value: Any) -> str:
+    return re.sub(
+        r"[^A-Z0-9]",
+        "",
+        _text(value).upper(),
+    )
 
 
 def _network(
@@ -107,27 +123,82 @@ def _current_values(
     )
 
 
-def verify_or_pin_public_destination(
+def _trust_row(
+    session: Session,
+    *,
+    currency: str,
+    chain_key: str,
+) -> PublicDonationDestination | None:
+    return session.scalar(
+        select(
+            PublicDonationDestination
+        ).where(
+            PublicDonationDestination.currency
+            == currency,
+            PublicDonationDestination.chain_key
+            == chain_key,
+        )
+    )
+
+
+def has_trusted_public_destination(
+    session: Session,
+    *,
+    currency: str,
+    chain: str,
+) -> bool:
+    """
+    Cheap fail-closed trust gate used before a signed Gate read.
+
+    This never creates or mutates durable state.
+    """
+
+    symbol = normalize_currency_symbol(
+        currency
+    )
+
+    chain_key = _chain_key(
+        chain
+    )
+
+    if not chain_key:
+        return False
+
+    row = _trust_row(
+        session,
+        currency=symbol,
+        chain_key=chain_key,
+    )
+
+    return bool(
+        row is not None
+        and row.status == TRUSTED_STATUS
+    )
+
+
+def verify_public_destination(
     session: Session,
     payload: Mapping[str, Any],
 ) -> DonationDestinationDecision:
     """
-    Verify one Gate-observed donation destination.
+    Verify one Gate-observed destination against existing trust.
 
-    First successful observation:
-      trust-on-first-use and persist the identity.
+    Missing trusted row:
+      fail closed without creating any durable trust.
 
-    Later identical observation:
-      refresh last_verified_at.
+    Existing identical trusted row:
+      refresh verification metadata.
 
-    Later changed address or memo:
-      preserve the original trusted destination,
-      record the changed observation,
-      permanently block publication until a
-      separate administrative review exists.
+    Existing changed trusted row:
+      preserve the original destination and permanently block
+      public publication until separate administrative review.
 
-    A blocked row never auto-recovers merely because
-    Gate later returns the original address again.
+    Existing blocked row:
+      remain blocked; never auto-recover.
+
+    Initial trust creation is intentionally excluded from this
+    public verification primitive. Only
+    bootstrap_public_destination() may establish it.
     """
 
     (
@@ -139,39 +210,19 @@ def verify_or_pin_public_destination(
         payload
     )
 
-    now = utcnow()
-
-    row = session.scalar(
-        select(
-            PublicDonationDestination
-        ).where(
-            PublicDonationDestination.currency
-            == identity.currency,
-            PublicDonationDestination.chain_key
-            == identity.chain_key,
-        )
+    row = _trust_row(
+        session,
+        currency=identity.currency,
+        chain_key=identity.chain_key,
     )
 
     if row is None:
-        row = PublicDonationDestination(
-            currency=identity.currency,
-            chain_key=identity.chain_key,
-            chain=chain,
-            address=address,
-            memo=memo,
-            status=TRUSTED_STATUS,
-            first_published_at=now,
-            last_verified_at=now,
-            updated_at=now,
-        )
-
-        session.add(row)
-        session.flush()
-
         return DonationDestinationDecision(
-            state="first_seen",
-            destination_id=row.id,
+            state="untrusted",
+            destination_id=None,
         )
+
+    now = utcnow()
 
     row.updated_at = now
 
@@ -224,5 +275,94 @@ def verify_or_pin_public_destination(
 
     return DonationDestinationDecision(
         state="blocked",
+        destination_id=row.id,
+    )
+
+
+def bootstrap_public_destination(
+    session: Session,
+    payload: Mapping[str, Any],
+) -> DonationDestinationDecision:
+    """
+    Establish one destination trust anchor from a controlled
+    local operator workflow.
+
+    Missing row:
+      create the initial trusted destination.
+
+    Existing identical trusted row:
+      return idempotently without changing durable state.
+
+    Existing trusted mismatch:
+      refuse; never overwrite or block the existing trust row.
+
+    Existing blocked row:
+      refuse; bootstrap is not an administrative unblock tool.
+    """
+
+    (
+        identity,
+        chain,
+        address,
+        memo,
+    ) = _current_values(
+        payload
+    )
+
+    row = _trust_row(
+        session,
+        currency=identity.currency,
+        chain_key=identity.chain_key,
+    )
+
+    if row is None:
+        now = utcnow()
+
+        row = PublicDonationDestination(
+            currency=identity.currency,
+            chain_key=identity.chain_key,
+            chain=chain,
+            address=address,
+            memo=memo,
+            status=TRUSTED_STATUS,
+            first_published_at=now,
+            last_verified_at=now,
+            updated_at=now,
+        )
+
+        session.add(
+            row
+        )
+
+        session.flush()
+
+        return DonationDestinationDecision(
+            state="bootstrapped",
+            destination_id=row.id,
+        )
+
+    if row.status != TRUSTED_STATUS:
+        raise DonationDestinationBootstrapError(
+            "Donation destination trust row is blocked; "
+            "bootstrap cannot replace or unblock it."
+        )
+
+    state = published_destination_state(
+        payload,
+        [
+            _stored_payload(
+                row
+            )
+        ],
+    )
+
+    if state != "verified":
+        raise DonationDestinationBootstrapError(
+            "Observed destination differs from the existing "
+            "trusted destination; bootstrap refused."
+        )
+
+    return DonationDestinationDecision(
+        state="already_trusted",
         destination_id=row.id,
     )

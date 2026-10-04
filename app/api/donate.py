@@ -25,7 +25,8 @@ from ..config import (
 )
 from ..db import get_db
 from ..donation_destinations import (
-    verify_or_pin_public_destination,
+    has_trusted_public_destination,
+    verify_public_destination,
 )
 from ..donations import (
     DONATION_ACCOUNT_ID,
@@ -99,9 +100,9 @@ _signed_refresh_lock = asyncio.Lock()
 
 # The current deployment runs one Uvicorn application
 # process. Serialize only the tiny durable trust
-# verify+commit transaction so simultaneous anonymous
-# first-publication requests cannot race each other.
+# verify+commit transaction used after a signed Gate read.
 #
+# Initial trust creation is never performed by public HTTP.
 # Gate discovery and signed address reads remain outside
 # this lock. If the deployment later adds multiple worker
 # processes, add database-level conflict handling as well.
@@ -633,6 +634,35 @@ async def public_donation_address(
             ),
         )
 
+    # Initial destination trust is established only by the
+    # local operator bootstrap CLI. Fail closed here before
+    # using the private EQTYDAO Gate credential.
+    trust_chain = str(
+        selected.get("chain")
+        or selected.get("name")
+        or chain
+    ).strip()
+
+    if not has_trusted_public_destination(
+        db,
+        currency=symbol,
+        chain=trust_chain,
+    ):
+        logger.warning(
+            "Public Donate destination is not "
+            "operator-bootstrapped for %s/%s",
+            symbol,
+            trust_chain,
+        )
+
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Donation destination "
+                "temporarily unavailable"
+            ),
+        )
+
     account = _donation_account()
 
     try:
@@ -703,28 +733,28 @@ async def public_donation_address(
         )
     )
 
-    # Keep durable trust publication atomic with respect
-    # to other anonymous requests in this application
-    # process. Gate reads have already completed above.
+    # Keep durable verification/blocking state atomic with
+    # respect to other anonymous requests in this process.
+    # Initial trust creation is impossible through this path.
     async with _destination_trust_lock:
         decision = (
-            verify_or_pin_public_destination(
+            verify_public_destination(
                 db,
                 payload,
             )
         )
 
-        # Persist both first-seen trust and any
-        # fail-closed change observation before
-        # another request can enter trust verification.
+        # Persist last verification metadata or a fail-closed
+        # mismatch block before another request can verify.
         db.commit()
 
-    if decision.state == "blocked":
+    if decision.state != "verified":
         logger.error(
-            "Public Donate destination blocked "
-            "after identity mismatch for %s/%s",
+            "Public Donate destination refused "
+            "after trust verification for %s/%s: %s",
             symbol,
             chain,
+            decision.state,
         )
 
         raise HTTPException(

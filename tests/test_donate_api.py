@@ -16,6 +16,9 @@ from app.db import (
     SessionLocal,
     engine,
 )
+from app.donation_destinations import (
+    bootstrap_public_destination,
+)
 from app.models import (
     PublicDonationDestination,
 )
@@ -172,6 +175,52 @@ class FakeGateClient:
         )
 
 
+def _trusted_detail(
+    chain: str,
+    *,
+    address: str = "0xDonationAddress",
+    memo: str | None = None,
+) -> dict:
+    return {
+        "currency": "USDT",
+        "network": {
+            "chain": chain,
+            "name": chain,
+            "address": address,
+            "payment_id": memo,
+            "deposit_enabled": True,
+        },
+    }
+
+
+def _seed_trust(
+    *,
+    address: str = "0xDonationAddress",
+    memo: str | None = None,
+) -> None:
+    with SessionLocal() as session:
+        session.execute(
+            delete(
+                PublicDonationDestination
+            )
+        )
+
+        for chain in (
+            "BASE",
+            "ETH",
+        ):
+            bootstrap_public_destination(
+                session,
+                _trusted_detail(
+                    chain,
+                    address=address,
+                    memo=memo,
+                ),
+            )
+
+        session.commit()
+
+
 @pytest.fixture(autouse=True)
 def clean_donation_state(
     monkeypatch,
@@ -198,6 +247,11 @@ def clean_donation_state(
     FakeGateClient.network_calls = 0
     FakeGateClient.deposit_address_calls = 0
     FakeGateClient.signed_account_ids = []
+
+    # Public HTTP is verify-only. Seed the default trusted
+    # BASE/ETH destinations locally so normal address-route
+    # tests exercise verification rather than TOFU.
+    _seed_trust()
 
     fake_account = SimpleNamespace(
         id="eqtydao",
@@ -419,6 +473,55 @@ def test_invalid_network_uses_no_signed_gate_read(
     )
 
 
+def test_missing_trust_fails_before_signed_gate_read(
+    client: TestClient,
+) -> None:
+    with SessionLocal() as session:
+        session.execute(
+            delete(
+                PublicDonationDestination
+            )
+        )
+        session.commit()
+
+    donate_api.reset_donation_runtime_caches()
+
+    response = client.get(
+        "/api/donate/USDT",
+        params={
+            "chain": "BASE",
+        },
+    )
+
+    assert response.status_code == 503
+
+    assert response.json() == {
+        "detail":
+            "Donation destination "
+            "temporarily unavailable"
+    }
+
+    # Unsigned network discovery is allowed, but the fixed
+    # EQTYDAO credential is never used until local trust exists.
+    assert (
+        FakeGateClient.deposit_address_calls
+        == 0
+    )
+
+    assert (
+        FakeGateClient.signed_account_ids
+        == []
+    )
+
+    with SessionLocal() as session:
+        assert (
+            session.query(
+                PublicDonationDestination
+            ).count()
+            == 0
+        )
+
+
 def test_gate_address_change_fails_closed(
     client: TestClient,
 ) -> None:
@@ -455,9 +558,16 @@ def test_gate_address_change_fails_closed(
     }
 
     with SessionLocal() as session:
-        row = session.query(
-            PublicDonationDestination
-        ).one()
+        row = (
+            session.query(
+                PublicDonationDestination
+            )
+            .filter_by(
+                currency="USDT",
+                chain_key="BASE",
+            )
+            .one()
+        )
 
         assert row.status == "blocked"
         assert (
@@ -514,6 +624,10 @@ def test_blocked_destination_does_not_auto_recover(
 def test_memo_change_also_fails_closed(
     client: TestClient,
 ) -> None:
+    _seed_trust(
+        memo="111",
+    )
+
     FakeGateClient.memo = "111"
 
     first = client.get(
@@ -539,9 +653,16 @@ def test_memo_change_also_fails_closed(
     assert second.status_code == 503
 
     with SessionLocal() as session:
-        row = session.query(
-            PublicDonationDestination
-        ).one()
+        row = (
+            session.query(
+                PublicDonationDestination
+            )
+            .filter_by(
+                currency="USDT",
+                chain_key="BASE",
+            )
+            .one()
+        )
 
         assert row.memo == "111"
         assert row.observed_memo == "222"
@@ -606,7 +727,7 @@ def test_durable_trust_verify_and_commit_are_serialized() -> None:
                 ast.Name,
             )
             and node.func.id
-            == "verify_or_pin_public_destination"
+            == "verify_public_destination"
         ):
             verify_calls += 1
 
@@ -644,3 +765,8 @@ def test_donate_router_is_get_only() -> None:
     assert methods == {
         "GET"
     }
+
+    assert all(
+        "bootstrap" not in route.path.lower()
+        for route in donate_api.router.routes
+    )
