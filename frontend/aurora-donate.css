@@ -1,0 +1,1708 @@
+/* ============================================================
+   M4.14C3A — AURORA DONATE MISSION CONTROL
+
+   Presentation only.
+
+   Donation catalog discovery, network discovery, trusted
+   destination publication, QR generation and copy behavior
+   remain owned by the shared Donate application logic.
+
+   Classic presentation remains owned by donate.css.
+   ============================================================ */
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate {
+  --aurora-donate-line:
+    rgba(85, 237, 181, 0.20);
+
+  --aurora-donate-line-strong:
+    rgba(85, 237, 181, 0.50);
+
+  --aurora-donate-glow:
+    rgba(54, 234, 171, 0.13);
+
+  --aurora-donate-surface:
+    rgba(3, 27, 20, 0.82);
+
+  --aurora-donate-surface-soft:
+    rgba(6, 39, 29, 0.68);
+
+  --aurora-donate-muted:
+    rgba(178, 216, 201, 0.62);
+
+  --aurora-donate-text:
+    rgba(231, 255, 246, 0.96);
+
+  position: relative;
+
+  max-width: 1240px;
+}
+
+
+/* ------------------------------------------------------------
+   INTRO / MISSION IDENTITY
+   ------------------------------------------------------------ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-intro-grid {
+  grid-template-columns:
+    minmax(0, 1.55fr)
+    minmax(280px, 0.72fr);
+
+  gap: 16px;
+
+  margin-bottom: 16px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-hero,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-destination-card {
+  position: relative;
+
+  isolation: isolate;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    var(--aurora-donate-line);
+
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      140deg,
+      rgba(7, 44, 33, 0.93),
+      rgba(3, 25, 19, 0.96) 58%,
+      rgba(2, 18, 14, 0.98)
+    );
+
+  box-shadow:
+    inset 0 1px 0
+      rgba(121, 255, 210, 0.035),
+    0 22px 68px
+      rgba(0, 0, 0, 0.18);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-hero {
+  min-height: 220px;
+
+  padding:
+    28px
+    30px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-hero::before {
+  content: "";
+
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+
+  pointer-events: none;
+
+  background-image:
+    linear-gradient(
+      rgba(71, 230, 174, 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(71, 230, 174, 0.035) 1px,
+      transparent 1px
+    ),
+    radial-gradient(
+      circle at 78% 22%,
+      rgba(46, 238, 169, 0.16),
+      transparent 31%
+    );
+
+  background-size:
+    44px 44px,
+    44px 44px,
+    auto;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-hero::after {
+  content: "PUBLIC DONATION ROUTE";
+
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: -1;
+
+  color:
+    rgba(101, 245, 196, 0.17);
+
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  line-height: 1;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-kicker {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  margin-bottom: 15px;
+
+  padding:
+    6px
+    9px;
+
+  border:
+    1px solid
+    rgba(89, 239, 184, 0.25);
+
+  border-radius: 999px;
+
+  background:
+    rgba(7, 51, 38, 0.72);
+
+  color:
+    rgba(102, 244, 196, 0.92);
+
+  font-size: 0.59rem;
+  letter-spacing: 0.15em;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-kicker::before {
+  content: "";
+
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background:
+    #61f3c2;
+
+  box-shadow:
+    0 0 14px
+    rgba(80, 241, 188, 0.72);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-hero h2 {
+  max-width: 690px;
+
+  margin-bottom: 10px;
+
+  color:
+    var(--aurora-donate-text);
+
+  font-size:
+    clamp(
+      1.55rem,
+      3vw,
+      2.2rem
+    );
+
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-hero > p {
+  max-width: 650px;
+
+  margin-bottom: 20px;
+
+  color:
+    rgba(184, 219, 205, 0.72);
+
+  font-size: 0.91rem;
+  line-height: 1.6;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-trust-row {
+  gap: 7px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-trust-row span {
+  padding:
+    6px
+    10px;
+
+  border-color:
+    rgba(84, 232, 177, 0.18);
+
+  background:
+    rgba(3, 31, 23, 0.70);
+
+  color:
+    rgba(178, 219, 202, 0.66);
+
+  font-size: 0.67rem;
+  letter-spacing: 0.01em;
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(121, 255, 211, 0.025);
+}
+
+
+/* ------------------------------------------------------------
+   SERVER-LOCKED DESTINATION
+   ------------------------------------------------------------ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-destination-card {
+  min-height: 220px;
+
+  justify-content: flex-end;
+
+  padding:
+    24px
+    22px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-destination-card::before {
+  content: "↘";
+
+  position: absolute;
+  top: 22px;
+  left: 22px;
+
+  display: grid;
+
+  place-items: center;
+
+  width: 42px;
+  height: 42px;
+
+  border:
+    1px solid
+    rgba(88, 239, 183, 0.30);
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(14, 74, 54, 0.82),
+      rgba(4, 37, 28, 0.78)
+    );
+
+  color:
+    rgba(93, 244, 192, 0.94);
+
+  font-size: 1.25rem;
+
+  box-shadow:
+    0 0 28px
+    rgba(50, 225, 166, 0.08);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-destination-card::after {
+  content: "SERVER LOCKED";
+
+  position: absolute;
+  top: 33px;
+  right: 20px;
+
+  color:
+    rgba(102, 240, 191, 0.40);
+
+  font-size: 0.51rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-destination-card > span {
+  margin-bottom: 8px;
+
+  color:
+    rgba(159, 202, 185, 0.56);
+
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-destination-card > strong {
+  margin-bottom: 8px;
+
+  color:
+    rgba(224, 255, 243, 0.95);
+
+  font-size: 1.12rem;
+  letter-spacing: -0.015em;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-destination-card > small {
+  color:
+    rgba(166, 207, 190, 0.57);
+
+  font-size: 0.66rem;
+  line-height: 1.5;
+}
+
+
+/* ------------------------------------------------------------
+   WALLET BOUNDARY / SAFETY STRIP
+   ------------------------------------------------------------ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-wallet-warning {
+  position: relative;
+
+  grid-template-columns:
+    auto
+    minmax(0, 1fr);
+
+  gap:
+    5px
+    18px;
+
+  margin-bottom: 16px;
+
+  padding:
+    13px
+    18px
+    13px
+    48px;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(228, 184, 80, 0.25);
+
+  border-radius: 13px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(92, 67, 16, 0.22),
+      rgba(41, 34, 15, 0.12)
+    );
+
+  box-shadow:
+    inset 3px 0 0
+    rgba(238, 188, 74, 0.58);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-wallet-warning::before {
+  content: "!";
+
+  position: absolute;
+  left: 16px;
+  top: 50%;
+
+  display: grid;
+
+  place-items: center;
+
+  width: 21px;
+  height: 21px;
+
+  border:
+    1px solid
+    rgba(239, 190, 76, 0.42);
+
+  border-radius: 50%;
+
+  color:
+    rgba(248, 205, 104, 0.94);
+
+  font-size: 0.70rem;
+  font-weight: 850;
+
+  transform:
+    translateY(-50%);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-wallet-warning strong {
+  color:
+    rgba(248, 207, 111, 0.93);
+
+  font-size: 0.73rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-wallet-warning span {
+  color:
+    rgba(220, 230, 215, 0.78);
+
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+
+/* ------------------------------------------------------------
+   DONATION WORKSPACE SHELL
+   ------------------------------------------------------------ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-panel {
+  position: relative;
+
+  isolation: isolate;
+
+  overflow: hidden;
+
+  margin-bottom: 14px;
+
+  padding:
+    0
+    18px
+    18px;
+
+  border:
+    1px solid
+    var(--aurora-donate-line);
+
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 35, 26, 0.91),
+      rgba(2, 23, 17, 0.96) 52%,
+      rgba(2, 16, 12, 0.98)
+    );
+
+  box-shadow:
+    inset 0 1px 0
+      rgba(116, 255, 207, 0.03),
+    0 24px 74px
+      rgba(0, 0, 0, 0.18);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-panel::before {
+  content: "";
+
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      circle at 16% 8%,
+      rgba(50, 226, 166, 0.09),
+      transparent 24%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(64, 221, 166, 0.018) 1px,
+      transparent 1px
+    );
+
+  background-size:
+    auto,
+    56px 100%;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-header {
+  position: relative;
+
+  align-items: center;
+
+  gap: 18px;
+
+  margin:
+    0
+    -18px
+    14px;
+
+  padding:
+    18px
+    20px
+    16px;
+
+  border-bottom:
+    1px solid
+    rgba(84, 230, 176, 0.13);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(8, 54, 40, 0.54),
+      rgba(3, 28, 21, 0.16)
+    );
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-header h2 {
+  margin-bottom: 4px;
+
+  color:
+    rgba(231, 255, 247, 0.96);
+
+  font-size: 1.04rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-header p {
+  max-width: 720px;
+
+  color:
+    rgba(166, 208, 191, 0.60);
+
+  font-size: 0.69rem;
+  line-height: 1.45;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-header
+.mode-badge {
+  padding:
+    6px
+    9px;
+
+  border-color:
+    rgba(84, 234, 178, 0.24);
+
+  background:
+    rgba(4, 39, 29, 0.76);
+
+  color:
+    rgba(95, 240, 190, 0.79);
+
+  font-size: 0.57rem;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+}
+
+
+/* ------------------------------------------------------------
+   THREE OPERATIONAL SURFACES
+   ------------------------------------------------------------ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-flow {
+  display: grid;
+
+  grid-template-columns:
+    minmax(250px, 0.88fr)
+    minmax(250px, 0.88fr)
+    minmax(350px, 1.24fr);
+
+  gap: 12px;
+
+  align-items: stretch;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-panel
+.deposit-step {
+  position: relative;
+
+  display: block;
+
+  min-width: 0;
+  min-height: 390px;
+
+  padding:
+    17px;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(81, 226, 171, 0.16);
+
+  border-radius: 15px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(7, 43, 32, 0.70),
+      rgba(3, 27, 20, 0.78)
+    );
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(118, 255, 208, 0.025);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-panel
+.deposit-step:not(.deposit-step-disabled) {
+  border-color:
+    rgba(84, 235, 178, 0.34);
+
+  box-shadow:
+    inset 0 -2px 0
+      rgba(69, 233, 175, 0.09),
+    0 0 28px
+      rgba(52, 221, 164, 0.035);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-panel
+.deposit-step-disabled {
+  opacity: 0.48;
+
+  filter:
+    saturate(0.72);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-panel
+.deposit-step-number {
+  display: inline-grid;
+
+  place-items: center;
+
+  width: 28px;
+  height: 28px;
+
+  margin-bottom: 12px;
+
+  border:
+    1px solid
+    rgba(86, 234, 179, 0.30);
+
+  border-radius: 999px;
+
+  background:
+    rgba(6, 47, 35, 0.78);
+
+  color:
+    rgba(101, 241, 192, 0.88);
+
+  font-size: 0.60rem;
+  font-weight: 780;
+
+  box-shadow:
+    0 0 18px
+    rgba(64, 228, 171, 0.05);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-workflow-panel
+.deposit-step-content h3 {
+  margin:
+    0
+    0
+    13px;
+
+  color:
+    rgba(224, 251, 241, 0.91);
+
+  font-size: 0.84rem;
+  letter-spacing: -0.01em;
+}
+
+
+/* ------------------------------------------------------------
+   ASSET SEARCH / FAVORITES
+   ------------------------------------------------------------ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+#donateCurrencySearch {
+  min-height: 42px;
+
+  margin-bottom: 10px;
+
+  border-color:
+    rgba(84, 225, 173, 0.20);
+
+  border-radius: 10px;
+
+  background:
+    rgba(2, 23, 17, 0.86);
+
+  color:
+    rgba(226, 252, 242, 0.90);
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(119, 255, 207, 0.02);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+#donateCurrencySearch:focus {
+  border-color:
+    rgba(91, 239, 184, 0.47);
+
+  box-shadow:
+    0 0 0 3px
+    rgba(62, 225, 169, 0.06);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-favorites-row {
+  align-items: flex-start;
+
+  margin-bottom: 10px;
+
+  padding:
+    9px
+    10px;
+
+  border:
+    1px solid
+    rgba(80, 220, 167, 0.11);
+
+  border-radius: 10px;
+
+  background:
+    rgba(4, 29, 22, 0.55);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-favorites-label {
+  padding-top: 6px;
+
+  color:
+    rgba(157, 199, 182, 0.52);
+
+  font-size: 0.54rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-favorite {
+  border-color:
+    rgba(82, 225, 171, 0.14);
+
+  background:
+    rgba(3, 28, 21, 0.74);
+
+  color:
+    rgba(178, 215, 200, 0.66);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-favorite:hover,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-favorite.active {
+  border-color:
+    rgba(87, 239, 181, 0.42);
+
+  background:
+    rgba(11, 63, 46, 0.72);
+
+  color:
+    rgba(102, 244, 195, 0.94);
+}
+
+
+/* ------------------------------------------------------------
+   ASSET / NETWORK OPTIONS
+   ------------------------------------------------------------ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-option-list {
+  display: grid;
+
+  gap: 6px;
+
+  max-height: 270px;
+
+  padding: 0;
+
+  overflow-y: auto;
+
+  border: 0;
+
+  border-radius: 0;
+
+  background:
+    transparent;
+
+  scrollbar-width: thin;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-option-list.compact {
+  max-height: 300px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-option {
+  min-height: 50px;
+
+  padding:
+    9px
+    10px;
+
+  border:
+    1px solid
+    rgba(81, 222, 169, 0.13);
+
+  border-radius: 10px;
+
+  background:
+    rgba(4, 31, 24, 0.68);
+
+  color:
+    rgba(216, 244, 233, 0.84);
+
+  transition:
+    border-color 130ms ease,
+    background-color 130ms ease,
+    box-shadow 130ms ease,
+    transform 130ms ease;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-option:hover:not(:disabled) {
+  border-color:
+    rgba(89, 236, 181, 0.38);
+
+  background:
+    rgba(8, 52, 39, 0.75);
+
+  box-shadow:
+    inset 2px 0 0
+    rgba(84, 237, 181, 0.42);
+
+  transform:
+    translateY(-1px);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-option.active {
+  border-color:
+    rgba(92, 241, 185, 0.52);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(12, 72, 52, 0.82),
+      rgba(5, 42, 31, 0.72)
+    );
+
+  box-shadow:
+    inset 3px 0 0
+    rgba(91, 243, 186, 0.70);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-coin-mark {
+  border:
+    1px solid
+    rgba(89, 237, 181, 0.23);
+
+  background:
+    rgba(7, 52, 38, 0.78);
+
+  color:
+    rgba(102, 244, 195, 0.94);
+
+  box-shadow:
+    0 0 18px
+    rgba(59, 225, 168, 0.06);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-option-main strong {
+  color:
+    rgba(225, 249, 240, 0.91);
+
+  font-size: 0.72rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-option-main small {
+  color:
+    rgba(158, 199, 183, 0.55);
+
+  font-size: 0.57rem;
+  line-height: 1.35;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-option-status {
+  color:
+    rgba(158, 198, 182, 0.52);
+
+  font-size: 0.57rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-option-status.available {
+  color:
+    rgba(92, 239, 187, 0.82);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-hint,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-empty {
+  color:
+    rgba(158, 199, 183, 0.52);
+
+  font-size: 0.60rem;
+  line-height: 1.42;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-empty {
+  min-height: 76px;
+
+  display: grid;
+
+  place-items: center;
+
+  border:
+    1px dashed
+    rgba(82, 222, 169, 0.13);
+
+  border-radius: 10px;
+
+  background:
+    rgba(2, 22, 17, 0.35);
+}
+
+
+/* ------------------------------------------------------------
+   SEND / VERIFIED DESTINATION CONSOLE
+   ------------------------------------------------------------ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+#donateDetails {
+  grid-template-columns:
+    minmax(142px, 0.54fr)
+    minmax(0, 1.46fr);
+
+  gap: 12px;
+
+  align-items: start;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-qr-card {
+  overflow: hidden;
+
+  gap: 8px;
+
+  padding: 0;
+
+  border:
+    1px solid
+    rgba(84, 232, 177, 0.22);
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(8, 48, 36, 0.78),
+      rgba(3, 27, 21, 0.86)
+    );
+
+  color:
+    rgba(222, 248, 238, 0.88);
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(117, 255, 208, 0.025);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-qr-card-head {
+  width: 100%;
+
+  display: flex;
+
+  justify-content: space-between;
+
+  gap: 8px;
+
+  padding:
+    9px
+    10px;
+
+  border-bottom:
+    1px solid
+    rgba(84, 226, 174, 0.11);
+
+  color:
+    rgba(181, 219, 203, 0.69);
+
+  font-size: 0.57rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-qr-card-head strong {
+  color:
+    rgba(226, 252, 242, 0.90);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-qr-surface {
+  width: calc(100% - 18px);
+
+  display: grid;
+
+  place-items: center;
+
+  padding: 11px;
+
+  border-radius: 9px;
+
+  background:
+    rgba(239, 255, 249, 0.96);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-qr-card img {
+  width: 150px;
+  height: 150px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-qr-actions {
+  width: calc(100% - 18px);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-qr-card
+.button.secondary {
+  width: 100%;
+
+  min-height: 34px;
+
+  border-color:
+    rgba(85, 235, 179, 0.30);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(13, 77, 56, 0.92),
+      rgba(7, 54, 40, 0.92)
+    );
+
+  color:
+    rgba(214, 255, 239, 0.94);
+
+  font-size: 0.64rem;
+
+  box-shadow:
+    0 0 22px
+    rgba(57, 225, 168, 0.05);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-qr-card
+.button.secondary:hover:not(:disabled) {
+  border-color:
+    rgba(96, 244, 188, 0.48);
+
+  background:
+    rgba(11, 73, 53, 0.96);
+
+  color:
+    #effff9;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-qr-card > small {
+  width: calc(100% - 18px);
+
+  color:
+    rgba(161, 203, 186, 0.53);
+
+  font-size: 0.53rem;
+  line-height: 1.35;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-qr-card > small:last-child {
+  padding-bottom: 9px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-address-fields {
+  min-width: 0;
+
+  padding:
+    13px;
+
+  border:
+    1px solid
+    rgba(82, 229, 174, 0.16);
+
+  border-radius: 12px;
+
+  background:
+    rgba(3, 28, 21, 0.68);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-selected-summary {
+  align-items: baseline;
+
+  margin-bottom: 11px;
+
+  padding-bottom: 9px;
+
+  border-bottom:
+    1px solid
+    rgba(83, 225, 172, 0.11);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+#donateSelectedAsset {
+  color:
+    #63f2c2;
+
+  font-size: 1.02rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+#donateSelectedNetwork {
+  color:
+    rgba(177, 217, 201, 0.65);
+
+  font-size: 0.61rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-address-fields label {
+  color:
+    rgba(157, 198, 181, 0.56);
+
+  font-size: 0.56rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-copy-row {
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  gap: 6px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-copy-row code {
+  min-width: 0;
+
+  padding:
+    9px
+    10px;
+
+  border:
+    1px solid
+    rgba(82, 226, 172, 0.14);
+
+  border-radius: 8px;
+
+  background:
+    rgba(2, 21, 16, 0.84);
+
+  color:
+    rgba(218, 255, 240, 0.89);
+
+  font-size: 0.62rem;
+  line-height: 1.4;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-copy-row
+.button.secondary {
+  min-height: 35px;
+
+  border-color:
+    rgba(83, 229, 175, 0.20);
+
+  background:
+    rgba(6, 44, 33, 0.82);
+
+  color:
+    rgba(199, 239, 223, 0.79);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-definition-list {
+  grid-template-columns:
+    max-content
+    minmax(0, 1fr);
+
+  gap:
+    0
+    10px;
+
+  margin:
+    12px
+    0
+    0;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(81, 222, 169, 0.12);
+
+  border-radius: 9px;
+
+  background:
+    rgba(2, 22, 17, 0.54);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-definition-list dt,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-definition-list dd {
+  padding:
+    7px
+    8px;
+
+  border-bottom:
+    1px solid
+    rgba(80, 218, 166, 0.08);
+
+  font-size: 0.57rem;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-definition-list dt:last-of-type,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-definition-list dd:last-of-type {
+  border-bottom: 0;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-definition-list dt {
+  color:
+    rgba(151, 195, 177, 0.53);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-definition-list dd {
+  color:
+    rgba(210, 239, 227, 0.76);
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-warning,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.deposit-memo-warning {
+  margin-top: 9px;
+
+  padding:
+    8px
+    10px;
+
+  border:
+    1px solid
+    rgba(222, 188, 99, 0.18);
+
+  border-radius: 9px;
+
+  background:
+    rgba(83, 65, 19, 0.13);
+
+  color:
+    rgba(229, 210, 155, 0.74);
+
+  font-size: 0.57rem;
+  line-height: 1.4;
+}
+
+
+/* ------------------------------------------------------------
+   LOADING / ERRORS / FOOTNOTE
+   ------------------------------------------------------------ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+#donateLoading,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+#donateError {
+  margin:
+    0
+    0
+    12px;
+
+  border-radius: 9px;
+}
+
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-footnote {
+  padding:
+    10px
+    4px
+    0;
+
+  border-top:
+    1px solid
+    rgba(80, 217, 165, 0.10);
+
+  color:
+    rgba(148, 190, 173, 0.48);
+
+  font-size: 0.61rem;
+}
+
+
+/* ------------------------------------------------------------
+   RESPONSIVE — TWO SURFACES
+   ------------------------------------------------------------ */
+
+@media (max-width: 1100px) {
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-flow {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  #donateDetailsStep {
+    grid-column:
+      1 / -1;
+
+    min-height: 0;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  #donateDetails {
+    grid-template-columns:
+      minmax(170px, 0.48fr)
+      minmax(0, 1.52fr);
+  }
+}
+
+
+/* ------------------------------------------------------------
+   RESPONSIVE — TABLET
+   ------------------------------------------------------------ */
+
+@media (max-width: 900px) {
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-intro-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-hero,
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-destination-card {
+    min-height: 0;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-destination-card {
+    padding-top: 78px;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-wallet-warning {
+    grid-template-columns:
+      1fr;
+
+    padding-left: 48px;
+  }
+}
+
+
+/* ------------------------------------------------------------
+   RESPONSIVE — MOBILE
+   ------------------------------------------------------------ */
+
+@media (max-width: 700px) {
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-hero {
+    padding:
+      21px
+      18px;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-hero::after {
+    display: none;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-flow {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  #donateDetailsStep {
+    grid-column:
+      auto;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-workflow-panel {
+    padding:
+      0
+      12px
+      12px;
+
+    border-radius: 16px;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-workflow-header {
+    margin:
+      0
+      -12px
+      12px;
+
+    padding:
+      15px
+      14px
+      13px;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-workflow-panel
+  .deposit-step {
+    min-height: 0;
+
+    padding:
+      15px;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  #donateDetails {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .deposit-qr-card {
+    width: 100%;
+    max-width: 270px;
+
+    margin:
+      0
+      auto;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .deposit-qr-card img {
+    width: 180px;
+    height: 180px;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .deposit-copy-row {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .deposit-copy-row
+  .button.secondary {
+    width: 100%;
+  }
+}
