@@ -1,0 +1,494 @@
+/* ============================================================
+   M4.14C4B — CLASSIC MOBILE CONTROL SYSTEM
+
+   Presentation only.
+
+   This layer owns shared Classic control geometry at <=560px.
+   Desktop Classic and every Aurora presentation layer remain
+   outside this stylesheet.
+   ============================================================ */
+
+
+@media (max-width: 560px) {
+
+  /* ----------------------------------------------------------
+     GLOBAL PAGE HEADER CONTROL DECK
+     ------------------------------------------------------- */
+
+  html[data-dashboard-ui="classic"]
+  .topbar {
+    gap: 12px;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .top-actions {
+    display: grid;
+
+    grid-template-columns:
+      auto
+      minmax(0, 1fr)
+      minmax(0, 1fr);
+
+    gap: 8px;
+
+    width: 100%;
+
+    align-items: center;
+
+    padding: 10px;
+
+    border:
+      1px solid
+      var(--border-soft);
+
+    border-radius: 14px;
+
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, .016),
+        rgba(255, 255, 255, .006)
+      ),
+      rgba(10, 21, 18, .44);
+
+    box-shadow:
+      inset 0 1px 0
+      rgba(255, 255, 255, .018);
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .top-actions > * {
+    min-width: 0;
+  }
+
+
+  /* ----------------------------------------------------------
+     WALLET ACCOUNT SELECTOR
+
+     One full-width row above the action controls.
+     ------------------------------------------------------- */
+
+  html[data-dashboard-ui="classic"]
+  #globalAccountSelector {
+    grid-column:
+      1 / -1;
+
+    width: 100%;
+
+    display: grid;
+
+    grid-template-columns:
+      52px
+      minmax(0, 1fr);
+
+    align-items: center;
+
+    gap: 9px;
+
+    margin: 0;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #globalAccountSelector
+  .account-selector-label {
+    color: var(--muted);
+
+    font-size: .68rem;
+    font-weight: 650;
+
+    line-height: 1.1;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #globalAccountSelector
+  select {
+    width: 100%;
+    min-width: 0;
+
+    min-height: 44px;
+    height: 44px;
+
+    padding:
+      8px
+      34px
+      8px
+      12px;
+
+    border-radius: 11px;
+
+    font-size: .82rem;
+    font-weight: 650;
+  }
+
+
+  /* ----------------------------------------------------------
+     MODE BADGE + AUTH + SYNC
+
+     This three-cell row is identical on every public tab.
+     If the Wallet account selector is hidden (Donate), this
+     simply becomes the first row rather than leaving a hole.
+     ------------------------------------------------------- */
+
+  html[data-dashboard-ui="classic"]
+  #modeBadge {
+    grid-column: 1;
+
+    min-width: max-content;
+    min-height: 34px;
+
+    display: inline-flex;
+
+    align-items: center;
+    justify-content: center;
+
+    align-self: center;
+    justify-self: start;
+
+    margin: 0;
+
+    padding:
+      0
+      10px;
+
+    border-radius: 999px;
+
+    font-size: .68rem;
+    font-weight: 750;
+
+    line-height: 1;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #adminButton {
+    grid-column: 2;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #syncButton {
+    grid-column: 3;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #adminButton,
+  html[data-dashboard-ui="classic"]
+  #syncButton {
+    width: 100%;
+    min-width: 0;
+
+    min-height: 44px;
+    height: 44px;
+
+    padding:
+      0
+      10px;
+
+    border-radius: 11px;
+
+    font-size: .82rem;
+    font-weight: 700;
+
+    line-height: 1.08;
+
+    white-space: nowrap;
+
+    box-shadow: none;
+
+    transform: none;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #adminButton {
+    border-color:
+      rgba(143, 165, 157, .22);
+
+    background:
+      rgba(255, 255, 255, .024);
+
+    color:
+      rgba(237, 247, 243, .93);
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #syncButton {
+    border-color:
+      rgba(23, 211, 154, .72);
+
+    background:
+      linear-gradient(
+        180deg,
+        #1bd6a0,
+        #16c894
+      );
+
+    color:
+      #03110d;
+
+    box-shadow:
+      inset 0 1px 0
+      rgba(255, 255, 255, .16);
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #adminButton:hover:not(:disabled) {
+    border-color:
+      rgba(143, 165, 157, .38);
+
+    background:
+      rgba(255, 255, 255, .045);
+
+    transform: none;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #syncButton:hover:not(:disabled) {
+    border-color:
+      rgba(54, 226, 173, .88);
+
+    background:
+      linear-gradient(
+        180deg,
+        #28dda9,
+        #19cd99
+      );
+
+    transform: none;
+  }
+
+
+  /*
+   * Donate previously imposed a two-column top-actions grid.
+   * Override that accepted C2 rule only for Classic so Donate
+   * uses exactly the same three-cell action row as every other
+   * public Classic page.
+   */
+
+  html[data-dashboard-ui="classic"]
+  body:has(#tab-donate.active)
+  .top-actions {
+    grid-template-columns:
+      auto
+      minmax(0, 1fr)
+      minmax(0, 1fr);
+
+    gap: 8px;
+
+    margin-top: 0;
+  }
+
+
+  /* ----------------------------------------------------------
+     INTERFACE SWITCHER
+
+     Classic ui-mode.js appends this directly to .topbar.
+     Give it the same field geometry as Wallet account.
+     ------------------------------------------------------- */
+
+  html[data-dashboard-ui="classic"]
+  .topbar >
+  .dashboard-ui-switcher {
+    width: 100%;
+
+    display: grid;
+
+    grid-template-columns:
+      52px
+      minmax(0, 1fr);
+
+    align-items: center;
+
+    gap: 9px;
+
+    margin: 0;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .topbar >
+  .dashboard-ui-switcher
+  > span {
+    color: var(--muted);
+
+    font-size: .68rem;
+    font-weight: 650;
+
+    line-height: 1.1;
+
+    opacity: 1;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .dashboard-ui-select {
+    width: 100%;
+    min-width: 0;
+
+    min-height: 44px;
+    height: 44px;
+
+    padding:
+      8px
+      34px
+      8px
+      12px;
+
+    border:
+      1px solid
+      var(--border-soft);
+
+    border-radius: 11px;
+
+    background:
+      rgba(17, 30, 26, .90);
+
+    color: var(--text);
+
+    font-size: .82rem;
+    font-weight: 650;
+
+    box-shadow:
+      inset 0 1px 1px
+      rgba(0, 0, 0, .16);
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  .dashboard-ui-select:hover {
+    border-color:
+      var(--border-strong);
+  }
+
+
+  /* ----------------------------------------------------------
+     AUTHENTICATED-SESSION EXTRAS
+
+     Keep optional identity/permissions controls deliberate if
+     they become visible after login.
+     ------------------------------------------------------- */
+
+  html[data-dashboard-ui="classic"]
+  .top-actions
+  .admin-identity:not(.hidden) {
+    grid-column:
+      1 / -1;
+
+    width: 100%;
+  }
+
+
+  html[data-dashboard-ui="classic"]
+  #accountPermissionsButton:not(.hidden) {
+    grid-column:
+      1 / -1;
+
+    width: 100%;
+
+    min-height: 44px;
+
+    border-radius: 11px;
+  }
+
+
+  /* ----------------------------------------------------------
+     PAGE-LEVEL ACTION BUTTONS
+
+     Mobile page actions use one full-width secondary geometry.
+     This deliberately does not change text-link actions such
+     as Overview -> View all.
+     ------------------------------------------------------- */
+
+  html[data-dashboard-ui="classic"]
+  #tab-bots
+  #exportCsv,
+
+  html[data-dashboard-ui="classic"]
+  #tab-alerts
+  #addRuleButton,
+
+  html[data-dashboard-ui="classic"]
+  #tab-system
+  #testAccountButton,
+
+  html[data-dashboard-ui="classic"]
+  #tab-system
+  #loadRecommendations {
+    width: 100%;
+
+    min-height: 44px;
+
+    border-radius: 11px;
+
+    padding:
+      9px
+      12px;
+
+    font-size: .82rem;
+    font-weight: 680;
+
+    line-height: 1.2;
+
+    box-shadow: none;
+
+    transform: none;
+  }
+
+
+  /*
+   * Alerts: its one page action should read as a proper mobile
+   * action instead of a tiny desktop button beside the title.
+   */
+
+  html[data-dashboard-ui="classic"]
+  #tab-alerts
+  .alerts-rules-panel
+  .panel-header {
+    flex-direction: column;
+    align-items: stretch;
+
+    gap: 12px;
+  }
+
+
+  /*
+   * System: the two diagnostic reads become deliberate stacked
+   * actions instead of two small wrapping desktop buttons.
+   */
+
+  html[data-dashboard-ui="classic"]
+  #tab-system
+  .button-row {
+    display: grid;
+
+    grid-template-columns:
+      1fr;
+
+    gap: 8px;
+
+    width: 100%;
+
+    margin-top: 12px;
+  }
+
+
+  /*
+   * Bots: keep Export CSV as the single full-width action under
+   * the mobile filter stack, but normalize its control geometry.
+   */
+
+  html[data-dashboard-ui="classic"]
+  #tab-bots
+  .toolbar-panel >
+  #exportCsv {
+    align-self: stretch;
+  }
+}
