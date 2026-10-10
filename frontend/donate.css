@@ -296,3 +296,87 @@
   background: #dcfff1;
   border-color: rgba(7, 59, 43, .40);
 }
+
+
+/* ============================================================
+   M4.16B1 — OPTIONAL DONATION INTENT TRACKING
+   ============================================================ */
+
+.donate-intent-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--line, #d8dee8);
+  border-radius: 14px;
+  background: var(--panel-soft, rgba(127, 127, 127, 0.05));
+}
+
+.donate-intent-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.donate-intent-head strong {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.donate-intent-head p,
+.donate-intent-active small,
+.donate-intent-expiry {
+  margin: 0;
+  color: var(--muted, #657081);
+  line-height: 1.5;
+}
+
+.donate-intent-active {
+  display: grid;
+  gap: 12px;
+}
+
+.donate-intent-txid-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.donate-intent-txid-row label {
+  grid-column: 1 / -1;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.donate-intent-txid-row input {
+  min-width: 0;
+  min-height: 42px;
+}
+
+.donate-intent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .donate-intent-head {
+    display: grid;
+  }
+
+  .donate-intent-txid-row {
+    grid-template-columns: 1fr;
+  }
+
+  .donate-intent-txid-row label {
+    grid-column: auto;
+  }
+
+  .donate-intent-txid-row .button {
+    width: 100%;
+  }
+}

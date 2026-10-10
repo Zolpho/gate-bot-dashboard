@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./private-balance.css?v=20260823-wallet-card-depth-v1">
   <link rel="stylesheet" href="./deposit.css?v=20260830-wallet-ux-j21-v2">
   <link rel="stylesheet" href="./deposit-history.css?v=20260823-wallet-summary-v1">
-  <link rel="stylesheet" href="./donate.css?v=20261003-m414c2g-mobile-title-flex-v1">
+  <link rel="stylesheet" href="./donate.css?v=20261010-m416b1-intent-ui-v1">
   <link rel="stylesheet" href="./wallet-tab.css?v=20260830-wallet-ux-j19-v2">
   <link rel="stylesheet" href="./treasury.css?v=20260830-wallet-ux-j21-v2">
   <link rel="stylesheet" href="./bot-control.css?v=20260923-bot-control-market-m42-v2&amp;m46a=20261001-bot-control-ui-polish-v1">
@@ -122,7 +122,7 @@
   >
   <link
     rel="stylesheet"
-    href="./aurora-donate.css?v=20261004-m414c3a-aurora-donate-v1"
+    href="./aurora-donate.css?v=20261010-m416b1-intent-ui-v1"
     data-dashboard-ui-stylesheet="aurora"
     disabled
   >
@@ -1219,6 +1219,102 @@
                       id="donateWarning"
                       class="deposit-warning"
                     ></p>
+
+                    <section
+                      class="donate-intent-panel"
+                      aria-labelledby="donateIntentTitle"
+                    >
+                      <div class="donate-intent-head">
+                        <div>
+                          <strong id="donateIntentTitle">
+                            Track this donation
+                          </strong>
+
+                          <p id="donateIntentStatus">
+                            Tracking is optional. Start a tracked
+                            donation only if you want the TXID
+                            correlated with the public Donation Ledger.
+                          </p>
+                        </div>
+
+                        <span class="mode-badge">
+                          OPTIONAL
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="button secondary"
+                        id="donateIntentStart"
+                      >
+                        Start tracked donation
+                      </button>
+
+                      <div
+                        id="donateIntentActive"
+                        class="donate-intent-active hidden"
+                      >
+                        <p
+                          id="donateIntentExpiry"
+                          class="donate-intent-expiry"
+                        ></p>
+
+                        <div class="donate-intent-txid-row">
+                          <label for="donateTxidInput">
+                            Transaction ID
+                          </label>
+
+                          <input
+                            id="donateTxidInput"
+                            type="text"
+                            autocomplete="off"
+                            spellcheck="false"
+                            maxlength="512"
+                            placeholder="Paste the on-chain TXID"
+                          >
+
+                          <button
+                            type="button"
+                            class="button primary"
+                            id="donateTxidSubmit"
+                            disabled
+                          >
+                            Submit TXID
+                          </button>
+                        </div>
+
+                        <div class="donate-intent-actions">
+                          <button
+                            type="button"
+                            class="button secondary hidden"
+                            id="donateIntentReconcile"
+                          >
+                            Check again
+                          </button>
+
+                          <button
+                            type="button"
+                            class="button ghost"
+                            id="donateIntentReset"
+                          >
+                            Reset tracking
+                          </button>
+                        </div>
+
+                        <small>
+                          The one-time tracking claim exists only in
+                          this browser page until the TXID is accepted.
+                          Do not refresh before submitting the TXID.
+                        </small>
+                      </div>
+
+                      <p
+                        id="donateIntentError"
+                        class="form-error hidden"
+                        role="alert"
+                        aria-live="assertive"
+                      ></p>
+                    </section>
                   </div>
                 </div>
 
@@ -1235,9 +1331,9 @@
         </article>
 
         <p class="donate-footnote">
-          Donation attribution and the public Donation Ledger
-          will be added in a later milestone. This step only
-          publishes the verified destination needed to donate.
+          Donation tracking is optional. A submitted TXID is
+          correlated only with locally stored, confirmed EQTYDAO
+          deposits; checking status never triggers a Gate sync.
         </p>
       </section>
 
@@ -4709,7 +4805,7 @@
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260923-bot-control-market-m42-v2&amp;m414c2a=20261003-donate-v1"></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1&amp;m411d4=20261002-cumulative-return-only-v1&amp;m412a=20261002-overview-series-contrast-v1&amp;m412g=20261002-premium-overview-chart-v1&amp;m414c2a=20261003-donate-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1&amp;m411d4=20261002-cumulative-return-only-v1&amp;m412a=20261002-overview-series-contrast-v1&amp;m412g=20261002-premium-overview-chart-v1&amp;m414c2a=20261003-donate-v1&amp;m416b1=20261010-donation-intent-ui-v1"
     defer
   ></script>
   <script

@@ -1706,3 +1706,59 @@ html[data-dashboard-ui="aurora"]
     width: 100%;
   }
 }
+
+
+/* ============================================================
+   M4.16B1 — OPTIONAL DONATION INTENT TRACKING
+   ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-intent-panel {
+  border-color:
+    rgba(84, 235, 178, 0.24);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(6, 38, 29, 0.74),
+      rgba(3, 25, 19, 0.62)
+    );
+
+  box-shadow:
+    inset 0 1px 0
+      rgba(120, 255, 208, 0.035);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-intent-head strong {
+  color:
+    rgba(230, 255, 246, 0.96);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-intent-head p,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-intent-active small,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-intent-expiry {
+  color:
+    rgba(170, 211, 194, 0.68);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+#donateTxidInput {
+  border-color:
+    rgba(84, 225, 173, 0.22);
+
+  background:
+    rgba(1, 18, 13, 0.74);
+
+  color:
+    rgba(231, 255, 247, 0.96);
+}

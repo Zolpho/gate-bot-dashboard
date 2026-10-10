@@ -170,13 +170,13 @@ def test_donate_explains_fixed_destination_and_wallet_boundary():
     )
 
 
-def test_donate_does_not_add_attribution_yet():
+def test_donate_has_no_donor_attribution_controls():
     page = donate_html().lower()
+    normalized_page = " ".join(page.split())
 
-    # Descriptive copy may mention that attribution or the
-    # Donation Ledger is planned for a later milestone.
-    # What must not exist in C2A is an attribution control,
-    # donor identity field, or donor-attribution data hook.
+    # M4.16 adds explicit TXID correlation and Donation Ledger
+    # matching. It still does not collect donor identity or
+    # expose donor-attribution controls.
     for token in (
         "telegram handle",
         "x handle",
@@ -195,8 +195,152 @@ def test_donate_does_not_add_attribution_yet():
     )
 
     assert (
-        "will be added in a later milestone"
+        "donation tracking is optional"
         in page
+    )
+
+    assert (
+        "locally stored, confirmed eqtydao deposits"
+        in normalized_page
+    )
+
+    assert (
+        "will be added in a later milestone"
+        not in page
+    )
+
+
+def test_donation_intent_tracking_is_explicit_and_memory_only():
+    page = donate_html()
+
+    for identifier in (
+        "donateIntentStart",
+        "donateIntentActive",
+        "donateIntentStatus",
+        "donateIntentExpiry",
+        "donateTxidInput",
+        "donateTxidSubmit",
+        "donateIntentReconcile",
+        "donateIntentReset",
+        "donateIntentError",
+    ):
+        assert (
+            f'id="{identifier}"'
+            in page
+        )
+
+    start = function(
+        "startDonateIntent"
+    )
+
+    select_network = function(
+        "selectDonateNetwork"
+    )
+
+    submit = function(
+        "submitDonateTxid"
+    )
+
+    reconcile = function(
+        "reconcileDonateIntent"
+    )
+
+    intent_logic = (
+        start
+        + submit
+        + reconcile
+    )
+
+    assert (
+        "'/api/donate/intents'"
+        in start
+    )
+
+    assert (
+        "'/api/donate/intents'"
+        not in select_network
+    )
+
+    assert (
+        "claim_token:"
+        in submit
+    )
+
+    assert (
+        "/txid`"
+        in submit
+    )
+
+    assert (
+        "/reconcile`"
+        in reconcile
+    )
+
+    assert (
+        "state.donateClaimToken"
+        in intent_logic
+    )
+
+    assert (
+        "localStorage"
+        not in intent_logic
+    )
+
+    assert (
+        "sessionStorage"
+        not in intent_logic
+    )
+
+
+def test_donation_intent_uncertain_submission_has_recovery():
+    submit = function(
+        "submitDonateTxid"
+    )
+
+    reconcile = function(
+        "reconcileDonateIntent"
+    )
+
+    render = function(
+        "renderDonateIntentState"
+    )
+
+    status_copy = function(
+        "donateIntentStatusCopy"
+    )
+
+    for token in (
+        "status === 403",
+        "status === 409",
+        "status >= 500",
+        "status === 0",
+        "state.donateIntentSubmissionUncertain = true;",
+    ):
+        assert token in submit
+
+    assert (
+        "|| state.donateIntentSubmissionUncertain"
+        in render
+    )
+
+    assert (
+        "The TXID request did not return a definitive result."
+        in status_copy
+    )
+
+    assert (
+        "state.donateIntentSubmissionUncertain = false;"
+        in reconcile
+    )
+
+    assert (
+        "result.intent.txid_submitted === true"
+        in reconcile
+    )
+
+    assert (
+        "state.donateClaimToken = '';"
+        in reconcile
     )
 
 
@@ -461,12 +605,17 @@ def test_aurora_symbols_cover_donate_assets_and_networks():
 def test_donate_assets_are_cache_busted():
     assert (
         './donate.css?'
-        'v=20261003-m414c2g-mobile-title-flex-v1'
+        'v=20261010-m416b1-intent-ui-v1'
         in HTML
     )
 
     assert (
         "m414c2a=20261003-donate-v1"
+        in HTML
+    )
+
+    assert (
+        "m416b1=20261010-donation-intent-ui-v1"
         in HTML
     )
 

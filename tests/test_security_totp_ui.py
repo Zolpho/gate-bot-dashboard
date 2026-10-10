@@ -1046,6 +1046,7 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "&m412a=20261002-overview-series-contrast-v1"
             "&m412g=20261002-premium-overview-chart-v1"
             "&m414c2a=20261003-donate-v1"
+            "&m416b1=20261010-donation-intent-ui-v1"
         )
     ]
 

@@ -648,6 +648,7 @@ def test_app_script_cache_bust_is_additive() -> None:
             "&m412a=20261002-overview-series-contrast-v1"
             "&m412g=20261002-premium-overview-chart-v1"
             "&m414c2a=20261003-donate-v1"
+            "&m416b1=20261010-donation-intent-ui-v1"
         )
     ]
 

@@ -75,6 +75,10 @@ const state = {
   donateNetworks: [],
   donateChain: '',
   donateDetails: null,
+  donateIntent: null,
+  donateClaimToken: '',
+  donateIntentBusy: false,
+  donateIntentSubmissionUncertain: false,
   botControlCapabilities: null,
   botControlPrepared: null,
   botControlDraft: null,
@@ -6340,9 +6344,615 @@ function setDonateError(message) {
 }
 
 
+function setDonateIntentError(message = '') {
+  const element = $('#donateIntentError');
+
+  if (!element) return;
+
+  const text = String(
+    message || ''
+  ).trim();
+
+  element.textContent = text;
+
+  element.classList.toggle(
+    'hidden',
+    !text,
+  );
+}
+
+
+function donateIntentMatchesSelection() {
+  const intent = state.donateIntent;
+
+  if (!intent) return false;
+
+  return (
+    String(
+      intent.currency || ''
+    ).toUpperCase()
+      === String(
+        state.donateCurrency || ''
+      ).toUpperCase()
+    && String(
+      intent.chain || ''
+    ) === String(
+      state.donateChain || ''
+    )
+  );
+}
+
+
+function clearDonateIntentState() {
+  state.donateIntent = null;
+  state.donateClaimToken = '';
+  state.donateIntentBusy = false;
+  state.donateIntentSubmissionUncertain = false;
+
+  const input = $('#donateTxidInput');
+
+  if (input) {
+    input.value = '';
+  }
+
+  setDonateIntentError('');
+
+  renderDonateIntentState();
+}
+
+
+function donateIntentStatusCopy(intent) {
+  if (!intent) {
+    return (
+      'Tracking is optional. Start a tracked donation '
+      + 'only if you want the TXID correlated with the '
+      + 'public Donation Ledger.'
+    );
+  }
+
+  if (
+    state.donateIntentSubmissionUncertain
+  ) {
+    return (
+      'The TXID request did not return a definitive result. '
+      + 'Do not send another transaction. Use Check again '
+      + 'to determine whether the server already accepted '
+      + 'this TXID.'
+    );
+  }
+
+  const status = String(
+    intent.status || ''
+  );
+
+  const matchStatus = String(
+    intent.match_status || ''
+  );
+
+  if (
+    status === 'matched'
+    || matchStatus === 'matched'
+  ) {
+    return (
+      'Matched. The confirmed donation is now available '
+      + 'to the public Donation Ledger.'
+    );
+  }
+
+  if (
+    status === 'expired'
+    || matchStatus === 'expired'
+  ) {
+    return (
+      'This tracking window expired. Start a new tracked '
+      + 'donation if you still need correlation.'
+    );
+  }
+
+  if (
+    intent.txid_submitted === true
+    || status === 'submitted'
+  ) {
+    if (matchStatus === 'not_found') {
+      return (
+        'TXID accepted, but the confirmed EQTYDAO deposit '
+        + 'is not in local history yet. Check again after '
+        + 'the normal collector has refreshed.'
+      );
+    }
+
+    return (
+      'TXID accepted. Waiting for a confirmed local '
+      + 'EQTYDAO deposit match.'
+    );
+  }
+
+  return (
+    'Tracking ready. Send the donation, then paste its '
+    + 'transaction ID before the claim window expires.'
+  );
+}
+
+
+function renderDonateIntentState() {
+  const start = $('#donateIntentStart');
+  const active = $('#donateIntentActive');
+  const status = $('#donateIntentStatus');
+  const expiry = $('#donateIntentExpiry');
+  const input = $('#donateTxidInput');
+  const submit = $('#donateTxidSubmit');
+  const reconcile = $('#donateIntentReconcile');
+  const reset = $('#donateIntentReset');
+
+  const intent = state.donateIntent;
+
+  if (status) {
+    status.textContent =
+      donateIntentStatusCopy(
+        intent
+      );
+  }
+
+  if (start) {
+    start.classList.toggle(
+      'hidden',
+      Boolean(intent)
+    );
+
+    start.disabled = Boolean(
+      state.donateIntentBusy
+      || !state.donateDetails
+      || !state.donateCurrency
+      || !state.donateChain
+    );
+
+    start.textContent =
+      state.donateIntentBusy
+        && !intent
+        ? 'Starting…'
+        : 'Start tracked donation';
+  }
+
+  if (active) {
+    active.classList.toggle(
+      'hidden',
+      !intent
+    );
+  }
+
+  if (!intent) {
+    if (expiry) {
+      expiry.textContent = '';
+    }
+
+    if (input) {
+      input.disabled = true;
+      input.value = '';
+    }
+
+    if (submit) {
+      submit.disabled = true;
+    }
+
+    if (reconcile) {
+      reconcile.classList.add(
+        'hidden'
+      );
+    }
+
+    if (reset) {
+      reset.disabled = false;
+    }
+
+    return;
+  }
+
+  const expiresAt = String(
+    intent.expires_at || ''
+  );
+
+  if (expiry) {
+    expiry.textContent = expiresAt
+      ? `Tracking window: ${fmtDate(expiresAt)}`
+      : '';
+  }
+
+  const canSubmit = Boolean(
+    state.donateClaimToken
+    && intent.status === 'pending'
+    && intent.txid_submitted !== true
+  );
+
+  if (input) {
+    input.disabled = Boolean(
+      state.donateIntentBusy
+      || !canSubmit
+    );
+  }
+
+  if (submit) {
+    submit.disabled = Boolean(
+      state.donateIntentBusy
+      || !canSubmit
+      || !String(
+        input?.value || ''
+      ).trim()
+    );
+
+    submit.textContent =
+      state.donateIntentBusy
+        && canSubmit
+        ? 'Submitting…'
+        : 'Submit TXID';
+  }
+
+  const canReconcile = Boolean(
+    (
+      intent.txid_submitted === true
+      || state.donateIntentSubmissionUncertain
+    )
+    && intent.status !== 'matched'
+    && intent.status !== 'expired'
+  );
+
+  if (reconcile) {
+    reconcile.classList.toggle(
+      'hidden',
+      !canReconcile
+    );
+
+    reconcile.disabled =
+      state.donateIntentBusy;
+
+    reconcile.textContent =
+      state.donateIntentBusy
+        && canReconcile
+        ? 'Checking…'
+        : 'Check again';
+  }
+
+  if (reset) {
+    reset.disabled =
+      state.donateIntentBusy;
+  }
+}
+
+
+async function startDonateIntent() {
+  if (
+    state.donateIntentBusy
+    || !state.donateDetails
+    || !state.donateCurrency
+    || !state.donateChain
+  ) {
+    return;
+  }
+
+  const currency =
+    state.donateCurrency;
+
+  const chain =
+    state.donateChain;
+
+  state.donateIntentBusy = true;
+
+  setDonateIntentError('');
+  renderDonateIntentState();
+
+  try {
+    const result = await api(
+      '/api/donate/intents',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          currency,
+          chain,
+        }),
+      },
+    );
+
+    const intent =
+      result?.intent;
+
+    const claimToken = String(
+      result?.claim_token || ''
+    ).trim();
+
+    if (
+      !intent?.intent_id
+      || !claimToken
+    ) {
+      throw new Error(
+        'Donation tracking returned an invalid intent.'
+      );
+    }
+
+    if (
+      state.donateCurrency !== currency
+      || state.donateChain !== chain
+    ) {
+      return;
+    }
+
+    state.donateIntent = intent;
+    state.donateIntentSubmissionUncertain = false;
+
+    // Memory only. Never render or persist the raw claim token.
+    state.donateClaimToken =
+      claimToken;
+
+    showToast(
+      'Donation tracking started. Submit the TXID before the claim window expires.'
+    );
+
+  } catch (error) {
+    setDonateIntentError(
+      error.message
+      || 'Unable to start donation tracking.'
+    );
+
+  } finally {
+    state.donateIntentBusy = false;
+    renderDonateIntentState();
+  }
+}
+
+
+async function submitDonateTxid() {
+  if (
+    state.donateIntentBusy
+    || !donateIntentMatchesSelection()
+  ) {
+    return;
+  }
+
+  const intentId = String(
+    state.donateIntent?.intent_id || ''
+  ).trim();
+
+  const claimToken = String(
+    state.donateClaimToken || ''
+  ).trim();
+
+  const txid = String(
+    $('#donateTxidInput')?.value || ''
+  ).trim();
+
+  if (
+    !intentId
+    || !claimToken
+  ) {
+    setDonateIntentError(
+      'Start a new tracked donation before submitting a TXID.'
+    );
+
+    return;
+  }
+
+  if (!txid) {
+    setDonateIntentError(
+      'Paste the transaction ID first.'
+    );
+
+    return;
+  }
+
+  state.donateIntentBusy = true;
+
+  setDonateIntentError('');
+  renderDonateIntentState();
+
+  try {
+    const result = await api(
+      `/api/donate/intents/${
+        encodeURIComponent(intentId)
+      }/txid`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          claim_token:
+            claimToken,
+          txid,
+        }),
+      },
+    );
+
+    if (!result?.intent?.intent_id) {
+      throw new Error(
+        'Donation tracking returned an invalid status.'
+      );
+    }
+
+    state.donateIntent =
+      result.intent;
+
+    state.donateIntentSubmissionUncertain = false;
+
+    // The claim is one-time authority and is consumed
+    // after a successful TXID submission.
+    state.donateClaimToken = '';
+
+    showToast(
+      (
+        result.intent.match_status
+          === 'matched'
+      )
+        ? 'Donation matched.'
+        : 'TXID accepted. You can check again after the collector refreshes.'
+    );
+
+  } catch (error) {
+    const status = (
+      error instanceof ApiError
+        ? Number(error.status || 0)
+        : 0
+    );
+
+    const submissionUncertain = Boolean(
+      status === 403
+      || status === 409
+      || status >= 500
+      || status === 0
+    );
+
+    if (submissionUncertain) {
+      state.donateIntentSubmissionUncertain = true;
+    }
+
+    // A 403 proves this local claim can no longer authorize
+    // a submission. The request may refer to a claim already
+    // consumed by an earlier/lost successful response.
+    if (status === 403) {
+      state.donateClaimToken = '';
+    }
+
+    if (status === 404) {
+      state.donateClaimToken = '';
+      state.donateIntentSubmissionUncertain = false;
+    }
+
+    if (submissionUncertain) {
+      setDonateIntentError(
+        (
+          error.message
+          || 'TXID submission status is uncertain.'
+        )
+        + ' Use Check again before resetting tracking.'
+      );
+
+    } else {
+      setDonateIntentError(
+        error.message
+        || 'Unable to submit the donation TXID.'
+      );
+    }
+
+  } finally {
+    state.donateIntentBusy = false;
+    renderDonateIntentState();
+  }
+}
+
+
+async function reconcileDonateIntent() {
+  if (
+    state.donateIntentBusy
+    || !donateIntentMatchesSelection()
+  ) {
+    return;
+  }
+
+  const intentId = String(
+    state.donateIntent?.intent_id || ''
+  ).trim();
+
+  if (!intentId) return;
+
+  state.donateIntentBusy = true;
+
+  setDonateIntentError('');
+  renderDonateIntentState();
+
+  try {
+    const result = await api(
+      `/api/donate/intents/${
+        encodeURIComponent(intentId)
+      }/reconcile`,
+      {
+        method: 'POST',
+      },
+    );
+
+    if (!result?.intent?.intent_id) {
+      throw new Error(
+        'Donation tracking returned an invalid status.'
+      );
+    }
+
+    state.donateIntent =
+      result.intent;
+
+    state.donateIntentSubmissionUncertain = false;
+
+    if (
+      result.intent.txid_submitted === true
+      || result.intent.status === 'matched'
+      || result.intent.status === 'expired'
+    ) {
+      state.donateClaimToken = '';
+    }
+
+    if (
+      result.intent.match_status
+      === 'matched'
+    ) {
+      showToast(
+        'Donation matched and published to the ledger.'
+      );
+    }
+
+  } catch (error) {
+    const unresolvedSubmission = Boolean(
+      state.donateIntentSubmissionUncertain
+      && error instanceof ApiError
+      && error.status === 409
+    );
+
+    if (
+      error instanceof ApiError
+      && error.status === 404
+    ) {
+      state.donateClaimToken = '';
+      state.donateIntentSubmissionUncertain = false;
+    }
+
+    if (unresolvedSubmission) {
+      setDonateIntentError(
+        state.donateClaimToken
+          ? (
+              'The server still cannot confirm whether this '
+              + 'TXID was accepted. You may retry Submit TXID '
+              + 'for this same tracking intent, or reset tracking.'
+            )
+          : (
+              'The server still cannot confirm this TXID '
+              + 'binding and the one-time claim is no longer '
+              + 'available. Reset tracking to start again.'
+            )
+      );
+
+    } else {
+      setDonateIntentError(
+        error.message
+        || 'Unable to check donation status.'
+      );
+    }
+
+  } finally {
+    state.donateIntentBusy = false;
+    renderDonateIntentState();
+  }
+}
+
+
+function resetDonateIntentTracking() {
+  if (state.donateIntentBusy) {
+    return;
+  }
+
+  clearDonateIntentState();
+
+  showToast(
+    'Donation tracking reset. The donation destination is unchanged.'
+  );
+}
+
+
 function clearDonateDetails() {
   state.donateChain = '';
   state.donateDetails = null;
+
+  clearDonateIntentState();
 
   $('#donateDetails')?.classList.add(
     'hidden'
@@ -7004,6 +7614,7 @@ async function selectDonateNetwork(chain) {
     state.donateDetails = result;
 
     renderDonateDetails();
+    renderDonateIntentState();
 
   } catch (error) {
     if (
@@ -25577,6 +26188,31 @@ function bindEvents() {
   $('#donateCurrencySearch')?.addEventListener(
     'input',
     renderDonateCurrencies,
+  );
+
+  $('#donateIntentStart')?.addEventListener(
+    'click',
+    startDonateIntent,
+  );
+
+  $('#donateTxidInput')?.addEventListener(
+    'input',
+    renderDonateIntentState,
+  );
+
+  $('#donateTxidSubmit')?.addEventListener(
+    'click',
+    submitDonateTxid,
+  );
+
+  $('#donateIntentReconcile')?.addEventListener(
+    'click',
+    reconcileDonateIntent,
+  );
+
+  $('#donateIntentReset')?.addEventListener(
+    'click',
+    resetDonateIntentTracking,
   );
   $('#accountSelector').addEventListener(
     'change',
