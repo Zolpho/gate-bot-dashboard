@@ -23,7 +23,7 @@ CSS = (
 def test_aurora_donate_stylesheet_is_mode_scoped():
     marker = (
         'href="./aurora-donate.css?'
-        'v=20261010-m416b1-intent-ui-v1"'
+        'v=20261010-m416g1-aurora-donate-layout-v1"'
     )
 
     assert marker in HTML
@@ -96,8 +96,9 @@ def test_aurora_donate_has_distinct_mission_identity():
 def test_aurora_donate_uses_three_surface_desktop_workflow():
     for token in (
         ".donate-flow",
-        "minmax(250px, 0.88fr)",
-        "minmax(350px, 1.24fr)",
+        "minmax(220px, 0.72fr)",
+        "minmax(520px, 1.56fr)",
+        "align-items: start;",
         ".deposit-step:not(.deposit-step-disabled)",
         "#donateDetailsStep",
     ):
@@ -118,13 +119,37 @@ def test_aurora_donate_has_dedicated_destination_console():
 
 def test_aurora_donate_responsive_layout_collapses_cleanly():
     for token in (
-        "@media (max-width: 1100px)",
+        "@media (max-width: 1320px)",
         "repeat(2, minmax(0, 1fr))",
+        "minmax(320px, 1.56fr)",
         "@media (max-width: 900px)",
         "@media (max-width: 700px)",
         "grid-template-columns:\n      1fr;",
     ):
         assert token in CSS
+
+
+def test_aurora_donate_ipad_band_promotes_send_surface_full_width():
+    media_start = CSS.index(
+        "@media (max-width: 1320px)"
+    )
+
+    media_end = CSS.index(
+        "/* ------------------------------------------------------------\n"
+        "   RESPONSIVE — TABLET",
+        media_start,
+    )
+
+    tablet_band = CSS[
+        media_start:
+        media_end
+    ]
+
+    assert "#donateDetailsStep" in tablet_band
+    assert "grid-column:\n      1 / -1;" in tablet_band
+    assert "min-height: 0;" in tablet_band
+    assert "minmax(180px, 0.44fr)" in tablet_band
+    assert "minmax(320px, 1.56fr)" in tablet_band
 
 
 def test_aurora_donate_does_not_define_classic_mode():
