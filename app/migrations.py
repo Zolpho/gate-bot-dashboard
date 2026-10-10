@@ -727,6 +727,9 @@ def migrate_database(engine: Engine) -> None:
         BotControlAttentionReview,
         DashboardAuthIpAllowlistEntry,
         DashboardAuthIpPolicy,
+        DonationAttribution,
+        DonationEvent,
+        DonationIntent,
         GateAccount,
         SyncRun,
         TreasuryOwnershipLedgerEntry,
@@ -778,6 +781,41 @@ def migrate_database(engine: Engine) -> None:
                 raw,
                 engine,
                 DashboardAuthIpAllowlistEntry.__table__,
+            )
+
+        # M4.15C: persistence-only Donation Ledger foundation.
+        #
+        # Rollout is deliberately empty. Existing EQTYDAO deposits
+        # and historical Treasury transfers are NOT inferred or
+        # backfilled as donations.
+        if not _table_exists(
+            raw,
+            "donation_events",
+        ):
+            _create_table(
+                raw,
+                engine,
+                DonationEvent.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "donation_attributions",
+        ):
+            _create_table(
+                raw,
+                engine,
+                DonationAttribution.__table__,
+            )
+
+        if not _table_exists(
+            raw,
+            "donation_intents",
+        ):
+            _create_table(
+                raw,
+                engine,
+                DonationIntent.__table__,
             )
 
         if not _table_exists(raw, "gate_accounts"):

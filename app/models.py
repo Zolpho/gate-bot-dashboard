@@ -1040,6 +1040,290 @@ class SyncRun(Base):
     account: Mapped[Optional[GateAccount]] = relationship(back_populates="sync_runs")
 
 
+DONATION_AMOUNT = ExactDecimal(48, 24)
+
+
+class DonationEvent(Base):
+    """
+    Immutable confirmed donation fact.
+
+    Financial/source fields are never attribution state.
+    Public projection is implemented separately in a later
+    milestone and must not expose source_key.
+    """
+
+    __tablename__ = "donation_events"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "event_id",
+            name="uq_donation_event_id",
+        ),
+        UniqueConstraint(
+            "source_type",
+            "source_key",
+            name="uq_donation_event_source",
+        ),
+        Index(
+            "ix_donation_events_occurred",
+            "occurred_at",
+        ),
+        Index(
+            "ix_donation_events_source_occurred",
+            "source_type",
+            "occurred_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    event_id: Mapped[str] = mapped_column(
+        String(96),
+        nullable=False,
+    )
+
+    source_type: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    # Private server-side immutable source identity.
+    # Never expose this field from the public ledger API.
+    source_key: Mapped[str] = mapped_column(
+        String(320),
+        nullable=False,
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    chain_key: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    chain: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    amount: Mapped[Decimal] = mapped_column(
+        DONATION_AMOUNT,
+        nullable=False,
+    )
+
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    demo: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+
+class DonationAttribution(Base):
+    """
+    Mutable display attribution for one DonationEvent.
+
+    Telegram/X values are display metadata only. This schema
+    deliberately contains no verified/authenticated flags.
+    """
+
+    __tablename__ = "donation_attributions"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "event_id",
+            name="uq_donation_attribution_event",
+        ),
+        Index(
+            "ix_donation_attributions_updated",
+            "updated_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    event_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "donation_events.event_id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    display_mode: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="anonymous",
+    )
+
+    nickname: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    telegram_handle: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    x_handle: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    # Private audit label only. It is not part of the future
+    # public ledger projection.
+    updated_by: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default="",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
+class DonationIntent(Base):
+    """
+    External-donation correlation state.
+
+    Only claim_token_hash is durable. The raw claim token must
+    be returned once to the caller and never persisted.
+    """
+
+    __tablename__ = "donation_intents"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "intent_id",
+            name="uq_donation_intent_id",
+        ),
+        UniqueConstraint(
+            "claim_token_hash",
+            name="uq_donation_intent_claim_hash",
+        ),
+        UniqueConstraint(
+            "matched_event_id",
+            name="uq_donation_intent_matched_event",
+        ),
+        Index(
+            "ix_donation_intents_status_expires",
+            "status",
+            "expires_at",
+        ),
+        Index(
+            "ix_donation_intents_submitted_txid",
+            "submitted_txid",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    intent_id: Mapped[str] = mapped_column(
+        String(96),
+        nullable=False,
+    )
+
+    claim_token_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    chain_key: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    chain: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    submitted_txid: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="pending",
+    )
+
+    matched_event_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey(
+            "donation_events.event_id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    matched_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
 class PublicDonationDestination(Base):
     """
     Durable public donation destination trust anchor.
