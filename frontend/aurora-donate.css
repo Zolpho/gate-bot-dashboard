@@ -1710,6 +1710,114 @@ html[data-dashboard-ui="aurora"]
   .button.secondary {
     width: 100%;
   }
+
+
+  /*
+   * M4.16G3 — MOBILE OVERFLOW POLISH
+   *
+   * The mobile Donate layout starts at 700px. Keep long network
+   * contracts inside their row so the independent availability
+   * status never gets pushed outside the viewport.
+   */
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  #donateNetworkList {
+    overflow-x: hidden;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  #donateNetworkList
+  .deposit-option {
+    max-width: 100%;
+
+    box-sizing: border-box;
+
+    gap: 8px;
+
+    overflow: hidden;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  #donateNetworkList
+  .deposit-option-main {
+    flex:
+      1
+      1
+      auto;
+
+    min-width: 0;
+
+    overflow: hidden;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  #donateNetworkList
+  .deposit-option-main > span {
+    flex:
+      1
+      1
+      auto;
+
+    min-width: 0;
+    max-width: 100%;
+
+    overflow: hidden;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  #donateNetworkList
+  .deposit-option-main small {
+    display: block;
+
+    min-width: 0;
+    max-width: 100%;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+  }
+
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  #donateNetworkList
+  .deposit-option-status {
+    flex:
+      0
+      0
+      auto;
+
+    margin-left: auto;
+
+    white-space: nowrap;
+  }
+
+
+  /*
+   * Shared Donate intentionally turns the tracking header into a
+   * grid on narrow screens. Prevent the OPTIONAL badge from
+   * stretching to the full grid width.
+   */
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-intent-head
+  .mode-badge {
+    width: max-content;
+    max-width: 100%;
+
+    justify-self: start;
+    align-self: start;
+  }
 }
 
 

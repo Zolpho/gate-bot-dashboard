@@ -23,7 +23,7 @@ CSS = (
 def test_aurora_donate_stylesheet_is_mode_scoped():
     marker = (
         'href="./aurora-donate.css?'
-        'v=20261010-m416g1-aurora-donate-layout-v1"'
+        'v=20261010-m416g3-mobile-donate-polish-v1"'
     )
 
     assert marker in HTML
@@ -150,6 +150,24 @@ def test_aurora_donate_ipad_band_promotes_send_surface_full_width():
     assert "min-height: 0;" in tablet_band
     assert "minmax(180px, 0.44fr)" in tablet_band
     assert "minmax(320px, 1.56fr)" in tablet_band
+
+
+def test_aurora_donate_mobile_network_and_tracking_fit_viewport():
+    for token in (
+        "M4.16G3 — MOBILE OVERFLOW POLISH",
+        "#donateNetworkList",
+        "overflow-x: hidden;",
+        ".deposit-option-main > span",
+        "text-overflow: ellipsis;",
+        "white-space: nowrap;",
+        ".deposit-option-status",
+        "margin-left: auto;",
+        ".donate-intent-head",
+        ".mode-badge",
+        "width: max-content;",
+        "justify-self: start;",
+    ):
+        assert token in CSS
 
 
 def test_aurora_donate_does_not_define_classic_mode():
