@@ -24,6 +24,12 @@ from ..config import (
     get_settings,
 )
 from ..db import get_db
+from ..donation_ledger import (
+    PUBLIC_LEDGER_DEFAULT_LIMIT,
+    PUBLIC_LEDGER_MAX_LIMIT,
+    PUBLIC_LEDGER_MAX_OFFSET,
+    read_public_donation_ledger,
+)
 from ..donation_destinations import (
     has_trusted_public_destination,
     verify_public_destination,
@@ -475,6 +481,47 @@ async def public_donation_currencies(
 
     return project_public_donation_catalog(
         normalized
+    )
+
+
+@router.get("/ledger")
+def public_donation_ledger_view(
+    response: Response,
+    include_demo: bool = Query(
+        default=False,
+    ),
+    limit: int = Query(
+        default=PUBLIC_LEDGER_DEFAULT_LIMIT,
+        ge=1,
+        le=PUBLIC_LEDGER_MAX_LIMIT,
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+        le=PUBLIC_LEDGER_MAX_OFFSET,
+    ),
+    db: Session = Depends(
+        get_db
+    ),
+) -> dict[str, Any]:
+    """
+    Public read-only Donation Ledger.
+
+    This endpoint reads only locally confirmed DonationEvent
+    rows and their optional display attribution.
+
+    It performs no Gate request and contains no write path.
+    """
+
+    _no_store(
+        response
+    )
+
+    return read_public_donation_ledger(
+        db,
+        include_demo=include_demo,
+        limit=limit,
+        offset=offset,
     )
 
 

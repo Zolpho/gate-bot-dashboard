@@ -8,12 +8,13 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from .db import utcnow
 from .exact_decimal import exact_decimal_text
 from .models import (
+    DonationAttribution,
     DonationEvent,
     DonationIntent,
 )
@@ -613,3 +614,420 @@ def donation_intent_claim_matches(
         stored,
         candidate,
     )
+
+
+
+PUBLIC_ATTRIBUTION_MODES = frozenset(
+    {
+        "anonymous",
+        "nickname",
+        "telegram",
+        "x",
+        "telegram_x",
+    }
+)
+
+REAL_DONATION_SOURCE_TYPES = frozenset(
+    {
+        SOURCE_EXTERNAL_DEPOSIT,
+        SOURCE_INTERNAL_TRANSFER,
+    }
+)
+
+PUBLIC_LEDGER_DEFAULT_LIMIT = 50
+PUBLIC_LEDGER_MAX_LIMIT = 100
+PUBLIC_LEDGER_MAX_OFFSET = 10_000
+
+
+def _valid_public_event_predicate():
+    """
+    Publish only internally consistent event/source pairs.
+
+    This is deliberately stricter than merely trusting the
+    demo boolean. A malformed manually-created row is omitted
+    rather than projected publicly.
+    """
+
+    return or_(
+        and_(
+            DonationEvent.demo.is_(False),
+            DonationEvent.source_type.in_(
+                tuple(
+                    sorted(
+                        REAL_DONATION_SOURCE_TYPES
+                    )
+                )
+            ),
+        ),
+        and_(
+            DonationEvent.demo.is_(True),
+            DonationEvent.source_type
+            == SOURCE_DEMO,
+        ),
+    )
+
+
+def _clean_public_text(
+    value: Any,
+    *,
+    max_length: int,
+) -> str:
+    text = str(
+        value
+        or ""
+    ).strip()
+
+    if len(text) > max_length:
+        return ""
+
+    return text
+
+
+def _public_attribution(
+    row: DonationAttribution | None,
+) -> dict[str, str]:
+    """
+    Project only display metadata.
+
+    Unknown or internally incomplete attribution states fail
+    closed to anonymous rather than leaking stale hidden fields.
+    """
+
+    anonymous = {
+        "display_mode": "anonymous",
+        "nickname": "",
+        "telegram_handle": "",
+        "x_handle": "",
+    }
+
+    if row is None:
+        return anonymous
+
+    mode = str(
+        row.display_mode
+        or ""
+    ).strip().lower()
+
+    if mode not in PUBLIC_ATTRIBUTION_MODES:
+        return anonymous
+
+    nickname = _clean_public_text(
+        row.nickname,
+        max_length=128,
+    )
+
+    telegram = _clean_public_text(
+        row.telegram_handle,
+        max_length=128,
+    )
+
+    x_handle = _clean_public_text(
+        row.x_handle,
+        max_length=128,
+    )
+
+    if mode == "anonymous":
+        return anonymous
+
+    if mode == "nickname":
+        if not nickname:
+            return anonymous
+
+        return {
+            "display_mode": "nickname",
+            "nickname": nickname,
+            "telegram_handle": "",
+            "x_handle": "",
+        }
+
+    if mode == "telegram":
+        if not telegram:
+            return anonymous
+
+        return {
+            "display_mode": "telegram",
+            "nickname": "",
+            "telegram_handle": telegram,
+            "x_handle": "",
+        }
+
+    if mode == "x":
+        if not x_handle:
+            return anonymous
+
+        return {
+            "display_mode": "x",
+            "nickname": "",
+            "telegram_handle": "",
+            "x_handle": x_handle,
+        }
+
+    if (
+        mode == "telegram_x"
+        and telegram
+        and x_handle
+    ):
+        return {
+            "display_mode": "telegram_x",
+            "nickname": "",
+            "telegram_handle": telegram,
+            "x_handle": x_handle,
+        }
+
+    return anonymous
+
+
+def _public_event(
+    row: DonationEvent,
+    attribution: DonationAttribution | None,
+) -> dict[str, Any]:
+    """
+    Explicit allowlist projection for one public ledger row.
+
+    source_key, Gate identifiers, Wallet-account identifiers,
+    transaction ids and audit metadata are intentionally absent.
+    """
+
+    return {
+        "event_id": row.event_id,
+        "source_type": row.source_type,
+        "currency": row.currency,
+        "chain": row.chain,
+        "amount": exact_decimal_text(
+            row.amount,
+            precision=48,
+            scale=24,
+        ),
+        "occurred_at": _utc_datetime(
+            row.occurred_at,
+            field="occurred_at",
+        ).isoformat(),
+        "demo": bool(
+            row.demo
+        ),
+        "attribution": _public_attribution(
+            attribution
+        ),
+    }
+
+
+def _exact_real_totals(
+    db: Session,
+) -> list[dict[str, str]]:
+    """
+    Aggregate in Python Decimal space.
+
+    SQLite SUM over TEXT/NUMERIC values can coerce through
+    binary floating point. Public financial totals therefore
+    never use SQL SUM.
+    """
+
+    rows = db.execute(
+        select(
+            DonationEvent.currency,
+            DonationEvent.amount,
+        ).where(
+            DonationEvent.demo.is_(False),
+            DonationEvent.source_type.in_(
+                tuple(
+                    sorted(
+                        REAL_DONATION_SOURCE_TYPES
+                    )
+                )
+            ),
+        )
+    ).all()
+
+    totals: dict[
+        str,
+        Decimal,
+    ] = {}
+
+    for currency, amount in rows:
+        symbol = normalize_currency(
+            currency
+        )
+
+        canonical = exact_decimal_text(
+            amount,
+            precision=48,
+            scale=24,
+        )
+
+        totals[symbol] = (
+            totals.get(
+                symbol,
+                Decimal("0"),
+            )
+            + Decimal(
+                canonical
+            )
+        )
+
+    return [
+        {
+            "currency": symbol,
+            "amount": exact_decimal_text(
+                total,
+                precision=72,
+                scale=24,
+            ),
+        }
+        for symbol, total in sorted(
+            totals.items()
+        )
+    ]
+
+
+def read_public_donation_ledger(
+    db: Session,
+    *,
+    include_demo: bool = False,
+    limit: int = PUBLIC_LEDGER_DEFAULT_LIMIT,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """
+    Read-only public Donation Ledger projection.
+
+    This function performs only SELECT statements.
+    It never flushes, commits, creates donation facts,
+    changes attribution or contacts Gate.
+    """
+
+    if (
+        limit < 1
+        or limit > PUBLIC_LEDGER_MAX_LIMIT
+    ):
+        raise DonationLedgerInvariantError(
+            "Public ledger limit is out of range"
+        )
+
+    if (
+        offset < 0
+        or offset > PUBLIC_LEDGER_MAX_OFFSET
+    ):
+        raise DonationLedgerInvariantError(
+            "Public ledger offset is out of range"
+        )
+
+    publication_filter = (
+        _valid_public_event_predicate()
+    )
+
+    filters = [
+        publication_filter
+    ]
+
+    if not include_demo:
+        filters.append(
+            DonationEvent.demo.is_(False)
+        )
+
+    total_items = int(
+        db.scalar(
+            select(
+                func.count(
+                    DonationEvent.id
+                )
+            ).where(
+                *filters
+            )
+        )
+        or 0
+    )
+
+    rows = db.execute(
+        select(
+            DonationEvent,
+            DonationAttribution,
+        )
+        .outerjoin(
+            DonationAttribution,
+            DonationAttribution.event_id
+            == DonationEvent.event_id,
+        )
+        .where(
+            *filters
+        )
+        .order_by(
+            DonationEvent.occurred_at.desc(),
+            DonationEvent.id.desc(),
+        )
+        .offset(
+            offset
+        )
+        .limit(
+            limit
+        )
+    ).all()
+
+    real_event_count = int(
+        db.scalar(
+            select(
+                func.count(
+                    DonationEvent.id
+                )
+            ).where(
+                DonationEvent.demo.is_(False),
+                DonationEvent.source_type.in_(
+                    tuple(
+                        sorted(
+                            REAL_DONATION_SOURCE_TYPES
+                        )
+                    )
+                ),
+            )
+        )
+        or 0
+    )
+
+    demo_event_count = int(
+        db.scalar(
+            select(
+                func.count(
+                    DonationEvent.id
+                )
+            ).where(
+                DonationEvent.demo.is_(True),
+                DonationEvent.source_type
+                == SOURCE_DEMO,
+            )
+        )
+        or 0
+    )
+
+    items = [
+        _public_event(
+            event,
+            attribution,
+        )
+        for event, attribution in rows
+    ]
+
+    return {
+        "as_of": datetime.now(
+            timezone.utc
+        ).isoformat(),
+        "items": items,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(
+                items
+            ),
+            "total_items": total_items,
+            "include_demo": bool(
+                include_demo
+            ),
+        },
+        "summary": {
+            "real_event_count":
+                real_event_count,
+            "demo_event_count":
+                demo_event_count,
+            "real_totals_by_currency":
+                _exact_real_totals(
+                    db
+                ),
+        },
+    }
