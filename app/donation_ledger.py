@@ -52,6 +52,22 @@ class DonationLedgerInvariantError(ValueError):
     pass
 
 
+class DonationAttributionValidationError(
+    DonationLedgerInvariantError
+):
+    """
+    Donor-controlled display metadata is malformed.
+    """
+
+
+class DonationAttributionCapabilityError(
+    DonationLedgerInvariantError
+):
+    """
+    The caller has no valid capability for this attribution.
+    """
+
+
 def _required_text(
     value: Any,
     *,
@@ -1535,6 +1551,380 @@ def _public_attribution(
         }
 
     return anonymous
+
+
+_SELF_DECLARED_HANDLE_RE = re.compile(
+    r"^[A-Za-z0-9_]{1,64}$"
+)
+
+
+def _normalize_attribution_nickname(
+    value: Any,
+) -> str:
+    text = str(
+        value
+        or ""
+    ).strip()
+
+    if (
+        not text
+        or len(text) > 128
+        or any(
+            ord(character) < 32
+            or ord(character) == 127
+            for character in text
+        )
+    ):
+        raise DonationAttributionValidationError(
+            "Nickname is invalid"
+        )
+
+    return text
+
+
+def _normalize_self_declared_handle(
+    value: Any,
+    *,
+    field: str,
+) -> str:
+    """
+    Validate only a conservative display-handle grammar.
+
+    These values are self-declared display metadata. This
+    deliberately does not claim platform ownership or identity
+    verification.
+    """
+    text = str(
+        value
+        or ""
+    ).strip()
+
+    if text.startswith(
+        "@"
+    ):
+        text = text[1:]
+
+    if not _SELF_DECLARED_HANDLE_RE.fullmatch(
+        text
+    ):
+        raise DonationAttributionValidationError(
+            f"{field} is invalid"
+        )
+
+    return "@" + text
+
+
+def normalize_donation_attribution(
+    *,
+    display_mode: str = "anonymous",
+    nickname: Any = "",
+    telegram_handle: Any = "",
+    x_handle: Any = "",
+) -> dict[str, str]:
+    mode = str(
+        display_mode
+        or "anonymous"
+    ).strip().lower()
+
+    if mode not in PUBLIC_ATTRIBUTION_MODES:
+        raise DonationAttributionValidationError(
+            "Unsupported donation attribution mode"
+        )
+
+    result = {
+        "display_mode": mode,
+        "nickname": "",
+        "telegram_handle": "",
+        "x_handle": "",
+    }
+
+    if mode == "anonymous":
+        return result
+
+    if mode == "nickname":
+        result[
+            "nickname"
+        ] = _normalize_attribution_nickname(
+            nickname
+        )
+
+        return result
+
+    if mode == "telegram":
+        result[
+            "telegram_handle"
+        ] = _normalize_self_declared_handle(
+            telegram_handle,
+            field="Telegram handle",
+        )
+
+        return result
+
+    if mode == "x":
+        result[
+            "x_handle"
+        ] = _normalize_self_declared_handle(
+            x_handle,
+            field="X handle",
+        )
+
+        return result
+
+    result[
+        "telegram_handle"
+    ] = _normalize_self_declared_handle(
+        telegram_handle,
+        field="Telegram handle",
+    )
+
+    result[
+        "x_handle"
+    ] = _normalize_self_declared_handle(
+        x_handle,
+        field="X handle",
+    )
+
+    return result
+
+
+def upsert_donation_attribution(
+    db: Session,
+    *,
+    event_id: str,
+    display_mode: str = "anonymous",
+    nickname: Any = "",
+    telegram_handle: Any = "",
+    x_handle: Any = "",
+    updated_by: str,
+) -> dict[str, Any]:
+    identifier = _required_text(
+        event_id,
+        field="event_id",
+        max_length=96,
+    )
+
+    actor = _required_text(
+        updated_by,
+        field="updated_by",
+        max_length=128,
+    )
+
+    event = db.scalar(
+        select(
+            DonationEvent
+        ).where(
+            DonationEvent.event_id
+            == identifier
+        )
+    )
+
+    if event is None:
+        raise DonationAttributionCapabilityError(
+            "Donation event not found"
+        )
+
+    normalized = normalize_donation_attribution(
+        display_mode=display_mode,
+        nickname=nickname,
+        telegram_handle=telegram_handle,
+        x_handle=x_handle,
+    )
+
+    row = db.scalar(
+        select(
+            DonationAttribution
+        ).where(
+            DonationAttribution.event_id
+            == identifier
+        )
+    )
+
+    current = utcnow()
+
+    if row is None:
+        row = DonationAttribution(
+            event_id=identifier,
+            display_mode=(
+                normalized[
+                    "display_mode"
+                ]
+            ),
+            nickname=(
+                normalized[
+                    "nickname"
+                ]
+            ),
+            telegram_handle=(
+                normalized[
+                    "telegram_handle"
+                ]
+            ),
+            x_handle=(
+                normalized[
+                    "x_handle"
+                ]
+            ),
+            updated_by=actor,
+            created_at=current,
+            updated_at=current,
+        )
+
+        db.add(
+            row
+        )
+
+    else:
+        row.display_mode = (
+            normalized[
+                "display_mode"
+            ]
+        )
+
+        row.nickname = (
+            normalized[
+                "nickname"
+            ]
+        )
+
+        row.telegram_handle = (
+            normalized[
+                "telegram_handle"
+            ]
+        )
+
+        row.x_handle = (
+            normalized[
+                "x_handle"
+            ]
+        )
+
+        row.updated_by = actor
+        row.updated_at = current
+
+    db.flush()
+
+    return {
+        "event_id":
+            event.event_id,
+        "attribution":
+            _public_attribution(
+                row
+            ),
+    }
+
+
+def set_matched_intent_attribution(
+    db: Session,
+    *,
+    intent_id: str,
+    display_mode: str = "anonymous",
+    nickname: Any = "",
+    telegram_handle: Any = "",
+    x_handle: Any = "",
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """
+    Set attribution through the opaque matched-intent capability.
+
+    The raw one-time claim token is not required or reintroduced.
+    The capability remains valid only until the intent's existing
+    correlation expiry.
+    """
+    current = _utc_datetime(
+        now or utcnow(),
+        field="now",
+    )
+
+    try:
+        intent = _load_donation_intent(
+            db,
+            intent_id,
+        )
+
+    except DonationLedgerInvariantError as exc:
+        raise DonationAttributionCapabilityError(
+            "Donation intent not found"
+        ) from exc
+
+    if (
+        intent.status
+        != INTENT_MATCHED
+        or not intent.matched_event_id
+    ):
+        raise DonationAttributionCapabilityError(
+            "Donation intent is not matched"
+        )
+
+    if _intent_is_expired(
+        intent,
+        current,
+    ):
+        raise DonationAttributionCapabilityError(
+            "Donation attribution capability expired"
+        )
+
+    return upsert_donation_attribution(
+        db,
+        event_id=(
+            intent.matched_event_id
+        ),
+        display_mode=display_mode,
+        nickname=nickname,
+        telegram_handle=telegram_handle,
+        x_handle=x_handle,
+        # Deliberately generic. Never persist the opaque
+        # capability or raw claim token as audit metadata.
+        updated_by="public-intent",
+    )
+
+
+def set_internal_transfer_donation_attribution(
+    record: dict[str, Any],
+    *,
+    display_mode: str = "anonymous",
+    nickname: Any = "",
+    telegram_handle: Any = "",
+    x_handle: Any = "",
+    updated_by: str,
+) -> dict[str, Any]:
+    """
+    Attribute one already-confirmed explicit internal donation.
+
+    materialize_internal_transfer_donation() is deterministic by
+    request_id, so this can safely repair a missing DonationEvent
+    before applying display metadata.
+    """
+    try:
+        event, _ = (
+            materialize_internal_transfer_donation(
+                record
+            )
+        )
+
+    except DonationLedgerInvariantError as exc:
+        raise DonationAttributionCapabilityError(
+            "Internal donation cannot be attributed"
+        ) from exc
+
+    if event is None:
+        raise DonationAttributionCapabilityError(
+            "Transfer is not a confirmed explicit donation"
+        )
+
+    with session_scope() as db:
+        return upsert_donation_attribution(
+            db,
+            event_id=(
+                event[
+                    "event_id"
+                ]
+            ),
+            display_mode=display_mode,
+            nickname=nickname,
+            telegram_handle=telegram_handle,
+            x_handle=x_handle,
+            updated_by=updated_by,
+        )
 
 
 def _public_event(

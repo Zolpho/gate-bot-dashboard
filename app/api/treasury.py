@@ -15,6 +15,12 @@ from ..account_action_policy import (
 from ..accounts import get_gate_account
 from ..config import get_settings
 from ..gate_client import GateAPIError, GateClient
+from ..donation_ledger import (
+    DonationAttributionCapabilityError,
+    DonationAttributionValidationError,
+    DonationLedgerInvariantError,
+    set_internal_transfer_donation_attribution,
+)
 from ..security import (
     DashboardUser,
     UserConfigError,
@@ -345,6 +351,35 @@ class TreasuryUserTransferExecutionRequest(
     confirmation: str = Field(
         min_length=1,
         max_length=255,
+    )
+
+
+class TreasuryDonationAttributionRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    display_mode: str = Field(
+        default="anonymous",
+        min_length=1,
+        max_length=32,
+    )
+
+    nickname: str = Field(
+        default="",
+        max_length=128,
+    )
+
+    telegram_handle: str = Field(
+        default="",
+        max_length=128,
+    )
+
+    x_handle: str = Field(
+        default="",
+        max_length=128,
     )
 
 
@@ -1400,6 +1435,125 @@ async def execute_treasury_user_transfer(
         audit_payload=audit_payload,
         gate_payload=gate_request["payload"],
     )
+
+
+@router.post(
+    "/user-transfers/{request_id}/donation-attribution"
+)
+async def set_treasury_user_transfer_donation_attribution(
+    request_id: str,
+    request: TreasuryDonationAttributionRequest,
+    user: Annotated[
+        DashboardUser,
+        Depends(require_bearer_user),
+    ],
+):
+    """
+    Set display attribution for one confirmed internal donation.
+
+    This is a local-only metadata operation. It performs no Gate
+    read and no Gate write.
+    """
+    record = get_transfer_request(
+        request_id
+    )
+
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Dashboard user transfer "
+                "request not found"
+            ),
+        )
+
+    # Preserve the strict source boundary. Super-admin does not
+    # bypass explicit Wallet-account source membership here.
+    _require_user_transfer_source_access(
+        user,
+        record[
+            "source_account_id"
+        ],
+    )
+
+    # Attribution belongs to the authenticated donor who created
+    # the original transfer, not merely another user who happens
+    # to share access to the same source Wallet account.
+    if (
+        str(
+            record.get(
+                "username"
+            )
+            or ""
+        ).strip().lower()
+        != user.username.strip().lower()
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Only the original donation user "
+                "can change its public attribution"
+            ),
+        )
+
+    try:
+        result = (
+            set_internal_transfer_donation_attribution(
+                record,
+                display_mode=(
+                    request.display_mode
+                ),
+                nickname=(
+                    request.nickname
+                ),
+                telegram_handle=(
+                    request.telegram_handle
+                ),
+                x_handle=(
+                    request.x_handle
+                ),
+                updated_by=(
+                    "dashboard:"
+                    + user.username
+                ),
+            )
+        )
+
+    except DonationAttributionValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except (
+        DonationAttributionCapabilityError,
+        DonationLedgerInvariantError,
+    ) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "phase":
+            "USER_ACCOUNT_TRANSFER",
+        "status":
+            "attribution_updated",
+        "request_id":
+            request_id,
+        "event_id":
+            result[
+                "event_id"
+            ],
+        "attribution":
+            result[
+                "attribution"
+            ],
+        "gate_read_performed":
+            False,
+        "gate_write_performed":
+            False,
+    }
 
 
 @router.post(

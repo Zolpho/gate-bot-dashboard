@@ -288,6 +288,13 @@ def test_treasury_t2c3b_allows_only_expected_mutation_routes() -> None:
             frozenset({"POST"}),
         ),
         (
+            (
+                "/api/treasury/user-transfers/"
+                "{request_id}/donation-attribution"
+            ),
+            frozenset({"POST"}),
+        ),
+        (
             "/api/treasury/transfers/simulate",
             frozenset({"POST"}),
         ),

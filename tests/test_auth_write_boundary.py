@@ -21,7 +21,7 @@ RISK_MODULES = {
     "app/api/trading.py":
         7,
     "app/api/treasury.py":
-        27,
+        28,
 }
 
 RECOVERY_COMPATIBILITY = {

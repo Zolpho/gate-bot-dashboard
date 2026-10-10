@@ -44,10 +44,13 @@ from ..donation_ledger import (
     PUBLIC_LEDGER_DEFAULT_LIMIT,
     PUBLIC_LEDGER_MAX_LIMIT,
     PUBLIC_LEDGER_MAX_OFFSET,
+    DonationAttributionCapabilityError,
+    DonationAttributionValidationError,
     DonationLedgerInvariantError,
     create_donation_intent,
     read_public_donation_ledger,
     reconcile_external_donation_intent,
+    set_matched_intent_attribution,
     submit_donation_intent_txid,
 )
 from ..donation_destinations import (
@@ -190,6 +193,10 @@ PUBLIC_DONATION_RATE_RECONCILE = (
     "reconcile"
 )
 
+PUBLIC_DONATION_RATE_ATTRIBUTION = (
+    "attribution"
+)
+
 PUBLIC_DONATION_RATE_POLICIES = {
     PUBLIC_DONATION_RATE_INTENT_CREATE: {
         "client_limit": 12,
@@ -202,6 +209,10 @@ PUBLIC_DONATION_RATE_POLICIES = {
     PUBLIC_DONATION_RATE_RECONCILE: {
         "client_limit": 360,
         "global_limit": 3600,
+    },
+    PUBLIC_DONATION_RATE_ATTRIBUTION: {
+        "client_limit": 60,
+        "global_limit": 600,
     },
 }
 
@@ -263,6 +274,35 @@ class DonationIntentTxidRequest(
     txid: str = Field(
         min_length=1,
         max_length=DONATION_TXID_MAX_LENGTH,
+    )
+
+
+class DonationAttributionWriteRequest(
+    BaseModel
+):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    display_mode: str = Field(
+        default="anonymous",
+        min_length=1,
+        max_length=32,
+    )
+
+    nickname: str = Field(
+        default="",
+        max_length=128,
+    )
+
+    telegram_handle: str = Field(
+        default="",
+        max_length=128,
+    )
+
+    x_handle: str = Field(
+        default="",
+        max_length=128,
     )
 
 
@@ -1311,6 +1351,102 @@ async def public_reconcile_donation_intent(
     return {
         "intent": result
     }
+
+
+@router.post(
+    "/intents/{intent_id}/attribution",
+)
+async def public_set_donation_attribution(
+    payload: DonationAttributionWriteRequest,
+    request: Request,
+    response: Response,
+    intent_id: str = ApiPath(
+        min_length=1,
+        max_length=96,
+    ),
+    db: Session = Depends(
+        get_db
+    ),
+) -> dict[str, Any]:
+    """
+    Set public display attribution for one matched donation.
+
+    The opaque matched intent id is the capability. No raw claim
+    token is accepted, no Gate request is performed, and social
+    handles are self-declared display metadata only.
+    """
+    _no_store(
+        response
+    )
+
+    await _enforce_public_donation_rate_limit(
+        request,
+        action=(
+            PUBLIC_DONATION_RATE_ATTRIBUTION
+        ),
+    )
+
+    async with _donation_intent_write_lock:
+        try:
+            result = (
+                set_matched_intent_attribution(
+                    db,
+                    intent_id=intent_id,
+                    display_mode=(
+                        payload.display_mode
+                    ),
+                    nickname=(
+                        payload.nickname
+                    ),
+                    telegram_handle=(
+                        payload.telegram_handle
+                    ),
+                    x_handle=(
+                        payload.x_handle
+                    ),
+                )
+            )
+
+            db.commit()
+
+        except DonationAttributionValidationError as exc:
+            db.rollback()
+
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        except DonationAttributionCapabilityError as exc:
+            db.rollback()
+
+            message = str(
+                exc
+            )
+
+            raise HTTPException(
+                status_code=(
+                    404
+                    if message
+                    == "Donation intent not found"
+                    else 409
+                ),
+                detail=message,
+            ) from exc
+
+        except DonationLedgerInvariantError as exc:
+            db.rollback()
+
+            raise HTTPException(
+                status_code=409,
+                detail=str(exc),
+            ) from exc
+
+        except Exception:
+            db.rollback()
+            raise
+
+    return result
 
 
 @router.get("/{currency}/networks")

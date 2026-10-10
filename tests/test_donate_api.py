@@ -760,6 +760,10 @@ def test_donate_router_methods_are_bounded() -> None:
             "/api/donate/intents/"
             "{intent_id}/reconcile"
         ),
+        (
+            "/api/donate/intents/"
+            "{intent_id}/attribution"
+        ),
     }
 
     seen_post_paths = set()
