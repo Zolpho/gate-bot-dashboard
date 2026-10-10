@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from .db import utcnow
+from .db import session_scope, utcnow
 from .exact_decimal import exact_decimal_text
 from .models import (
     DepositRecord,
@@ -494,6 +494,162 @@ def ensure_donation_event(
         ),
         True,
     )
+
+
+def materialize_internal_transfer_donation(
+    record: dict[str, Any],
+) -> tuple[
+    dict[str, Any] | None,
+    bool,
+]:
+    """
+    Materialize one confirmed dashboard Wallet-account transfer
+    into the immutable Donation Ledger.
+
+    Only a real, successfully completed user-account transfer
+    whose destination is exactly EQTYDAO qualifies.
+
+    Non-qualifying records are ignored. A qualifying record
+    that is internally inconsistent fails closed.
+    """
+    status = str(
+        record.get("status")
+        or ""
+    ).strip().lower()
+
+    direction = str(
+        record.get("direction")
+        or ""
+    ).strip().lower()
+
+    destination = str(
+        record.get(
+            "destination_account_id"
+        )
+        or ""
+    ).strip().lower()
+
+    if (
+        status != "success"
+        or direction
+        != "user_account_transfer"
+        or destination
+        != DONATION_ACCOUNT_ID
+    ):
+        return None, False
+
+    request_payload = (
+        record.get("request")
+        or {}
+    )
+
+    if (
+        not isinstance(
+            request_payload,
+            dict,
+        )
+        or request_payload.get(
+            "donation"
+        )
+        is not True
+    ):
+        return None, False
+
+    if bool(
+        record.get("simulation")
+    ):
+        raise DonationLedgerInvariantError(
+            "Simulated transfer cannot become a donation"
+        )
+
+    if not bool(
+        record.get("write_performed")
+    ):
+        raise DonationLedgerInvariantError(
+            "Successful internal donation has no "
+            "recorded Gate write"
+        )
+
+    request_id = _required_text(
+        record.get("request_id"),
+        field="request_id",
+        max_length=128,
+    )
+
+    symbol = normalize_currency(
+        str(
+            record.get("currency")
+            or ""
+        )
+    )
+
+    amount = _positive_amount(
+        record.get("amount")
+    )
+
+    completed_value = (
+        record.get("completed_at")
+    )
+
+    if isinstance(
+        completed_value,
+        datetime,
+    ):
+        completed_at = (
+            _utc_datetime(
+                completed_value,
+                field="completed_at",
+            )
+        )
+    else:
+        completed_text = (
+            _required_text(
+                completed_value,
+                field="completed_at",
+                max_length=128,
+            )
+        )
+
+        try:
+            parsed = (
+                datetime.fromisoformat(
+                    completed_text.replace(
+                        "Z",
+                        "+00:00",
+                    )
+                )
+            )
+        except ValueError as exc:
+            raise DonationLedgerInvariantError(
+                "Internal donation completed_at "
+                "is invalid"
+            ) from exc
+
+        completed_at = (
+            _utc_datetime(
+                parsed,
+                field="completed_at",
+            )
+        )
+
+    with session_scope() as db:
+        return ensure_donation_event(
+            db,
+            source_type=(
+                SOURCE_INTERNAL_TRANSFER
+            ),
+            source_key=(
+                internal_transfer_source_key(
+                    request_id
+                )
+            ),
+            currency=symbol,
+            amount=amount,
+            occurred_at=completed_at,
+            chain_key="",
+            chain="",
+            demo=False,
+        )
 
 
 def _claim_hash(

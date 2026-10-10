@@ -321,6 +321,14 @@ class TreasuryUserTransferPreviewRequest(BaseModel):
         gt=0,
     )
 
+    # Explicit semantic marker.
+    #
+    # False preserves every existing Wallet-account transfer.
+    # True means this transfer is intended for the public
+    # Donation Ledger and only has an effect when the confirmed
+    # destination is EQTYDAO.
+    donation: bool = False
+
 
 class TreasuryUserTransferExecutionRequest(
     TreasuryUserTransferPreviewRequest
@@ -1170,6 +1178,9 @@ async def preview_treasury_user_transfer(
                 request.amount,
                 "f",
             ),
+            "donation": bool(
+                request.donation
+            ),
             "source_available_before": format(
                 available,
                 "f",
@@ -1276,6 +1287,9 @@ async def execute_treasury_user_transfer(
         "amount": format(
             request.amount,
             "f",
+        ),
+        "donation": bool(
+            request.donation
         ),
         "gate_endpoint": (
             gate_request["endpoint"]
@@ -1454,15 +1468,15 @@ async def reconcile_treasury_user_transfer(
         "rejected",
         "preflight_failed",
     }:
+        result = (
+            existing_user_transfer_result(
+                record
+            )
+        )
+
         return {
-            "phase": "USER_ACCOUNT_TRANSFER",
-            "status": record["status"],
-            "idempotent_replay": True,
+            **result,
             "gate_read_performed": False,
-            "gate_write_performed": bool(
-                record.get("write_performed")
-            ),
-            "audit": record,
             "reconciliations": (
                 list_transfer_reconciliations(
                     request_id

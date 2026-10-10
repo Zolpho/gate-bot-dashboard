@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -8,6 +9,9 @@ from fastapi import HTTPException
 from .accounts import GateAccountConfig
 from .config import Settings
 from .gate_client import GateAPIError, GateClient
+from .donation_ledger import (
+    materialize_internal_transfer_donation,
+)
 from .treasury_transfer import (
     TreasuryTransferValidationError,
     decimal_text,
@@ -35,6 +39,95 @@ USER_TRANSFER_OPERATION = "user_account_transfer"
 SUB_TO_SUB = "subaccount_to_subaccount"
 SUB_TO_MAIN = "subaccount_to_main"
 MAIN_TO_SUB = "main_to_subaccount"
+
+
+logger = logging.getLogger(
+    __name__
+)
+
+
+def _materialize_internal_donation(
+    record: dict[str, Any],
+) -> dict[str, Any] | None:
+    """
+    Publish Donation Ledger presentation/accounting state
+    independently from the already-final Treasury result.
+
+    Donation publication failure must never rewrite a
+    successful money-movement result.
+    """
+    try:
+        event, created = (
+            materialize_internal_transfer_donation(
+                record
+            )
+        )
+    except Exception:
+        logger.exception(
+            "Confirmed internal transfer could not "
+            "be materialized as donation: request_id=%s",
+            record.get(
+                "request_id"
+            ),
+        )
+
+        status = str(
+            record.get("status")
+            or ""
+        ).strip().lower()
+
+        destination = str(
+            record.get(
+                "destination_account_id"
+            )
+            or ""
+        ).strip().lower()
+
+        direction = str(
+            record.get("direction")
+            or ""
+        ).strip().lower()
+
+        if (
+            status == "success"
+            and destination == "eqtydao"
+            and direction
+            == "user_account_transfer"
+        ):
+            return {
+                "status":
+                    "publication_error",
+                "created": False,
+                "event_id": None,
+                "message": (
+                    "Transfer succeeded, but Donation "
+                    "Ledger publication requires review."
+                ),
+            }
+
+        return None
+
+    if event is None:
+        return None
+
+    return {
+        "status": "recorded",
+        "created": bool(
+            created
+        ),
+        "event_id": (
+            event["event_id"]
+        ),
+        "currency": (
+            event["currency"]
+        ),
+        "amount": (
+            event["amount"]
+        ),
+        "occurred_at": (
+            event["occurred_at"]
+        ),
+    }
 
 
 def build_user_gate_transfer(
@@ -232,7 +325,7 @@ def existing_user_transfer_result(
         "rejected",
         "preflight_failed",
     }:
-        return {
+        result = {
             "phase": "USER_ACCOUNT_TRANSFER",
             "status": status,
             "gate_write_performed": bool(
@@ -247,6 +340,19 @@ def existing_user_transfer_result(
                 "was submitted."
             ),
         }
+
+        donation = (
+            _materialize_internal_donation(
+                record
+            )
+        )
+
+        if donation is not None:
+            result["donation"] = (
+                donation
+            )
+
+        return result
 
     raise HTTPException(
         status_code=409,
@@ -509,7 +615,7 @@ async def reconcile_user_account_transfer(
             owner_request_id=request_id,
         )
 
-    return {
+    result = {
         "status": decision.request_status,
         "gate_read_performed": True,
         "lock_released": lock_released,
@@ -523,6 +629,19 @@ async def reconcile_user_account_transfer(
         "audit": updated,
         "reconciliation": reconciliation,
     }
+
+    donation = (
+        _materialize_internal_donation(
+            updated
+        )
+    )
+
+    if donation is not None:
+        result["donation"] = (
+            donation
+        )
+
+    return result
 
 
 async def execute_user_account_transfer(
