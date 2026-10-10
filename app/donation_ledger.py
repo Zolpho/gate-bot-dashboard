@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
+import re
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -14,6 +16,7 @@ from sqlalchemy.orm import Session
 from .db import utcnow
 from .exact_decimal import exact_decimal_text
 from .models import (
+    DepositRecord,
     DonationAttribution,
     DonationEvent,
     DonationIntent,
@@ -35,6 +38,12 @@ DONATION_SOURCE_TYPES = frozenset(
 )
 
 INTENT_PENDING = "pending"
+INTENT_SUBMITTED = "submitted"
+INTENT_MATCHED = "matched"
+INTENT_EXPIRED = "expired"
+
+DONE_DEPOSIT_STATUS = "DONE"
+DONATION_TXID_MAX_LENGTH = 512
 
 CLAIM_TOKEN_BYTES = 32
 
@@ -613,6 +622,568 @@ def donation_intent_claim_matches(
     return hmac.compare_digest(
         stored,
         candidate,
+    )
+
+
+
+def _normalized_chain_identity(
+    value: Any,
+) -> str:
+    """
+    Normalize only presentation punctuation/case.
+
+    No chain aliasing or cross-network heuristic is allowed.
+    """
+    return re.sub(
+        r"[^A-Z0-9]",
+        "",
+        str(
+            value
+            or ""
+        ).strip().upper(),
+    )
+
+
+def _intent_snapshot(
+    row: DonationIntent,
+    *,
+    match_status: str | None = None,
+) -> dict[str, Any]:
+    """
+    Safe correlation state.
+
+    The donor-submitted txid and claim hash are deliberately
+    never returned by this projection.
+    """
+    result: dict[str, Any] = {
+        "intent_id": row.intent_id,
+        "currency": row.currency,
+        "chain_key": row.chain_key,
+        "chain": row.chain,
+        "status": row.status,
+        "txid_submitted": bool(
+            row.submitted_txid
+        ),
+        "matched_event_id":
+            row.matched_event_id,
+        "created_at": _utc_datetime(
+            row.created_at,
+            field="created_at",
+        ).isoformat(),
+        "expires_at": _utc_datetime(
+            row.expires_at,
+            field="expires_at",
+        ).isoformat(),
+        "matched_at": (
+            _utc_datetime(
+                row.matched_at,
+                field="matched_at",
+            ).isoformat()
+            if row.matched_at
+            else None
+        ),
+        "updated_at": (
+            _utc_datetime(
+                row.updated_at,
+                field="updated_at",
+            ).isoformat()
+            if row.updated_at
+            else None
+        ),
+    }
+
+    if match_status is not None:
+        result[
+            "match_status"
+        ] = match_status
+
+    return result
+
+
+def _load_donation_intent(
+    db: Session,
+    intent_id: str,
+) -> DonationIntent:
+    identifier = _required_text(
+        intent_id,
+        field="intent_id",
+        max_length=128,
+    )
+
+    row = db.scalar(
+        select(
+            DonationIntent
+        ).where(
+            DonationIntent.intent_id
+            == identifier
+        )
+    )
+
+    if row is None:
+        raise DonationLedgerInvariantError(
+            "Donation intent not found"
+        )
+
+    return row
+
+
+def _intent_is_expired(
+    row: DonationIntent,
+    now: datetime,
+) -> bool:
+    expires = _utc_datetime(
+        row.expires_at,
+        field="expires_at",
+    )
+
+    return now >= expires
+
+
+def _retire_donation_intent_claim(
+    row: DonationIntent,
+    *,
+    reason: str,
+) -> None:
+    """
+    Irreversibly consume the stored claim authority while
+    preserving DonationIntent.claim_token_hash uniqueness.
+
+    A real claim hash is exactly 64 lowercase hexadecimal
+    SHA-256 characters.
+
+    Tombstones intentionally contain punctuation, so they can
+    never equal the output of _claim_hash(). Intent identity
+    makes each tombstone unique without requiring a schema
+    change.
+    """
+    normalized_reason = str(
+        reason
+        or ""
+    ).strip().lower()
+
+    if normalized_reason not in {
+        "consumed",
+        "expired",
+    }:
+        raise DonationLedgerInvariantError(
+            "Unsupported donation claim retirement reason"
+        )
+
+    identifier = _required_text(
+        row.intent_id,
+        field="intent_id",
+        max_length=96,
+    )
+
+    tombstone = (
+        "!"
+        + normalized_reason
+        + ":"
+        + identifier
+    )
+
+    if len(tombstone) > 64:
+        raise DonationLedgerInvariantError(
+            "Donation claim tombstone exceeds "
+            "storage limit"
+        )
+
+    row.claim_token_hash = tombstone
+
+
+def _expire_intent(
+    row: DonationIntent,
+    *,
+    now: datetime,
+) -> None:
+    row.status = INTENT_EXPIRED
+
+    # A claim token is one-time correlation authority.
+    # Once an intent expires it can never authorize a txid.
+    _retire_donation_intent_claim(
+        row,
+        reason="expired",
+    )
+
+    row.updated_at = now
+
+
+def submit_donation_intent_txid(
+    db: Session,
+    *,
+    intent_id: str,
+    claim_token: str,
+    txid: str,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """
+    Bind one donor-supplied txid to one pending intent.
+
+    This performs no Gate request and no deposit-history sync.
+
+    The raw claim token is valid only while the intent is
+    pending. After a successful submission its durable hash is
+    removed, making the correlation authority one-time.
+    """
+    current = _utc_datetime(
+        now or utcnow(),
+        field="now",
+    )
+
+    row = _load_donation_intent(
+        db,
+        intent_id,
+    )
+
+    if (
+        row.status
+        == INTENT_PENDING
+        and _intent_is_expired(
+            row,
+            current,
+        )
+    ):
+        _expire_intent(
+            row,
+            now=current,
+        )
+
+        db.flush()
+
+        return _intent_snapshot(
+            row,
+            match_status="expired",
+        )
+
+    if row.status != INTENT_PENDING:
+        raise DonationLedgerInvariantError(
+            "Donation intent is not pending"
+        )
+
+    if not donation_intent_claim_matches(
+        row,
+        claim_token,
+    ):
+        raise DonationLedgerInvariantError(
+            "Invalid donation claim token"
+        )
+
+    submitted_txid = _required_text(
+        txid,
+        field="txid",
+        max_length=DONATION_TXID_MAX_LENGTH,
+    )
+
+    existing_claim = db.scalar(
+        select(
+            DonationIntent
+        ).where(
+            DonationIntent.intent_id
+            != row.intent_id,
+            DonationIntent.submitted_txid
+            == submitted_txid,
+            DonationIntent.status.in_(
+                (
+                    INTENT_SUBMITTED,
+                    INTENT_MATCHED,
+                )
+            ),
+        )
+    )
+
+    if existing_claim is not None:
+        raise DonationLedgerInvariantError(
+            "Donation txid is already associated "
+            "with another intent"
+        )
+
+    row.submitted_txid = submitted_txid
+    row.status = INTENT_SUBMITTED
+
+    # Consume the one-time secret immediately after the txid
+    # has been accepted. Only the opaque intent id remains.
+    _retire_donation_intent_claim(
+        row,
+        reason="consumed",
+    )
+
+    row.updated_at = current
+
+    db.flush()
+
+    return _intent_snapshot(
+        row,
+        match_status="awaiting_match",
+    )
+
+
+def _exact_deposit_amount(
+    deposit: DepositRecord,
+) -> str:
+    """
+    Recover the exact Gate deposit amount from the persisted
+    original payload.
+
+    DepositRecord.amount historically uses SQLite NUMERIC,
+    which may round-trip fractional values through binary
+    floating point. DonationEvent accounting must never copy
+    that loss of precision.
+
+    Fail closed rather than guessing if the original amount
+    is unavailable or not represented exactly.
+    """
+    try:
+        payload = json.loads(
+            str(
+                deposit.raw_json
+                or "{}"
+            )
+        )
+    except (
+        json.JSONDecodeError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise DonationLedgerInvariantError(
+            "Matched donation deposit has invalid "
+            "raw Gate payload"
+        ) from exc
+
+    if not isinstance(
+        payload,
+        dict,
+    ):
+        raise DonationLedgerInvariantError(
+            "Matched donation deposit has invalid "
+            "raw Gate payload"
+        )
+
+    if "amount" not in payload:
+        raise DonationLedgerInvariantError(
+            "Matched donation deposit has no exact "
+            "raw Gate amount"
+        )
+
+    raw_amount = payload[
+        "amount"
+    ]
+
+    # JSON floating point has already discarded source
+    # precision. Gate deposit amounts are expected to be
+    # decimal strings; integral JSON numbers remain exact.
+    if (
+        isinstance(
+            raw_amount,
+            bool,
+        )
+        or not isinstance(
+            raw_amount,
+            (
+                str,
+                int,
+            ),
+        )
+    ):
+        raise DonationLedgerInvariantError(
+            "Matched donation deposit raw amount "
+            "is not exactly represented"
+        )
+
+    try:
+        return exact_decimal_text(
+            raw_amount,
+            precision=48,
+            scale=24,
+        )
+    except ValueError as exc:
+        raise DonationLedgerInvariantError(
+            "Matched donation deposit has invalid "
+            "exact raw amount"
+        ) from exc
+
+
+def reconcile_external_donation_intent(
+    db: Session,
+    *,
+    intent_id: str,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """
+    Correlate one explicit submitted intent with local deposits.
+
+    Match requirements are intentionally narrow:
+      - account_id is exactly eqtydao
+      - txid is exactly the donor-submitted txid
+      - currency is exactly the selected intent currency
+      - normalized Gate chain equals the intent chain_key
+      - status is exactly DONE
+      - exactly one deposit row matches
+
+    No amount, time, address or memo heuristic is used.
+    No Gate request is made.
+    No historical row is scanned into the ledger unless an
+    explicit submitted intent names its txid.
+    """
+    current = _utc_datetime(
+        now or utcnow(),
+        field="now",
+    )
+
+    row = _load_donation_intent(
+        db,
+        intent_id,
+    )
+
+    if row.status == INTENT_MATCHED:
+        return _intent_snapshot(
+            row,
+            match_status="matched",
+        )
+
+    if _intent_is_expired(
+        row,
+        current,
+    ):
+        _expire_intent(
+            row,
+            now=current,
+        )
+
+        db.flush()
+
+        return _intent_snapshot(
+            row,
+            match_status="expired",
+        )
+
+    if row.status != INTENT_SUBMITTED:
+        raise DonationLedgerInvariantError(
+            "Donation intent has no submitted txid"
+        )
+
+    submitted_txid = _required_text(
+        row.submitted_txid,
+        field="submitted_txid",
+        max_length=DONATION_TXID_MAX_LENGTH,
+    )
+
+    expected_chain_key = (
+        _normalized_chain_identity(
+            row.chain_key
+        )
+    )
+
+    if not expected_chain_key:
+        raise DonationLedgerInvariantError(
+            "Donation intent has no network identity"
+        )
+
+    possible = db.scalars(
+        select(
+            DepositRecord
+        ).where(
+            DepositRecord.account_id
+            == DONATION_ACCOUNT_ID,
+            DepositRecord.txid
+            == submitted_txid,
+            DepositRecord.currency
+            == row.currency,
+            DepositRecord.status
+            == DONE_DEPOSIT_STATUS,
+        )
+    ).all()
+
+    candidates = [
+        deposit
+        for deposit in possible
+        if _normalized_chain_identity(
+            deposit.chain
+        )
+        == expected_chain_key
+    ]
+
+    if not candidates:
+        return _intent_snapshot(
+            row,
+            match_status="not_found",
+        )
+
+    if len(candidates) != 1:
+        raise DonationLedgerInvariantError(
+            "Donation txid match is ambiguous"
+        )
+
+    deposit = candidates[0]
+
+    if deposit.deposited_at is None:
+        raise DonationLedgerInvariantError(
+            "Matched donation deposit has no timestamp"
+        )
+
+    deposit_chain = _required_text(
+        deposit.chain,
+        field="deposit.chain",
+        max_length=128,
+    )
+
+    source_key = external_deposit_source_key(
+        DONATION_ACCOUNT_ID,
+        deposit.gate_deposit_id,
+    )
+
+    expected_event_id = donation_event_id(
+        SOURCE_EXTERNAL_DEPOSIT,
+        source_key,
+    )
+
+    other_intent = db.scalar(
+        select(
+            DonationIntent
+        ).where(
+            DonationIntent.intent_id
+            != row.intent_id,
+            DonationIntent.matched_event_id
+            == expected_event_id,
+        )
+    )
+
+    if other_intent is not None:
+        raise DonationLedgerInvariantError(
+            "Donation event is already associated "
+            "with another intent"
+        )
+
+    event, _ = ensure_donation_event(
+        db,
+        source_type=
+            SOURCE_EXTERNAL_DEPOSIT,
+        source_key=source_key,
+        currency=deposit.currency,
+        chain_key=(
+            _normalized_chain_identity(
+                deposit_chain
+            )
+        ),
+        chain=deposit_chain,
+        amount=_exact_deposit_amount(
+            deposit
+        ),
+        occurred_at=deposit.deposited_at,
+        demo=False,
+    )
+
+    row.status = INTENT_MATCHED
+    row.matched_event_id = event[
+        "event_id"
+    ]
+    row.matched_at = current
+    row.updated_at = current
+
+    db.flush()
+
+    return _intent_snapshot(
+        row,
+        match_status="matched",
     )
 
 
