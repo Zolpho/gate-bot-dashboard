@@ -1148,3 +1148,208 @@ input:disabled {
   );
 
 }
+
+/* M4.17C1 — INTERNAL DONATION TABLET POLISH */
+
+/*
+ * Presentation only.
+ *
+ * The donation option is a boolean control, not a normal
+ * transfer text/select field. Aurora's generic transfer-input
+ * treatment must therefore not stretch the checkbox.
+ */
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+> label.treasury-user-transfer-donation-option {
+  grid-column: 1 / -1;
+
+  display: grid;
+  grid-template-columns:
+    18px
+    minmax(0, 1fr);
+
+  align-items: start;
+
+  gap: 11px;
+
+  padding: 13px 14px;
+
+  border:
+    1px solid
+    rgba(82, 242, 190, 0.18);
+
+  border-radius: 12px;
+
+  background:
+    rgba(7, 30, 24, 0.58);
+
+  color:
+    rgba(205, 230, 221, 0.82);
+
+  cursor: pointer;
+
+  font-size: .73rem;
+  font-weight: 650;
+  letter-spacing: .015em;
+}
+
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+> label.treasury-user-transfer-donation-option
+> input[type="checkbox"] {
+  -webkit-appearance: checkbox;
+  appearance: auto;
+
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+
+  height: 18px !important;
+  min-height: 18px !important;
+  max-height: 18px !important;
+
+  padding: 0 !important;
+  margin: 2px 0 0 !important;
+
+  border: 0;
+
+  border-radius: 4px;
+
+  background: transparent;
+
+  box-shadow: none;
+
+  accent-color: #52e8b7;
+}
+
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+> label.treasury-user-transfer-donation-option
+> span {
+  min-width: 0;
+}
+
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+> label.treasury-user-transfer-donation-option
+strong {
+  display: block;
+
+  color: #dff5ec;
+
+  line-height: 1.35;
+}
+
+
+#walletTransfersWorkspace
+.treasury-user-transfer-form
+> label.treasury-user-transfer-donation-option
+small {
+  display: block;
+
+  margin-top: 4px;
+
+  color:
+    rgba(184, 211, 201, 0.66);
+
+  font-size: .70rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+
+/*
+ * Tablet / iPad band.
+ *
+ * Keep the three primary transfer controls visually equal.
+ * This removes the legacy fourth-column geometry that made
+ * Amount appear narrow/bulky at landscape-tablet widths.
+ *
+ * A fixed common control height also gives the decorative
+ * Asset symbol a deterministic vertical centre.
+ */
+
+@media
+  (min-width: 721px)
+  and (max-width: 1320px) {
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-form {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      );
+
+    column-gap: 16px;
+    row-gap: 14px;
+  }
+
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-form
+  > label:not(
+    .treasury-user-transfer-donation-option
+  ) {
+    width: 100%;
+    min-width: 0;
+  }
+
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-form
+  select,
+
+  #walletTransfersWorkspace
+  .treasury-user-transfer-form
+  #treasuryUserTransferAmount {
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+  }
+
+
+  #walletTransfersWorkspace
+  #treasuryUserTransferAmount {
+    padding:
+      0
+      13px;
+
+    font-size: .92rem;
+    font-weight: 650;
+    line-height: 1;
+  }
+
+
+  /*
+   * The shared Treasury symbol is 18px.
+   * 13px bottom + 18px + 13px = 44px,
+   * so it is vertically centred in the select.
+   */
+
+  #walletTransfersWorkspace
+  .aurora-symbol-select-field
+  .aurora-select-symbol-host {
+    bottom: 13px;
+  }
+
+
+  #walletTransfersWorkspace
+  .aurora-symbol-select-field
+  .aurora-select-symbol-host
+  .aurora-symbol {
+    --aurora-symbol-size: 18px;
+  }
+
+
+  #walletTransfersWorkspace
+  select.aurora-symbol-select-active {
+    padding-left: 42px !important;
+  }
+}
+
+/* End M4.17C1 internal donation tablet polish */
