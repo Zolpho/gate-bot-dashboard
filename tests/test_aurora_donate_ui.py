@@ -23,7 +23,8 @@ CSS = (
 def test_aurora_donate_stylesheet_is_mode_scoped():
     marker = (
         'href="./aurora-donate.css?'
-        'v=20261010-m416g3-mobile-donate-polish-v1"'
+        'v=20261010-m416g3-mobile-donate-polish-v1'
+        '&amp;m417e1=20261010-public-ledger-ui-v1"'
     )
 
     assert marker in HTML

@@ -478,3 +478,232 @@
     width: 100%;
   }
 }
+
+
+/* ============================================================
+   M4.17E1 — PUBLIC DONATION LEDGER
+   ============================================================ */
+
+.donate-ledger-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.donate-ledger-header {
+  align-items: center;
+}
+
+.donate-ledger-header p {
+  max-width: 760px;
+}
+
+.donate-ledger-summary {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, .45fr)
+    minmax(0, 1.55fr);
+  gap: 12px;
+}
+
+.donate-ledger-stat {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.donate-ledger-stat > span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.donate-ledger-stat > strong {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.donate-ledger-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.donate-ledger-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.donate-ledger-total .deposit-coin-mark {
+  flex: 0 0 auto;
+}
+
+.donate-ledger-total strong {
+  color: var(--text);
+}
+
+.donate-ledger-total > span:last-child,
+.donate-ledger-total-empty {
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.donate-ledger-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: .76rem;
+}
+
+.donate-ledger-list {
+  display: grid;
+  gap: 9px;
+}
+
+.donate-ledger-entry {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(220px, auto);
+  gap: 16px;
+  align-items: center;
+  min-width: 0;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.donate-ledger-entry-main {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.donate-ledger-entry-asset {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.donate-ledger-entry-value {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.donate-ledger-entry-value > strong {
+  font-size: 1rem;
+}
+
+.donate-ledger-entry-value > strong span,
+.donate-ledger-entry-value small {
+  color: var(--muted);
+}
+
+.donate-ledger-entry-value small {
+  overflow-wrap: anywhere;
+  font-size: .76rem;
+}
+
+.donate-ledger-entry-donor {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  min-width: 0;
+}
+
+.donate-ledger-entry-donor > span:first-child {
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.donate-ledger-anonymous,
+.donate-ledger-donor-name {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.donate-ledger-socials {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.donate-ledger-social {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  background: var(--surface);
+  text-decoration: none;
+}
+
+.donate-ledger-social span {
+  color: var(--muted);
+  font-size: .68rem;
+}
+
+.donate-ledger-social strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .76rem;
+}
+
+.donate-ledger-social:hover {
+  border-color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .donate-ledger-header {
+    align-items: stretch;
+  }
+
+  .donate-ledger-header .button {
+    width: 100%;
+  }
+
+  .donate-ledger-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .donate-ledger-entry {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .donate-ledger-entry-donor {
+    justify-items: start;
+  }
+
+  .donate-ledger-socials {
+    justify-content: flex-start;
+  }
+}

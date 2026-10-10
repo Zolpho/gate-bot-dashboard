@@ -1875,3 +1875,145 @@ html[data-dashboard-ui="aurora"]
   color:
     rgba(231, 255, 247, 0.96);
 }
+
+
+/* ============================================================
+   M4.17E1 — AURORA PUBLIC DONATION LEDGER
+   ============================================================ */
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-panel {
+  position: relative;
+  overflow: hidden;
+  border-color:
+    var(--aurora-donate-line);
+  border-radius: 20px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 36, 27, .88),
+      rgba(2, 22, 17, .96)
+    );
+  box-shadow:
+    inset 0 1px 0
+      rgba(121, 255, 210, .03),
+    0 22px 68px
+      rgba(0, 0, 0, .16);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-panel::before {
+  content: "PUBLIC LEDGER";
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  pointer-events: none;
+  color:
+    rgba(101, 245, 196, .12);
+  font-size: .52rem;
+  font-weight: 800;
+  letter-spacing: .17em;
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-stat,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-entry {
+  border-color:
+    rgba(85, 237, 181, .15);
+  background:
+    rgba(3, 28, 21, .70);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-stat {
+  box-shadow:
+    inset 0 1px 0
+      rgba(112, 255, 204, .025);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-stat > strong {
+  color:
+    rgba(230, 255, 246, .96);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-total,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-social,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-entry-asset {
+  border-color:
+    rgba(85, 237, 181, .17);
+  background:
+    rgba(5, 42, 31, .72);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-entry:hover {
+  border-color:
+    rgba(85, 237, 181, .30);
+  background:
+    rgba(5, 38, 28, .82);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-social:hover {
+  border-color:
+    rgba(85, 237, 181, .50);
+  background:
+    rgba(8, 56, 41, .82);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-anonymous {
+  color:
+    rgba(181, 211, 199, .72);
+}
+
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-donor-name,
+html[data-dashboard-ui="aurora"]
+#tab-donate
+.donate-ledger-social strong {
+  color:
+    rgba(221, 255, 243, .94);
+}
+
+@media (max-width: 900px) {
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-ledger-summary {
+    grid-template-columns:
+      minmax(160px, .48fr)
+      minmax(0, 1.52fr);
+  }
+}
+
+@media (max-width: 700px) {
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-ledger-summary {
+    grid-template-columns: 1fr;
+  }
+
+  html[data-dashboard-ui="aurora"]
+  #tab-donate
+  .donate-ledger-panel::before {
+    display: none;
+  }
+}

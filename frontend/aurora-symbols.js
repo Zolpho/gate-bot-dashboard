@@ -653,6 +653,39 @@
   }
 
 
+
+  function decorateDonateLedger() {
+    document.querySelectorAll(
+      '#donateLedgerTotals '
+      + '[data-donate-ledger-asset], '
+      + '#donateLedgerList '
+      + '[data-donate-ledger-asset]'
+    ).forEach(host => {
+      const symbol = String(
+        host.dataset
+          .donateLedgerAsset || ''
+      ).trim();
+
+      const mark = host.querySelector(
+        '.deposit-coin-mark'
+      );
+
+      if (
+        !symbol
+        || !mark
+      ) {
+        return;
+      }
+
+      replaceMark(
+        mark,
+        'asset',
+        symbol,
+      );
+    });
+  }
+
+
   function decorateBalance() {
     prependSymbol(
       document.querySelector(
@@ -3633,6 +3666,7 @@
     decorateDonateOptions();
     decorateDonateFavorites();
     decorateDonateResult();
+    decorateDonateLedger();
     decorateBalance();
     decorateBotsMarkets();
     decorateOverviewSymbols();

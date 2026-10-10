@@ -81,6 +81,9 @@ const state = {
   donateIntentSubmissionUncertain: false,
   donateAttributionBusy: false,
   donateAttribution: null,
+  donateLedger: null,
+  donateLedgerLoading: false,
+  donateLedgerError: '',
   botControlCapabilities: null,
   botControlPrepared: null,
   botControlDraft: null,
@@ -7941,6 +7944,424 @@ function renderDonateNetworks() {
       'deposit-step-disabled',
       !networks.length,
     );
+}
+
+
+
+function donationLedgerSourceLabel(item) {
+  const sourceType = String(
+    item?.source_type || ''
+  ).trim();
+
+  if (sourceType === 'internal_transfer') {
+    return 'Internal donation';
+  }
+
+  if (sourceType === 'external_deposit') {
+    const chain = String(
+      item?.chain || ''
+    ).trim();
+
+    return chain
+      ? `On-chain · ${chain}`
+      : 'On-chain donation';
+  }
+
+  return 'Confirmed donation';
+}
+
+
+function donationLedgerSocialLink(
+  platform,
+  handle,
+) {
+  const normalized = String(
+    handle || ''
+  ).trim();
+
+  if (!normalized) {
+    return '';
+  }
+
+  const bare = normalized.startsWith('@')
+    ? normalized.slice(1)
+    : normalized;
+
+  if (!bare) {
+    return '';
+  }
+
+  const isTelegram = (
+    platform === 'telegram'
+  );
+
+  const label = isTelegram
+    ? 'Telegram'
+    : 'X';
+
+  const href = isTelegram
+    ? (
+        'https://t.me/'
+        + encodeURIComponent(bare)
+      )
+    : (
+        'https://x.com/'
+        + encodeURIComponent(bare)
+      );
+
+  return (
+    '<a'
+    + ' class="donate-ledger-social"'
+    + ` href="${escapeHtml(href)}"`
+    + ' target="_blank"'
+    + ' rel="noopener noreferrer"'
+    + ` aria-label="${label} ${escapeHtml(normalized)}"`
+    + '>'
+    + `<span>${label}</span>`
+    + `<strong>${escapeHtml(normalized)}</strong>`
+    + '</a>'
+  );
+}
+
+
+function donationLedgerAttributionMarkup(
+  attribution,
+) {
+  const value = (
+    attribution
+    && typeof attribution === 'object'
+      ? attribution
+      : {}
+  );
+
+  const mode = normalizedDonationAttributionMode(
+    value.display_mode
+  );
+
+  if (mode === 'nickname') {
+    const nickname = String(
+      value.nickname || ''
+    ).trim();
+
+    return nickname
+      ? (
+          '<span class="donate-ledger-donor-name">'
+          + escapeHtml(nickname)
+          + '</span>'
+        )
+      : (
+          '<span class="donate-ledger-anonymous">'
+          + 'Anonymous'
+          + '</span>'
+        );
+  }
+
+  if (mode === 'telegram') {
+    return (
+      donationLedgerSocialLink(
+        'telegram',
+        value.telegram_handle,
+      )
+      || (
+        '<span class="donate-ledger-anonymous">'
+        + 'Anonymous'
+        + '</span>'
+      )
+    );
+  }
+
+  if (mode === 'x') {
+    return (
+      donationLedgerSocialLink(
+        'x',
+        value.x_handle,
+      )
+      || (
+        '<span class="donate-ledger-anonymous">'
+        + 'Anonymous'
+        + '</span>'
+      )
+    );
+  }
+
+  if (mode === 'telegram_x') {
+    const telegram = donationLedgerSocialLink(
+      'telegram',
+      value.telegram_handle,
+    );
+
+    const x = donationLedgerSocialLink(
+      'x',
+      value.x_handle,
+    );
+
+    if (telegram && x) {
+      return (
+        '<div class="donate-ledger-socials">'
+        + telegram
+        + x
+        + '</div>'
+      );
+    }
+  }
+
+  return (
+    '<span class="donate-ledger-anonymous">'
+    + 'Anonymous'
+    + '</span>'
+  );
+}
+
+
+function renderDonateLedger() {
+  const payload = state.donateLedger;
+  const list = $('#donateLedgerList');
+  const totals = $('#donateLedgerTotals');
+  const count = $('#donateLedgerCount');
+  const status = $('#donateLedgerStatus');
+  const refresh = $('#donateLedgerRefresh');
+
+  if (
+    !list
+    || !totals
+    || !count
+    || !status
+  ) {
+    return;
+  }
+
+  if (refresh) {
+    refresh.disabled = Boolean(
+      state.donateLedgerLoading
+    );
+
+    refresh.textContent = state.donateLedgerLoading
+      ? 'Refreshing…'
+      : 'Refresh ledger';
+  }
+
+  if (state.donateLedgerLoading && !payload) {
+    count.textContent = '—';
+
+    totals.innerHTML = (
+      '<span class="donate-ledger-total-empty">—</span>'
+    );
+
+    status.textContent = (
+      'Loading confirmed donations…'
+    );
+
+    list.innerHTML = (
+      '<div class="deposit-empty">'
+      + 'Loading Donation Ledger…'
+      + '</div>'
+    );
+
+    return;
+  }
+
+  if (state.donateLedgerError) {
+    status.textContent = state.donateLedgerError;
+
+    if (!payload) {
+      count.textContent = '—';
+
+      totals.innerHTML = (
+        '<span class="donate-ledger-total-empty">—</span>'
+      );
+
+      list.innerHTML = (
+        '<div class="deposit-empty">'
+        + 'Unable to load the Donation Ledger.'
+        + '</div>'
+      );
+    }
+
+    return;
+  }
+
+  const summary = (
+    payload?.summary || {}
+  );
+
+  const items = Array.isArray(
+    payload?.items
+  )
+    ? payload.items
+    : [];
+
+  const realCount = Number(
+    summary.real_event_count || 0
+  );
+
+  count.textContent = (
+    Number.isFinite(realCount)
+      ? String(realCount)
+      : '0'
+  );
+
+  const realTotals = Array.isArray(
+    summary.real_totals_by_currency
+  )
+    ? summary.real_totals_by_currency
+    : [];
+
+  totals.innerHTML = realTotals.length
+    ? realTotals.map(total => {
+        const currency = String(
+          total?.currency || ''
+        ).trim();
+
+        const amount = String(
+          total?.amount || '0'
+        ).trim();
+
+        return `
+          <span
+            class="donate-ledger-total"
+            data-donate-ledger-asset="${escapeHtml(currency)}"
+          >
+            <i class="deposit-coin-mark">${escapeHtml(currency.slice(0, 3))}</i>
+            <strong>${escapeHtml(amount)}</strong>
+            <span>${escapeHtml(currency)}</span>
+          </span>
+        `;
+      }).join('')
+    : (
+        '<span class="donate-ledger-total-empty">'
+        + 'No confirmed donations yet'
+        + '</span>'
+      );
+
+  if (!items.length) {
+    list.innerHTML = (
+      '<div class="deposit-empty">'
+      + 'No confirmed donations have been published yet.'
+      + '</div>'
+    );
+
+  } else {
+    list.innerHTML = items.map(item => {
+      const currency = String(
+        item?.currency || ''
+      ).trim();
+
+      const amount = String(
+        item?.amount || '0'
+      ).trim();
+
+      const eventId = String(
+        item?.event_id || ''
+      ).trim();
+
+      const source = donationLedgerSourceLabel(
+        item
+      );
+
+      const occurred = fmtDate(
+        item?.occurred_at
+      );
+
+      const attribution = (
+        donationLedgerAttributionMarkup(
+          item?.attribution
+        )
+      );
+
+      return `
+        <article
+          class="donate-ledger-entry"
+          data-donation-event-id="${escapeHtml(eventId)}"
+        >
+          <div class="donate-ledger-entry-main">
+            <span
+              class="donate-ledger-entry-asset"
+              data-donate-ledger-asset="${escapeHtml(currency)}"
+            >
+              <i class="deposit-coin-mark">${escapeHtml(currency.slice(0, 3))}</i>
+            </span>
+
+            <div class="donate-ledger-entry-value">
+              <strong>
+                ${escapeHtml(amount)}
+                <span>${escapeHtml(currency)}</span>
+              </strong>
+
+              <small>
+                ${escapeHtml(source)}
+                ·
+                ${escapeHtml(occurred)}
+              </small>
+            </div>
+          </div>
+
+          <div class="donate-ledger-entry-donor">
+            <span>Public donor</span>
+            ${attribution}
+          </div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  const asOf = fmtDate(
+    payload?.as_of
+  );
+
+  status.textContent = (
+    state.donateLedgerLoading
+      ? 'Refreshing confirmed donations…'
+      : `Public ledger · updated ${asOf}`
+  );
+}
+
+
+async function loadDonateLedger({
+  force = false,
+} = {}) {
+  if (
+    state.donateLedgerLoading
+    || (
+      state.donateLedger
+      && !force
+    )
+  ) {
+    renderDonateLedger();
+    return;
+  }
+
+  state.donateLedgerLoading = true;
+  state.donateLedgerError = '';
+
+  renderDonateLedger();
+
+  try {
+    const result = await api(
+      '/api/donate/ledger?limit=50&offset=0'
+    );
+
+    if (
+      !result
+      || !Array.isArray(result.items)
+      || !result.summary
+    ) {
+      throw new Error(
+        'Donation Ledger returned an invalid response.'
+      );
+    }
+
+    state.donateLedger = result;
+
+  } catch (error) {
+    state.donateLedgerError = (
+      error.message
+      || 'Unable to load the Donation Ledger.'
+    );
+
+  } finally {
+    state.donateLedgerLoading = false;
+    renderDonateLedger();
+  }
 }
 
 
@@ -21688,6 +22109,7 @@ function switchTab(tab, { updateHash = true } = {}) {
     target === 'donate'
   ) {
     void loadDonateCatalog();
+    void loadDonateLedger();
   }
 
   if (
@@ -27074,6 +27496,15 @@ function bindEvents() {
   $('#donateCurrencySearch')?.addEventListener(
     'input',
     renderDonateCurrencies,
+  );
+
+  $('#donateLedgerRefresh')?.addEventListener(
+    'click',
+    () => {
+      void loadDonateLedger({
+        force: true,
+      });
+    },
   );
 
   $('#donateIntentStart')?.addEventListener(
