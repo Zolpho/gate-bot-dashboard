@@ -5300,3 +5300,153 @@ input {
 }
 
 /* End Wallet Treasury finishing polish J21O1 */
+
+
+/* ============================================================
+   M4.17B2 — INTERNAL DONATION ATTRIBUTION UI
+   ============================================================ */
+
+#tab-wallet
+.treasury-user-transfer-donation-option {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+#tab-wallet
+.treasury-user-transfer-donation-option > input {
+  width: auto;
+  min-height: 0;
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+#tab-wallet
+.treasury-user-transfer-donation-option > span {
+  min-width: 0;
+}
+
+#tab-wallet
+.treasury-user-transfer-donation-option strong,
+#tab-wallet
+.treasury-user-transfer-donation-option small {
+  display: block;
+}
+
+#tab-wallet
+.treasury-user-transfer-donation-option small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+#tab-wallet
+.treasury-user-transfer-donation-card {
+  border-color: rgba(23, 211, 154, .4);
+}
+
+#tab-wallet
+.treasury-donation-attribution-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+#tab-wallet
+.treasury-donation-attribution-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+#tab-wallet
+.treasury-donation-attribution-head strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+#tab-wallet
+.treasury-donation-attribution-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.45;
+}
+
+#tab-wallet
+.treasury-donation-attribution-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+#tab-wallet
+.treasury-donation-attribution-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: .72rem;
+  font-weight: 600;
+}
+
+#tab-wallet
+.treasury-donation-attribution-grid select,
+#tab-wallet
+.treasury-donation-attribution-grid input {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  box-sizing: border-box;
+}
+
+#tab-wallet
+.treasury-donation-attribution-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+#tab-wallet
+.treasury-donation-attribution-status,
+#tab-wallet
+.treasury-donation-attribution-panel > small {
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 680px) {
+  #tab-wallet
+  .treasury-donation-attribution-head {
+    flex-direction: column;
+  }
+
+  #tab-wallet
+  .treasury-donation-attribution-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-wallet
+  .treasury-donation-attribution-actions {
+    display: grid;
+  }
+
+  #tab-wallet
+  .treasury-donation-attribution-actions .button {
+    width: 100%;
+  }
+}

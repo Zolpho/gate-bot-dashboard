@@ -79,6 +79,8 @@ const state = {
   donateClaimToken: '',
   donateIntentBusy: false,
   donateIntentSubmissionUncertain: false,
+  donateAttributionBusy: false,
+  donateAttribution: null,
   botControlCapabilities: null,
   botControlPrepared: null,
   botControlDraft: null,
@@ -102,6 +104,8 @@ const state = {
   treasuryUserTransfersEnabled: false,
   treasuryUserTransferPreview: null,
   treasuryUserTransferExecutionAttempted: false,
+  treasuryDonationAttributionBusy: false,
+  treasuryDonationAttribution: null,
   treasuryWithdrawalDestinations: [],
   treasuryWithdrawalDestinationReviewItems: [],
   treasuryWithdrawalDestinationReviewOwner: '',
@@ -4607,6 +4611,12 @@ function clearTreasurySession() {
   state.treasuryUserTransfersEnabled = false;
   state.treasuryUserTransferPreview = null;
   state.treasuryUserTransferExecutionAttempted = false;
+  state.treasuryDonationAttributionBusy = false;
+  state.treasuryDonationAttribution = null;
+
+  resetDonationAttributionEditor(
+    'treasuryDonationAttribution'
+  );
 
   state.treasuryWithdrawalDestinations = [];
   state.treasuryWithdrawalDestinationReviewItems = [];
@@ -6362,6 +6372,516 @@ function setDonateIntentError(message = '') {
 }
 
 
+const DONATION_ATTRIBUTION_MODES = new Set([
+  'anonymous',
+  'nickname',
+  'telegram',
+  'x',
+  'telegram_x',
+]);
+
+
+function normalizedDonationAttributionMode(value) {
+  const mode = String(
+    value || 'anonymous'
+  ).trim().toLowerCase();
+
+  return DONATION_ATTRIBUTION_MODES.has(mode)
+    ? mode
+    : 'anonymous';
+}
+
+
+function donationAttributionElements(prefix) {
+  return {
+    mode: $(`#${prefix}Mode`),
+    nicknameField: $(`#${prefix}NicknameField`),
+    nickname: $(`#${prefix}Nickname`),
+    telegramField: $(`#${prefix}TelegramField`),
+    telegram: $(`#${prefix}Telegram`),
+    xField: $(`#${prefix}XField`),
+    x: $(`#${prefix}X`),
+    save: $(`#${prefix}Save`),
+    status: $(`#${prefix}Status`),
+    error: $(`#${prefix}Error`),
+  };
+}
+
+
+function setDonationAttributionError(
+  prefix,
+  message = '',
+) {
+  const element = (
+    donationAttributionElements(
+      prefix
+    ).error
+  );
+
+  if (!element) return;
+
+  const text = String(
+    message || ''
+  ).trim();
+
+  element.textContent = text;
+  element.classList.toggle(
+    'hidden',
+    !text,
+  );
+}
+
+
+function renderDonationAttributionEditor(
+  prefix,
+  {
+    disabled = false,
+  } = {},
+) {
+  const elements = (
+    donationAttributionElements(
+      prefix
+    )
+  );
+
+  const mode = normalizedDonationAttributionMode(
+    elements.mode?.value
+  );
+
+  if (elements.mode) {
+    elements.mode.value = mode;
+    elements.mode.disabled = Boolean(
+      disabled
+    );
+  }
+
+  const showNickname = (
+    mode === 'nickname'
+  );
+
+  const showTelegram = (
+    mode === 'telegram'
+    || mode === 'telegram_x'
+  );
+
+  const showX = (
+    mode === 'x'
+    || mode === 'telegram_x'
+  );
+
+  elements.nicknameField?.classList.toggle(
+    'hidden',
+    !showNickname,
+  );
+
+  elements.telegramField?.classList.toggle(
+    'hidden',
+    !showTelegram,
+  );
+
+  elements.xField?.classList.toggle(
+    'hidden',
+    !showX,
+  );
+
+  if (elements.nickname) {
+    elements.nickname.disabled = Boolean(
+      disabled || !showNickname
+    );
+  }
+
+  if (elements.telegram) {
+    elements.telegram.disabled = Boolean(
+      disabled || !showTelegram
+    );
+  }
+
+  if (elements.x) {
+    elements.x.disabled = Boolean(
+      disabled || !showX
+    );
+  }
+
+  if (elements.save) {
+    elements.save.disabled = Boolean(
+      disabled
+    );
+
+    elements.save.textContent = disabled
+      ? 'Saving…'
+      : 'Save public display';
+  }
+}
+
+
+function donationAttributionPayload(prefix) {
+  const elements = (
+    donationAttributionElements(
+      prefix
+    )
+  );
+
+  const displayMode = (
+    normalizedDonationAttributionMode(
+      elements.mode?.value
+    )
+  );
+
+  const payload = {
+    display_mode: displayMode,
+  };
+
+  if (displayMode === 'anonymous') {
+    return payload;
+  }
+
+  if (displayMode === 'nickname') {
+    const nickname = String(
+      elements.nickname?.value || ''
+    ).trim();
+
+    if (!nickname) {
+      throw new Error(
+        'Enter a nickname or choose Anonymous.'
+      );
+    }
+
+    payload.nickname = nickname;
+
+    return payload;
+  }
+
+  if (
+    displayMode === 'telegram'
+    || displayMode === 'telegram_x'
+  ) {
+    const telegramHandle = String(
+      elements.telegram?.value || ''
+    ).trim();
+
+    if (!telegramHandle) {
+      throw new Error(
+        'Enter a Telegram handle or choose another display mode.'
+      );
+    }
+
+    payload.telegram_handle = (
+      telegramHandle
+    );
+  }
+
+  if (
+    displayMode === 'x'
+    || displayMode === 'telegram_x'
+  ) {
+    const xHandle = String(
+      elements.x?.value || ''
+    ).trim();
+
+    if (!xHandle) {
+      throw new Error(
+        'Enter an X handle or choose another display mode.'
+      );
+    }
+
+    payload.x_handle = xHandle;
+  }
+
+  return payload;
+}
+
+
+function applyDonationAttributionEditor(
+  prefix,
+  attribution = null,
+) {
+  const elements = (
+    donationAttributionElements(
+      prefix
+    )
+  );
+
+  const value = (
+    attribution
+    && typeof attribution === 'object'
+      ? attribution
+      : {}
+  );
+
+  const mode = (
+    normalizedDonationAttributionMode(
+      value.display_mode
+    )
+  );
+
+  if (elements.mode) {
+    elements.mode.value = mode;
+  }
+
+  if (elements.nickname) {
+    elements.nickname.value = String(
+      value.nickname || ''
+    );
+  }
+
+  if (elements.telegram) {
+    elements.telegram.value = String(
+      value.telegram_handle || ''
+    );
+  }
+
+  if (elements.x) {
+    elements.x.value = String(
+      value.x_handle || ''
+    );
+  }
+
+  renderDonationAttributionEditor(
+    prefix
+  );
+}
+
+
+function resetDonationAttributionEditor(
+  prefix,
+) {
+  applyDonationAttributionEditor(
+    prefix,
+    {
+      display_mode: 'anonymous',
+      nickname: '',
+      telegram_handle: '',
+      x_handle: '',
+    },
+  );
+
+  const status = (
+    donationAttributionElements(
+      prefix
+    ).status
+  );
+
+  if (status) {
+    status.textContent = '';
+  }
+
+  setDonationAttributionError(
+    prefix,
+    '',
+  );
+}
+
+
+function donationAttributionDisplayLabel(
+  attribution,
+) {
+  const value = (
+    attribution
+    && typeof attribution === 'object'
+      ? attribution
+      : {}
+  );
+
+  const mode = (
+    normalizedDonationAttributionMode(
+      value.display_mode
+    )
+  );
+
+  if (mode === 'nickname') {
+    return String(
+      value.nickname || 'Nickname'
+    );
+  }
+
+  if (mode === 'telegram') {
+    return String(
+      value.telegram_handle || 'Telegram'
+    );
+  }
+
+  if (mode === 'x') {
+    return String(
+      value.x_handle || 'X'
+    );
+  }
+
+  if (mode === 'telegram_x') {
+    return [
+      value.telegram_handle,
+      value.x_handle,
+    ]
+      .filter(Boolean)
+      .join(' + ')
+      || 'Telegram + X';
+  }
+
+  return 'Anonymous';
+}
+
+
+function renderDonateAttributionPanel() {
+  const panel = $(
+    '#donateAttributionPanel'
+  );
+
+  if (!panel) return;
+
+  const intent = state.donateIntent;
+
+  const matched = Boolean(
+    donateIntentMatchesSelection()
+    && intent
+    && (
+      String(
+        intent.status || ''
+      ).toLowerCase() === 'matched'
+      || String(
+        intent.match_status || ''
+      ).toLowerCase() === 'matched'
+    )
+    && intent.matched_event_id
+  );
+
+  panel.classList.toggle(
+    'hidden',
+    !matched,
+  );
+
+  if (!matched) {
+    return;
+  }
+
+  renderDonationAttributionEditor(
+    'donateAttribution',
+    {
+      disabled:
+        state.donateAttributionBusy,
+    },
+  );
+
+  const status = $(
+    '#donateAttributionStatus'
+  );
+
+  if (status) {
+    status.textContent = (
+      state.donateAttribution
+        ? (
+            'Saved as '
+            + donationAttributionDisplayLabel(
+              state.donateAttribution
+            )
+            + '.'
+          )
+        : (
+            'Anonymous by default. '
+            + 'Saving a different display is optional.'
+          )
+    );
+  }
+}
+
+
+async function saveDonateAttribution() {
+  const intent = state.donateIntent;
+
+  if (
+    state.donateAttributionBusy
+    || !donateIntentMatchesSelection()
+    || !intent
+    || (
+      String(
+        intent.status || ''
+      ).toLowerCase() !== 'matched'
+      && String(
+        intent.match_status || ''
+      ).toLowerCase() !== 'matched'
+    )
+  ) {
+    return;
+  }
+
+  const intentId = String(
+    intent.intent_id || ''
+  ).trim();
+
+  if (!intentId) return;
+
+  let payload;
+
+  try {
+    payload = donationAttributionPayload(
+      'donateAttribution'
+    );
+
+  } catch (error) {
+    setDonationAttributionError(
+      'donateAttribution',
+      error.message,
+    );
+
+    return;
+  }
+
+  state.donateAttributionBusy = true;
+
+  setDonationAttributionError(
+    'donateAttribution',
+    '',
+  );
+
+  renderDonateAttributionPanel();
+
+  try {
+    const result = await api(
+      `/api/donate/intents/${
+        encodeURIComponent(intentId)
+      }/attribution`,
+      {
+        method: 'POST',
+        body: JSON.stringify(
+          payload
+        ),
+      },
+    );
+
+    if (
+      !result?.attribution
+      || !result?.event_id
+    ) {
+      throw new Error(
+        'Donation attribution returned an invalid response.'
+      );
+    }
+
+    state.donateAttribution = (
+      result.attribution
+    );
+
+    applyDonationAttributionEditor(
+      'donateAttribution',
+      state.donateAttribution,
+    );
+
+    showToast(
+      'Public donor display updated.'
+    );
+
+  } catch (error) {
+    setDonationAttributionError(
+      'donateAttribution',
+      error.message
+      || 'Unable to update public donor display.',
+    );
+
+  } finally {
+    state.donateAttributionBusy = false;
+    renderDonateAttributionPanel();
+  }
+}
+
+
 function donateIntentMatchesSelection() {
   const intent = state.donateIntent;
 
@@ -6388,6 +6908,17 @@ function clearDonateIntentState() {
   state.donateClaimToken = '';
   state.donateIntentBusy = false;
   state.donateIntentSubmissionUncertain = false;
+  state.donateAttributionBusy = false;
+  state.donateAttribution = null;
+
+  resetDonationAttributionEditor(
+    'donateAttribution'
+  );
+
+  $('#donateAttributionPanel')
+    ?.classList.add(
+      'hidden'
+    );
 
   const input = $('#donateTxidInput');
 
@@ -6544,6 +7075,8 @@ function renderDonateIntentState() {
       reset.disabled = false;
     }
 
+    renderDonateAttributionPanel();
+
     return;
   }
 
@@ -6615,6 +7148,8 @@ function renderDonateIntentState() {
     reset.disabled =
       state.donateIntentBusy;
   }
+
+  renderDonateAttributionPanel();
 }
 
 
@@ -12161,6 +12696,251 @@ function treasuryIsUserOwnershipTransfer(item) {
 }
 
 
+function renderTreasuryUserTransferDonationOption() {
+  const option = $(
+    '#treasuryUserTransferDonationOption'
+  );
+
+  const checkbox = $(
+    '#treasuryUserTransferDonation'
+  );
+
+  const destination = String(
+    $('#treasuryUserTransferDestination')
+      ?.value
+    || ''
+  ).trim().toLowerCase();
+
+  const eligible = (
+    destination === 'eqtydao'
+  );
+
+  option?.classList.toggle(
+    'hidden',
+    !eligible,
+  );
+
+  if (
+    checkbox
+    && !eligible
+  ) {
+    checkbox.checked = false;
+  }
+
+  if (checkbox) {
+    checkbox.disabled = Boolean(
+      !eligible
+      || state.treasuryUserTransferExecutionAttempted
+      || state.treasuryUserTransferPreview
+        ?.executionResult
+    );
+  }
+}
+
+
+function renderTreasuryDonationAttributionPanel() {
+  const panel = $(
+    '#treasuryDonationAttributionPanel'
+  );
+
+  if (!panel) return;
+
+  const snapshot = (
+    state.treasuryUserTransferPreview
+  );
+
+  const executionResult = (
+    snapshot?.executionResult
+  );
+
+  const donationSuccess = Boolean(
+    snapshot?.donation === true
+    && executionResult?.kind === 'success'
+  );
+
+  panel.classList.toggle(
+    'hidden',
+    !donationSuccess,
+  );
+
+  if (!donationSuccess) {
+    return;
+  }
+
+  const publicationStatus = String(
+    snapshot?.donationPublication
+      ?.status
+    || ''
+  ).toLowerCase();
+
+  const recorded = (
+    publicationStatus === 'recorded'
+  );
+
+  renderDonationAttributionEditor(
+    'treasuryDonationAttribution',
+    {
+      disabled: Boolean(
+        state.treasuryDonationAttributionBusy
+        || !recorded
+      ),
+    },
+  );
+
+  const status = $(
+    '#treasuryDonationAttributionStatus'
+  );
+
+  if (status) {
+    if (!recorded) {
+      status.textContent = (
+        'Donation Ledger publication requires review '
+        + 'before attribution can be changed.'
+      );
+
+    } else if (
+      state.treasuryDonationAttribution
+    ) {
+      status.textContent = (
+        'Saved as '
+        + donationAttributionDisplayLabel(
+          state.treasuryDonationAttribution
+        )
+        + '.'
+      );
+
+    } else {
+      status.textContent = (
+        'Anonymous by default. '
+        + 'Saving a different display is optional.'
+      );
+    }
+  }
+
+  if (!recorded) {
+    setDonationAttributionError(
+      'treasuryDonationAttribution',
+      (
+        snapshot?.donationPublication
+          ?.message
+        || (
+          'The transfer succeeded, but the Donation '
+          + 'Ledger event is not confirmed as recorded.'
+        )
+      ),
+    );
+
+  } else if (
+    !state.treasuryDonationAttributionBusy
+  ) {
+    setDonationAttributionError(
+      'treasuryDonationAttribution',
+      '',
+    );
+  }
+}
+
+
+async function saveTreasuryDonationAttribution() {
+  const snapshot = (
+    state.treasuryUserTransferPreview
+  );
+
+  if (
+    state.treasuryDonationAttributionBusy
+    || snapshot?.donation !== true
+    || snapshot?.executionResult?.kind
+      !== 'success'
+    || String(
+      snapshot?.donationPublication?.status
+      || ''
+    ).toLowerCase() !== 'recorded'
+  ) {
+    return;
+  }
+
+  const requestId = String(
+    snapshot.requestId || ''
+  ).trim();
+
+  if (!requestId) return;
+
+  let payload;
+
+  try {
+    payload = donationAttributionPayload(
+      'treasuryDonationAttribution'
+    );
+
+  } catch (error) {
+    setDonationAttributionError(
+      'treasuryDonationAttribution',
+      error.message,
+    );
+
+    return;
+  }
+
+  state.treasuryDonationAttributionBusy = true;
+
+  setDonationAttributionError(
+    'treasuryDonationAttribution',
+    '',
+  );
+
+  renderTreasuryDonationAttributionPanel();
+
+  try {
+    const result = await adminApi(
+      `/api/treasury/user-transfers/${
+        encodeURIComponent(requestId)
+      }/donation-attribution`,
+      {
+        method: 'POST',
+        body: JSON.stringify(
+          payload
+        ),
+      },
+    );
+
+    if (
+      result?.status
+        !== 'attribution_updated'
+      || !result?.attribution
+    ) {
+      throw new Error(
+        'Donation attribution returned an invalid response.'
+      );
+    }
+
+    state.treasuryDonationAttribution = (
+      result.attribution
+    );
+
+    applyDonationAttributionEditor(
+      'treasuryDonationAttribution',
+      state.treasuryDonationAttribution,
+    );
+
+    showToast(
+      'Public donor display updated.'
+    );
+
+  } catch (error) {
+    setDonationAttributionError(
+      'treasuryDonationAttribution',
+      treasuryErrorMessage(
+        error
+      ),
+    );
+
+  } finally {
+    state.treasuryDonationAttributionBusy = false;
+    renderTreasuryDonationAttributionPanel();
+  }
+}
+
+
 function treasuryUserTransferParticipantLabel(item) {
   const accountId = String(
     item?.account_id || ''
@@ -12229,6 +13009,7 @@ function setTreasuryUserTransferFormLocked(locked) {
     '#treasuryUserTransferDestination',
     '#treasuryUserTransferCurrency',
     '#treasuryUserTransferAmount',
+    '#treasuryUserTransferDonation',
     '#treasuryUserTransferResetButton',
     '#treasuryUserTransferReviewResetButton',
     '#treasuryUserTransferPreviewButton',
@@ -12422,8 +13203,10 @@ function renderTreasuryUserTransferParticipants() {
     );
   }
 
+  renderTreasuryUserTransferDonationOption();
   updateTreasuryUserTransferExecuteButton();
 }
+
 
 function treasuryUserTransferPathLabel(value) {
   const path = String(value || '').trim().toLowerCase();
@@ -12595,6 +13378,8 @@ function renderTreasuryUserTransferPreview() {
     snapshot?.executionResult || null
   );
 
+  renderTreasuryDonationAttributionPanel();
+
   if (!snapshot) {
     container.innerHTML = '';
     container.classList.add('hidden');
@@ -12727,6 +13512,22 @@ function renderTreasuryUserTransferPreview() {
         </strong>
       </div>
 
+      ${
+        snapshot.donation
+          ? `
+            <div
+              class="treasury-user-transfer-card treasury-user-transfer-donation-card"
+            >
+              <span>Donation</span>
+
+              <strong>
+                YES · EQTYDAO Donation Ledger
+              </strong>
+            </div>
+          `
+          : ''
+      }
+
       <div class="treasury-user-transfer-card">
         <span>Balance before</span>
 
@@ -12855,6 +13656,17 @@ function renderTreasuryUserTransferPreview() {
 function clearTreasuryUserTransferPreview() {
   state.treasuryUserTransferPreview = null;
   state.treasuryUserTransferExecutionAttempted = false;
+  state.treasuryDonationAttributionBusy = false;
+  state.treasuryDonationAttribution = null;
+
+  resetDonationAttributionEditor(
+    'treasuryDonationAttribution'
+  );
+
+  $('#treasuryDonationAttributionPanel')
+    ?.classList.add(
+      'hidden'
+    );
 
   setTreasuryUserTransferFormLocked(false);
   renderTreasuryUserTransferPreview();
@@ -12926,6 +13738,14 @@ function resetTreasuryUserTransferForm() {
     confirmation.value = '';
   }
 
+  const donation = $(
+    '#treasuryUserTransferDonation'
+  );
+
+  if (donation) {
+    donation.checked = false;
+  }
+
   if (errorBox) {
     errorBox.textContent = '';
     errorBox.classList.add('hidden');
@@ -12958,6 +13778,14 @@ async function startNewTreasuryUserTransfer() {
 
   if (confirmation) {
     confirmation.value = '';
+  }
+
+  const donation = $(
+    '#treasuryUserTransferDonation'
+  );
+
+  if (donation) {
+    donation.checked = false;
   }
 
   if (errorBox) {
@@ -13051,6 +13879,11 @@ async function runTreasuryUserTransferPreview(event) {
     || ''
   ).trim();
 
+  const donation = Boolean(
+    destination.toLowerCase() === 'eqtydao'
+    && $('#treasuryUserTransferDonation')?.checked
+  );
+
   const button = $('#treasuryUserTransferPreviewButton');
   const errorBox = $('#treasuryUserTransferError');
 
@@ -13083,6 +13916,7 @@ async function runTreasuryUserTransferPreview(event) {
           destination_account_id: destination,
           currency,
           amount,
+          donation,
         }),
       },
     );
@@ -13094,11 +13928,23 @@ async function runTreasuryUserTransferPreview(event) {
       );
     }
 
+    if (
+      Boolean(
+        response?.preview?.donation
+      ) !== donation
+    ) {
+      throw new Error(
+        'Safety invariant failed: reviewed donation '
+        + 'choice was not preserved by the server.'
+      );
+    }
+
     state.treasuryUserTransferPreview = {
       source,
       destination,
       currency,
       amount,
+      donation,
       requestId: (
         generateTreasuryUserTransferRequestId()
       ),
@@ -13195,6 +14041,9 @@ async function executeTreasuryUserTransfer() {
           destination_account_id: snapshot.destination,
           currency: snapshot.currency,
           amount: snapshot.amount,
+          donation: Boolean(
+            snapshot.donation
+          ),
           confirmation,
         }),
       },
@@ -13213,6 +14062,24 @@ async function executeTreasuryUserTransfer() {
           'Safety invariant failed: successful '
           + 'user transfer has no recorded Gate write.'
         );
+      }
+
+      if (snapshot.donation) {
+        snapshot.donationPublication = (
+          result.donation
+          || {
+            status: 'publication_error',
+            created: false,
+            event_id: null,
+            message: (
+              'Transfer succeeded, but Donation Ledger '
+              + 'publication was not confirmed.'
+            ),
+          }
+        );
+
+      } else {
+        snapshot.donationPublication = null;
       }
 
       snapshot.executionResult = {
@@ -13345,6 +14212,25 @@ async function executeTreasuryUserTransfer() {
     );
 
     if (successful) {
+      if (snapshot.donation) {
+        snapshot.donationPublication = (
+          detail?.donation
+          || {
+            status: 'publication_error',
+            created: false,
+            event_id: null,
+            message: (
+              'Transfer succeeded according to persistent '
+              + 'audit, but Donation Ledger publication '
+              + 'was not confirmed.'
+            ),
+          }
+        );
+
+      } else {
+        snapshot.donationPublication = null;
+      }
+
       snapshot.executionResult = {
         kind: 'success',
         status: 'success',
@@ -26214,6 +27100,25 @@ function bindEvents() {
     'click',
     resetDonateIntentTracking,
   );
+
+  $('#donateAttributionMode')?.addEventListener(
+    'change',
+    () => {
+      renderDonationAttributionEditor(
+        'donateAttribution',
+        {
+          disabled:
+            state.donateAttributionBusy,
+        },
+      );
+    },
+  );
+
+  $('#donateAttributionSave')?.addEventListener(
+    'click',
+    saveDonateAttribution,
+  );
+
   $('#accountSelector').addEventListener(
     'change',
     changeSelectedAccount,
@@ -26762,7 +27667,10 @@ function bindTreasuryUserTransferEvents() {
 
     destination.addEventListener(
       'change',
-      invalidateTreasuryUserTransferPreview,
+      () => {
+        invalidateTreasuryUserTransferPreview();
+        renderTreasuryUserTransferDonationOption();
+      },
     );
   }
 
@@ -26790,6 +27698,22 @@ function bindTreasuryUserTransferEvents() {
 
     amount.addEventListener(
       'input',
+      invalidateTreasuryUserTransferPreview,
+    );
+  }
+
+  const donation = $(
+    '#treasuryUserTransferDonation'
+  );
+
+  if (
+    donation
+    && donation.dataset.userTransferEventsBound !== 'true'
+  ) {
+    donation.dataset.userTransferEventsBound = 'true';
+
+    donation.addEventListener(
+      'change',
       invalidateTreasuryUserTransferPreview,
     );
   }
@@ -26899,6 +27823,52 @@ function bindTreasuryUserTransferEvents() {
     });
   }
 
+  const attributionMode = $(
+    '#treasuryDonationAttributionMode'
+  );
+
+  if (
+    attributionMode
+    && attributionMode.dataset
+      .donationAttributionEventsBound !== 'true'
+  ) {
+    attributionMode.dataset
+      .donationAttributionEventsBound = 'true';
+
+    attributionMode.addEventListener(
+      'change',
+      () => {
+        renderDonationAttributionEditor(
+          'treasuryDonationAttribution',
+          {
+            disabled:
+              state.treasuryDonationAttributionBusy,
+          },
+        );
+      },
+    );
+  }
+
+  const attributionSave = $(
+    '#treasuryDonationAttributionSave'
+  );
+
+  if (
+    attributionSave
+    && attributionSave.dataset
+      .donationAttributionEventsBound !== 'true'
+  ) {
+    attributionSave.dataset
+      .donationAttributionEventsBound = 'true';
+
+    attributionSave.addEventListener(
+      'click',
+      saveTreasuryDonationAttribution,
+    );
+  }
+
+  renderTreasuryUserTransferDonationOption();
+  renderTreasuryDonationAttributionPanel();
 }
 
 

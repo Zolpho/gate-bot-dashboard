@@ -268,6 +268,7 @@ def test_permissions_feature_loads_after_app() -> None:
             "&m412g=20261002-premium-overview-chart-v1"
             "&m414c2a=20261003-donate-v1"
             "&m416b1=20261010-donation-intent-ui-v1"
+            "&m417b2=20261010-donor-attribution-ui-v1"
         )
     )
 

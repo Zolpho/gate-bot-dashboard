@@ -380,3 +380,101 @@
     width: 100%;
   }
 }
+
+
+/* ============================================================
+   M4.17B2 — DONOR ATTRIBUTION UI
+   ============================================================ */
+
+.donate-attribution-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 14px;
+  border: 1px solid var(--line, #d8dee8);
+  border-radius: 12px;
+  background: var(
+    --panel-soft,
+    rgba(127, 127, 127, 0.05)
+  );
+}
+
+.donate-attribution-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.donate-attribution-head strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.donate-attribution-head p {
+  margin: 0;
+  color: var(--muted, #657081);
+  line-height: 1.45;
+}
+
+.donate-attribution-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.donate-attribution-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: .76rem;
+  font-weight: 700;
+}
+
+.donate-attribution-grid select,
+.donate-attribution-grid input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+.donate-attribution-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.donate-attribution-status,
+.donate-attribution-note {
+  color: var(--muted, #657081);
+  line-height: 1.45;
+}
+
+.donate-attribution-status {
+  font-size: .76rem;
+}
+
+.donate-attribution-note {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .donate-attribution-head {
+    display: grid;
+  }
+
+  .donate-attribution-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .donate-attribution-actions {
+    display: grid;
+  }
+
+  .donate-attribution-actions .button {
+    width: 100%;
+  }
+}

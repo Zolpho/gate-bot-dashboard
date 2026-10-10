@@ -170,24 +170,26 @@ def test_donate_explains_fixed_destination_and_wallet_boundary():
     )
 
 
-def test_donate_has_no_donor_attribution_controls():
+def test_donate_has_optional_donor_attribution_controls():
     page = donate_html().lower()
     normalized_page = " ".join(page.split())
 
-    # M4.16 adds explicit TXID correlation and Donation Ledger
-    # matching. It still does not collect donor identity or
-    # expose donor-attribution controls.
     for token in (
+        'id="donateattributionpanel"',
+        'id="donateattributionmode"',
+        'id="donateattributionnickname"',
+        'id="donateattributiontelegram"',
+        'id="donateattributionx"',
+        'id="donateattributionsave"',
+        "anonymous",
+        "nickname",
         "telegram handle",
         "x handle",
-        "donor username",
-        "donor nickname",
-        'id="donatedonor',
-        'name="donor_',
-        'data-donate-donor',
-        'data-donor-',
+        "telegram + x",
+        "self-declared",
+        "not verified",
     ):
-        assert token not in page
+        assert token in page
 
     assert (
         "donation ledger"
@@ -205,8 +207,8 @@ def test_donate_has_no_donor_attribution_controls():
     )
 
     assert (
-        "will be added in a later milestone"
-        not in page
+        "anonymous by default"
+        in normalized_page
     )
 
 
