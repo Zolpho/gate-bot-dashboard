@@ -815,6 +815,7 @@ def submit_donation_intent_txid(
     claim_token: str,
     txid: str,
     now: datetime | None = None,
+    match_expires_at: datetime | None = None,
 ) -> dict[str, Any]:
     """
     Bind one donor-supplied txid to one pending intent.
@@ -824,6 +825,11 @@ def submit_donation_intent_txid(
     The raw claim token is valid only while the intent is
     pending. After a successful submission its durable hash is
     removed, making the correlation authority one-time.
+
+    A caller may optionally extend expires_at only after the
+    claim has passed pending-expiry validation. This lets a
+    short-lived claim authorize a longer local correlation
+    window without reviving an already expired claim.
     """
     current = _utc_datetime(
         now or utcnow(),
@@ -874,6 +880,22 @@ def submit_donation_intent_txid(
         max_length=DONATION_TXID_MAX_LENGTH,
     )
 
+    requested_match_expiry = None
+
+    if match_expires_at is not None:
+        requested_match_expiry = (
+            _utc_datetime(
+                match_expires_at,
+                field="match_expires_at",
+            )
+        )
+
+        if requested_match_expiry <= current:
+            raise DonationLedgerInvariantError(
+                "Donation match expiry must be "
+                "in the future"
+            )
+
     existing_claim = db.scalar(
         select(
             DonationIntent
@@ -896,6 +918,17 @@ def submit_donation_intent_txid(
             "Donation txid is already associated "
             "with another intent"
         )
+
+    if requested_match_expiry is not None:
+        current_expiry = _utc_datetime(
+            row.expires_at,
+            field="expires_at",
+        )
+
+        if requested_match_expiry > current_expiry:
+            row.expires_at = (
+                requested_match_expiry
+            )
 
     row.submitted_txid = submitted_txid
     row.status = INTENT_SUBMITTED

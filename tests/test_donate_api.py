@@ -749,22 +749,55 @@ def test_durable_trust_verify_and_commit_are_serialized() -> None:
     assert commit_calls == 1
 
 
-def test_donate_router_is_get_only() -> None:
-    methods = set()
+def test_donate_router_methods_are_bounded() -> None:
+    expected_post_paths = {
+        "/api/donate/intents",
+        (
+            "/api/donate/intents/"
+            "{intent_id}/txid"
+        ),
+        (
+            "/api/donate/intents/"
+            "{intent_id}/reconcile"
+        ),
+    }
+
+    seen_post_paths = set()
 
     for route in donate_api.router.routes:
-        methods.update(
+        methods = {
             method
             for method in route.methods
             if method not in {
                 "HEAD",
                 "OPTIONS",
             }
-        )
+        }
 
-    assert methods == {
-        "GET"
-    }
+        if route.path in expected_post_paths:
+            assert methods == {
+                "POST"
+            }, (
+                route.path,
+                methods,
+            )
+
+            seen_post_paths.add(
+                route.path
+            )
+
+        else:
+            assert methods == {
+                "GET"
+            }, (
+                route.path,
+                methods,
+            )
+
+    assert (
+        seen_post_paths
+        == expected_post_paths
+    )
 
     assert all(
         "bootstrap" not in route.path.lower()
