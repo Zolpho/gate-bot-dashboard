@@ -305,3 +305,22 @@ def test_request_summary_separates_result_from_transport():
     assert "gateResult" in block
     assert "HTTP ${gateHttp}" in block
     assert "Gate code ${gateBusinessCode}" in block
+
+
+
+def test_infinity_buy_order_limit_has_floor_guidance():
+    block = function(
+        "botControlRequestDisplayError"
+    )
+
+    for token in (
+        "GRID_BUY_ORDER_TOO_LIMIT",
+        "Gate rejected the buy-order ladder",
+        "no complete grid interval",
+        "Lower the ",
+        "price floor or reduce profit per grid, then ",
+        "review again.",
+    ):
+        assert token in block
+
+    assert "grid_infinite.go" not in block

@@ -309,7 +309,16 @@ def test_prepare_is_read_only_and_returns_exact_preview(
         estimate[
             "estimated_levels_to_floor"
         ]
-        == 13
+        == 12
+    )
+
+    assert (
+        result[
+            "grid"
+        ][
+            "complete_grid_intervals_to_floor"
+        ]
+        == 12
     )
 
     assert (
@@ -678,7 +687,13 @@ def test_prepare_accepts_profit_just_below_gate_maximum(
     result = asyncio.run(
         bc.prepare_infinite_grid(
             request(
+                # Keep this test about Gate's ROI upper
+                # boundary rather than floor geometry.
+                # At 99.9% spacing and current price
+                # 0.001700, a floor of 0.001500 has no
+                # complete grid interval. 0.000800 has one.
                 profit_per_grid="0.999",
+                price_floor="0.000800",
             ),
             user(),
         )
@@ -695,6 +710,15 @@ def test_prepare_accepts_profit_just_below_gate_maximum(
         for item in result[
             "errors"
         ]
+    )
+
+    assert (
+        result[
+            "grid"
+        ][
+            "complete_grid_intervals_to_floor"
+        ]
+        == 1
     )
 
 

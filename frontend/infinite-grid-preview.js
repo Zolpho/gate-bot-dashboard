@@ -889,6 +889,12 @@
       || {}
     );
 
+    const completeIntervals = (
+      grid.complete_grid_intervals_to_floor
+      ?? estimate.estimated_levels_to_floor
+      ?? null
+    );
+
     const ready = Boolean(
       prepared.can_create
     );
@@ -1027,9 +1033,9 @@
         ),
 
         reviewMetric(
-          'Estimated levels to floor',
-          (
-            estimate.estimated_levels_to_floor
+          'Complete grid intervals to floor',
+          String(
+            completeIntervals
             ?? '—'
           ),
         ),
@@ -1084,7 +1090,7 @@
 
         reviewMetric(
           'Infinity ladder',
-          'Native geometric · Gate-derived levels',
+          'Local geometric intervals · Gate authoritative',
         ),
 
         reviewMetric(
@@ -1364,6 +1370,12 @@
       || {}
     );
 
+    const completeIntervals = (
+      grid.complete_grid_intervals_to_floor
+      ?? estimate.estimated_levels_to_floor
+      ?? null
+    );
+
     const optionalRows = [];
 
     if (draft.trigger_price) {
@@ -1498,9 +1510,9 @@
         ),
 
         infinityConfirmRow(
-          'Estimated levels to floor',
+          'Complete grid intervals to floor',
           String(
-            estimate.estimated_levels_to_floor
+            completeIntervals
             ?? '—'
           ),
         ),

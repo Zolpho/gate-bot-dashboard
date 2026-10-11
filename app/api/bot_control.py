@@ -80,6 +80,7 @@ from ..gate_client import (
 from ..infinite_grid import (
     build_infinite_grid_payload,
     estimate_infinite_grid_requirements,
+    format_infinite_grid_buy_order_limit_rejection,
     format_infinite_grid_minimum_rejection,
     validate_infinite_grid,
 )
@@ -1476,15 +1477,23 @@ async def create_infinite_grid(
         )
 
         rejection_message = (
-            format_infinite_grid_minimum_rejection(
-                response=exc.response,
-                error=str(exc),
-                market=str(
-                    payload.get(
-                        "market"
+            (
+                format_infinite_grid_minimum_rejection(
+                    response=exc.response,
+                    error=str(exc),
+                    market=str(
+                        payload.get(
+                            "market"
+                        )
+                        or ""
+                    ),
+                )
+                or (
+                    format_infinite_grid_buy_order_limit_rejection(
+                        response=exc.response,
+                        error=str(exc),
                     )
-                    or ""
-                ),
+                )
             )
             if terminal_status
             == "rejected"

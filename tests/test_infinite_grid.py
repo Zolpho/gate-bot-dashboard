@@ -11,6 +11,7 @@ from app.gate_client import (
 from app.infinite_grid import (
     build_infinite_grid_payload,
     estimate_infinite_grid_requirements,
+    format_infinite_grid_buy_order_limit_rejection,
     format_infinite_grid_minimum_rejection,
     validate_infinite_grid,
 )
@@ -638,7 +639,7 @@ def test_trigger_price_requires_current_market_price() -> None:
         for item in errors
     )
 
-def test_eqty_estimator_reconstructs_live_four_level_ladder() -> None:
+def test_eqty_estimator_counts_complete_grid_intervals() -> None:
     result = estimate_infinite_grid_requirements(
         market="EQTY_USDT",
         current_price=Decimal(
@@ -656,7 +657,7 @@ def test_eqty_estimator_reconstructs_live_four_level_ladder() -> None:
         result[
             "estimated_levels_to_floor"
         ]
-        == 4
+        == 3
     )
 
     assert (
@@ -900,3 +901,202 @@ def test_eqty_estimator_does_not_extrapolate_beyond_observed_roi_band() -> None:
             ]
             is None
         )
+
+
+
+def test_failed_live_floor_has_zero_complete_intervals() -> None:
+    result = estimate_infinite_grid_requirements(
+        market="EQTY_USDT",
+        current_price=Decimal(
+            "0.001823"
+        ),
+        price_floor=Decimal(
+            "0.001817"
+        ),
+        profit_per_grid=Decimal(
+            "0.01"
+        ),
+    )
+
+    assert (
+        result[
+            "estimated_levels_to_floor"
+        ]
+        == 0
+    )
+
+    # Correcting grid geometry must not silently alter the
+    # separately calibrated investment estimate.
+    assert (
+        result[
+            "estimated_gate_minimum"
+        ]
+        == "120.342949"
+    )
+
+    assert (
+        result[
+            "recommended_minimum"
+        ]
+        == "126"
+    )
+
+
+def test_gate_ai_reference_has_sixteen_complete_intervals() -> None:
+    result = estimate_infinite_grid_requirements(
+        market="EQTY_USDT",
+        current_price=Decimal(
+            "0.001851"
+        ),
+        price_floor=Decimal(
+            "0.001567"
+        ),
+        profit_per_grid=Decimal(
+            "0.01"
+        ),
+    )
+
+    assert (
+        result[
+            "estimated_levels_to_floor"
+        ]
+        == 16
+    )
+
+    assert (
+        result[
+            "estimated_gate_minimum"
+        ]
+        == "139.926343"
+    )
+
+    assert (
+        result[
+            "recommended_minimum"
+        ]
+        == "145"
+    )
+
+
+def test_zero_complete_interval_is_local_preflight_error() -> None:
+    errors, warnings, math = (
+        validate_infinite_grid(
+            money=Decimal(
+                "300"
+            ),
+            price_floor=Decimal(
+                "0.001817"
+            ),
+            profit_per_grid=Decimal(
+                "0.01"
+            ),
+            price_precision=6,
+            trade_status="tradable",
+            min_quote_amount=Decimal(
+                "1"
+            ),
+            available_quote=Decimal(
+                "412.82"
+            ),
+            current_price=Decimal(
+                "0.001823"
+            ),
+        )
+    )
+
+    assert any(
+        (
+            "No complete estimated "
+            "buy-grid interval"
+        )
+        in item
+        for item in errors
+    )
+
+    assert (
+        math[
+            "complete_grid_intervals_to_floor"
+        ]
+        == 0
+    )
+
+    assert warnings == []
+
+
+def test_gate_ai_reference_passes_floor_geometry_preflight() -> None:
+    errors, warnings, math = (
+        validate_infinite_grid(
+            money=Decimal(
+                "300"
+            ),
+            price_floor=Decimal(
+                "0.001567"
+            ),
+            profit_per_grid=Decimal(
+                "0.01"
+            ),
+            price_precision=6,
+            trade_status="tradable",
+            min_quote_amount=Decimal(
+                "1"
+            ),
+            available_quote=Decimal(
+                "412.82"
+            ),
+            current_price=Decimal(
+                "0.001851"
+            ),
+        )
+    )
+
+    assert not any(
+        (
+            "No complete estimated "
+            "buy-grid interval"
+        )
+        in item
+        for item in errors
+    )
+
+    assert (
+        math[
+            "complete_grid_intervals_to_floor"
+        ]
+        == 16
+    )
+
+    assert warnings == []
+
+
+
+def test_formats_gate_buy_order_limit_rejection_without_internal_noise() -> None:
+    message = (
+        format_infinite_grid_buy_order_limit_rejection(
+            response={
+                "code": 400,
+                "label":
+                    "GRID_BUY_ORDER_TOO_LIMIT",
+                "message": (
+                    "bot-service/gts.createInfinite"
+                    "(grid_infinite.go:27): "
+                    "calc min invest failed: "
+                    "under entry price.0.001823 "
+                    "buy orders too limit"
+                ),
+            },
+        )
+    )
+
+    assert message == (
+        "Infinity Grid not created: "
+        "Gate rejected the buy-order ladder "
+        "below entry price 0.001823 for these settings. "
+        "Review the price floor and profit-per-grid "
+        "spacing. A floor too close to the market can "
+        "leave no complete grid interval. Lower the "
+        "price floor or reduce profit per grid, then "
+        "review again."
+    )
+
+    assert "grid_infinite.go" not in message
+    assert "calc min invest failed" not in message

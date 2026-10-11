@@ -281,10 +281,10 @@ def test_review_explains_infinity_semantics() -> None:
         "Price floor",
         "Profit per grid",
         "Gate profit ratio",
-        "Estimated levels to floor",
+        "Complete grid intervals to floor",
         "Local minimum estimate",
         "Recommended minimum",
-        "Native geometric",
+        "Local geometric intervals · Gate authoritative",
         "Upper price",
         "No fixed upper bound",
         "Gate market status",
@@ -628,12 +628,44 @@ def test_review_renders_infinity_estimator_metadata() -> None:
 
     for token in (
         "prepared.infinity_estimate",
-        "'Estimated levels to floor'",
+        "'Complete grid intervals to floor'",
         "'Local minimum estimate'",
         "'Recommended minimum'",
-        "'Native geometric · Gate-derived levels'",
+        "'Local geometric intervals · Gate authoritative'",
     ):
         assert token in block
+
+
+
+
+def test_review_uses_complete_interval_contract() -> None:
+    start = PREVIEW.index(
+        "function renderInfinityGridReview("
+    )
+
+    end = PREVIEW.index(
+        "\n\n  async function prepareInfiniteGrid(",
+        start,
+    )
+
+    block = PREVIEW[start:end]
+
+    for token in (
+        "grid.complete_grid_intervals_to_floor",
+        "estimate.estimated_levels_to_floor",
+        "completeIntervals",
+        "'Complete grid intervals to floor'",
+        "'Local geometric intervals · Gate authoritative'",
+    ):
+        assert token in block
+
+
+def test_m418c_cache_marker_is_present() -> None:
+    assert (
+        "m418c="
+        "20261011-infinity-floor-preflight-ui-v1"
+        in HTML
+    )
 
 
 def test_m410a_cache_marker_is_present() -> None:

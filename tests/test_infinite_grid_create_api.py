@@ -1167,6 +1167,84 @@ def test_gate_minimum_rejection_returns_friendly_message(
     ]
 
 
+
+
+def test_gate_buy_order_limit_rejection_returns_floor_guidance(
+    route_env,
+):
+    FakeGateClient.failure = (
+        GateAPIError(
+            (
+                "Gate bot API error 400: "
+                "bot-service/gts.createInfinite"
+                "(grid_infinite.go:27): "
+                "calc min invest failed: "
+                "under entry price.0.001823 "
+                "buy orders too limit"
+            ),
+            status_code=200,
+            label="400",
+            response={
+                "code": 400,
+                "label":
+                    "GRID_BUY_ORDER_TOO_LIMIT",
+                "message": (
+                    "bot-service/gts.createInfinite"
+                    "(grid_infinite.go:27): "
+                    "calc min invest failed: "
+                    "under entry price.0.001823 "
+                    "buy orders too limit"
+                ),
+            },
+        )
+    )
+
+    with pytest.raises(
+        HTTPException,
+    ) as caught:
+        run(
+            request(
+                request_id=(
+                    "infinity-buy-limit-copy-001"
+                ),
+            )
+        )
+
+    detail = caught.value.detail
+
+    assert detail["status"] == "rejected"
+
+    assert detail["message"] == (
+        "Infinity Grid not created: "
+        "Gate rejected the buy-order ladder "
+        "below entry price 0.001823 for these settings. "
+        "Review the price floor and profit-per-grid "
+        "spacing. A floor too close to the market can "
+        "leave no complete grid interval. Lower the "
+        "price floor or reduce profit per grid, then "
+        "review again."
+    )
+
+    assert (
+        "grid_infinite.go"
+        not in detail["message"]
+    )
+
+    assert (
+        "grid_infinite.go"
+        in detail["gate_error"]
+    )
+
+    assert route_env["released"] == [
+        {
+            "lock_key":
+                "create-intent:test",
+            "owner_request_id":
+                "infinity-buy-limit-copy-001",
+        }
+    ]
+
+
 def test_frontend_infinity_create_uses_dashboard_api_only(
 ) -> None:
     from pathlib import Path

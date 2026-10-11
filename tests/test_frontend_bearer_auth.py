@@ -651,6 +651,7 @@ def test_app_script_cache_bust_is_additive() -> None:
             "&m416b1=20261010-donation-intent-ui-v1"
             "&m417b2=20261010-donor-attribution-ui-v1"
             "&m417e1=20261010-public-ledger-ui-v1"
+            "&m418c=20261011-infinity-floor-preflight-ui-v1"
         )
     ]
 

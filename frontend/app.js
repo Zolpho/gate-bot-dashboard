@@ -10103,6 +10103,44 @@ function botControlRequestDisplayError(
       || raw
     );
 
+    const gateLabel = String(
+      detail?.response?.label
+      || detail?.gate_label
+      || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    const buyOrderMatch = message.match(
+      /under entry price\.?([0-9]+(?:\.[0-9]+)?)\s+buy orders too limit/i
+    );
+
+    if (
+      gateLabel === 'GRID_BUY_ORDER_TOO_LIMIT'
+      || buyOrderMatch
+    ) {
+      const entry = (
+        buyOrderMatch?.[1]
+        || ''
+      );
+
+      return (
+        'Infinity Grid not created: '
+        + 'Gate rejected the buy-order ladder'
+        + (
+          entry
+            ? ` below entry price ${entry}`
+            : ''
+        )
+        + ' for these settings. '
+        + 'Review the price floor and profit-per-grid '
+        + 'spacing. A floor too close to the market can '
+        + 'leave no complete grid interval. Lower the '
+        + 'price floor or reduce profit per grid, then '
+        + 'review again.'
+      );
+    }
+
     const match = message.match(
       /invest money\.([0-9]+(?:\.[0-9]+)?)\s*<\s*min invest money\.([0-9]+(?:\.[0-9]+)?)/i
     );

@@ -3,12 +3,11 @@ from __future__ import annotations
 from decimal import (
     Decimal,
     ROUND_CEILING,
+    ROUND_FLOOR,
     ROUND_HALF_UP,
 )
 from math import (
-    ceil,
     log,
-    log1p,
 )
 import re
 from typing import (
@@ -57,6 +56,15 @@ _MINIMUM_INVESTMENT_PATTERN = re.compile(
     r"\s*<\s*"
     r"min invest money\."
     r"(?P<minimum>[0-9]+(?:\.[0-9]+)?)",
+    re.IGNORECASE,
+)
+
+
+
+_GRID_BUY_ORDER_LIMIT_PATTERN = re.compile(
+    r"under entry price\.?"
+    r"(?P<entry>[0-9]+(?:\.[0-9]+)?)"
+    r"\s+buy orders too limit",
     re.IGNORECASE,
 )
 
@@ -137,6 +145,57 @@ def build_infinite_grid_payload(
 
 
 
+def _complete_geometric_intervals_to_floor(
+    *,
+    current_price: Decimal | None,
+    price_floor: Decimal,
+    profit_per_grid: Decimal,
+) -> int | None:
+    """Return complete modeled grid intervals below market.
+
+    Infinite Grid is modeled as an equal-ratio ladder. This
+    helper deliberately counts only complete intervals that
+    fit between the current market price and the configured
+    lower price limit.
+
+    The value is a local preflight estimate, not a claim about
+    Gate's unpublished internal order-count limits.
+    """
+
+    if (
+        current_price is None
+        or current_price <= 0
+        or price_floor <= 0
+        or profit_per_grid <= 0
+        or price_floor >= current_price
+    ):
+        return None
+
+    price_ratio = (
+        current_price
+        / price_floor
+    )
+
+    step_ratio = (
+        Decimal("1")
+        + profit_per_grid
+    )
+
+    intervals = (
+        price_ratio.ln()
+        / step_ratio.ln()
+    )
+
+    return max(
+        0,
+        int(
+            intervals.to_integral_value(
+                rounding=ROUND_FLOOR
+            )
+        ),
+    )
+
+
 def estimate_infinite_grid_requirements(
     *,
     market: str,
@@ -203,32 +262,25 @@ def estimate_infinite_grid_requirements(
     ):
         return result
 
-    price_ratio = float(
-        current_price
-        / price_floor
+    levels = (
+        _complete_geometric_intervals_to_floor(
+            current_price=current_price,
+            price_floor=price_floor,
+            profit_per_grid=profit_per_grid,
+        )
     )
 
-    step_ratio = float(
-        profit_per_grid
-    )
-
-    levels = max(
-        1,
-        int(
-            ceil(
-                log(
-                    price_ratio
-                )
-                / log1p(
-                    step_ratio
-                )
-            )
-        ),
-    )
+    if levels is None:
+        return result
 
     result[
         "estimated_levels_to_floor"
     ] = levels
+
+    price_ratio = float(
+        current_price
+        / price_floor
+    )
 
     roi_percent = (
         profit_per_grid
@@ -419,6 +471,83 @@ def format_infinite_grid_minimum_rejection(
     )
 
 
+
+def format_infinite_grid_buy_order_limit_rejection(
+    *,
+    response: Any = None,
+    error: str = "",
+) -> str | None:
+    """Translate Gate's buy-order-limit rejection.
+
+    Gate remains authoritative for unpublished internal
+    order-count limits. This formatter only turns the
+    observed rejection into actionable, non-internal copy.
+    """
+
+    response_dict = (
+        response
+        if isinstance(
+            response,
+            Mapping,
+        )
+        else {}
+    )
+
+    label = str(
+        response_dict.get(
+            "label"
+        )
+        or ""
+    ).strip().upper()
+
+    message = str(
+        response_dict.get(
+            "message"
+        )
+        or error
+        or ""
+    )
+
+    match = (
+        _GRID_BUY_ORDER_LIMIT_PATTERN
+        .search(
+            message
+        )
+    )
+
+    if (
+        label
+        != "GRID_BUY_ORDER_TOO_LIMIT"
+        and match is None
+    ):
+        return None
+
+    entry = (
+        match.group(
+            "entry"
+        )
+        if match is not None
+        else ""
+    )
+
+    entry_copy = (
+        f" below entry price {entry}"
+        if entry
+        else ""
+    )
+
+    return (
+        "Infinity Grid not created: "
+        "Gate rejected the buy-order ladder"
+        f"{entry_copy} for these settings. "
+        "Review the price floor and profit-per-grid "
+        "spacing. A floor too close to the market can "
+        "leave no complete grid interval. Lower the "
+        "price floor or reduce profit per grid, then "
+        "review again."
+    )
+
+
 def validate_infinite_grid(
     *,
     money: Decimal,
@@ -564,6 +693,24 @@ def validate_infinite_grid(
             "market price (Gate documented limit)."
         )
 
+    complete_grid_intervals = (
+        _complete_geometric_intervals_to_floor(
+            current_price=current_price,
+            price_floor=price_floor,
+            profit_per_grid=profit_per_grid,
+        )
+    )
+
+    if complete_grid_intervals == 0:
+        errors.append(
+            "Price floor is too close to the current "
+            "market price for the configured profit "
+            "per grid. No complete estimated buy-grid "
+            "interval fits below the current market "
+            "price. Lower the price floor or reduce "
+            "profit per grid."
+        )
+
     if (
         current_price is not None
         and price_floor
@@ -604,6 +751,8 @@ def validate_infinite_grid(
             decimal_text(
                 current_price
             ),
+        "complete_grid_intervals_to_floor":
+            complete_grid_intervals,
     }
 
     return (

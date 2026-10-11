@@ -1049,6 +1049,7 @@ def test_security_assets_have_final_r4a2c3_cache_busts() -> None:
             "&m416b1=20261010-donation-intent-ui-v1"
             "&m417b2=20261010-donor-attribution-ui-v1"
             "&m417e1=20261010-public-ledger-ui-v1"
+            "&m418c=20261011-infinity-floor-preflight-ui-v1"
         )
     ]
 
