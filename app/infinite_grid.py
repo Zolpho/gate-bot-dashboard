@@ -716,11 +716,9 @@ def validate_infinite_grid(
         and price_floor
         >= current_price
     ):
-        warnings.append(
-            "The configured price floor is at or above "
-            "the current market price. Gate remains "
-            "authoritative for whether this setup can "
-            "be created."
+        errors.append(
+            "Price floor must be below the current "
+            "market price."
         )
 
     math: dict[str, Any] = {

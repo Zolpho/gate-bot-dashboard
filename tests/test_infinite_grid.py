@@ -278,42 +278,53 @@ def test_rejects_price_floor_precision_over_market_limit() -> None:
     )
 
 
-def test_floor_at_or_above_market_is_warning_not_invented_gate_rule() -> None:
-    errors, warnings, _ = (
-        validate_infinite_grid(
-            money=Decimal(
-                "10"
-            ),
-            price_floor=Decimal(
-                "2"
-            ),
-            profit_per_grid=Decimal(
-                "0.01"
-            ),
-            price_precision=4,
-            trade_status="tradable",
-            min_quote_amount=Decimal(
-                "1"
-            ),
-            available_quote=Decimal(
-                "100"
-            ),
-            current_price=Decimal(
-                "2"
-            ),
+def test_rejects_price_floor_at_or_above_market() -> None:
+    for floor in (
+        "2",
+        "2.1",
+    ):
+        errors, warnings, math = (
+            validate_infinite_grid(
+                money=Decimal(
+                    "10"
+                ),
+                price_floor=Decimal(
+                    floor
+                ),
+                profit_per_grid=Decimal(
+                    "0.01"
+                ),
+                price_precision=4,
+                trade_status="tradable",
+                min_quote_amount=Decimal(
+                    "1"
+                ),
+                available_quote=Decimal(
+                    "100"
+                ),
+                current_price=Decimal(
+                    "2"
+                ),
+            )
         )
-    )
 
-    assert errors == []
+        assert any(
+            (
+                "Price floor must be below "
+                "the current market price."
+            )
+            == item
+            for item in errors
+        )
 
-    assert len(
-        warnings
-    ) == 1
+        assert warnings == []
 
-    assert (
-        "Gate remains authoritative"
-        in warnings[0]
-    )
+        assert (
+            math[
+                "complete_grid_intervals_to_floor"
+            ]
+            is None
+        )
 
 
 def test_gate_client_uses_exact_infinite_grid_endpoint() -> None:

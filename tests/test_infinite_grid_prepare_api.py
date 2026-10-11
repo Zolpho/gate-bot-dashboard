@@ -897,3 +897,52 @@ def test_prepare_warns_below_local_recommendation_without_blocking(
         ]
         is False
     )
+
+@pytest.mark.parametrize(
+    "price_floor",
+    [
+        "0.001700",
+        "0.001800",
+    ],
+)
+def test_prepare_rejects_floor_at_or_above_market_without_write(
+    prepare_env,
+    price_floor: str,
+) -> None:
+    result = asyncio.run(
+        bc.prepare_infinite_grid(
+            request(
+                price_floor=price_floor,
+            ),
+            user(),
+        )
+    )
+
+    _assert_read_only_prepare_contract(
+        result,
+        ready=False,
+    )
+
+    assert any(
+        (
+            "Price floor must be below "
+            "the current market price."
+        )
+        == item
+        for item in result[
+            "errors"
+        ]
+    )
+
+    assert result[
+        "warnings"
+    ] == []
+
+    assert (
+        result[
+            "grid"
+        ][
+            "complete_grid_intervals_to_floor"
+        ]
+        is None
+    )
