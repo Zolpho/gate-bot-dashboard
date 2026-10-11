@@ -25925,7 +25925,13 @@ function renderBotNativeActivity() {
                   ' · Open Orders require '
                   + 'Gate web session'
                 )
-                : ''
+                : openEnvelope.reason
+                  === 'spot_grid_open_orders_unproven'
+                  ? (
+                    ' · Spot Grid Open Orders '
+                    + 'not yet proven'
+                  )
+                  : ''
             )
             + ` · strategy ${
               rendered.strategyId
@@ -25992,10 +25998,16 @@ function renderBotNativeActivity() {
             'Unavailable from the dashboard · '
             + 'Gate web session required.'
           )
-          : (
-            'Native Open Orders are '
-            + 'currently unavailable.'
-          )
+          : openEnvelope.reason
+            === 'spot_grid_open_orders_unproven'
+            ? (
+              'Spot Grid Open Orders transport '
+              + 'is not yet proven.'
+            )
+            : (
+              'Native Open Orders are '
+              + 'currently unavailable.'
+            )
       );
 
       if (openStatus) {

@@ -261,24 +261,124 @@ async def test_infinity_activity_returns_live_trades_and_session_bound_orders(
 
 
 @pytest.mark.asyncio
-async def test_spot_grid_stays_explicitly_unproven_and_makes_no_transport(
+async def test_spot_grid_returns_live_trades_but_open_orders_stay_unproven(
     monkeypatch,
 ) -> None:
-    class MustNotRun:
-        def __init__(
+    calls = []
+
+    class SpotTransport:
+        async def __aenter__(
             self,
-            *args,
-            **kwargs,
         ):
-            raise AssertionError(
-                "Spot Grid transport must "
-                "not run before live proof"
+            return self
+
+        async def __aexit__(
+            self,
+            exc_type,
+            exc,
+            tb,
+        ) -> None:
+            return None
+
+        async def fetch_trades(
+            self,
+            strategy_id,
+            *,
+            page,
+            page_size,
+            status,
+        ):
+            calls.append(
+                {
+                    "strategy_id":
+                        strategy_id,
+                    "page":
+                        page,
+                    "page_size":
+                        page_size,
+                    "status":
+                        status,
+                }
             )
+
+            return {
+                "source":
+                    "gate_native_order_record",
+
+                "credential_mode":
+                    "none",
+
+                "strategy_id":
+                    strategy_id,
+
+                "trades": {
+                    "strategy_id":
+                        strategy_id,
+
+                    "items": [
+                        {
+                            "strategy_id":
+                                strategy_id,
+
+                            "order_id":
+                                "1933868369",
+
+                            "side":
+                                "sell",
+
+                            "price":
+                                "0.00185",
+
+                            "quantity":
+                                "2346",
+
+                            "match_amount":
+                                "4.3401",
+
+                            "fee":
+                                "0",
+
+                            "profit":
+                                "0.1173",
+
+                            "profit_positive":
+                                True,
+
+                            "status":
+                                "finished",
+
+                            "order_index":
+                                1,
+
+                            "finish_time":
+                                1791567161,
+
+                            "market":
+                                "EQTY_USDT",
+                        }
+                    ],
+
+                    "pagination": {
+                        "page": 1,
+                        "page_size": 30,
+                        "page_count": 4,
+                        "total_count": 112,
+                    },
+
+                    "summary": {
+                        "returned_count": 1,
+                        "gate_total_count": 112,
+                        "sell_count": 1,
+                        "buy_count": 0,
+                        "positive_profit_count": 1,
+                    },
+                },
+            }
 
     monkeypatch.setattr(
         bots_api,
         "GateNativeActivityTransport",
-        MustNotRun,
+        SpotTransport,
     )
 
     result = (
@@ -289,39 +389,80 @@ async def test_spot_grid_stays_explicitly_unproven_and_makes_no_transport(
             db=FakeDB(
                 make_bot(
                     strategy_type="spot_grid",
-                    strategy_id="5263197",
+                    strategy_id="5285619",
                 )
             ),
         )
     )
 
     assert result[
+        "strategy_type"
+    ] == "spot_grid"
+
+    assert result[
+        "strategy_id"
+    ] == "5285619"
+
+    assert result[
         "trades"
     ][
         "available"
-    ] is False
+    ] is True
 
     assert result[
         "trades"
     ][
         "reason"
-    ] == (
-        "spot_grid_live_transport_unproven"
-    )
+    ] is None
+
+    assert result[
+        "trades"
+    ][
+        "source"
+    ] == "gate_native_order_record"
+
+    assert result[
+        "trades"
+    ][
+        "credential_mode"
+    ] == "none"
+
+    assert result[
+        "trades"
+    ][
+        "data"
+    ][
+        "pagination"
+    ][
+        "total_count"
+    ] == 112
 
     assert result[
         "open_orders"
-    ][
-        "available"
-    ] is False
+    ] == {
+        "available": False,
+        "reason":
+            "spot_grid_open_orders_unproven",
+        "source":
+            "gate_native_order_book",
+        "requires_gate_web_session":
+            None,
+        "data":
+            None,
+    }
 
-    assert result[
-        "open_orders"
-    ][
-        "reason"
-    ] == (
-        "spot_grid_live_transport_unproven"
-    )
+    assert calls == [
+        {
+            "strategy_id":
+                "5285619",
+            "page":
+                1,
+            "page_size":
+                30,
+            "status":
+                "finished",
+        }
+    ]
 
 
 @pytest.mark.asyncio

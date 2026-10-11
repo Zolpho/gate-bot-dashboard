@@ -187,8 +187,8 @@ async def get_bot_native_activity(
     """
     Return read-only Gate-native Bot Detail activity.
 
-    Live server-side transport is currently proven only for
-    Infinity Grid Trades.
+    Live server-side transport is proven for both
+    Infinity Grid and Spot Grid Trades.
 
     Gate-native Open Orders require an authenticated Gate
     web session and are therefore deliberately not fetched
@@ -227,38 +227,10 @@ async def get_bot_native_activity(
         "market": market,
     }
 
-    if strategy_type == "spot_grid":
-        payload[
-            "trades"
-        ] = {
-            "available": False,
-            "reason": (
-                "spot_grid_live_transport_unproven"
-            ),
-            "source": (
-                "gate_native_order_record"
-            ),
-            "credential_mode": "none",
-            "data": None,
-        }
-
-        payload[
-            "open_orders"
-        ] = {
-            "available": False,
-            "reason": (
-                "spot_grid_live_transport_unproven"
-            ),
-            "source": (
-                "gate_native_order_book"
-            ),
-            "requires_gate_web_session": None,
-            "data": None,
-        }
-
-        return payload
-
-    if strategy_type != "infinite_grid":
+    if strategy_type not in {
+        "infinite_grid",
+        "spot_grid",
+    }:
         payload[
             "trades"
         ] = {
@@ -395,28 +367,44 @@ async def get_bot_native_activity(
                 "data": None,
             }
 
-    availability = (
-        native_open_orders_availability()
-    )
+    if strategy_type == "spot_grid":
+        payload[
+            "open_orders"
+        ] = {
+            "available": False,
+            "reason": (
+                "spot_grid_open_orders_unproven"
+            ),
+            "source": (
+                "gate_native_order_book"
+            ),
+            "requires_gate_web_session": None,
+            "data": None,
+        }
 
-    payload[
-        "open_orders"
-    ] = {
-        "available":
-            availability.available,
+    else:
+        availability = (
+            native_open_orders_availability()
+        )
 
-        "reason":
-            availability.reason,
+        payload[
+            "open_orders"
+        ] = {
+            "available":
+                availability.available,
 
-        "source":
-            availability.source,
+            "reason":
+                availability.reason,
 
-        "requires_gate_web_session":
-            availability.requires_gate_web_session,
+            "source":
+                availability.source,
 
-        "data":
-            None,
-    }
+            "requires_gate_web_session":
+                availability.requires_gate_web_session,
+
+            "data":
+                None,
+        }
 
     return payload
 

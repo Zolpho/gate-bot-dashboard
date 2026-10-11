@@ -707,12 +707,46 @@ def test_frontend_distinguishes_live_trades_from_session_bound_orders() -> None:
     )
 
 
-def test_modified_app_has_m421d_cache_bust() -> None:
+def test_spot_grid_live_trades_keep_open_orders_explicitly_unproven() -> None:
+    source = APP.read_text(
+        encoding="utf-8"
+    )
+
+    start = source.index(
+        "function renderBotNativeActivity()"
+    )
+
+    end = source.index(
+        "function renderBotDialog(detail)",
+        start,
+    )
+
+    block = source[
+        start:end
+    ]
+
+    assert (
+        "spot_grid_open_orders_unproven"
+        in block
+    )
+
+    assert (
+        "Spot Grid Open Orders "
+        in block
+    )
+
+    assert (
+        "not yet proven"
+        in block
+    )
+
+
+def test_m422_app_cache_key_is_present() -> None:
     source = INDEX.read_text(
         encoding="utf-8"
     )
 
     assert (
-        "m421d=20261011-native-activity-live-v1"
+        "m422=20261011-spot-grid-trades-v1"
         in source
     )
