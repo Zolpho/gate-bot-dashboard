@@ -19,6 +19,11 @@ from ..bot_control import (
 from ..config import get_settings
 from ..db import get_db, session_scope
 from ..gate_client import GateAPIError, GateClient
+from ..gate_native_activity_transport import (
+    GateNativeActivityTransport,
+    NativeActivityTransportError,
+    native_open_orders_availability,
+)
 from ..metrics import bot_to_dict, calculate_drawdown, snapshot_to_dict
 from ..models import Bot, BotArchive, BotSnapshot, GateAccount
 from ..security import DashboardUser, require_account_access, require_user
@@ -163,6 +168,257 @@ def get_bot(
         ),
         "raw_data_requires_auth": True,
     }
+
+
+@router.get("/{bot_id}/native-activity")
+async def get_bot_native_activity(
+    bot_id: int,
+    page: int = Query(
+        default=1,
+        ge=1,
+    ),
+    page_size: int = Query(
+        default=30,
+        ge=1,
+        le=30,
+    ),
+    db: Session = Depends(get_db),
+):  # type: ignore[no-untyped-def]
+    """
+    Return read-only Gate-native Bot Detail activity.
+
+    Live server-side transport is currently proven only for
+    Infinity Grid Trades.
+
+    Gate-native Open Orders require an authenticated Gate
+    web session and are therefore deliberately not fetched
+    or proxied by the dashboard server.
+    """
+
+    bot = db.scalar(
+        select(Bot)
+        .where(
+            Bot.id == bot_id
+        )
+    )
+
+    if not bot:
+        raise HTTPException(
+            status_code=404,
+            detail="Bot not found",
+        )
+
+    strategy_id = str(
+        bot.strategy_id or ""
+    ).strip()
+
+    strategy_type = str(
+        bot.strategy_type or ""
+    ).strip().lower()
+
+    market = str(
+        bot.market or ""
+    ).strip().upper()
+
+    payload = {
+        "bot_id": bot.id,
+        "strategy_id": strategy_id,
+        "strategy_type": strategy_type,
+        "market": market,
+    }
+
+    if strategy_type == "spot_grid":
+        payload[
+            "trades"
+        ] = {
+            "available": False,
+            "reason": (
+                "spot_grid_live_transport_unproven"
+            ),
+            "source": (
+                "gate_native_order_record"
+            ),
+            "credential_mode": "none",
+            "data": None,
+        }
+
+        payload[
+            "open_orders"
+        ] = {
+            "available": False,
+            "reason": (
+                "spot_grid_live_transport_unproven"
+            ),
+            "source": (
+                "gate_native_order_book"
+            ),
+            "requires_gate_web_session": None,
+            "data": None,
+        }
+
+        return payload
+
+    if strategy_type != "infinite_grid":
+        payload[
+            "trades"
+        ] = {
+            "available": False,
+            "reason": (
+                "unsupported_strategy_type"
+            ),
+            "source": None,
+            "credential_mode": None,
+            "data": None,
+        }
+
+        payload[
+            "open_orders"
+        ] = {
+            "available": False,
+            "reason": (
+                "unsupported_strategy_type"
+            ),
+            "source": None,
+            "requires_gate_web_session": None,
+            "data": None,
+        }
+
+        return payload
+
+    if not strategy_id:
+        payload[
+            "trades"
+        ] = {
+            "available": False,
+            "reason": (
+                "missing_strategy_id"
+            ),
+            "source": (
+                "gate_native_order_record"
+            ),
+            "credential_mode": "none",
+            "data": None,
+        }
+
+    else:
+        try:
+            async with (
+                GateNativeActivityTransport()
+                as transport
+            ):
+                result = (
+                    await transport.fetch_trades(
+                        strategy_id,
+                        page=page,
+                        page_size=page_size,
+                        status="finished",
+                    )
+                )
+
+            trades = result[
+                "trades"
+            ]
+
+            items = trades.get(
+                "items",
+                [],
+            )
+
+            market_set = {
+                str(
+                    item.get(
+                        "market"
+                    )
+                    or ""
+                ).strip().upper()
+                for item in items
+                if isinstance(
+                    item,
+                    dict,
+                )
+                and str(
+                    item.get(
+                        "market"
+                    )
+                    or ""
+                ).strip()
+            }
+
+            if (
+                market_set
+                and market_set
+                != {
+                    market
+                }
+            ):
+                payload[
+                    "trades"
+                ] = {
+                    "available": False,
+                    "reason": (
+                        "gate_native_contract_mismatch"
+                    ),
+                    "source": (
+                        "gate_native_order_record"
+                    ),
+                    "credential_mode": "none",
+                    "data": None,
+                }
+
+            else:
+                payload[
+                    "trades"
+                ] = {
+                    "available": True,
+                    "reason": None,
+                    "source": result[
+                        "source"
+                    ],
+                    "credential_mode": result[
+                        "credential_mode"
+                    ],
+                    "data": trades,
+                }
+
+        except NativeActivityTransportError:
+            payload[
+                "trades"
+            ] = {
+                "available": False,
+                "reason": (
+                    "gate_native_trades_unavailable"
+                ),
+                "source": (
+                    "gate_native_order_record"
+                ),
+                "credential_mode": "none",
+                "data": None,
+            }
+
+    availability = (
+        native_open_orders_availability()
+    )
+
+    payload[
+        "open_orders"
+    ] = {
+        "available":
+            availability.available,
+
+        "reason":
+            availability.reason,
+
+        "source":
+            availability.source,
+
+        "requires_gate_web_session":
+            availability.requires_gate_web_session,
+
+        "data":
+            None,
+    }
+
+    return payload
 
 
 @router.get("/{bot_id}/raw")

@@ -924,3 +924,260 @@
     transform: rotate(360deg);
   }
 }
+
+/* =========================================================
+   M4.21C — Native bot Open Orders / Trades
+   ========================================================= */
+
+#botDialog .bot-native-activity {
+  position: relative;
+  margin: 0 0 17px;
+  padding: 17px;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(91, 170, 144, 0.16);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(5, 27, 22, 0.82),
+      rgba(2, 18, 15, 0.9)
+    );
+}
+
+#botDialog .bot-native-activity::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(82, 242, 190, 0.3),
+      transparent
+    );
+}
+
+#botDialog .bot-native-activity-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 13px;
+}
+
+#botDialog .bot-native-activity-header h3 {
+  margin: 0;
+  color: #dff3eb;
+  font-size: 0.82rem;
+  font-weight: 730;
+}
+
+#botDialog .bot-native-activity-header p {
+  margin: 5px 0 0;
+  color:
+    rgba(166, 199, 186, 0.56);
+  font-size: 0.71rem;
+  line-height: 1.4;
+}
+
+#botDialog .bot-native-activity-header p.error {
+  color: #ff8c9a;
+}
+
+#botDialog .bot-native-summary {
+  display: grid;
+  grid-template-columns:
+    repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 13px;
+}
+
+#botDialog .bot-native-summary > div {
+  min-width: 0;
+  padding: 10px 11px;
+  border:
+    1px solid
+    rgba(92, 170, 144, 0.14);
+  border-radius: 11px;
+  background:
+    rgba(4, 29, 23, 0.68);
+}
+
+#botDialog .bot-native-summary span {
+  display: block;
+  color:
+    rgba(171, 204, 191, 0.56);
+  font-size: 0.64rem;
+  font-weight: 650;
+}
+
+#botDialog .bot-native-summary strong {
+  display: block;
+  margin-top: 6px;
+  color: #e8f8f2;
+  font-size: 0.96rem;
+  font-weight: 750;
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#botDialog .bot-native-activity-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 11px;
+}
+
+#botDialog .bot-native-activity-section {
+  min-width: 0;
+  overflow: hidden;
+  border:
+    1px solid
+    rgba(91, 169, 143, 0.13);
+  border-radius: 12px;
+  background:
+    rgba(0, 15, 12, 0.34);
+}
+
+#botDialog .bot-native-section-head {
+  padding: 10px 12px;
+  border-bottom:
+    1px solid
+    rgba(91, 150, 131, 0.1);
+}
+
+#botDialog .bot-native-section-head strong {
+  display: block;
+  color: #dcefe8;
+  font-size: 0.75rem;
+  font-weight: 710;
+}
+
+#botDialog .bot-native-section-head small {
+  display: block;
+  margin-top: 3px;
+  color:
+    rgba(165, 197, 185, 0.54);
+  font-size: 0.65rem;
+}
+
+#botDialog .bot-native-table-wrap {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color:
+    rgba(82, 242, 190, 0.18)
+    transparent;
+}
+
+#botDialog .bot-native-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+}
+
+#botDialog .bot-native-table th {
+  padding: 9px 11px;
+  border-bottom:
+    1px solid
+    rgba(91, 150, 131, 0.1);
+  background:
+    rgba(3, 24, 19, 0.72);
+  color:
+    rgba(161, 194, 181, 0.52);
+  font-size: 0.61rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+
+#botDialog .bot-native-table td {
+  padding: 9px 11px;
+  border-bottom:
+    1px solid
+    rgba(91, 150, 131, 0.075);
+  color:
+    rgba(222, 240, 233, 0.84);
+  font-size: 0.69rem;
+  font-variant-numeric:
+    tabular-nums;
+}
+
+#botDialog .bot-native-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+#botDialog .bot-native-table tbody tr:hover td {
+  background:
+    rgba(82, 242, 190, 0.025);
+}
+
+#botDialog .bot-native-table td.mono {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  font-size: 0.64rem;
+}
+
+#botDialog .bot-native-table td.positive {
+  color: #58efb6;
+}
+
+#botDialog .bot-native-side {
+  display: inline-flex;
+  min-width: 44px;
+  justify-content: center;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 720;
+}
+
+#botDialog .bot-native-side.buy {
+  border:
+    1px solid
+    rgba(82, 242, 190, 0.22);
+  background:
+    rgba(82, 242, 190, 0.07);
+  color: #63edba;
+}
+
+#botDialog .bot-native-side.sell {
+  border:
+    1px solid
+    rgba(255, 120, 139, 0.22);
+  background:
+    rgba(255, 120, 139, 0.06);
+  color: #ff94a2;
+}
+
+#botDialog .bot-native-empty {
+  padding: 22px 12px !important;
+  color:
+    rgba(165, 197, 185, 0.5) !important;
+  text-align: center !important;
+}
+
+@media (max-width: 820px) {
+  #botDialog .bot-native-summary {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  #botDialog .bot-native-activity-header {
+    flex-direction: column;
+  }
+
+  #botDialog .bot-native-summary {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}

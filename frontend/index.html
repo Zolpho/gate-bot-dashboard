@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b1110">
   <title>Gate Bot Dashboard</title>
-  <link rel="stylesheet" href="./styles.css?v=20260912-out-of-range-a7c227-v1">
+  <link rel="stylesheet" href="./styles.css?v=20260912-out-of-range-a7c227-v1&amp;m421c=20261011-native-activity-view-v1">
   <link rel="stylesheet" href="./alerts.css?v=20260823-overview-incidents-v1">
   <link rel="stylesheet" href="./private-balance.css?v=20260823-wallet-card-depth-v1">
   <link rel="stylesheet" href="./deposit.css?v=20260830-wallet-ux-j21-v2">
@@ -70,7 +70,7 @@
   >
   <link
     rel="stylesheet"
-    href="./aurora-bot-details.css?v=20260912-aurora-bot-details-scroll-a7c248-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1"
+    href="./aurora-bot-details.css?v=20260912-aurora-bot-details-scroll-a7c248-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1&amp;m421c=20261011-native-activity-view-v1"
     data-dashboard-ui-stylesheet="aurora"
     disabled
   >
@@ -4074,6 +4074,129 @@
           <canvas id="botCumulativeReturnChart"></canvas>
         </div>
       </article>
+
+      <section
+        id="botNativeActivityPanel"
+        class="bot-native-activity hidden"
+        aria-labelledby="botNativeActivityTitle"
+      >
+        <div class="bot-native-activity-header">
+          <div>
+            <h3 id="botNativeActivityTitle">
+              Open Orders &amp; Trades
+            </h3>
+
+            <p id="botNativeActivityStatus">
+              Native Gate activity presentation ready.
+            </p>
+          </div>
+
+          <span class="mode-badge">
+            NATIVE GATE · READ ONLY
+          </span>
+        </div>
+
+        <div class="bot-native-summary">
+          <div>
+            <span>Open orders</span>
+            <strong id="botNativeOpenCount">—</strong>
+          </div>
+
+          <div>
+            <span>Sell orders</span>
+            <strong id="botNativeSellCount">—</strong>
+          </div>
+
+          <div>
+            <span>Buy orders</span>
+            <strong id="botNativeBuyCount">—</strong>
+          </div>
+
+          <div>
+            <span>Total trades</span>
+            <strong id="botNativeTradeCount">—</strong>
+          </div>
+
+          <div>
+            <span>Profit fills shown</span>
+            <strong id="botNativeProfitCount">—</strong>
+          </div>
+        </div>
+
+        <div class="bot-native-activity-grid">
+          <section class="bot-native-activity-section">
+            <div class="bot-native-section-head">
+              <div>
+                <strong>Open orders</strong>
+                <small id="botNativeOpenStatus">
+                  Waiting for native activity data.
+                </small>
+              </div>
+            </div>
+
+            <div class="bot-native-table-wrap">
+              <table class="bot-native-table">
+                <thead>
+                  <tr>
+                    <th>Side</th>
+                    <th>Price</th>
+                    <th>Qty</th>
+                    <th>Grid index</th>
+                    <th>Linked buy</th>
+                    <th>Age</th>
+                    <th>Order ID</th>
+                  </tr>
+                </thead>
+
+                <tbody id="botNativeOpenOrders">
+                  <tr>
+                    <td colspan="7" class="bot-native-empty">
+                      Native activity transport is not connected yet.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="bot-native-activity-section">
+            <div class="bot-native-section-head">
+              <div>
+                <strong>Trades</strong>
+                <small id="botNativeTradeStatus">
+                  Waiting for native activity data.
+                </small>
+              </div>
+            </div>
+
+            <div class="bot-native-table-wrap">
+              <table class="bot-native-table">
+                <thead>
+                  <tr>
+                    <th>Time (UTC)</th>
+                    <th>Side</th>
+                    <th>Price</th>
+                    <th>Qty</th>
+                    <th>Matched total</th>
+                    <th>Fee</th>
+                    <th>Grid profit</th>
+                    <th>Order ID</th>
+                  </tr>
+                </thead>
+
+                <tbody id="botNativeTrades">
+                  <tr>
+                    <td colspan="8" class="bot-native-empty">
+                      Native activity transport is not connected yet.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
       <div class="detail-columns"><section><h3>Strategy information</h3><dl id="botDefinitionList" class="definition-list"></dl></section><section><h3>Gate dynamic data <span class="admin-only-label">account login</span></h3><div class="raw-tabs"><button class="raw-tab active" data-raw="metrics">Metrics</button><button class="raw-tab" data-raw="position">Position</button><button class="raw-tab" data-raw="base_info">Base info</button><button class="raw-tab" data-raw="raw_detail">Raw</button></div><pre id="botRaw">Unlock the matching account to inspect Gate raw data.</pre></section></div>
       <div class="danger-zone" id="dangerZone"><div><strong>Stop strategy</strong><p>Disabled by default. The server must explicitly allow this action.</p></div><button class="button danger" id="stopBotButton">Stop bot</button></div>
     </div>
@@ -5178,8 +5301,9 @@
   ></script>
   <script src="./aurora-ui.js?v=20260905-aurora-a7c55-v1"></script>
   <script src="./aurora-symbols.js?v=20260923-bot-control-market-m42-v2&amp;m414c2a=20261003-donate-v1&amp;m417e1=20261010-public-ledger-ui-v1"></script>
+  <script src="./bot-native-activity.js?v=20261011-native-activity-view-v1" defer></script>
   <script
-    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1&amp;m411d4=20261002-cumulative-return-only-v1&amp;m412a=20261002-overview-series-contrast-v1&amp;m412g=20261002-premium-overview-chart-v1&amp;m414c2a=20261003-donate-v1&amp;m416b1=20261010-donation-intent-ui-v1&amp;m417b2=20261010-donor-attribution-ui-v1&amp;m417e1=20261010-public-ledger-ui-v1&amp;m418c=20261011-infinity-floor-preflight-ui-v1"
+    src="./app.js?v=20260912-bot-control-live-ux-a7c240-v1&amp;a7c486=20260913-account-permissions-v1&amp;a7c488=20260922-login-startup-hotfix-v1&amp;a7c488copy=20260922-authenticator-copy-v1&amp;a7c488escape=20260922-recovery-escape-guard-v1&amp;a7c489c=20260922-active-sessions-readonly-v1&amp;a7c489d=20260923-session-revocation-v1&amp;a7c490c=20260923-ip-restrictions-ui-v1&amp;a7c490d21=20260923-refresh-safe-session-v1&amp;a7c490d31=20260923-ip-live-save-v1&amp;infinitym4=20260923-preview-only-v1&amp;infinitym44f=20261001-create-ui-v1&amp;infinitym45c=20261001-config-provenance-v1&amp;m46a=20261001-bot-control-ui-polish-v1&amp;m48a=20261001-apr-min-window-v1&amp;m410a=20261001-native-infinity-estimator-v1&amp;m411b=20261002-grid-earnings-v1&amp;m411d=20261002-cumulative-return-v1&amp;m411d3=20261002-cumulative-return-fast-v1&amp;m411d4=20261002-cumulative-return-only-v1&amp;m412a=20261002-overview-series-contrast-v1&amp;m412g=20261002-premium-overview-chart-v1&amp;m414c2a=20261003-donate-v1&amp;m416b1=20261010-donation-intent-ui-v1&amp;m417b2=20261010-donor-attribution-ui-v1&amp;m417e1=20261010-public-ledger-ui-v1&amp;m418c=20261011-infinity-floor-preflight-ui-v1&amp;m421c=20261011-native-activity-view-v1&amp;m421d=20261011-native-activity-live-v1"
     defer
   ></script>
   <script

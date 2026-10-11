@@ -37,6 +37,10 @@ const state = {
   currentBotCumulativeMeta: null,
   currentBotCumulativeLoading: false,
   currentBotCumulativeError: '',
+  currentBotNativeActivity: null,
+  currentBotNativeActivityLoading: false,
+  currentBotNativeActivityError: '',
+  botNativeActivityRequestEpoch: 0,
   botCumulativeHistoryCache: {},
   botCumulativeHistoryRequests: {},
   currentRawData: null,
@@ -25384,6 +25388,20 @@ async function openBot(botId) {
     state.currentBot = botId;
     state.currentBotData = detail;
     state.currentRawData = null;
+    state.currentBotNativeActivity = null;
+    state.currentBotNativeActivityError = '';
+
+    state.botNativeActivityRequestEpoch += 1;
+
+    const nativeActivityRequestEpoch = (
+      state.botNativeActivityRequestEpoch
+    );
+
+    state.currentBotNativeActivityLoading = (
+      botNativeActivityEligible(
+        detail?.bot
+      )
+    );
 
     const cached = (
       cumulativeReturnCacheEntry(
@@ -25412,6 +25430,17 @@ async function openBot(botId) {
     );
 
     if (
+      botNativeActivityEligible(
+        detail?.bot
+      )
+    ) {
+      void loadBotNativeActivity(
+        botId,
+        nativeActivityRequestEpoch,
+      );
+    }
+
+    if (
       !$('#botDialog').open
     ) {
       $('#botDialog').showModal();
@@ -25436,6 +25465,622 @@ async function openBot(botId) {
     );
   }
 }
+
+function botNativeActivityEligible(
+  bot,
+) {
+  return Boolean(
+    bot
+    && [
+      'spot_grid',
+      'infinite_grid',
+    ].includes(
+      String(
+        bot.strategy_type || ''
+      ).trim().toLowerCase()
+    )
+  );
+}
+
+
+async function loadBotNativeActivity(
+  botId,
+  requestEpoch,
+) {
+  const detail = (
+    state.currentBotData
+  );
+
+  const bot = (
+    detail?.bot
+  );
+
+  if (
+    !botNativeActivityEligible(
+      bot
+    )
+  ) {
+    return;
+  }
+
+  state.currentBotNativeActivityLoading = true;
+  state.currentBotNativeActivityError = '';
+
+  renderBotNativeActivity();
+
+  try {
+    const result = await api(
+      (
+        `/api/bots/${
+          encodeURIComponent(
+            botId
+          )
+        }/native-activity`
+        + '?page=1&page_size=30'
+      )
+    );
+
+    if (
+      state.currentBot !== botId
+      || state.botNativeActivityRequestEpoch
+        !== requestEpoch
+    ) {
+      return;
+    }
+
+    const expectedStrategyId = String(
+      bot?.strategy_id || ''
+    ).trim();
+
+    const expectedStrategyType = String(
+      bot?.strategy_type || ''
+    ).trim().toLowerCase();
+
+    const expectedMarket = String(
+      bot?.market || ''
+    ).trim().toUpperCase();
+
+    if (
+      String(
+        result?.strategy_id || ''
+      ).trim()
+      !== expectedStrategyId
+    ) {
+      throw new Error(
+        'Native activity strategy ID does not '
+        + 'match this bot.'
+      );
+    }
+
+    if (
+      String(
+        result?.strategy_type || ''
+      ).trim().toLowerCase()
+      !== expectedStrategyType
+    ) {
+      throw new Error(
+        'Native activity strategy type does not '
+        + 'match this bot.'
+      );
+    }
+
+    if (
+      String(
+        result?.market || ''
+      ).trim().toUpperCase()
+      !== expectedMarket
+    ) {
+      throw new Error(
+        'Native activity market does not '
+        + 'match this bot.'
+      );
+    }
+
+    state.currentBotNativeActivity = result;
+    state.currentBotNativeActivityError = '';
+
+  } catch (error) {
+    if (
+      state.currentBot !== botId
+      || state.botNativeActivityRequestEpoch
+        !== requestEpoch
+    ) {
+      return;
+    }
+
+    state.currentBotNativeActivity = null;
+
+    state.currentBotNativeActivityError = (
+      error instanceof TypeError
+        ? (
+          'The dashboard could not contact '
+          + 'the native activity service.'
+        )
+        : (
+          error?.message
+          || 'Unable to load native bot activity.'
+        )
+    );
+
+  } finally {
+    if (
+      state.currentBot === botId
+      && state.botNativeActivityRequestEpoch
+        === requestEpoch
+    ) {
+      state.currentBotNativeActivityLoading = false;
+      renderBotNativeActivity();
+    }
+  }
+}
+
+
+function renderBotNativeActivity() {
+  const panel = $(
+    '#botNativeActivityPanel'
+  );
+
+  if (!panel) {
+    return;
+  }
+
+  const bot = (
+    state.currentBotData?.bot
+  );
+
+  const eligible = (
+    botNativeActivityEligible(
+      bot
+    )
+  );
+
+  panel.classList.toggle(
+    'hidden',
+    !eligible,
+  );
+
+  if (!eligible) {
+    return;
+  }
+
+  const status = $(
+    '#botNativeActivityStatus'
+  );
+
+  const openStatus = $(
+    '#botNativeOpenStatus'
+  );
+
+  const tradeStatus = $(
+    '#botNativeTradeStatus'
+  );
+
+  const openBody = $(
+    '#botNativeOpenOrders'
+  );
+
+  const tradeBody = $(
+    '#botNativeTrades'
+  );
+
+  const counters = {
+    open:
+      $('#botNativeOpenCount'),
+
+    sell:
+      $('#botNativeSellCount'),
+
+    buy:
+      $('#botNativeBuyCount'),
+
+    trades:
+      $('#botNativeTradeCount'),
+
+    profit:
+      $('#botNativeProfitCount'),
+  };
+
+  const setCounter = (
+    key,
+    value,
+  ) => {
+    const element = (
+      counters[key]
+    );
+
+    if (element) {
+      element.textContent = String(
+        value
+      );
+    }
+  };
+
+  const resetCounters = () => {
+    Object.keys(
+      counters
+    ).forEach(
+      key => setCounter(
+        key,
+        '—',
+      )
+    );
+  };
+
+  const tableMessage = (
+    body,
+    columns,
+    message,
+  ) => {
+    if (!body) {
+      return;
+    }
+
+    body.innerHTML = (
+      '<tr>'
+      + `<td colspan="${columns}" `
+      + 'class="bot-native-empty">'
+      + `${escapeHtml(message)}`
+      + '</td>'
+      + '</tr>'
+    );
+  };
+
+  const renderMessage = (
+    message,
+    error = false,
+  ) => {
+    resetCounters();
+
+    if (status) {
+      status.textContent = message;
+
+      status.classList.toggle(
+        'error',
+        error,
+      );
+    }
+
+    if (openStatus) {
+      openStatus.textContent = (
+        message
+      );
+    }
+
+    if (tradeStatus) {
+      tradeStatus.textContent = (
+        message
+      );
+    }
+
+    tableMessage(
+      openBody,
+      7,
+      message,
+    );
+
+    tableMessage(
+      tradeBody,
+      8,
+      message,
+    );
+  };
+
+  if (
+    state.currentBotNativeActivityLoading
+  ) {
+    renderMessage(
+      'Loading live Gate-native activity…'
+    );
+
+    return;
+  }
+
+  if (
+    state.currentBotNativeActivityError
+  ) {
+    renderMessage(
+      state.currentBotNativeActivityError,
+      true,
+    );
+
+    return;
+  }
+
+  const response = (
+    state.currentBotNativeActivity
+  );
+
+  if (
+    !response
+    || typeof response !== 'object'
+  ) {
+    renderMessage(
+      'Native activity has not been loaded yet.'
+    );
+
+    return;
+  }
+
+  const tradesEnvelope = (
+    response.trades
+    && typeof response.trades === 'object'
+      ? response.trades
+      : {}
+  );
+
+  const openEnvelope = (
+    response.open_orders
+    && typeof response.open_orders === 'object'
+      ? response.open_orders
+      : {}
+  );
+
+  if (
+    tradesEnvelope.available !== true
+    && openEnvelope.available !== true
+  ) {
+    const reason = (
+      tradesEnvelope.reason
+      || openEnvelope.reason
+      || ''
+    );
+
+    const message = (
+      reason
+      === 'spot_grid_live_transport_unproven'
+        ? (
+          'Spot Grid live native activity transport '
+          + 'is not yet proven.'
+        )
+        : reason === 'unsupported_strategy_type'
+          ? (
+            'Native activity is not available '
+            + 'for this bot type.'
+          )
+          : (
+            'Native activity is currently unavailable.'
+          )
+    );
+
+    renderMessage(
+      message
+    );
+
+    return;
+  }
+
+  const renderer = (
+    window.BotNativeActivityView
+  );
+
+  if (
+    !renderer
+    || typeof renderer.render
+      !== 'function'
+  ) {
+    renderMessage(
+      'Native activity presentation renderer '
+      + 'is unavailable.',
+      true,
+    );
+
+    return;
+  }
+
+  try {
+    const {
+      base,
+      quote,
+    } = marketAssets(
+      bot.market
+    );
+
+    const rendered = (
+      renderer.render(
+        {
+          strategy_id:
+            response.strategy_id,
+
+          open_orders: (
+            openEnvelope.available === true
+            && openEnvelope.data
+              ? openEnvelope.data
+              : {
+                items: [],
+                summary: {},
+              }
+          ),
+
+          trades: (
+            tradesEnvelope.available === true
+            && tradesEnvelope.data
+              ? tradesEnvelope.data
+              : {
+                items: [],
+                pagination: {},
+                summary: {},
+              }
+          ),
+        },
+        {
+          baseAsset: base,
+          quoteAsset: quote,
+        },
+      )
+    );
+
+    if (status) {
+      status.classList.remove(
+        'error'
+      );
+
+      status.textContent = (
+        tradesEnvelope.available === true
+          ? (
+            'Live Gate-native Trades'
+            + (
+              openEnvelope.reason
+              === 'gate_web_session_required'
+                ? (
+                  ' · Open Orders require '
+                  + 'Gate web session'
+                )
+                : ''
+            )
+            + ` · strategy ${
+              rendered.strategyId
+            }`
+          )
+          : (
+            `Gate-native activity · strategy ${
+              rendered.strategyId
+            }`
+          )
+      );
+    }
+
+    if (
+      openEnvelope.available === true
+    ) {
+      setCounter(
+        'open',
+        rendered.counters.openCount,
+      );
+
+      setCounter(
+        'sell',
+        rendered.counters.sellCount,
+      );
+
+      setCounter(
+        'buy',
+        rendered.counters.buyCount,
+      );
+
+      if (openStatus) {
+        openStatus.textContent = (
+          rendered.openStatus
+        );
+      }
+
+      if (openBody) {
+        openBody.innerHTML = (
+          rendered.openRowsHtml
+        );
+      }
+
+    } else {
+      setCounter(
+        'open',
+        '—',
+      );
+
+      setCounter(
+        'sell',
+        '—',
+      );
+
+      setCounter(
+        'buy',
+        '—',
+      );
+
+      const openMessage = (
+        openEnvelope.reason
+        === 'gate_web_session_required'
+          ? (
+            'Unavailable from the dashboard · '
+            + 'Gate web session required.'
+          )
+          : (
+            'Native Open Orders are '
+            + 'currently unavailable.'
+          )
+      );
+
+      if (openStatus) {
+        openStatus.textContent = (
+          openMessage
+        );
+      }
+
+      tableMessage(
+        openBody,
+        7,
+        openMessage,
+      );
+    }
+
+    if (
+      tradesEnvelope.available === true
+    ) {
+      setCounter(
+        'trades',
+        rendered.counters.tradeCount,
+      );
+
+      setCounter(
+        'profit',
+        rendered.counters.profitCount,
+      );
+
+      if (tradeStatus) {
+        tradeStatus.textContent = (
+          rendered.tradeStatus
+        );
+      }
+
+      if (tradeBody) {
+        tradeBody.innerHTML = (
+          rendered.tradeRowsHtml
+        );
+      }
+
+    } else {
+      setCounter(
+        'trades',
+        '—',
+      );
+
+      setCounter(
+        'profit',
+        '—',
+      );
+
+      const tradeMessage = (
+        tradesEnvelope.reason
+        === 'spot_grid_live_transport_unproven'
+          ? (
+            'Spot Grid live native Trades '
+            + 'transport is not yet proven.'
+          )
+          : (
+            'Native Trades are currently unavailable.'
+          )
+      );
+
+      if (tradeStatus) {
+        tradeStatus.textContent = (
+          tradeMessage
+        );
+      }
+
+      tableMessage(
+        tradeBody,
+        8,
+        tradeMessage,
+      );
+    }
+
+  } catch (error) {
+    renderMessage(
+      error?.message
+      || 'Unable to render native activity.',
+      true,
+    );
+  }
+}
+
 
 function renderBotDialog(detail) {
   const bot = detail.bot;
@@ -25790,6 +26435,7 @@ function renderBotDialog(detail) {
   renderBotRaw();
   updateBotAdminControls(bot);
   drawCumulativeReturnChart();
+  renderBotNativeActivity();
 }
 
 function updateBotAdminControls(bot) {
