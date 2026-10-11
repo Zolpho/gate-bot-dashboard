@@ -151,6 +151,12 @@
     if (dialog?.open) {
       dialog.close();
     }
+
+    setInfinityExplanationVisible(
+      true
+    );
+
+    scheduleInfinityExplanationRefresh();
   }
 
 
@@ -159,6 +165,12 @@
       !previewState.prepared
       && !previewState.draft
     ) {
+      setInfinityExplanationVisible(
+        true
+      );
+
+      scheduleInfinityExplanationRefresh();
+
       return;
     }
 
@@ -832,6 +844,583 @@
         )
       }</strong>`
       + '</div>'
+    );
+  }
+
+
+  let infinityExplanationRefreshTimer = null;
+  let infinityExplanationRefreshEpoch = 0;
+
+
+  function setInfinityExplanationVisible(
+    visible,
+  ) {
+    const panel = query(
+      '#infiniteGridExplanation'
+    );
+
+    if (!panel) {
+      return;
+    }
+
+    panel.classList.toggle(
+      'hidden',
+      !visible,
+    );
+
+    panel.setAttribute(
+      'aria-hidden',
+      String(!visible),
+    );
+  }
+
+
+  function infinityExplanationPrice(
+    value,
+    quote = '',
+    market = '',
+    referenceValues = [],
+  ) {
+    let formatted = '';
+
+    if (
+      market
+      && typeof window.formatBotControlMarketPrice
+        === 'function'
+    ) {
+      formatted = (
+        window.formatBotControlMarketPrice(
+          market,
+          value,
+          referenceValues,
+        )
+      );
+    }
+
+    if (!formatted) {
+      formatted = (
+        formatInfinityDisplayNumber(
+          value,
+          10,
+        )
+      );
+    }
+
+    if (formatted === '—') {
+      return formatted;
+    }
+
+    return (
+      `${formatted}`
+      + `${quote ? ` ${quote}` : ''}`
+    );
+  }
+
+
+  function infinityExplanationStep(
+    label,
+    value,
+    detail,
+  ) {
+    return (
+      '<div class="bot-control-review-item">'
+      + `<span>${escapeHtml(label)}</span>`
+      + `<strong>${escapeHtml(value)}</strong>`
+      + `<small>${escapeHtml(detail)}</small>`
+      + '</div>'
+    );
+  }
+
+
+  function infinityExplanationStillCurrent(
+    account,
+    market,
+  ) {
+    const form = query(
+      '#infiniteGridForm'
+    );
+
+    if (!form) {
+      return false;
+    }
+
+    const draft = (
+      infinityGridDraftFromForm(
+        form
+      )
+    );
+
+    return (
+      draft.account_id === account
+      && draft.market === market
+    );
+  }
+
+
+  async function refreshInfinityExplanation() {
+    const panel = query(
+      '#infiniteGridExplanation'
+    );
+
+    const body = query(
+      '#infiniteGridExplanationBody'
+    );
+
+    const summary = query(
+      '#infiniteGridExplanationSummary'
+    );
+
+    const form = query(
+      '#infiniteGridForm'
+    );
+
+    if (
+      !panel
+      || !body
+      || !form
+      || panel.classList.contains(
+        'hidden'
+      )
+    ) {
+      return;
+    }
+
+    const draft = (
+      infinityGridDraftFromForm(
+        form
+      )
+    );
+
+    const account = draft.account_id;
+    const market = draft.market;
+
+    if (
+      !account
+      || !/^[A-Z0-9]+_[A-Z0-9]+$/.test(
+        market
+      )
+    ) {
+      if (summary) {
+        summary.textContent = (
+          'Live, read-only examples for the selected market.'
+        );
+      }
+
+      body.innerHTML = (
+        '<div class="empty-state">'
+        + 'Select a valid market to load the live example.'
+        + '</div>'
+      );
+
+      return;
+    }
+
+    if (
+      typeof window.readBotControlMarketSnapshot
+      !== 'function'
+    ) {
+      body.innerHTML = (
+        '<div class="empty-state">'
+        + 'Live market reference is unavailable.'
+        + '</div>'
+      );
+
+      return;
+    }
+
+    const refreshEpoch = (
+      ++infinityExplanationRefreshEpoch
+    );
+
+    body.innerHTML = (
+      '<div class="empty-state">'
+      + 'Loading live Infinity Grid example…'
+      + '</div>'
+    );
+
+    let snapshot;
+
+    try {
+      snapshot = (
+        await window.readBotControlMarketSnapshot(
+          account,
+          market,
+        )
+      );
+
+    } catch {
+      snapshot = null;
+    }
+
+    if (
+      refreshEpoch !== infinityExplanationRefreshEpoch
+      || panel.classList.contains(
+        'hidden'
+      )
+      || !infinityExplanationStillCurrent(
+        account,
+        market,
+      )
+    ) {
+      return;
+    }
+
+    const pair = (
+      snapshot?.pair
+      || {}
+    );
+
+    const ticker = (
+      snapshot?.ticker
+      || {}
+    );
+
+    const orderBook = (
+      snapshot?.order_book
+      || {}
+    );
+
+    const quote = String(
+      pair.quote
+      || market.split('_')[1]
+      || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    const base = String(
+      pair.base
+      || market.split('_')[0]
+      || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    const marketPrecisionReferences = [
+      ticker.last,
+      orderBook.best_bid,
+      ticker.highest_bid,
+      orderBook.best_ask,
+      ticker.lowest_ask,
+    ]
+      .map(value => String(
+        value ?? ''
+      ).trim())
+      .filter(Boolean);
+
+    let referencePrice = Number(
+      ticker.last
+    );
+
+    let referenceLabel = (
+      'Live last price'
+    );
+
+    if (
+      !Number.isFinite(referencePrice)
+      || referencePrice <= 0
+    ) {
+      const bid = Number(
+        orderBook.best_bid
+        || ticker.highest_bid
+      );
+
+      const ask = Number(
+        orderBook.best_ask
+        || ticker.lowest_ask
+      );
+
+      if (
+        Number.isFinite(bid)
+        && bid > 0
+        && Number.isFinite(ask)
+        && ask >= bid
+      ) {
+        referencePrice = (
+          (bid + ask) / 2
+        );
+
+        referenceLabel = (
+          'Live bid/ask midpoint'
+        );
+      }
+    }
+
+    if (
+      !Number.isFinite(referencePrice)
+      || referencePrice <= 0
+    ) {
+      if (summary) {
+        summary.textContent = (
+          `${market} · live reference unavailable`
+        );
+      }
+
+      body.innerHTML = (
+        '<div class="empty-state">'
+        + 'Live market reference is unavailable.'
+        + '</div>'
+      );
+
+      return;
+    }
+
+    const profitPercent = Number(
+      draft.profit_per_grid_percent
+    );
+
+    const validProfit = (
+      Number.isFinite(profitPercent)
+      && profitPercent >= 0.2
+      && profitPercent < 100
+    );
+
+    const ratio = (
+      validProfit
+        ? profitPercent / 100
+        : null
+    );
+
+    const lowerExample = (
+      ratio
+        ? referencePrice / (1 + ratio)
+        : null
+    );
+
+    const upperExample = (
+      ratio
+        ? referencePrice * (1 + ratio)
+        : null
+    );
+
+    const floor = Number(
+      draft.price_floor
+    );
+
+    const validFloor = (
+      Number.isFinite(floor)
+      && floor > 0
+      && floor < referencePrice
+    );
+
+    const floorDistancePercent = (
+      validFloor
+        ? (
+          (
+            1
+            - floor / referencePrice
+          )
+          * 100
+        )
+        : null
+    );
+
+    const approximateIntervals = (
+      validFloor
+      && ratio
+      && ratio > 0
+        ? Math.floor(
+            Math.log(
+              referencePrice / floor
+            )
+            / Math.log(
+              1 + ratio
+            )
+          )
+        : null
+    );
+
+    if (summary) {
+      summary.textContent = (
+        `${market} · ${referenceLabel.toLowerCase()} `
+        + `${infinityExplanationPrice(
+          referencePrice,
+          quote,
+          market,
+          marketPrecisionReferences,
+        )}`
+      );
+    }
+
+    const gridValue = (
+      validProfit
+        ? (
+          `${infinityExplanationPrice(
+            lowerExample,
+            quote,
+            market,
+            marketPrecisionReferences,
+          )} → `
+          + `${infinityExplanationPrice(
+            referencePrice,
+            quote,
+            market,
+            marketPrecisionReferences,
+          )} → `
+          + `${infinityExplanationPrice(
+            upperExample,
+            quote,
+            market,
+            marketPrecisionReferences,
+          )}`
+        )
+        : 'Enter profit per grid'
+    );
+
+    const gridDetail = (
+      validProfit
+        ? (
+          `Each adjacent illustrative level is one `
+          + `geometric step at ${profitPercent}%. `
+          + 'A completed buy-then-sell cycle spans one '
+          + 'adjacent interval; fees reduce economic profit. '
+          + 'Gate determines the exact native ladder and '
+          + 'order sizes.'
+        )
+        : (
+          'Enter a valid profit-per-grid percentage '
+          + 'to see an illustrative geometric step.'
+        )
+    );
+
+    let floorValue = (
+      'Enter a price floor'
+    );
+
+    let floorDetail = (
+      'The floor must be below the current market price.'
+    );
+
+    if (
+      Number.isFinite(floor)
+      && floor > 0
+      && !validFloor
+    ) {
+      floorValue = (
+        infinityExplanationPrice(
+          floor,
+          quote,
+          market,
+          marketPrecisionReferences,
+        )
+      );
+
+      floorDetail = (
+        'This floor is not below the current market '
+        + 'reference, so review will not pass.'
+      );
+
+    } else if (validFloor) {
+      floorValue = (
+        infinityExplanationPrice(
+          floor,
+          quote,
+          market,
+          marketPrecisionReferences,
+        )
+      );
+
+      floorDetail = (
+        `${formatInfinityDisplayNumber(
+          floorDistancePercent,
+          2,
+        )}% below the current reference`
+        + (
+          approximateIntervals !== null
+            ? (
+              ` · about ${approximateIntervals} `
+              + (
+                approximateIntervals === 1
+                  ? 'complete interval'
+                  : 'complete intervals'
+              )
+              + ' at the entered spacing.'
+            )
+            : '.'
+        )
+      );
+    }
+
+    const steps = [
+      infinityExplanationStep(
+        '1 · Current market',
+        infinityExplanationPrice(
+          referencePrice,
+          quote,
+          market,
+          marketPrecisionReferences,
+        ),
+        (
+          `${referenceLabel}. `
+          + 'This guide uses the existing read-only '
+          + 'Bot Control market snapshot.'
+        ),
+      ),
+
+      infinityExplanationStep(
+        '2 · Approximate grid around market',
+        gridValue,
+        gridDetail,
+      ),
+
+      infinityExplanationStep(
+        '3 · Price floor',
+        floorValue,
+        floorDetail,
+      ),
+
+      infinityExplanationStep(
+        '4 · Unlimited upside',
+        'No fixed upper bound',
+        (
+          'As price rises, Infinity Grid can continue '
+          + 'building higher grid levels. Gate remains '
+          + 'authoritative for the exact ladder.'
+        ),
+      ),
+    ];
+
+    const allocationNote = (
+      'The price floor is also a capital-allocation lever. '
+      + 'A floor close to the market leaves only a few '
+      + `lower buy intervals and can keep more of the `
+      + `investment in ${base || 'the base asset'}. `
+      + 'Lowering the floor creates more lower-side room '
+      + `and may leave more ${quote || 'quote currency'} `
+      + 'available. Preflight validates the settings; '
+      + 'Gate determines the exact order allocation when '
+      + 'the strategy is created.'
+    );
+
+    body.innerHTML = (
+      '<div class="bot-control-review-grid '
+      + 'bot-control-infinity-explainer-grid">'
+      + steps.join('')
+      + '</div>'
+      + '<div class="bot-control-message warning '
+      + 'bot-control-infinity-explainer-note">'
+      + escapeHtml(
+          allocationNote
+        )
+      + '</div>'
+    );
+  }
+
+
+  function scheduleInfinityExplanationRefresh(
+    delay = 120,
+  ) {
+    clearTimeout(
+      infinityExplanationRefreshTimer
+    );
+
+    infinityExplanationRefreshTimer = (
+      setTimeout(
+        () => {
+          void refreshInfinityExplanation();
+        },
+        delay,
+      )
     );
   }
 
@@ -1979,6 +2568,17 @@
 
     setInfinityFormError('');
 
+    setInfinityExplanationVisible(
+      false
+    );
+
+    /*
+     * Invalidate any outstanding live-example render.
+     * A completed review must not allow a stale market
+     * callback to redisplay configuration guidance.
+     */
+    infinityExplanationRefreshEpoch += 1;
+
     previewState.prepared = null;
     previewState.draft = null;
     previewState.requestId = '';
@@ -2034,6 +2634,16 @@
           error
         )
       );
+
+      /*
+       * Review did not complete, so return to the
+       * configuration guidance state.
+       */
+      setInfinityExplanationVisible(
+        true
+      );
+
+      scheduleInfinityExplanationRefresh();
 
     } finally {
       if (button) {
@@ -2157,6 +2767,14 @@
     );
 
     renderInfiniteGridPreviewAccess();
+
+    setInfinityExplanationVisible(
+      true
+    );
+
+    scheduleInfinityExplanationRefresh(
+      0
+    );
   }
 
 

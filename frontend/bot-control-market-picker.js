@@ -1221,11 +1221,105 @@
   }
 
 
+  async function readBotControlMarketSnapshot(
+    account,
+    market,
+  ) {
+    const normalizedAccount = String(
+      account || ''
+    )
+      .trim()
+      .toLowerCase();
+
+    const parts = marketParts(
+      market
+    );
+
+    if (
+      !normalizedAccount
+      || !parts.base
+      || !parts.quote
+      || typeof adminApi !== 'function'
+    ) {
+      return null;
+    }
+
+    /*
+     * Reuse the existing validated GET snapshot path,
+     * including its cache and pending-request coalescing.
+     * No second market-data implementation is introduced.
+     */
+    return getSnapshot(
+      normalizedAccount,
+      parts.market,
+    );
+  }
+
+
+  function formatBotControlMarketPrice(
+    market,
+    value,
+    referenceValues = [],
+  ) {
+    const references = (
+      Array.isArray(referenceValues)
+        ? referenceValues
+        : []
+    )
+      .map(item => String(
+        item ?? ''
+      ).trim())
+      .filter(Boolean);
+
+    /*
+     * Prefer the catalogue's configured market precision.
+     * If the catalogue is not loaded yet, infer precision
+     * from the live reference values (last/bid/ask), not
+     * from the calculated illustrative value itself.
+     *
+     * Unlike the compact Bid/Ask/Mid formatter, the
+     * explanatory ladder keeps trailing zeros so all three
+     * illustrative prices use one consistent market scale.
+     */
+    const precision = (
+      marketPricePrecision(
+        market,
+        references.length
+          ? references
+          : [String(value ?? '')],
+      )
+    );
+
+    const number = Number(
+      value
+    );
+
+    if (
+      !Number.isFinite(
+        number
+      )
+      || number <= 0
+    ) {
+      return '';
+    }
+
+    return number.toFixed(
+      precision
+    );
+  }
+
+
   window.loadBotControlMarketCatalog =
     loadCatalog;
 
   window.refreshBotControlMarketReferences =
     refreshAllReferences;
+
+  window.readBotControlMarketSnapshot =
+    readBotControlMarketSnapshot;
+
+  window.formatBotControlMarketPrice =
+    formatBotControlMarketPrice;
 
 
   if (

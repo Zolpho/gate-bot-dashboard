@@ -1768,6 +1768,36 @@
 }
 
 
+/* M4.20B Infinity Grid configuration guide. */
+
+.bot-control-infinity-explainer {
+  grid-column: 1 / -1;
+}
+
+.bot-control-infinity-explainer-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.bot-control-infinity-explainer-grid {
+  margin-top: 0;
+}
+
+.bot-control-infinity-explainer-grid
+.bot-control-review-item small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.45;
+}
+
+.bot-control-infinity-explainer-note {
+  margin: 0;
+}
+
+
 /* M4.2 shared Bot Control market reference */
 
 #tab-bot-control
