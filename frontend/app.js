@@ -48,6 +48,7 @@ const state = {
   selectedAccount: '',
   activeTab: 'overview',
   walletView: 'balance',
+  demoAvailable: false,
   adminAuthorization: '',
   adminUser: null,
   adminSessionEpoch: 0,
@@ -230,16 +231,216 @@ function staleAdminSessionError(error) {
   );
 }
 
+function isDemoSession() {
+  return (
+    state.adminUser
+    ?.execution_mode
+    === 'demo'
+  );
+}
+
+
 function canManageAccount(accountId) {
   const user = state.adminUser;
+
   if (!user) return false;
-  return user.role === 'super_admin' || (user.account_ids || []).includes(accountId);
+
+  // Demo identities never gain management authority over
+  // production Wallet accounts, even if future Demo roles change.
+  if (user.execution_mode === 'demo') {
+    return false;
+  }
+
+  return (
+    user.role === 'super_admin'
+    || (
+      user.account_ids
+      || []
+    ).includes(
+      accountId
+    )
+  );
 }
+
 
 function canManageRule(rule) {
   if (!state.adminUser) return false;
-  if (!rule.account_id) return state.adminUser.role === 'super_admin';
-  return canManageAccount(rule.account_id);
+
+  if (isDemoSession()) {
+    return false;
+  }
+
+  if (!rule.account_id) {
+    return (
+      state.adminUser.role
+      === 'super_admin'
+    );
+  }
+
+  return canManageAccount(
+    rule.account_id
+  );
+}
+
+
+function renderDemoPresentation() {
+  const demo = isDemoSession();
+
+  const signedIn = Boolean(
+    state.adminUser
+    && state.adminAuthorization
+  );
+
+  const demoButton = $(
+    '#demoLoginButton'
+  );
+
+  if (demoButton) {
+    demoButton.classList.toggle(
+      'hidden',
+      !state.demoAvailable
+      || signedIn,
+    );
+
+    demoButton.setAttribute(
+      'aria-hidden',
+      String(
+        !state.demoAvailable
+        || signedIn
+      ),
+    );
+  }
+
+  // During this first product slice, Demo intentionally
+  // exposes Overview + Bots/Bot Detail only.
+  if (demo) {
+    $$(
+      '.nav-item'
+    ).forEach(
+      item => {
+        const tab = String(
+          item.dataset.tab
+          || ''
+        );
+
+        item.classList.toggle(
+          'hidden',
+          ![
+            'overview',
+            'bots',
+          ].includes(
+            tab
+          ),
+        );
+      },
+    );
+
+  } else {
+    for (
+      const tab
+      of [
+        'alerts',
+        'donate',
+        'system',
+      ]
+    ) {
+      $(
+        `.nav-item[data-tab="${tab}"]`
+      )?.classList.remove(
+        'hidden'
+      );
+    }
+  }
+
+  const syncButton = $(
+    '#syncButton'
+  );
+
+  syncButton?.classList.toggle(
+    'hidden',
+    demo,
+  );
+
+  const selector = $(
+    '#globalAccountSelector'
+  );
+
+  selector?.classList.toggle(
+    'hidden',
+    demo,
+  );
+
+  const permissionsButton = $(
+    '#accountPermissionsButton'
+  );
+
+  if (
+    demo
+    && permissionsButton
+  ) {
+    permissionsButton.classList.add(
+      'hidden'
+    );
+
+    permissionsButton.setAttribute(
+      'aria-hidden',
+      'true',
+    );
+  }
+
+  const overviewIncidentPanel = (
+    $('[data-jump="alerts"]')
+    ?.closest(
+      '.panel'
+    )
+  );
+
+  overviewIncidentPanel
+    ?.classList.toggle(
+      'hidden',
+      demo,
+    );
+
+  if (demo) {
+    const badge = $(
+      '#modeBadge'
+    );
+
+    if (badge) {
+      badge.textContent = (
+        'DEMO MODE · simulated actions · no real funds'
+      );
+
+      badge.className = (
+        'mode-badge demo'
+      );
+    }
+  }
+}
+
+
+async function loadDemoAvailability() {
+  try {
+    const result = await api(
+      '/api/auth/demo-status'
+    );
+
+    state.demoAvailable = (
+      result?.enabled === true
+      && result?.execution_mode
+        === 'demo'
+      && result?.gate_write_performed
+        === false
+    );
+
+  } catch {
+    // Older or disabled backends simply do not advertise Demo.
+    state.demoAvailable = false;
+  }
+
+  renderDemoPresentation();
+
+  return state.demoAvailable;
 }
 
 function bearerAuthorization(token) {
@@ -299,6 +500,10 @@ function normalizeAdminSessionUser(value) {
     value.auth_source || ''
   ).trim();
 
+  const executionMode = String(
+    value.execution_mode || 'live'
+  ).trim().toLowerCase();
+
   if (
     !username
     || ![
@@ -308,6 +513,12 @@ function normalizeAdminSessionUser(value) {
     || accountIds === null
     || value.enabled !== true
     || !authSource
+    || ![
+      'live',
+      'demo',
+    ].includes(
+      executionMode
+    )
   ) {
     return null;
   }
@@ -318,6 +529,7 @@ function normalizeAdminSessionUser(value) {
     account_ids: accountIds,
     enabled: true,
     auth_source: authSource,
+    execution_mode: executionMode,
   };
 }
 
@@ -549,7 +761,9 @@ async function restorePersistedAdminSession() {
   );
 
   try {
-    await loadBotControlCapabilities();
+    if (!isDemoSession()) {
+      await loadBotControlCapabilities();
+    }
 
   } catch (error) {
     if (
@@ -4607,6 +4821,8 @@ function renderAdminState() {
     );
   }
   renderBotControlAccess();
+
+  renderDemoPresentation();
 }
 function clearTreasurySession() {
   state.treasuryTransfers = [];
@@ -4866,6 +5082,119 @@ async function cleanupFailedAdminInitialization(
   }
 
   return revokeConfirmed;
+}
+
+
+async function loginDemo() {
+  const button = $(
+    '#demoLoginButton'
+  );
+
+  if (
+    !button
+    || button.disabled
+  ) {
+    return;
+  }
+
+  const originalText = (
+    button.textContent
+  );
+
+  button.disabled = true;
+  button.textContent = (
+    'Starting Demo…'
+  );
+
+  try {
+    const result = await api(
+      '/api/auth/login/demo',
+      {
+        method: 'POST',
+        body: '{}',
+      },
+    );
+
+    const user = (
+      normalizeAdminSessionUser(
+        result?.user
+      )
+    );
+
+    if (
+      result?.status
+        !== 'authenticated'
+      || !user
+      || user.execution_mode
+        !== 'demo'
+    ) {
+      throw new Error(
+        'Demo authentication returned an invalid identity.'
+      );
+    }
+
+    const authorization = (
+      bearerAuthorization(
+        result.access_token
+      )
+    );
+
+    state.adminSessionEpoch += 1;
+    state.adminAuthorization = (
+      authorization
+    );
+    state.adminUser = user;
+
+    // Demo always starts at the aggregate presentation.
+    state.selectedAccount = '';
+
+    const accountSelector = $(
+      '#accountSelector'
+    );
+
+    if (accountSelector) {
+      accountSelector.value = '';
+    }
+
+    clearTreasurySession();
+    clearBotControlSession();
+    window.resetTradingTab?.();
+
+    persistAdminSession(
+      authorization,
+      user,
+    );
+
+    renderAdminState();
+
+    switchTab(
+      'overview',
+      {
+        updateHash: true,
+      },
+    );
+
+    await loadCore();
+
+    showToast(
+      'Demo mode active · no real funds or production actions.'
+    );
+
+  } catch (error) {
+    showToast(
+      error?.message
+      || 'Demo login is not available.',
+      true,
+    );
+
+  } finally {
+    button.disabled = false;
+    button.textContent = (
+      originalText
+    );
+
+    renderDemoPresentation();
+  }
 }
 
 
@@ -22037,6 +22366,18 @@ function switchWalletView(
 
 
 function switchTab(tab, { updateHash = true } = {}) {
+  if (
+    isDemoSession()
+    && ![
+      'overview',
+      'bots',
+    ].includes(
+      tab
+    )
+  ) {
+    tab = 'overview';
+  }
+
   const titles = {
     overview: ['Overview', 'Native Gate.io bot performance and portfolio history'],
     bots: ['Trading bots', 'Inspect every mapped field and Gate’s dynamic response data'],
@@ -25025,8 +25366,24 @@ function renderSystem() {
   if (!state.health) return;
   const health = state.health;
   const accounts = state.overview?.accounts || [];
-  $('#modeBadge').textContent = health.mode.toUpperCase();
-  $('#modeBadge').className = `mode-badge ${health.mode}`;
+  if (isDemoSession()) {
+    $('#modeBadge').textContent = (
+      'DEMO MODE · simulated actions · no real funds'
+    );
+
+    $('#modeBadge').className = (
+      'mode-badge demo'
+    );
+
+  } else {
+    $('#modeBadge').textContent = (
+      health.mode.toUpperCase()
+    );
+
+    $('#modeBadge').className = (
+      `mode-badge ${health.mode}`
+    );
+  }
   $('#connectionDot').className = health.status === 'ok' ? 'online' : 'offline';
   $('#connectionText').textContent = health.mode === 'demo'
     ? 'Demo accounts'
@@ -25102,6 +25459,7 @@ async function loadCore() {
     populateAccountSelector(overviewData.accounts || []);
     populateFilterOptions(botData.filters);
     applyBotFilters(); renderOverview(); renderAlerts(); renderSystem();
+    renderDemoPresentation();
     renderBotControlAccess();
   } catch (error) {
     $('#connectionDot').className = 'offline'; $('#connectionText').textContent = 'API unavailable';
@@ -25487,6 +25845,18 @@ async function loadBotNativeActivity(
   botId,
   requestEpoch,
 ) {
+  if (isDemoSession()) {
+    state.currentBotNativeActivity = null;
+    state.currentBotNativeActivityLoading = false;
+    state.currentBotNativeActivityError = (
+      'Live Gate-native Trades are not enabled in Demo yet.'
+    );
+
+    renderBotNativeActivity();
+
+    return;
+  }
+
   const detail = (
     state.currentBotData
   );
@@ -28508,6 +28878,10 @@ function bindEvents() {
     },
   );
   $('#changePasswordButton')?.addEventListener('click', openChangePasswordDialog);
+  $('#demoLoginButton')?.addEventListener(
+    'click',
+    loginDemo,
+  );
   $('#adminForm').addEventListener('submit', unlockAdmin);
   $('#closeAdminDialog').addEventListener('click', () => $('#adminDialog').close());
   $('#cancelAdmin').addEventListener('click', () => $('#adminDialog').close());
@@ -28748,6 +29122,7 @@ bindEvents();
 renderAdminState();
 switchTab(window.location.hash.slice(1) || 'overview', { updateHash: false });
 resetPageScroll();
+void loadDemoAvailability();
 loadCore();
 void restorePersistedAdminSession();
 setInterval(loadCore, 60000);

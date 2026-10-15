@@ -705,6 +705,32 @@ def _public_mfa_challenge(
     }
 
 
+@router.get("/demo-status")
+def demo_status(
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Public, read-only Demo availability.
+
+    This endpoint only reports whether interactive Demo login
+    has been operationally enabled. It creates no session,
+    writes no state and performs no Gate request.
+    """
+
+    return {
+        "enabled":
+            settings
+            .dashboard_demo_login_enabled,
+        "execution_mode":
+            "demo",
+        "gate_write_performed":
+            False,
+    }
+
+
 @router.post("/login/demo")
 def demo_login(
     settings: Annotated[
