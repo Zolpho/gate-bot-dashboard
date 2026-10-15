@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 import time
 from typing import Annotated, Any
 
@@ -9,7 +10,16 @@ from sqlalchemy.orm import Session
 
 from ..accounts import AccountConfigError, get_gate_account
 from ..config import Settings, get_settings
-from ..db import get_db, session_scope
+from ..db import session_scope
+from ..demo_wallet import (
+    DemoWalletStateError,
+    DemoWalletStore,
+)
+from ..demo_wallet_api import (
+    demo_deposit_address_payload,
+    demo_deposit_catalog_payload,
+    demo_deposit_networks_payload,
+)
 from ..deposits import (
     DEMO_CURRENCIES,
     build_deposit_details,
@@ -23,7 +33,12 @@ from ..deposits import (
 from ..deposit_history import persist_deposit_address
 from ..gate_client import GateAPIError, GateClient
 from ..models import GateAccount
-from ..security import DashboardUser, require_user, resolve_authorized_account
+from ..security import (
+    DashboardUser,
+    optional_demo_user,
+    require_user,
+    resolve_authorized_account,
+)
 
 
 router = APIRouter(prefix="/api/deposit", tags=["deposit"])
@@ -67,11 +82,49 @@ def _account_context(
 
 @router.get("/currencies")
 async def deposit_currencies(
-    settings: Annotated[Settings, Depends(get_settings)],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+    demo_user: Annotated[
+        DashboardUser | None,
+        Depends(optional_demo_user),
+    ],
 ) -> dict[str, Any]:
     global _catalog_cache
 
     favorites = settings.deposit_favorite_list
+
+    if demo_user is not None:
+        try:
+            payload = (
+                demo_deposit_catalog_payload(
+                    store=DemoWalletStore(
+                        settings
+                        .dashboard_demo_database_path
+                    ),
+                    account_id=(
+                        demo_user
+                        .account_ids[0]
+                    ),
+                    favorites=favorites,
+                )
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Demo Wallet service "
+                    "is not available"
+                ),
+            ) from exc
+
+        return payload
 
     if settings.demo_mode:
         payload = normalize_currency_catalog(DEMO_CURRENCIES, favorites)
@@ -128,18 +181,68 @@ async def my_deposit_networks(
     user: Annotated[DashboardUser, Depends(require_user)],
     settings: Annotated[Settings, Depends(get_settings)],
     account_id: str | None = Query(default=None),
-    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    selected_account_id, display_name = _account_context(
-        user,
-        account_id,
-        db,
+    selected_account_id = (
+        resolve_authorized_account(
+            user,
+            account_id,
+        )
     )
+
+    if selected_account_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Select one assigned account",
+        )
 
     try:
         symbol = normalize_currency_symbol(currency)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if user.is_demo:
+        try:
+            payload = (
+                demo_deposit_networks_payload(
+                    store=DemoWalletStore(
+                        settings
+                        .dashboard_demo_database_path
+                    ),
+                    account_id=(
+                        selected_account_id
+                    ),
+                    currency=symbol,
+                )
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Demo Wallet service "
+                    "is not available"
+                ),
+            ) from exc
+
+        payload[
+            "authorized_user"
+        ] = user.safe_dict()
+
+        return payload
+
+    with session_scope() as db:
+        (
+            selected_account_id,
+            display_name,
+        ) = _account_context(
+            user,
+            account_id,
+            db,
+        )
 
     if settings.demo_mode:
         networks = merge_deposit_networks(demo_chains(symbol))
@@ -169,18 +272,83 @@ async def my_deposit_address(
     chain: str = Query(min_length=1, max_length=64),
     account_id: str | None = Query(default=None),
     refresh: bool = Query(default=False),
-    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    selected_account_id, display_name = _account_context(
-        user,
-        account_id,
-        db,
+    selected_account_id = (
+        resolve_authorized_account(
+            user,
+            account_id,
+        )
     )
+
+    if selected_account_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Select one assigned account",
+        )
 
     try:
         symbol = normalize_currency_symbol(currency)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if user.is_demo:
+        try:
+            payload = (
+                demo_deposit_address_payload(
+                    store=DemoWalletStore(
+                        settings
+                        .dashboard_demo_database_path
+                    ),
+                    account_id=(
+                        selected_account_id
+                    ),
+                    currency=symbol,
+                    chain=chain,
+                )
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Demo Wallet service "
+                    "is not available"
+                ),
+            ) from exc
+
+        except (
+            KeyError,
+            LookupError,
+        ) as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        payload["cache"] = {
+            "hit": False,
+            "ttl_seconds": 0,
+        }
+
+        payload[
+            "authorized_user"
+        ] = user.safe_dict()
+
+        return payload
+
+    with session_scope() as db:
+        (
+            selected_account_id,
+            display_name,
+        ) = _account_context(
+            user,
+            account_id,
+            db,
+        )
 
     cache_key = (
         selected_account_id,

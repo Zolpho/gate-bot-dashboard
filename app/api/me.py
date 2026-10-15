@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 import time
 from decimal import Decimal
 from typing import Annotated, Any
@@ -12,7 +13,14 @@ from sqlalchemy.orm import Session
 from ..accounts import AccountConfigError, get_gate_account
 from ..balances import build_account_balance_payload
 from ..config import Settings, get_settings
-from ..db import get_db
+from ..db import session_scope
+from ..demo_wallet import (
+    DemoWalletStateError,
+    DemoWalletStore,
+)
+from ..demo_wallet_api import (
+    demo_balance_payload,
+)
 from ..gate_client import GateAPIError, GateClient
 from ..models import Bot, GateAccount
 from ..security import DashboardUser, require_user, resolve_authorized_account
@@ -142,7 +150,6 @@ async def my_balance(
     settings: Annotated[Settings, Depends(get_settings)],
     account_id: str | None = Query(default=None),
     refresh: bool = Query(default=False),
-    db: Session = Depends(get_db),
 ):  # type: ignore[no-untyped-def]
     selected_account_id = resolve_authorized_account(user, account_id)
     if selected_account_id is None:
@@ -151,14 +158,73 @@ async def my_balance(
             detail="Select one account before loading a private balance",
         )
 
-    account_row = db.get(GateAccount, selected_account_id)
-    display_name = account_row.name if account_row is not None else selected_account_id
-    bot_summary = _bot_summary(db, selected_account_id)
+    if user.is_demo:
+        try:
+            payload = demo_balance_payload(
+                store=DemoWalletStore(
+                    settings
+                    .dashboard_demo_database_path
+                ),
+                account_id=(
+                    selected_account_id
+                ),
+                settings=settings,
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Demo Wallet service "
+                    "is not available"
+                ),
+            ) from exc
+
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        payload[
+            "authorized_user"
+        ] = user.safe_dict()
+
+        return payload
+
+    with session_scope() as db:
+        account_row = db.get(
+            GateAccount,
+            selected_account_id,
+        )
+
+        display_name = (
+            account_row.name
+            if account_row is not None
+            else selected_account_id
+        )
+
+        bot_summary = _bot_summary(
+            db,
+            selected_account_id,
+        )
 
     if settings.demo_mode:
-        payload = _demo_balance(selected_account_id, display_name, bot_summary, settings)
+        payload = _demo_balance(
+            selected_account_id,
+            display_name,
+            bot_summary,
+            settings,
+        )
         payload["authorized_user"] = user.safe_dict()
-        payload["cache"] = {"hit": False, "ttl_seconds": 0}
+        payload["cache"] = {
+            "hit": False,
+            "ttl_seconds": 0,
+        }
         return payload
 
     payload = await _fetch_live_balance(

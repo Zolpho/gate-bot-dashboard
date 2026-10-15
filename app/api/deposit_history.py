@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+import sqlite3
+
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
-
 from ..accounts import AccountConfigError, get_gate_account
 from ..config import Settings, get_settings
-from ..db import get_db
+from ..db import session_scope
+from ..demo_wallet import (
+    DemoWalletStateError,
+    DemoWalletStore,
+)
+from ..demo_wallet_api import (
+    demo_deposit_detail_payload,
+    demo_deposit_list_payload,
+)
 from ..deposit_history import DepositHistoryService, deposit_to_dict, sync_state_to_dict
 from ..models import DepositRecord, DepositSyncState, GateAccount
 from ..security import DashboardUser, require_user, resolve_authorized_account
@@ -27,32 +35,107 @@ def _account_id(user: DashboardUser, requested: str | None) -> str:
 @router.get("")
 def list_deposits(
     user: Annotated[DashboardUser, Depends(require_user)],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
     account_id: str | None = Query(default=None),
     currency: str | None = Query(default=None, max_length=32),
     status: str | None = Query(default=None, max_length=32),
     limit: int = Query(default=25, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     selected = _account_id(user, account_id)
+
+    if user.is_demo:
+        try:
+            payload = (
+                demo_deposit_list_payload(
+                    store=DemoWalletStore(
+                        settings
+                        .dashboard_demo_database_path
+                    ),
+                    account_id=selected,
+                    currency=currency,
+                    status=status,
+                    limit=limit,
+                    offset=offset,
+                )
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Demo Wallet service "
+                    "is not available"
+                ),
+            ) from exc
+
+        payload[
+            "authorized_user"
+        ] = user.safe_dict()
+
+        return payload
+
     filters = [DepositRecord.account_id == selected]
     if currency:
         filters.append(DepositRecord.currency == currency.strip().upper())
     if status:
         filters.append(DepositRecord.status == status.strip().upper())
 
-    total = int(
-        db.scalar(select(func.count(DepositRecord.id)).where(*filters)) or 0
-    )
-    rows = db.scalars(
-        select(DepositRecord)
-        .where(*filters)
-        .order_by(DepositRecord.deposited_at.desc(), DepositRecord.id.desc())
-        .offset(offset)
-        .limit(limit)
-    ).all()
-    account = db.get(GateAccount, selected)
-    sync_state = db.get(DepositSyncState, selected)
+    with session_scope() as db:
+        total = int(
+            db.scalar(
+                select(
+                    func.count(
+                        DepositRecord.id
+                    )
+                ).where(
+                    *filters
+                )
+            )
+            or 0
+        )
+
+        rows = list(
+            db.scalars(
+                select(
+                    DepositRecord
+                )
+                .where(
+                    *filters
+                )
+                .order_by(
+                    DepositRecord
+                    .deposited_at
+                    .desc(),
+                    DepositRecord
+                    .id
+                    .desc(),
+                )
+                .offset(
+                    offset
+                )
+                .limit(
+                    limit
+                )
+            ).all()
+        )
+
+        account = db.get(
+            GateAccount,
+            selected,
+        )
+
+        sync_state = db.get(
+            DepositSyncState,
+            selected,
+        )
     return {
         "account_id": selected,
         "display_name": account.name if account else selected,
@@ -73,6 +156,16 @@ async def sync_deposits(
     full: bool = Query(default=False),
 ) -> dict[str, Any]:
     selected = _account_id(user, account_id)
+
+    if user.is_demo:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Demo deposit synchronization "
+                "is not available"
+            ),
+        )
+
     try:
         account = get_gate_account(selected)
     except AccountConfigError as exc:
@@ -108,11 +201,57 @@ async def sync_deposits(
 def get_deposit(
     deposit_id: int,
     user: Annotated[DashboardUser, Depends(require_user)],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
     account_id: str | None = Query(default=None),
-    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     selected = _account_id(user, account_id)
-    row = db.get(DepositRecord, deposit_id)
+
+    if user.is_demo:
+        try:
+            payload = (
+                demo_deposit_detail_payload(
+                    store=DemoWalletStore(
+                        settings
+                        .dashboard_demo_database_path
+                    ),
+                    account_id=selected,
+                    deposit_id=deposit_id,
+                )
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Demo Wallet service "
+                    "is not available"
+                ),
+            ) from exc
+
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        payload[
+            "authorized_user"
+        ] = user.safe_dict()
+
+        return payload
+
+    with session_scope() as db:
+        row = db.get(
+            DepositRecord,
+            deposit_id,
+        )
     if row is None:
         raise HTTPException(status_code=404, detail="Deposit record not found")
     if row.account_id != selected:

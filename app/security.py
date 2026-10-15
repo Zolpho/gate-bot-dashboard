@@ -338,9 +338,9 @@ def _resolve_bearer_user(
     # SQLite store and route allowlist. They must never fall
     # through into the production durable-auth resolver.
     from .demo_auth import (
-        DEMO_AUTH_PATH_ALLOWLIST,
         DEMO_TOKEN_PREFIX,
         DemoSessionStore,
+        demo_request_is_allowed,
     )
 
     if token.startswith(
@@ -349,9 +349,9 @@ def _resolve_bearer_user(
         if not settings.dashboard_demo_login_enabled:
             raise _bearer_authentication_error()
 
-        if (
-            request.url.path
-            not in DEMO_AUTH_PATH_ALLOWLIST
+        if not demo_request_is_allowed(
+            request.method,
+            request.url.path,
         ):
             raise HTTPException(
                 status_code=403,
@@ -440,6 +440,51 @@ def _resolve_bearer_user(
         raise _bearer_authentication_error()
 
     return user
+
+
+def optional_demo_user(
+    request: Request,
+    bearer_credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(_bearer),
+    ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+) -> DashboardUser | None:
+    """
+    Resolve only Demo Bearer identity when one is present.
+
+    Public routes can use this without changing their existing
+    unauthenticated/live-Bearer behavior. Live Bearer tokens are
+    deliberately ignored here.
+    """
+
+    if bearer_credentials is None:
+        return None
+
+    token = str(
+        bearer_credentials.credentials
+        or ""
+    )
+
+    from .demo_auth import (
+        DEMO_TOKEN_PREFIX,
+    )
+
+    if not token.startswith(
+        DEMO_TOKEN_PREFIX
+    ):
+        return None
+
+    return _resolve_bearer_user(
+        request=request,
+        bearer_credentials=(
+            bearer_credentials
+        ),
+        settings=settings,
+    )
 
 
 def require_user(

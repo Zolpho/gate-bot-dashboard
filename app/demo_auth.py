@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import secrets
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -21,15 +22,60 @@ DEMO_ACCOUNT_IDS = (
     "demo-wallet-2",
 )
 
-# M4.24D deliberately gives a Demo Bearer token almost no reach.
-# Additional application surfaces must be added explicitly in a
-# later milestone after their Demo adapters exist.
-DEMO_AUTH_PATH_ALLOWLIST = frozenset(
+# Demo requests are method-aware and explicitly bounded.
+# Only surfaces with an accepted isolated adapter are added here.
+DEMO_AUTH_REQUEST_ALLOWLIST = frozenset(
     {
-        "/api/auth/me",
-        "/api/auth/logout",
+        ("GET", "/api/auth/me"),
+        ("POST", "/api/auth/logout"),
+        ("GET", "/api/me/balance"),
+        ("GET", "/api/deposit/currencies"),
+        ("GET", "/api/me/deposits"),
     }
 )
+
+_DEMO_WALLET_GET_PATH_PATTERNS = (
+    re.compile(
+        r"^/api/me/deposit/"
+        r"[A-Za-z0-9._-]+"
+        r"(?:/networks)?$"
+    ),
+    re.compile(
+        r"^/api/me/deposits/"
+        r"[0-9]+$"
+    ),
+)
+
+
+def demo_request_is_allowed(
+    method: str,
+    path: str,
+) -> bool:
+    normalized_method = str(
+        method or ""
+    ).strip().upper()
+
+    normalized_path = str(
+        path or ""
+    ).strip()
+
+    if (
+        normalized_method,
+        normalized_path,
+    ) in DEMO_AUTH_REQUEST_ALLOWLIST:
+        return True
+
+    if normalized_method != "GET":
+        return False
+
+    return any(
+        pattern.fullmatch(
+            normalized_path
+        )
+        is not None
+        for pattern
+        in _DEMO_WALLET_GET_PATH_PATTERNS
+    )
 
 
 def _utc_now() -> datetime:
