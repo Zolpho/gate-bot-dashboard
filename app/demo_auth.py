@@ -14,6 +14,23 @@ from .security import DashboardUser
 DEMO_TOKEN_PREFIX = "gdbdemo_"
 DEMO_USERNAME = "demo"
 
+# These are intentionally synthetic Wallet-account identities.
+# They do not correspond to production Gate account IDs.
+DEMO_ACCOUNT_IDS = (
+    "demo-wallet-1",
+    "demo-wallet-2",
+)
+
+# M4.24D deliberately gives a Demo Bearer token almost no reach.
+# Additional application surfaces must be added explicitly in a
+# later milestone after their Demo adapters exist.
+DEMO_AUTH_PATH_ALLOWLIST = frozenset(
+    {
+        "/api/auth/me",
+        "/api/auth/logout",
+    }
+)
+
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)

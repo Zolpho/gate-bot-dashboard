@@ -705,6 +705,110 @@ def _public_mfa_challenge(
     }
 
 
+@router.post("/login/demo")
+def demo_login(
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
+):  # type: ignore[no-untyped-def]
+    """
+    Create an isolated Demo Bearer session.
+
+    This endpoint is disabled by default. It does not authenticate
+    against dashboard_users.json, does not create a production auth
+    session, and does not call Gate.
+    """
+
+    if not settings.dashboard_demo_login_enabled:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Demo login is not available"
+            ),
+        )
+
+    # Local imports keep Demo persistence out of the normal
+    # production authentication path.
+    import sqlite3
+
+    from ..demo_auth import (
+        DEMO_ACCOUNT_IDS,
+        DEMO_USERNAME,
+        DemoSessionStore,
+    )
+
+    try:
+        token, session = (
+            DemoSessionStore(
+                settings.dashboard_demo_database_path
+            ).create_session(
+                account_ids=(
+                    DEMO_ACCOUNT_IDS
+                ),
+                ttl_seconds=(
+                    settings
+                    .dashboard_demo_session_ttl_seconds
+                ),
+                username=DEMO_USERNAME,
+                role="account_operator",
+            )
+        )
+
+    except (
+        OSError,
+        sqlite3.Error,
+    ) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Demo authentication service "
+                "is not available"
+            ),
+        ) from exc
+
+    user = DashboardUser(
+        username=DEMO_USERNAME,
+        role="account_operator",
+        account_ids=DEMO_ACCOUNT_IDS,
+        enabled=True,
+        password_hash="",
+        auth_source="demo",
+        execution_mode="demo",
+    )
+
+    return {
+        "status":
+            "authenticated",
+        "token_type":
+            "bearer",
+        "access_token":
+            token,
+        "user":
+            user.safe_dict(),
+        "session": {
+            "auth_method":
+                "demo",
+            "mfa_completed":
+                False,
+            "created_at":
+                session[
+                    "created_at"
+                ],
+            "expires_at":
+                session[
+                    "expires_at"
+                ],
+            "execution_mode":
+                "demo",
+        },
+        "mfa_required":
+            False,
+        "gate_write_performed":
+            False,
+    }
+
+
 @router.post("/login")
 def password_login(
     request: Request,
@@ -1121,9 +1225,17 @@ def logout_current_session(
         DashboardUser,
         Depends(require_user),
     ],
+    settings: Annotated[
+        Settings,
+        Depends(get_settings),
+    ],
 ):  # type: ignore[no-untyped-def]
     """
     Revoke the caller's current Bearer session.
+
+    Demo Bearer sessions are revoked exclusively from the isolated
+    Demo-session store. Live Bearer sessions retain the existing
+    production durable-auth revocation path.
 
     Basic authentication remains available during migration, but
     Basic credentials do not represent a durable server session and
@@ -1140,9 +1252,43 @@ def logout_current_session(
             detail="Bearer session required",
         )
 
-    if not revoke_auth_session(
-        token
-    ):
+    if user.is_demo:
+        import sqlite3
+
+        from ..demo_auth import (
+            DemoSessionStore,
+        )
+
+        try:
+            revoked = (
+                DemoSessionStore(
+                    settings
+                    .dashboard_demo_database_path
+                ).revoke_session(
+                    token
+                )
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Demo authentication service "
+                    "is not available"
+                ),
+            ) from exc
+
+    else:
+        revoked = (
+            revoke_auth_session(
+                token
+            )
+        )
+
+    if not revoked:
         raise HTTPException(
             status_code=401,
             detail=(

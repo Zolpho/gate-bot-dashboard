@@ -329,6 +329,79 @@ def _resolve_bearer_user(
         )
     )
 
+    token = str(
+        bearer_credentials.credentials
+        or ""
+    )
+
+    # Demo Bearer sessions have a dedicated token namespace,
+    # SQLite store and route allowlist. They must never fall
+    # through into the production durable-auth resolver.
+    from .demo_auth import (
+        DEMO_AUTH_PATH_ALLOWLIST,
+        DEMO_TOKEN_PREFIX,
+        DemoSessionStore,
+    )
+
+    if token.startswith(
+        DEMO_TOKEN_PREFIX
+    ):
+        if not settings.dashboard_demo_login_enabled:
+            raise _bearer_authentication_error()
+
+        if (
+            request.url.path
+            not in DEMO_AUTH_PATH_ALLOWLIST
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Demo session is not authorized "
+                    "for this endpoint"
+                ),
+            )
+
+        # Import locally so the production/live authentication
+        # path has no dependency on sqlite3 Demo error handling.
+        import sqlite3
+
+        try:
+            resolved = DemoSessionStore(
+                settings.dashboard_demo_database_path
+            ).resolve_session(
+                token
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Demo authentication service "
+                    "is not available"
+                ),
+            ) from exc
+
+        if resolved is None:
+            raise _bearer_authentication_error()
+
+        user = resolved.get(
+            "user"
+        )
+
+        if not isinstance(
+            user,
+            DashboardUser,
+        ):
+            raise _bearer_authentication_error()
+
+        if not user.is_demo:
+            raise _bearer_authentication_error()
+
+        return user
+
     # Local import deliberately avoids the module-level cycle:
     # auth_login imports DashboardUser and identity helpers from
     # this module.
@@ -340,7 +413,7 @@ def _resolve_bearer_user(
     try:
         resolved = (
             resolve_bearer_session(
-                bearer_credentials.credentials,
+                token,
                 settings=settings,
                 client_identifier=(
                     client_identifier

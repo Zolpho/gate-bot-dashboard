@@ -168,6 +168,27 @@ class Settings(BaseSettings):
         ge=300,
         le=86400,
     )
+
+    # Interactive public Demo authentication is deliberately
+    # separate from the legacy process-wide DEMO_MODE.
+    #
+    # Enabling this flag only allows creation/resolution of
+    # isolated Demo Bearer sessions. Demo access to application
+    # features is independently fail-closed in the auth resolver.
+    dashboard_demo_login_enabled: bool = False
+
+    # Demo authentication state must never share gate_bots.db or
+    # the production dashboard authentication/session tables.
+    dashboard_demo_database_path: Path = Path(
+        "/data/demo/demo.db"
+    )
+
+    dashboard_demo_session_ttl_seconds: int = Field(
+        default=3600,
+        ge=300,
+        le=86400,
+    )
+
     dashboard_auth_challenge_ttl_seconds: int = Field(
         default=300,
         ge=60,
