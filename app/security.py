@@ -47,6 +47,11 @@ class DashboardUser:
     enabled: bool = True
     password_hash: str = ""
     auth_source: str = "file"
+    execution_mode: Literal["live", "demo"] = "live"
+
+    @property
+    def is_demo(self) -> bool:
+        return self.execution_mode == "demo"
 
     @property
     def is_super_admin(self) -> bool:
@@ -57,13 +62,21 @@ class DashboardUser:
         return self.is_super_admin or normalized in self.account_ids
 
     def safe_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "username": self.username,
             "role": self.role,
             "account_ids": list(self.account_ids),
             "enabled": self.enabled,
             "auth_source": self.auth_source,
         }
+
+        # Preserve the existing live-user API contract exactly.
+        # Demo identities explicitly advertise their isolated
+        # execution context to the frontend.
+        if self.is_demo:
+            payload["execution_mode"] = "demo"
+
+        return payload
 
 
 def _encode_b64(value: bytes) -> str:
