@@ -338,6 +338,7 @@ function walletViewForSession(view) {
     && ![
       'balance',
       'deposits',
+      'transfers',
     ].includes(
       target
     )
@@ -545,33 +546,40 @@ function renderDemoPresentation() {
       demo,
     );
 
-  for (
-    const selectorId
-    of [
-      '#walletTransfersTab',
-      '#walletWithdrawalsTab',
-    ]
-  ) {
-    const button = $(
-      selectorId
+  const transfersButton = $(
+    '#walletTransfersTab'
+  );
+
+  if (transfersButton) {
+    transfersButton.classList.remove(
+      'hidden'
     );
 
-    button?.classList.toggle(
-      'hidden',
-      demo,
-    );
-
-    button?.setAttribute(
+    transfersButton.setAttribute(
       'aria-hidden',
-      String(demo),
+      'false',
     );
+  }
 
-    if (
-      demo
-      && button
-    ) {
-      button.tabIndex = -1;
-    }
+  const withdrawalsButton = $(
+    '#walletWithdrawalsTab'
+  );
+
+  withdrawalsButton?.classList.toggle(
+    'hidden',
+    demo,
+  );
+
+  withdrawalsButton?.setAttribute(
+    'aria-hidden',
+    String(demo),
+  );
+
+  if (
+    demo
+    && withdrawalsButton
+  ) {
+    withdrawalsButton.tabIndex = -1;
   }
 
   const depositSync = $(
@@ -593,7 +601,7 @@ function renderDemoPresentation() {
   );
 
   if (ownershipRecords) {
-    ownershipRecords.hidden = demo;
+    ownershipRecords.hidden = false;
   }
 
   const treasuryPanel = $(
@@ -604,7 +612,121 @@ function renderDemoPresentation() {
     demo
     && treasuryPanel
   ) {
-    treasuryPanel.hidden = true;
+    treasuryPanel.hidden = (
+      state.walletView
+      !== 'transfers'
+    );
+  }
+
+  const treasuryHeaderTitle = (
+    treasuryPanel?.querySelector(
+      '.treasury-header h2'
+    )
+  );
+
+  const treasuryHeaderSubtitle = (
+    treasuryPanel?.querySelector(
+      '.treasury-header p'
+    )
+  );
+
+  if (treasuryHeaderTitle) {
+    treasuryHeaderTitle.textContent = (
+      demo
+        ? 'Demo transfers'
+        : 'Treasury'
+    );
+  }
+
+  if (treasuryHeaderSubtitle) {
+    treasuryHeaderSubtitle.textContent = (
+      demo
+        ? (
+            'Simulated Wallet-account transfers '
+            + 'and isolated Demo audit.'
+          )
+        : (
+            'Account-scoped controls, safety and audit.'
+          )
+    );
+  }
+
+  const transferHeading = (
+    $('#walletTransfersWorkspace')
+      ?.querySelector(
+        '.treasury-user-transfer-section h3'
+      )
+  );
+
+  const transferSubtitle = (
+    $('#walletTransfersWorkspace')
+      ?.querySelector(
+        '.treasury-user-transfer-section '
+        + '.treasury-section-header p'
+      )
+  );
+
+  if (transferHeading) {
+    transferHeading.textContent = (
+      demo
+        ? 'Simulated Wallet-account transfer'
+        : 'Transfer between registered users'
+    );
+  }
+
+  if (transferSubtitle) {
+    transferSubtitle.textContent = (
+      demo
+        ? (
+            'Move synthetic Demo balances between '
+            + 'assigned Demo Wallet accounts. '
+            + 'No Gate request or real funds are involved.'
+          )
+        : (
+            'Transfer Gate spot funds from this Wallet '
+            + 'account to another registered dashboard user. '
+            + 'Source authorization is enforced server-side.'
+          )
+    );
+  }
+
+  const lockSection = (
+    $('#treasuryRecords')
+      ?.querySelector(
+        '.treasury-lock-section'
+      )
+  );
+
+  lockSection?.classList.toggle(
+    'hidden',
+    demo,
+  );
+
+  if (demo) {
+    $('#treasuryLockCount')
+      ?.classList.add(
+        'hidden'
+      );
+
+    $('#treasuryDonationAttributionPanel')
+      ?.classList.add(
+        'hidden'
+      );
+  }
+
+  const recordsSubtitle = (
+    $('#treasuryRecords')
+      ?.querySelector(
+        '.treasury-records-summary small'
+      )
+  );
+
+  if (recordsSubtitle) {
+    recordsSubtitle.textContent = (
+      demo
+        ? 'Simulated transfer requests and activity'
+        : 'Transfer requests, active locks and activity'
+    );
   }
 
   if (
@@ -612,6 +734,7 @@ function renderDemoPresentation() {
     && ![
       'balance',
       'deposits',
+      'transfers',
     ].includes(
       state.walletView
     )
@@ -13657,6 +13780,18 @@ function treasuryOwnershipLabels(rows = []) {
     empty: 'No main-held ownership balances.',
   };
 
+  if (isDemoSession()) {
+    return {
+      title: 'Demo economic ownership',
+      subtitle: (
+        'Synthetic ownership records stored only '
+        + 'in isolated Demo state.'
+      ),
+      amountHeader: 'Demo amount',
+      empty: 'No Demo ownership balances.',
+    };
+  }
+
   if (
     !user
     || user.role === 'super_admin'
@@ -13786,7 +13921,8 @@ function renderTreasuryUserTransferDonationOption() {
   ).trim().toLowerCase();
 
   const eligible = (
-    destination === 'eqtydao'
+    !isDemoSession()
+    && destination === 'eqtydao'
   );
 
   option?.classList.toggle(
@@ -13818,6 +13954,14 @@ function renderTreasuryDonationAttributionPanel() {
   );
 
   if (!panel) return;
+
+  if (isDemoSession()) {
+    panel.classList.add(
+      'hidden'
+    );
+
+    return;
+  }
 
   const snapshot = (
     state.treasuryUserTransferPreview
@@ -13916,6 +14060,10 @@ function renderTreasuryDonationAttributionPanel() {
 
 
 async function saveTreasuryDonationAttribution() {
+  if (isDemoSession()) {
+    return;
+  }
+
   const snapshot = (
     state.treasuryUserTransferPreview
   );
@@ -14020,6 +14168,12 @@ function treasuryUserTransferParticipantLabel(item) {
     item?.account_id || ''
   );
 
+  if (isDemoSession()) {
+    return demoWalletAccountLabel(
+      accountId
+    );
+  }
+
   const usernames = (
     item?.usernames || []
   ).filter(Boolean);
@@ -14105,10 +14259,24 @@ function treasuryScopedUserTransferSource(
   );
 
   if (
-    state.selectedAccount
+    !isDemoSession()
+    && state.selectedAccount
     && sourceIds.includes(state.selectedAccount)
   ) {
     return state.selectedAccount;
+  }
+
+  const demoWalletAccount = (
+    isDemoSession()
+      ? ensureDemoWalletAccount()
+      : ''
+  );
+
+  if (
+    demoWalletAccount
+    && sourceIds.includes(demoWalletAccount)
+  ) {
+    return demoWalletAccount;
   }
 
   if (sourceIds.length === 1) {
@@ -14156,8 +14324,14 @@ function renderTreasuryUserTransferParticipants() {
   );
 
   if (sourceItem) {
-    sourceDisplay.textContent = String(
-      sourceItem.account_id || '—'
+    sourceDisplay.textContent = (
+      isDemoSession()
+        ? demoWalletAccountLabel(
+            sourceItem.account_id
+          )
+        : String(
+            sourceItem.account_id || '—'
+          )
     );
   } else if (sources.length > 1) {
     sourceDisplay.textContent = (
@@ -14267,7 +14441,11 @@ function renderTreasuryUserTransferParticipants() {
   if (stateElement) {
     stateElement.textContent = (
       state.treasuryUserTransfersEnabled
-        ? 'REQUEST FLOW ENABLED'
+        ? (
+            isDemoSession()
+              ? 'SIMULATION ENABLED'
+              : 'REQUEST FLOW ENABLED'
+          )
         : 'REQUEST FLOW DISABLED'
     );
 
@@ -14286,6 +14464,8 @@ function treasuryUserTransferPathLabel(value) {
   const path = String(value || '').trim().toLowerCase();
 
   const labels = {
+    demo_account_to_demo_account:
+      'Demo Wallet account → Demo Wallet account',
     subaccount_to_subaccount: 'Wallet account → Wallet account',
     subaccount_to_main: 'Wallet account → Main',
     main_to_subaccount: 'Main → Wallet account',
@@ -14471,7 +14651,11 @@ function renderTreasuryUserTransferPreview() {
 
     if (executeButton) {
       executeButton.disabled = true;
-      executeButton.textContent = 'Transfer funds';
+      executeButton.textContent = (
+        isDemoSession()
+          ? 'Simulate transfer'
+          : 'Transfer funds'
+      );
     }
 
     return;
@@ -14623,7 +14807,18 @@ function renderTreasuryUserTransferPreview() {
       ${blockerHelper}
 
       <span class="treasury-user-transfer-helper-note">
-        Gate action happens only after final confirmation.
+        ${
+          escapeHtml(
+            isDemoSession()
+              ? (
+                  'Demo simulation changes synthetic balances '
+                  + 'only after final confirmation.'
+                )
+              : (
+                  'Gate action happens only after final confirmation.'
+                )
+          )
+        }
       </span>
     </div>
   `;
@@ -14648,7 +14843,11 @@ function renderTreasuryUserTransferPreview() {
 
     if (executeButton) {
       executeButton.disabled = true;
-      executeButton.textContent = 'Transfer funds';
+      executeButton.textContent = (
+        isDemoSession()
+          ? 'Simulate transfer'
+          : 'Transfer funds'
+      );
     }
 
     return;
@@ -14712,7 +14911,11 @@ function renderTreasuryUserTransferPreview() {
           ? 'Reconciliation required'
           : (
               liveEnabled
-                ? 'Transfer funds'
+                ? (
+                    isDemoSession()
+                      ? 'Simulate transfer'
+                      : 'Transfer funds'
+                  )
                 : 'Transfers disabled'
             )
       );
@@ -14897,6 +15100,12 @@ function updateTreasuryUserTransferExecuteButton() {
     return;
   }
 
+  button.textContent = (
+    isDemoSession()
+      ? 'Simulate transfer'
+      : 'Transfer funds'
+  );
+
   const response = snapshot?.response || {};
 
   const confirmation = String(
@@ -14995,7 +15204,20 @@ async function runTreasuryUserTransferPreview(event) {
       },
     );
 
-    if (response.gate_write_performed) {
+    if (isDemoSession()) {
+      if (
+        response?.source !== 'demo'
+        || response?.simulation !== true
+        || response?.gate_write_required !== false
+        || response?.gate_write_performed !== false
+      ) {
+        throw new Error(
+          'Safety invariant failed: Demo transfer preview '
+          + 'did not prove isolated simulation semantics.'
+        );
+      }
+
+    } else if (response.gate_write_performed) {
       throw new Error(
         'Safety invariant failed: user-transfer '
         + 'preview reported a Gate write.'
@@ -15090,7 +15312,11 @@ async function executeTreasuryUserTransfer() {
   if (!button) return;
 
   button.disabled = true;
-  button.textContent = 'Transferring…';
+  button.textContent = (
+    isDemoSession()
+      ? 'Simulating…'
+      : 'Transferring…'
+  );
 
   errorBox?.classList.add('hidden');
 
@@ -15128,7 +15354,20 @@ async function executeTreasuryUserTransfer() {
     ).toLowerCase();
 
     if (status === 'success') {
-      if (
+      if (isDemoSession()) {
+        if (
+          result?.source !== 'demo'
+          || result?.simulation !== true
+          || result?.gate_write_required !== false
+          || result?.gate_write_performed !== false
+        ) {
+          throw new Error(
+            'Safety invariant failed: successful Demo '
+            + 'transfer did not prove isolated simulation.'
+          );
+        }
+
+      } else if (
         !result.gate_write_performed
         && !result.audit?.write_performed
       ) {
@@ -15138,7 +15377,10 @@ async function executeTreasuryUserTransfer() {
         );
       }
 
-      if (snapshot.donation) {
+      if (
+        snapshot.donation
+        && !isDemoSession()
+      ) {
         snapshot.donationPublication = (
           result.donation
           || {
@@ -15271,7 +15513,8 @@ async function executeTreasuryUserTransfer() {
     ).toLowerCase();
 
     const successful = (
-      auditStatus === 'success'
+      !isDemoSession()
+      && auditStatus === 'success'
     );
 
     const terminalFailure = [
@@ -15286,7 +15529,10 @@ async function executeTreasuryUserTransfer() {
     );
 
     if (successful) {
-      if (snapshot.donation) {
+      if (
+        snapshot.donation
+        && !isDemoSession()
+      ) {
         snapshot.donationPublication = (
           detail?.donation
           || {
@@ -15417,7 +15663,11 @@ async function executeTreasuryUserTransfer() {
 
     if (executionKind === 'success') {
       setTreasuryUserTransferFormLocked(true);
-      button.textContent = 'Transfer completed ✓';
+      button.textContent = (
+        isDemoSession()
+          ? 'Simulation completed ✓'
+          : 'Transfer completed ✓'
+      );
       button.disabled = true;
 
     } else if (executionKind) {
@@ -15438,7 +15688,11 @@ async function executeTreasuryUserTransfer() {
           button.disabled = true;
 
         } else {
-          button.textContent = 'Transfer funds';
+          button.textContent = (
+            isDemoSession()
+              ? 'Simulate transfer'
+              : 'Transfer funds'
+          );
           updateTreasuryUserTransferExecuteButton();
         }
       }
@@ -21568,9 +21822,15 @@ function renderTreasuryTransfers() {
       item.request_id || ''
     );
 
-    const mode = item.simulation
-      ? 'simulation'
-      : 'live';
+    const mode = (
+      isDemoSession()
+        ? 'simulation'
+        : (
+            item.simulation
+              ? 'simulation'
+              : 'live'
+          )
+    );
 
     const status = String(
       item.status || 'unknown'
@@ -21820,9 +22080,15 @@ function renderTreasuryRequestDetail(payload) {
     item.status || 'unknown'
   ).toLowerCase();
 
-  const mode = item.simulation
-    ? 'Simulation'
-    : 'Live';
+  const mode = (
+    isDemoSession()
+      ? 'Demo simulation'
+      : (
+          item.simulation
+            ? 'Simulation'
+            : 'Live'
+        )
+  );
 
   const lockText = lock
     ? `${lock.state || 'held'} · ${
@@ -22012,7 +22278,11 @@ function renderTreasuryRequestDetail(payload) {
 
   reconcileButton?.classList.toggle(
     'hidden',
-    Boolean(item.simulation || terminal)
+    Boolean(
+      isDemoSession()
+      || item.simulation
+      || terminal
+    )
   );
 
   const releaseSection = $(
@@ -22020,7 +22290,8 @@ function renderTreasuryRequestDetail(payload) {
   );
 
   const releaseEligible = (
-    treasuryManualReleaseEligible(payload)
+    !isDemoSession()
+    && treasuryManualReleaseEligible(payload)
   );
 
   releaseSection?.classList.toggle(
@@ -22052,6 +22323,158 @@ function renderTreasuryRequestDetail(payload) {
 }
 
 
+
+async function loadDemoTreasuryOverview(
+  {
+    quiet = false,
+  } = {},
+) {
+  if (
+    !isDemoSession()
+    || !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    return;
+  }
+
+  const button = $('#refreshTreasury');
+  const errorBox = $('#treasuryError');
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Loading…';
+  }
+
+  errorBox?.classList.add(
+    'hidden'
+  );
+
+  try {
+    const [
+      userTransferParticipants,
+      requests,
+      ownershipBalances,
+      ownershipLedger,
+    ] = await Promise.all([
+      adminApi(
+        '/api/treasury/user-transfers/participants'
+      ),
+      adminApi(
+        '/api/treasury/transfers/requests?limit=50'
+      ),
+      adminApi(
+        '/api/treasury/ownership/balances'
+      ),
+      adminApi(
+        '/api/treasury/ownership/ledger?limit=200'
+      ),
+    ]);
+
+    for (
+      const payload
+      of [
+        userTransferParticipants,
+        requests,
+        ownershipBalances,
+        ownershipLedger,
+      ]
+    ) {
+      if (
+        payload?.source !== 'demo'
+        || payload?.gate_write_performed !== false
+      ) {
+        throw new Error(
+          'Safety invariant failed: Demo Treasury '
+          + 'read escaped isolated Demo state.'
+        );
+      }
+    }
+
+    if (
+      userTransferParticipants?.simulation !== true
+    ) {
+      throw new Error(
+        'Safety invariant failed: Demo transfer '
+        + 'participants did not advertise simulation.'
+      );
+    }
+
+    state.treasuryUserTransferParticipants = (
+      userTransferParticipants.items
+      || userTransferParticipants.participants
+      || []
+    );
+
+    state.treasuryUserTransfersEnabled = Boolean(
+      userTransferParticipants.user_transfers_enabled
+      && userTransferParticipants.execution_implemented
+      && userTransferParticipants.simulation === true
+    );
+
+    state.treasuryTransfers = (
+      requests.items || []
+    );
+
+    state.treasuryOwnershipBalances = (
+      ownershipBalances.items || []
+    );
+
+    state.treasuryOwnershipLedger = (
+      ownershipLedger.items || []
+    );
+
+    // Explicitly erase every live-only Treasury/Withdrawal
+    // state family when presenting Demo.
+    state.treasuryLocks = [];
+    state.treasuryWithdrawalDestinations = [];
+    state.treasuryWithdrawalRecipients = [];
+    state.treasuryWithdrawalRequests = [];
+    state.treasuryWithdrawalCapabilities = null;
+    state.treasuryWithdrawalPreflight = null;
+    state.treasuryWithdrawalRequestDetail = null;
+    state.treasuryDonationAttribution = null;
+
+    renderTreasuryOwnershipBalances();
+    renderTreasuryOwnershipLedger();
+    renderTreasuryUserTransferParticipants();
+    renderTreasuryUserTransferPreview();
+    renderTreasuryTransfers();
+    renderDemoPresentation();
+
+  } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
+    const message = treasuryErrorMessage(
+      error
+    );
+
+    if (errorBox) {
+      errorBox.textContent = message;
+      errorBox.classList.remove(
+        'hidden'
+      );
+    }
+
+    if (!quiet) {
+      showToast(
+        message,
+        true,
+      );
+    }
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = (
+        'Refresh Demo transfers'
+      );
+    }
+  }
+}
+
+
 async function loadTreasuryOverview(
   {
     quiet = false,
@@ -22062,6 +22485,14 @@ async function loadTreasuryOverview(
     || !state.adminAuthorization
   ) {
     clearTreasurySession();
+    return;
+  }
+
+  if (isDemoSession()) {
+    await loadDemoTreasuryOverview({
+      quiet,
+    });
+
     return;
   }
 
@@ -22310,6 +22741,10 @@ async function openTreasuryRequestDetail(
 
 
 async function reconcileCurrentTreasuryRequest() {
+  if (isDemoSession()) {
+    return;
+  }
+
   const payload = state.treasuryRequestDetail;
   const item = payload?.item || {};
 
@@ -22367,6 +22802,10 @@ async function reconcileCurrentTreasuryRequest() {
 
 
 async function releaseCurrentTreasuryLock() {
+  if (isDemoSession()) {
+    return;
+  }
+
   const payload = state.treasuryRequestDetail;
   const item = payload?.item || {};
 
@@ -22587,10 +23026,10 @@ function renderWalletView(view) {
 
   if (treasuryPanel) {
     const treasuryVisible = (
-      !isDemoSession()
-      && (
-        target === 'transfers'
-        || target === 'withdrawals'
+      target === 'transfers'
+      || (
+        !isDemoSession()
+        && target === 'withdrawals'
       )
     );
 
@@ -22635,9 +23074,24 @@ async function loadWalletViewData(
       return;
     }
 
-    await loadPrivateBalance({
-      quiet,
-    });
+    if (
+      target === 'transfers'
+    ) {
+      await loadDemoTreasuryOverview({
+        quiet,
+      });
+
+      return;
+    }
+
+    await Promise.all([
+      loadPrivateBalance({
+        quiet,
+      }),
+      loadDemoTreasuryOverview({
+        quiet,
+      }),
+    ]);
 
     return;
   }

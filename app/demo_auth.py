@@ -31,6 +31,12 @@ DEMO_AUTH_REQUEST_ALLOWLIST = frozenset(
         ("GET", "/api/me/balance"),
         ("GET", "/api/deposit/currencies"),
         ("GET", "/api/me/deposits"),
+        ("GET", "/api/treasury/ownership/balances"),
+        ("GET", "/api/treasury/ownership/ledger"),
+        ("GET", "/api/treasury/transfers/requests"),
+        ("GET", "/api/treasury/user-transfers/participants"),
+        ("POST", "/api/treasury/user-transfers/preview"),
+        ("POST", "/api/treasury/user-transfers/execute"),
     }
 )
 
@@ -43,6 +49,11 @@ _DEMO_WALLET_GET_PATH_PATTERNS = (
     re.compile(
         r"^/api/me/deposits/"
         r"[0-9]+$"
+    ),
+    re.compile(
+        r"^/api/treasury/transfers/requests/"
+        r"[A-Za-z0-9]"
+        r"[A-Za-z0-9._:-]{7,127}$"
     ),
 )
 

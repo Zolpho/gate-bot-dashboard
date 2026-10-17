@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import sqlite3
 import time
 from decimal import Decimal, InvalidOperation
 from typing import Annotated
@@ -13,8 +14,25 @@ from ..account_action_policy import (
     require_account_action_allowed,
 )
 from ..accounts import get_gate_account
-from ..config import get_settings
+from ..config import Settings, get_settings
 from ..gate_client import GateAPIError, GateClient
+from ..demo_treasury_api import (
+    DemoTreasuryConfirmationError,
+    DemoTreasuryTransferBlocked,
+    demo_ownership_balances_payload,
+    demo_ownership_ledger_payload,
+    demo_transfer_request_detail_payload,
+    demo_transfer_requests_payload,
+    demo_user_transfer_confirmation_text,
+    demo_user_transfer_execute_payload,
+    demo_user_transfer_participants_payload,
+    demo_user_transfer_preview_payload,
+)
+from ..demo_wallet import (
+    DemoWalletStateError,
+    DemoWalletStore,
+    DemoWalletTransferConflict,
+)
 from ..donation_ledger import (
     DonationAttributionCapabilityError,
     DonationAttributionValidationError,
@@ -195,6 +213,68 @@ def _currency(value: str) -> str:
         )
 
     return normalized
+
+
+def _demo_wallet_store(
+    request_settings: Settings,
+) -> DemoWalletStore:
+    return DemoWalletStore(
+        request_settings
+        .dashboard_demo_database_path
+    )
+
+
+def _demo_account_scope(
+    user: DashboardUser,
+) -> set[str]:
+    return {
+        str(
+            item or ""
+        ).strip().lower()
+        for item
+        in user.account_ids
+        if str(
+            item or ""
+        ).strip()
+    }
+
+
+def _require_demo_transfer_source_access(
+    user: DashboardUser,
+    account_id: str,
+) -> str:
+    normalized = str(
+        account_id or ""
+    ).strip().lower()
+
+    if (
+        normalized
+        not in _demo_account_scope(
+            user
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You are not allowed to transfer funds "
+                "from this Demo Wallet account"
+            ),
+        )
+
+    return normalized
+
+
+def _demo_wallet_unavailable(
+    exc: Exception,
+) -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail=(
+            "Demo Wallet service "
+            "is not available"
+        ),
+    )
+
 
 
 def _require_account_action_policy(
@@ -965,7 +1045,30 @@ async def treasury_user_transfer_participants(
         DashboardUser,
         Depends(require_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        try:
+            return demo_user_transfer_participants_payload(
+                store=_demo_wallet_store(
+                    request_settings
+                ),
+                source_account_ids=(
+                    _demo_account_scope(
+                        user
+                    )
+                ),
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise _demo_wallet_unavailable(
+                exc
+            ) from exc
+
     participants = (
         _registered_user_transfer_accounts()
     )
@@ -1054,7 +1157,52 @@ async def preview_treasury_user_transfer(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        source = (
+            _require_demo_transfer_source_access(
+                user,
+                request.source_account_id,
+            )
+        )
+
+        try:
+            return demo_user_transfer_preview_payload(
+                store=_demo_wallet_store(
+                    request_settings
+                ),
+                source_account_id=source,
+                destination_account_id=(
+                    request.destination_account_id
+                ),
+                currency=request.currency,
+                amount=request.amount,
+                donation=bool(
+                    request.donation
+                ),
+            )
+
+        except (
+            KeyError,
+            ValueError,
+        ) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(
+                    exc
+                ),
+            ) from exc
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise _demo_wallet_unavailable(
+                exc
+            ) from exc
+
     participants = (
         _registered_user_transfer_accounts()
     )
@@ -1247,7 +1395,107 @@ async def execute_treasury_user_transfer(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        source = (
+            _require_demo_transfer_source_access(
+                user,
+                request.source_account_id,
+            )
+        )
+
+        try:
+            return demo_user_transfer_execute_payload(
+                store=_demo_wallet_store(
+                    request_settings
+                ),
+                request_id=request.request_id,
+                source_account_id=source,
+                destination_account_id=(
+                    request.destination_account_id
+                ),
+                currency=request.currency,
+                amount=request.amount,
+                username=user.username,
+                donation=bool(
+                    request.donation
+                ),
+                confirmation=request.confirmation,
+            )
+
+        except DemoTreasuryConfirmationError as exc:
+            required_confirmation = (
+                demo_user_transfer_confirmation_text(
+                    source_account_id=source,
+                    destination_account_id=(
+                        request.destination_account_id
+                    ),
+                    currency=request.currency,
+                    amount=request.amount,
+                )
+            )
+
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message":
+                        str(
+                            exc
+                        ),
+                    "required_confirmation":
+                        required_confirmation,
+                    "gate_write_performed":
+                        False,
+                },
+            ) from exc
+
+        except DemoTreasuryTransferBlocked as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message":
+                        str(
+                            exc
+                        ),
+                    "gate_write_performed":
+                        False,
+                },
+            ) from exc
+
+        except DemoWalletTransferConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message":
+                        str(
+                            exc
+                        ),
+                    "gate_write_performed":
+                        False,
+                },
+            ) from exc
+
+        except (
+            KeyError,
+            ValueError,
+        ) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(
+                    exc
+                ),
+            ) from exc
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise _demo_wallet_unavailable(
+                exc
+            ) from exc
+
     participants = (
         _registered_user_transfer_accounts()
     )
@@ -2101,7 +2349,28 @@ def treasury_ownership_balances(
         DashboardUser,
         Depends(require_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        try:
+            return demo_ownership_balances_payload(
+                store=_demo_wallet_store(
+                    request_settings
+                ),
+                account_ids=_demo_account_scope(
+                    user
+                ),
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise _demo_wallet_unavailable(
+                exc
+            ) from exc
+
     account_ids = (
         None
         if user.is_super_admin
@@ -2127,7 +2396,29 @@ def treasury_ownership_ledger(
         ge=1,
         le=500,
     ),
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        try:
+            return demo_ownership_ledger_payload(
+                store=_demo_wallet_store(
+                    request_settings
+                ),
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                limit=limit,
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise _demo_wallet_unavailable(
+                exc
+            ) from exc
+
     account_ids = (
         None
         if user.is_super_admin
@@ -2154,7 +2445,29 @@ def treasury_transfer_requests(
         ge=1,
         le=200,
     ),
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        try:
+            return demo_transfer_requests_payload(
+                store=_demo_wallet_store(
+                    request_settings
+                ),
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                limit=limit,
+            )
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise _demo_wallet_unavailable(
+                exc
+            ) from exc
+
     account_ids = (
         None
         if user.is_super_admin
@@ -2177,7 +2490,38 @@ def treasury_transfer_request_detail(
         DashboardUser,
         Depends(require_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        try:
+            return demo_transfer_request_detail_payload(
+                store=_demo_wallet_store(
+                    request_settings
+                ),
+                request_id=request_id,
+                account_ids=_demo_account_scope(
+                    user
+                ),
+            )
+
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Treasury transfer request "
+                    "not found"
+                ),
+            ) from exc
+
+        except (
+            OSError,
+            sqlite3.Error,
+            DemoWalletStateError,
+        ) as exc:
+            raise _demo_wallet_unavailable(
+                exc
+            ) from exc
+
     row = get_transfer_request(request_id)
 
     if row is None:
