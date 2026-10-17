@@ -628,6 +628,121 @@ class DemoTradingOrderStore:
                 order,
         }
 
+    def existing_limit_order_response(
+        self,
+        *,
+        request_id: str,
+        username: str,
+        account_id: str,
+        pair: str,
+        side: str,
+        price: Decimal | str | int,
+        amount: Decimal | str | int,
+        time_in_force: str = "gtc",
+    ) -> dict[str, Any] | None:
+        """
+        Return an idempotent existing create response without
+        performing confirmation validation, preview, balance
+        inspection or reservation.
+
+        A request ID bound to a different normalized intent
+        raises DemoTradingOrderConflict exactly as create does.
+        """
+        normalized_request_id = (
+            _normalize_request_id(
+                request_id
+            )
+        )
+
+        normalized_username = (
+            _normalize_username(
+                username
+            )
+        )
+
+        normalized_account = (
+            _normalize_account_id(
+                account_id
+            )
+        )
+
+        normalized_pair = (
+            _normalize_pair(
+                pair
+            )
+        )
+
+        normalized_side = (
+            _normalize_side(
+                side
+            )
+        )
+
+        normalized_price = (
+            _positive_decimal(
+                price,
+                "price",
+            )
+        )
+
+        normalized_amount = (
+            _positive_decimal(
+                amount,
+                "amount",
+            )
+        )
+
+        normalized_tif = (
+            _normalize_tif(
+                time_in_force
+            )
+        )
+
+        intent = self._intent(
+            request_id=
+                normalized_request_id,
+            username=
+                normalized_username,
+            account_id=
+                normalized_account,
+            pair=
+                normalized_pair,
+            side=
+                normalized_side,
+            price=
+                normalized_price,
+            amount=
+                normalized_amount,
+            time_in_force=
+                normalized_tif,
+        )
+
+        intent_hash = _fingerprint(
+            intent
+        )
+
+        self.ensure_ready()
+
+        db = self._connect()
+
+        try:
+            existing = self._existing_row(
+                db,
+                normalized_request_id,
+            )
+
+        finally:
+            db.close()
+
+        if existing is None:
+            return None
+
+        return self._existing_response(
+            existing,
+            intent_hash=
+                intent_hash,
+        )
+
     def create_limit_order(
         self,
         *,
@@ -640,6 +755,7 @@ class DemoTradingOrderStore:
         amount: Decimal | str | int,
         time_in_force: str = "gtc",
         confirmation: str,
+        preview: dict[str, Any] | None = None,
         occurred_at: str | None = None,
     ) -> dict[str, Any]:
         normalized_request_id = (
@@ -753,23 +869,72 @@ class DemoTradingOrderStore:
                 "Exact Demo Trading confirmation is required"
             )
 
-        preview = (
-            self.trading
-            .preview_limit_order(
-                account_id=
-                    normalized_account,
-                pair=
-                    normalized_pair,
-                side=
-                    normalized_side,
-                price=
-                    normalized_price,
-                amount=
-                    normalized_amount,
-                time_in_force=
-                    normalized_tif,
-            )
+        external_preview = (
+            preview is not None
         )
+
+        if preview is None:
+            preview = (
+                self.trading
+                .preview_limit_order(
+                    account_id=
+                        normalized_account,
+                    pair=
+                        normalized_pair,
+                    side=
+                        normalized_side,
+                    price=
+                        normalized_price,
+                    amount=
+                        normalized_amount,
+                    time_in_force=
+                        normalized_tif,
+                )
+            )
+
+        else:
+            preview = dict(
+                preview
+            )
+
+        if (
+            str(
+                preview.get(
+                    "source"
+                )
+                or ""
+            )
+            != "demo"
+            or preview.get(
+                "gate_write_performed"
+            )
+            is not False
+            or preview.get(
+                "write_performed"
+            )
+            is not False
+        ):
+            raise DemoTradingOrderError(
+                "Demo Trading preview safety contract mismatch"
+            )
+
+        if (
+            external_preview
+            and (
+                preview.get(
+                    "market_data_source"
+                )
+                != "gate"
+                or preview.get(
+                    "gate_read_performed"
+                )
+                is not True
+            )
+        ):
+            raise DemoTradingOrderError(
+                "External Demo preview is not "
+                "verified Gate public market data"
+            )
 
         if (
             preview.get(
@@ -802,6 +967,13 @@ class DemoTradingOrderStore:
                     else ""
                 )
             )
+
+        preview_pair = dict(
+            preview.get(
+                "pair"
+            )
+            or {}
+        )
 
         preview_order = dict(
             preview.get(
@@ -846,6 +1018,13 @@ class DemoTradingOrderStore:
                 or ""
             )
             != normalized_account
+            or str(
+                preview_pair.get(
+                    "id"
+                )
+                or ""
+            ).upper()
+            != normalized_pair
             or str(
                 preview_order.get(
                     "side"

@@ -911,3 +911,275 @@ def test_demo_order_store_has_no_gate_production_route_or_recovery_dependency():
         "demo_trading_fills"
         not in source
     )
+
+
+def test_external_public_preview_is_persisted_without_gate_transport(
+    tmp_path,
+    monkeypatch,
+):
+    database, *_, orders = (
+        _stores(
+            tmp_path
+        )
+    )
+
+    def forbidden_synthetic_preview(
+        *args,
+        **kwargs,
+    ):
+        raise AssertionError(
+            "synthetic preview must not be used"
+        )
+
+    monkeypatch.setattr(
+        orders.trading,
+        "preview_limit_order",
+        forbidden_synthetic_preview,
+    )
+
+    preview = {
+        "source":
+            "demo",
+        "simulation":
+            True,
+        "market_data_source":
+            "gate",
+        "gate_read_performed":
+            True,
+        "gate_write_performed":
+            False,
+        "write_performed":
+            False,
+        "account_id":
+            "demo-wallet-1",
+        "status":
+            "ready",
+        "demo_execution_ready":
+            True,
+        "pair": {
+            "id":
+                "EQTY_USDT",
+            "base":
+                "EQTY",
+            "quote":
+                "USDT",
+            "trade_status":
+                "tradable",
+            "precision":
+                6,
+            "amount_precision":
+                2,
+            "min_base_amount":
+                "100",
+            "min_quote_amount":
+                "5",
+        },
+        "order": {
+            "type":
+                "limit",
+            "account":
+                "spot",
+            "side":
+                "buy",
+            "price":
+                "0.0042",
+            "amount":
+                "100000",
+            "total":
+                "420",
+            "time_in_force":
+                "gtc",
+        },
+        "market": {
+            "best_bid":
+                "0.00424",
+            "best_ask":
+                "0.00426",
+            "marketable":
+                False,
+        },
+        "funds": {
+            "asset":
+                "USDT",
+            "available":
+                "12500",
+            "required":
+                "420",
+            "remaining":
+                "12080",
+        },
+        "blockers":
+            [],
+        "warnings":
+            [],
+    }
+
+    result = orders.create_limit_order(
+        request_id=(
+            "demo-order-request-public-preview-001"
+        ),
+        username="demo",
+        account_id="demo-wallet-1",
+        pair="EQTY_USDT",
+        side="buy",
+        price="0.0042",
+        amount="100000",
+        time_in_force="gtc",
+        confirmation=(
+            DEMO_TRADING_REQUIRED_CONFIRMATION
+        ),
+        preview=preview,
+    )
+
+    assert (
+        result[
+            "balance_reservation_performed"
+        ]
+        is True
+    )
+
+    # The store itself performed no Gate read.
+    assert (
+        result[
+            "gate_read_performed"
+        ]
+        is False
+    )
+
+    stored = result[
+        "order"
+    ][
+        "preview"
+    ]
+
+    assert (
+        stored[
+            "market_data_source"
+        ]
+        == "gate"
+    )
+
+    assert (
+        stored[
+            "gate_read_performed"
+        ]
+        is True
+    )
+
+    assert (
+        stored[
+            "market"
+        ][
+            "best_ask"
+        ]
+        == "0.00426"
+    )
+
+    available, locked = _asset(
+        database,
+        "demo-wallet-1",
+        "USDT",
+    )
+
+    assert available == "12080"
+    assert locked == "670"
+
+
+def test_external_preview_safety_contract_fails_closed(
+    tmp_path,
+):
+    database, *_, orders = (
+        _stores(
+            tmp_path
+        )
+    )
+
+    orders.ensure_ready()
+
+    before = _asset(
+        database,
+        "demo-wallet-1",
+        "USDT",
+    )
+
+    unsafe_preview = {
+        "source":
+            "demo",
+        "market_data_source":
+            "gate",
+        "gate_read_performed":
+            True,
+        "gate_write_performed":
+            True,
+        "write_performed":
+            False,
+        "account_id":
+            "demo-wallet-1",
+        "status":
+            "ready",
+        "demo_execution_ready":
+            True,
+        "pair": {
+            "id":
+                "EQTY_USDT",
+        },
+        "order": {
+            "side":
+                "buy",
+            "price":
+                "0.0042",
+            "amount":
+                "100000",
+            "total":
+                "420",
+            "time_in_force":
+                "gtc",
+        },
+        "funds": {
+            "asset":
+                "USDT",
+            "available":
+                "12500",
+            "required":
+                "420",
+            "remaining":
+                "12080",
+        },
+    }
+
+    with pytest.raises(
+        DemoTradingOrderError
+    ):
+        orders.create_limit_order(
+            request_id=(
+                "demo-order-request-public-preview-unsafe"
+            ),
+            username="demo",
+            account_id="demo-wallet-1",
+            pair="EQTY_USDT",
+            side="buy",
+            price="0.0042",
+            amount="100000",
+            time_in_force="gtc",
+            confirmation=(
+                DEMO_TRADING_REQUIRED_CONFIRMATION
+            ),
+            preview=unsafe_preview,
+        )
+
+    assert (
+        _asset(
+            database,
+            "demo-wallet-1",
+            "USDT",
+        )
+        == before
+    )
+
+    assert (
+        _count(
+            database,
+            "demo_trading_orders",
+        )
+        == 0
+    )

@@ -641,6 +641,39 @@ class DemoTradingApi:
 
         return result
 
+    def existing_execute_payload(
+        self,
+        *,
+        account_ids: set[str],
+        request_id: str,
+        username: str,
+        account_id: str,
+        pair: str,
+        side: str,
+        price,
+        amount,
+        time_in_force: str,
+    ) -> dict[str, Any] | None:
+        account = _require_account(
+            account_ids,
+            account_id,
+        )
+
+        return (
+            self.orders
+            .existing_limit_order_response(
+                request_id=request_id,
+                username=username,
+                account_id=account,
+                pair=pair,
+                side=side,
+                price=price,
+                amount=amount,
+                time_in_force=
+                    time_in_force,
+            )
+        )
+
     def execute_payload(
         self,
         *,
@@ -654,25 +687,55 @@ class DemoTradingApi:
         amount,
         time_in_force: str,
         confirmation: str,
+        preview: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         account = _require_account(
             account_ids,
             account_id,
         )
 
-        return self.orders.create_limit_order(
-            request_id=request_id,
-            username=username,
-            account_id=account,
-            pair=pair,
-            side=side,
-            price=price,
-            amount=amount,
-            time_in_force=
-                time_in_force,
-            confirmation=
-                confirmation,
+        result = (
+            self.orders
+            .create_limit_order(
+                request_id=request_id,
+                username=username,
+                account_id=account,
+                pair=pair,
+                side=side,
+                price=price,
+                amount=amount,
+                time_in_force=
+                    time_in_force,
+                confirmation=
+                    confirmation,
+                preview=
+                    preview,
+            )
         )
+
+        if preview is None:
+            return result
+
+        return {
+            **result,
+            "market_data_source":
+                str(
+                    preview.get(
+                        "market_data_source"
+                    )
+                    or ""
+                ),
+            "gate_read_performed":
+                bool(
+                    preview.get(
+                        "gate_read_performed"
+                    )
+                ),
+            "gate_write_performed":
+                False,
+            "write_performed":
+                False,
+        }
 
     def _rows(
         self,

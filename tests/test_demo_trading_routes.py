@@ -217,6 +217,313 @@ def _forbid_live_trading_paths(
             ),
         )
 
+    class SafeGateContext:
+        def __init__(
+            self,
+            *args,
+            **kwargs,
+        ) -> None:
+            pass
+
+        async def __aenter__(
+            self,
+        ):
+            return self
+
+        async def __aexit__(
+            self,
+            exc_type,
+            exc,
+            traceback,
+        ) -> None:
+            return None
+
+    class SafePublicMarket:
+        preview_context_calls = 0
+
+        def __init__(
+            self,
+            client,
+        ) -> None:
+            self.client = client
+
+        @staticmethod
+        def _pair(
+            pair,
+        ):
+            pair = pair.upper()
+            base, quote = pair.split(
+                "_",
+                1,
+            )
+
+            return {
+                "id":
+                    pair,
+                "base":
+                    base,
+                "quote":
+                    quote,
+                "trade_status":
+                    "tradable",
+                "precision":
+                    (
+                        6
+                        if base == "EQTY"
+                        else 2
+                    ),
+                "amount_precision":
+                    (
+                        2
+                        if base == "EQTY"
+                        else (
+                            6
+                            if base == "BTC"
+                            else 5
+                        )
+                    ),
+                "min_base_amount":
+                    (
+                        "100"
+                        if base == "EQTY"
+                        else (
+                            "0.0001"
+                            if base == "BTC"
+                            else "0.001"
+                        )
+                    ),
+                "min_quote_amount":
+                    "5",
+            }
+
+        async def catalog(
+            self,
+        ):
+            return {
+                "source":
+                    "gate",
+                "market_data_source":
+                    "gate",
+                "market_data_only":
+                    True,
+                "gate_read_performed":
+                    True,
+                "gate_write_performed":
+                    False,
+                "write_performed":
+                    False,
+                "pairs": [
+                    self._pair(
+                        "EQTY_USDT"
+                    ),
+                    self._pair(
+                        "BTC_USDT"
+                    ),
+                    self._pair(
+                        "ETH_USDT"
+                    ),
+                ],
+                "default_pair":
+                    "EQTY_USDT",
+            }
+
+        async def snapshot(
+            self,
+            *,
+            pair,
+            depth,
+            book_interval,
+        ):
+            context = await (
+                self.preview_context(
+                    pair=pair
+                )
+            )
+
+            return {
+                **context,
+                "ticker": {
+                    "currency_pair":
+                        pair.upper(),
+                    "last":
+                        "0.00425",
+                    "highest_bid":
+                        "0.00424",
+                    "lowest_ask":
+                        "0.00426",
+                    "high_24h":
+                        "0.0045",
+                    "low_24h":
+                        "0.0040",
+                    "base_volume":
+                        "123456",
+                    "quote_volume":
+                        "525",
+                },
+                "book_interval":
+                    book_interval,
+            }
+
+        async def preview_context(
+            self,
+            *,
+            pair,
+            depth=20,
+        ):
+            type(
+                self
+            ).preview_context_calls += 1
+
+            return {
+                "source":
+                    "gate",
+                "market_data_source":
+                    "gate",
+                "market_data_only":
+                    True,
+                "gate_read_performed":
+                    True,
+                "gate_write_performed":
+                    False,
+                "write_performed":
+                    False,
+                "pair":
+                    self._pair(
+                        pair
+                    ),
+                "order_book": {
+                    "bids": [
+                        {
+                            "price":
+                                "0.00424",
+                            "amount":
+                                "1000",
+                        }
+                    ],
+                    "asks": [
+                        {
+                            "price":
+                                "0.00426",
+                            "amount":
+                                "1200",
+                        }
+                    ],
+                    "best_bid":
+                        "0.00424",
+                    "best_ask":
+                        "0.00426",
+                    "spread":
+                        "0.00002",
+                    "spread_percent":
+                        "0.4705882352941176470588235294",
+                    "buy_percent":
+                        "45.45454545454545454545454545",
+                    "sell_percent":
+                        "54.54545454545454545454545455",
+                },
+            }
+
+        async def candles(
+            self,
+            *,
+            pair,
+            interval,
+            limit,
+        ):
+            return {
+                "source":
+                    "gate",
+                "market_data_source":
+                    "gate",
+                "market_data_only":
+                    True,
+                "gate_read_performed":
+                    True,
+                "gate_write_performed":
+                    False,
+                "write_performed":
+                    False,
+                "pair":
+                    pair.upper(),
+                "interval":
+                    interval,
+                "candles": [
+                    {
+                        "time":
+                            100,
+                        "open":
+                            "0.0041",
+                        "high":
+                            "0.0043",
+                        "low":
+                            "0.0040",
+                        "close":
+                            "0.00425",
+                        "quote_volume":
+                            "50",
+                        "base_volume":
+                            "12000",
+                        "closed":
+                            True,
+                    }
+                ],
+            }
+
+        async def trades(
+            self,
+            *,
+            pair,
+            limit,
+        ):
+            return {
+                "source":
+                    "gate",
+                "market_data_source":
+                    "gate",
+                "market_data_only":
+                    True,
+                "gate_read_performed":
+                    True,
+                "gate_write_performed":
+                    False,
+                "write_performed":
+                    False,
+                "pair":
+                    pair.upper(),
+                "count":
+                    1,
+                "trades": [
+                    {
+                        "id":
+                            "gate-public-1",
+                        "time_ms":
+                            "1234567890",
+                        "side":
+                            "buy",
+                        "price":
+                            "0.00425",
+                        "amount":
+                            "1000",
+                        "total":
+                            "4.25",
+                    }
+                ],
+            }
+
+    monkeypatch.setattr(
+        trading_api,
+        "GateClient",
+        SafeGateContext,
+    )
+
+    monkeypatch.setattr(
+        trading_api,
+        "PublicSpotMarketData",
+        SafePublicMarket,
+    )
+
+    return SafePublicMarket
+
 
 def _execute_body(
     request_id: str,
@@ -430,12 +737,21 @@ def test_all_twelve_demo_routes_branch_first_and_reconciliation_does_not():
             first.test
         ), name
 
-        assert (
-            "_demo_trading_result"
-            in ast.unparse(
-                first
-            )
-        ), name
+        rendered_first = ast.unparse(
+            first
+        )
+
+        if name == "preview_limit_order":
+            assert (
+                "_demo_public_limit_order_preview"
+                in rendered_first
+            ), name
+
+        else:
+            assert (
+                "_demo_trading_result"
+                in rendered_first
+            ), name
 
     for name in BLOCKED_RECONCILE_FUNCTIONS:
         body = executable_body(
@@ -457,7 +773,7 @@ def test_all_twelve_demo_routes_branch_first_and_reconciliation_does_not():
         ), name
 
 
-def test_demo_market_read_routes_never_reach_gate_or_production_helpers(
+def test_demo_market_read_routes_use_public_gate_data_only(
     tmp_path,
     monkeypatch,
 ):
@@ -469,111 +785,516 @@ def test_demo_market_read_routes_never_reach_gate_or_production_helpers(
         monkeypatch
     )
 
+    class FakeGateContext:
+        def __init__(
+            self,
+            *args,
+            **kwargs,
+        ) -> None:
+            pass
+
+        async def __aenter__(
+            self,
+        ):
+            return self
+
+        async def __aexit__(
+            self,
+            exc_type,
+            exc,
+            traceback,
+        ) -> None:
+            return None
+
+    class FakePublicMarket:
+        def __init__(
+            self,
+            client,
+        ) -> None:
+            self.client = client
+
+        @staticmethod
+        def _pair(
+            pair,
+        ):
+            base, quote = (
+                pair.split(
+                    "_",
+                    1,
+                )
+            )
+
+            precision = (
+                6
+                if base == "EQTY"
+                else 2
+            )
+
+            amount_precision = (
+                2
+                if base == "EQTY"
+                else (
+                    6
+                    if base == "BTC"
+                    else 5
+                )
+            )
+
+            return {
+                "id": pair,
+                "base": base,
+                "quote": quote,
+                "trade_status":
+                    "tradable",
+                "precision":
+                    precision,
+                "amount_precision":
+                    amount_precision,
+                "min_base_amount":
+                    (
+                        "100"
+                        if base == "EQTY"
+                        else "0.001"
+                    ),
+                "min_quote_amount":
+                    "5",
+            }
+
+        async def catalog(
+            self,
+        ):
+            return {
+                "source":
+                    "gate",
+                "market_data_source":
+                    "gate",
+                "market_data_only":
+                    True,
+                "gate_read_performed":
+                    True,
+                "gate_write_performed":
+                    False,
+                "write_performed":
+                    False,
+                "pairs": [
+                    self._pair(
+                        "EQTY_USDT"
+                    ),
+                    self._pair(
+                        "BTC_USDT"
+                    ),
+                    self._pair(
+                        "ETH_USDT"
+                    ),
+                    self._pair(
+                        "SOL_USDT"
+                    ),
+                ],
+                "default_pair":
+                    "EQTY_USDT",
+            }
+
+        async def snapshot(
+            self,
+            *,
+            pair,
+            depth,
+            book_interval,
+        ):
+            return {
+                "source":
+                    "gate",
+                "market_data_source":
+                    "gate",
+                "market_data_only":
+                    True,
+                "gate_read_performed":
+                    True,
+                "gate_write_performed":
+                    False,
+                "write_performed":
+                    False,
+                "pair":
+                    self._pair(
+                        pair.upper()
+                    ),
+                "ticker": {
+                    "currency_pair":
+                        pair.upper(),
+                    "last":
+                        "0.00425",
+                    "highest_bid":
+                        "0.00424",
+                    "lowest_ask":
+                        "0.00426",
+                    "high_24h":
+                        "0.0045",
+                    "low_24h":
+                        "0.0040",
+                    "base_volume":
+                        "123456",
+                    "quote_volume":
+                        "525",
+                },
+                "book_interval":
+                    book_interval,
+                "order_book": {
+                    "bids": [
+                        {
+                            "price":
+                                "0.00424",
+                            "amount":
+                                "1000",
+                        }
+                    ],
+                    "asks": [
+                        {
+                            "price":
+                                "0.00426",
+                            "amount":
+                                "1200",
+                        }
+                    ],
+                    "best_bid":
+                        "0.00424",
+                    "best_ask":
+                        "0.00426",
+                    "spread":
+                        "0.00002",
+                    "spread_percent":
+                        "0.4705882352941176470588235294",
+                    "buy_percent":
+                        "45.45454545454545454545454545",
+                    "sell_percent":
+                        "54.54545454545454545454545455",
+                },
+            }
+
+        async def candles(
+            self,
+            *,
+            pair,
+            interval,
+            limit,
+        ):
+            return {
+                "source":
+                    "gate",
+                "market_data_source":
+                    "gate",
+                "market_data_only":
+                    True,
+                "gate_read_performed":
+                    True,
+                "gate_write_performed":
+                    False,
+                "write_performed":
+                    False,
+                "pair":
+                    pair.upper(),
+                "interval":
+                    interval,
+                "candles": [
+                    {
+                        "time":
+                            100,
+                        "open":
+                            "0.0041",
+                        "high":
+                            "0.0043",
+                        "low":
+                            "0.0040",
+                        "close":
+                            "0.00425",
+                        "quote_volume":
+                            "50",
+                        "base_volume":
+                            "12000",
+                        "closed":
+                            True,
+                    }
+                ],
+            }
+
+        async def trades(
+            self,
+            *,
+            pair,
+            limit,
+        ):
+            return {
+                "source":
+                    "gate",
+                "market_data_source":
+                    "gate",
+                "market_data_only":
+                    True,
+                "gate_read_performed":
+                    True,
+                "gate_write_performed":
+                    False,
+                "write_performed":
+                    False,
+                "pair":
+                    pair.upper(),
+                "count":
+                    1,
+                "trades": [
+                    {
+                        "id":
+                            "gate-public-1",
+                        "time_ms":
+                            "1234567890",
+                        "side":
+                            "buy",
+                        "price":
+                            "0.00425",
+                        "amount":
+                            "1000",
+                        "total":
+                            "4.25",
+                    }
+                ],
+            }
+
+    monkeypatch.setattr(
+        trading_api,
+        "GateClient",
+        FakeGateContext,
+    )
+
+    monkeypatch.setattr(
+        trading_api,
+        "PublicSpotMarketData",
+        FakePublicMarket,
+    )
+
     with _Client(settings) as client:
         headers = _login(
             client
         )
 
-        responses = (
-            client.get(
-                "/api/trading/catalog",
-                headers=headers,
-            ),
-            client.get(
-                "/api/trading/snapshot",
-                params={
-                    "account_id":
-                        "demo-wallet-1",
-                    "pair":
-                        "EQTY_USDT",
-                    "depth":
-                        20,
-                    "book_interval":
-                        "0",
-                },
-                headers=headers,
-            ),
-            client.get(
-                "/api/trading/candles",
-                params={
-                    "account_id":
-                        "demo-wallet-1",
-                    "pair":
-                        "EQTY_USDT",
-                    "interval":
-                        "1h",
-                    "limit":
-                        50,
-                },
-                headers=headers,
-            ),
-            client.get(
-                "/api/trading/trades",
-                params={
-                    "account_id":
-                        "demo-wallet-1",
-                    "pair":
-                        "EQTY_USDT",
-                    "limit":
-                        10,
-                },
-                headers=headers,
-            ),
-            client.get(
-                "/api/trading/execution-capabilities",
-                headers=headers,
-            ),
-            client.get(
-                "/api/trading/orders/open",
-                params={
-                    "account_id":
-                        "demo-wallet-1",
-                    "limit":
-                        50,
-                },
-                headers=headers,
-            ),
-            client.get(
-                "/api/trading/orders/recent",
-                params={
-                    "account_id":
-                        "demo-wallet-1",
-                    "limit":
-                        50,
-                },
-                headers=headers,
-            ),
+        catalog = client.get(
+            "/api/trading/catalog",
+            headers=headers,
         )
 
-    for response in responses:
+        snapshot = client.get(
+            "/api/trading/snapshot",
+            params={
+                "account_id":
+                    "demo-wallet-1",
+                "pair":
+                    "EQTY_USDT",
+                "depth":
+                    20,
+                "book_interval":
+                    "0",
+            },
+            headers=headers,
+        )
+
+        candles = client.get(
+            "/api/trading/candles",
+            params={
+                "account_id":
+                    "demo-wallet-1",
+                "pair":
+                    "EQTY_USDT",
+                "interval":
+                    "1h",
+                "limit":
+                    50,
+            },
+            headers=headers,
+        )
+
+        trades = client.get(
+            "/api/trading/trades",
+            params={
+                "account_id":
+                    "demo-wallet-1",
+                "pair":
+                    "EQTY_USDT",
+                "limit":
+                    10,
+            },
+            headers=headers,
+        )
+
+        capabilities = client.get(
+            "/api/trading/execution-capabilities",
+            headers=headers,
+        )
+
+        opened = client.get(
+            "/api/trading/orders/open",
+            params={
+                "account_id":
+                    "demo-wallet-1",
+                "limit":
+                    50,
+            },
+            headers=headers,
+        )
+
+        recent = client.get(
+            "/api/trading/orders/recent",
+            params={
+                "account_id":
+                    "demo-wallet-1",
+                "limit":
+                    50,
+            },
+            headers=headers,
+        )
+
+    for response in (
+        catalog,
+        snapshot,
+        candles,
+        trades,
+        capabilities,
+        opened,
+        recent,
+    ):
         assert (
             response.status_code
             == 200
         )
 
-        payload = response.json()
-
         assert (
-            payload["source"]
+            response.json()[
+                "source"
+            ]
             == "demo"
         )
 
         assert (
-            payload[
-                "gate_read_performed"
-            ]
-            is False
-        )
-
-        assert (
-            payload[
+            response.json()[
                 "gate_write_performed"
             ]
             is False
         )
 
+    for response in (
+        catalog,
+        snapshot,
+        candles,
+        trades,
+    ):
+        payload = response.json()
 
-def test_demo_preview_and_execute_never_reach_live_execution(
+        assert (
+            payload[
+                "gate_read_performed"
+            ]
+            is True
+        )
+
+        assert (
+            payload[
+                "market_data_source"
+            ]
+            == "gate"
+        )
+
+    assert [
+        row["id"]
+        for row in catalog.json()[
+            "pairs"
+        ]
+    ] == [
+        "EQTY_USDT",
+        "BTC_USDT",
+        "ETH_USDT",
+    ]
+
+    assert (
+        "SOL_USDT"
+        not in {
+            row["id"]
+            for row in catalog.json()[
+                "pairs"
+            ]
+        }
+    )
+
+    snapshot_payload = (
+        snapshot.json()
+    )
+
+    assert (
+        snapshot_payload[
+            "ticker"
+        ][
+            "last"
+        ]
+        == "0.00425"
+    )
+
+    assert (
+        snapshot_payload[
+            "order_book"
+        ][
+            "best_bid"
+        ]
+        == "0.00424"
+    )
+
+    assert (
+        snapshot_payload[
+            "order_book"
+        ][
+            "best_ask"
+        ]
+        == "0.00426"
+    )
+
+    assert (
+        snapshot_payload[
+            "balances"
+        ][
+            "quote"
+        ][
+            "available"
+        ]
+        == "12500"
+    )
+
+    assert (
+        candles.json()[
+            "candles"
+        ][0][
+            "close"
+        ]
+        == "0.00425"
+    )
+
+    assert (
+        trades.json()[
+            "trades"
+        ][0][
+            "id"
+        ]
+        == "gate-public-1"
+    )
+
+    for response in (
+        capabilities,
+        opened,
+        recent,
+    ):
+        assert (
+            response.json()[
+                "gate_read_performed"
+            ]
+            is False
+        )
+
+
+
+def test_demo_preview_and_execute_use_same_public_market_without_live_execution(
     tmp_path,
     monkeypatch,
 ):
@@ -634,6 +1355,27 @@ def test_demo_preview_and_execute_never_reach_live_execution(
 
     assert (
         preview_payload[
+            "market_data_source"
+        ]
+        == "gate"
+    )
+
+    assert (
+        preview_payload[
+            "gate_read_performed"
+        ]
+        is True
+    )
+
+    assert (
+        preview_payload[
+            "gate_write_performed"
+        ]
+        is False
+    )
+
+    assert (
+        preview_payload[
             "can_execute"
         ]
         is True
@@ -646,11 +1388,43 @@ def test_demo_preview_and_execute_never_reach_live_execution(
         is False
     )
 
+    assert (
+        preview_payload[
+            "market"
+        ][
+            "best_bid"
+        ]
+        == "0.00424"
+    )
+
+    assert (
+        preview_payload[
+            "market"
+        ][
+            "best_ask"
+        ]
+        == "0.00426"
+    )
+
     assert execute.status_code == 200
 
     payload = execute.json()
 
     assert payload["source"] == "demo"
+
+    assert (
+        payload[
+            "market_data_source"
+        ]
+        == "gate"
+    )
+
+    assert (
+        payload[
+            "gate_read_performed"
+        ]
+        is True
+    )
 
     assert (
         payload[
@@ -666,6 +1440,47 @@ def test_demo_preview_and_execute_never_reach_live_execution(
         is True
     )
 
+    stored_preview = (
+        payload[
+            "order"
+        ][
+            "preview"
+        ]
+    )
+
+    assert (
+        stored_preview[
+            "market_data_source"
+        ]
+        == "gate"
+    )
+
+    assert (
+        stored_preview[
+            "market"
+        ][
+            "best_bid"
+        ]
+        == preview_payload[
+            "market"
+        ][
+            "best_bid"
+        ]
+    )
+
+    assert (
+        stored_preview[
+            "market"
+        ][
+            "best_ask"
+        ]
+        == preview_payload[
+            "market"
+        ][
+            "best_ask"
+        ]
+    )
+
     balance = _usdt(
         settings
     )
@@ -678,6 +1493,189 @@ def test_demo_preview_and_execute_never_reach_live_execution(
     assert (
         balance["locked"]
         == "670"
+    )
+
+
+
+
+def test_demo_execute_replay_conflict_and_bad_confirmation_precede_public_market(
+    tmp_path,
+    monkeypatch,
+):
+    settings = _settings(
+        tmp_path
+    )
+
+    public_market = (
+        _forbid_live_trading_paths(
+            monkeypatch
+        )
+    )
+
+    request_id = (
+        "demo-route-idempotency-001"
+    )
+
+    with _Client(settings) as client:
+        headers = _login(
+            client
+        )
+
+        first = client.post(
+            "/api/trading/limit-orders/execute",
+            json=_execute_body(
+                request_id
+            ),
+            headers=headers,
+        )
+
+        assert first.status_code == 200
+
+        assert (
+            public_market
+            .preview_context_calls
+            == 1
+        )
+
+        async def forbidden_preview(
+            *args,
+            **kwargs,
+        ):
+            raise AssertionError(
+                "public Gate preview reached "
+                "for an existing or locally "
+                "rejected request"
+            )
+
+        monkeypatch.setattr(
+            public_market,
+            "preview_context",
+            forbidden_preview,
+        )
+
+        replay = client.post(
+            "/api/trading/limit-orders/execute",
+            json={
+                **_execute_body(
+                    request_id
+                ),
+                # Existing exact intent must replay
+                # before confirmation validation too.
+                "confirmation":
+                    "STALE CONFIRMATION",
+            },
+            headers=headers,
+        )
+
+        conflict = client.post(
+            "/api/trading/limit-orders/execute",
+            json={
+                **_execute_body(
+                    request_id
+                ),
+                "amount":
+                    "120000",
+            },
+            headers=headers,
+        )
+
+        bad_confirmation = client.post(
+            "/api/trading/limit-orders/execute",
+            json={
+                **_execute_body(
+                    "demo-route-idempotency-new-002"
+                ),
+                "confirmation":
+                    "WRONG CONFIRMATION",
+            },
+            headers=headers,
+        )
+
+    assert replay.status_code == 200
+
+    replay_payload = (
+        replay.json()
+    )
+
+    assert (
+        replay_payload[
+            "idempotent_replay"
+        ]
+        is True
+    )
+
+    assert (
+        replay_payload[
+            "balance_reservation_performed"
+        ]
+        is False
+    )
+
+    assert (
+        replay_payload[
+            "gate_read_performed"
+        ]
+        is False
+    )
+
+    assert (
+        replay_payload[
+            "gate_write_performed"
+        ]
+        is False
+    )
+
+    assert conflict.status_code == 409
+
+    conflict_detail = (
+        conflict.json()[
+            "detail"
+        ]
+    )
+
+    assert (
+        conflict_detail[
+            "gate_read_performed"
+        ]
+        is False
+    )
+
+    assert (
+        conflict_detail[
+            "gate_write_performed"
+        ]
+        is False
+    )
+
+    assert (
+        bad_confirmation.status_code
+        == 400
+    )
+
+    bad_detail = (
+        bad_confirmation.json()[
+            "detail"
+        ]
+    )
+
+    assert (
+        bad_detail[
+            "gate_read_performed"
+        ]
+        is False
+    )
+
+    assert (
+        bad_detail[
+            "gate_write_performed"
+        ]
+        is False
+    )
+
+    assert (
+        public_market
+        .preview_context_calls
+        == 1
     )
 
 

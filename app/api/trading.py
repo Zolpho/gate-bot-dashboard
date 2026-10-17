@@ -14,7 +14,10 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
-from ..demo_trading import DemoTradingError
+from ..demo_trading import (
+    DEMO_TRADING_REQUIRED_CONFIRMATION,
+    DemoTradingError,
+)
 from ..demo_trading_api import (
     DemoTradingApi,
     DemoTradingAuthorizationError,
@@ -38,6 +41,7 @@ from ..accounts import (
 )
 from ..config import Settings, get_settings
 from ..gate_client import GateAPIError, GateClient
+from ..public_spot_market_data import PublicSpotMarketData
 from ..security import (
     DashboardUser,
     require_bearer_user,
@@ -998,7 +1002,7 @@ async def trading_catalog(
     ],
 ):
     if getattr(user, "is_demo", False):
-        return _demo_trading_result(
+        demo_result = _demo_trading_result(
             lambda: _demo_trading_api(
                 settings
             ).catalog_payload(
@@ -1007,6 +1011,94 @@ async def trading_catalog(
                 ),
             )
         )
+
+        try:
+            async with GateClient(
+                settings,
+                None,
+            ) as client:
+                market_result = await (
+                    PublicSpotMarketData(
+                        client
+                    ).catalog()
+                )
+
+        except GateAPIError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=str(exc),
+            ) from exc
+
+        public_by_id = {
+            str(
+                item.get("id")
+                or ""
+            ).upper(): item
+            for item in market_result[
+                "pairs"
+            ]
+            if isinstance(
+                item,
+                dict,
+            )
+        }
+
+        pairs = [
+            public_by_id[
+                str(
+                    item.get("id")
+                    or ""
+                ).upper()
+            ]
+            for item in demo_result[
+                "pairs"
+            ]
+            if (
+                str(
+                    item.get("id")
+                    or ""
+                ).upper()
+                in public_by_id
+            )
+        ]
+
+        if not pairs:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Gate did not return any "
+                    "Demo-supported Spot markets"
+                ),
+            )
+
+        pair_ids = {
+            item["id"]
+            for item in pairs
+        }
+
+        default_pair = str(
+            demo_result.get(
+                "default_pair"
+            )
+            or ""
+        ).upper()
+
+        if default_pair not in pair_ids:
+            default_pair = pairs[0][
+                "id"
+            ]
+
+        return {
+            **demo_result,
+            "market_data_source":
+                "gate",
+            "gate_read_performed":
+                True,
+            "pairs":
+                pairs,
+            "default_pair":
+                default_pair,
+        }
 
     explicit_ids = {
         item.strip().lower()
@@ -1170,7 +1262,7 @@ async def trading_snapshot(
     ),
 ):
     if getattr(user, "is_demo", False):
-        return _demo_trading_result(
+        demo_result = _demo_trading_result(
             lambda: _demo_trading_api(
                 settings
             ).snapshot_payload(
@@ -1183,6 +1275,48 @@ async def trading_snapshot(
                 book_interval=book_interval,
             )
         )
+
+        try:
+            async with GateClient(
+                settings,
+                None,
+            ) as client:
+                market_result = await (
+                    PublicSpotMarketData(
+                        client
+                    ).snapshot(
+                        pair=pair,
+                        depth=depth,
+                        book_interval=
+                            book_interval,
+                    )
+                )
+
+        except GateAPIError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=str(exc),
+            ) from exc
+
+        return {
+            **demo_result,
+            "market_data_source":
+                "gate",
+            "gate_read_performed":
+                True,
+            "pair":
+                market_result["pair"],
+            "ticker":
+                market_result["ticker"],
+            "book_interval":
+                market_result[
+                    "book_interval"
+                ],
+            "order_book":
+                market_result[
+                    "order_book"
+                ],
+        }
 
     account_id = _explicit_trading_account(
         user,
@@ -1287,6 +1421,328 @@ async def trading_snapshot(
     }
 
 
+async def _demo_public_limit_order_preview(
+    *,
+    settings: Settings,
+    user: DashboardUser,
+    account_id: str,
+    pair: str,
+    side: Literal["buy", "sell"],
+    price: Decimal,
+    amount: Decimal,
+    time_in_force: Literal["gtc", "poc"],
+) -> dict[str, Any]:
+    """
+    Compose Gate public market context with Demo-local funds.
+
+    Gate contributes only:
+      pair metadata + public order book.
+
+    Demo contributes only:
+      authorization + Wallet-account available balance.
+
+    No Gate account/balance/write endpoint is reachable here.
+    """
+    demo_api = _demo_trading_api(
+        settings
+    )
+
+    local_result = _demo_trading_result(
+        lambda: demo_api.preview_payload(
+            account_ids=_demo_trading_scope(
+                user
+            ),
+            account_id=account_id,
+            pair=pair,
+            side=side,
+            price=price,
+            amount=amount,
+            time_in_force=time_in_force,
+        )
+    )
+
+    try:
+        async with GateClient(
+            settings,
+            None,
+        ) as client:
+            market_result = await (
+                PublicSpotMarketData(
+                    client
+                ).preview_context(
+                    pair=pair,
+                )
+            )
+
+    except GateAPIError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    pair_data = dict(
+        market_result.get(
+            "pair"
+        )
+        or {}
+    )
+
+    order_book = dict(
+        market_result.get(
+            "order_book"
+        )
+        or {}
+    )
+
+    market = str(
+        pair_data.get("id")
+        or ""
+    ).upper()
+
+    requested_market = str(
+        pair
+        or ""
+    ).strip().upper()
+
+    if (
+        not market
+        or market
+        != requested_market
+    ):
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Gate public market identity mismatch"
+            ),
+        )
+
+    base = str(
+        pair_data.get("base")
+        or market.split("_", 1)[0]
+    ).upper()
+
+    quote = str(
+        pair_data.get("quote")
+        or market.split("_", 1)[1]
+    ).upper()
+
+    local_funds = dict(
+        local_result.get(
+            "funds"
+        )
+        or {}
+    )
+
+    available = _decimal(
+        local_funds.get(
+            "available"
+        )
+    )
+
+    if (
+        available is None
+        or available < 0
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Demo Wallet available balance "
+                "is unavailable"
+            ),
+        )
+
+    required_asset = (
+        quote
+        if side == "buy"
+        else base
+    )
+
+    if (
+        str(
+            local_funds.get(
+                "asset"
+            )
+            or ""
+        ).upper()
+        != required_asset
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Demo Wallet funding asset "
+                "does not match Gate pair metadata"
+            ),
+        )
+
+    base_available = (
+        available
+        if side == "sell"
+        else Decimal("0")
+    )
+
+    quote_available = (
+        available
+        if side == "buy"
+        else Decimal("0")
+    )
+
+    best_bid = _decimal(
+        order_book.get(
+            "best_bid"
+        )
+    )
+
+    best_ask = _decimal(
+        order_book.get(
+            "best_ask"
+        )
+    )
+
+    checks = _limit_order_preflight(
+        side=side,
+        time_in_force=time_in_force,
+        price=price,
+        amount=amount,
+        trade_status=str(
+            pair_data.get(
+                "trade_status"
+            )
+            or ""
+        ),
+        price_precision=_int_or_none(
+            pair_data.get(
+                "precision"
+            )
+        ),
+        amount_precision=_int_or_none(
+            pair_data.get(
+                "amount_precision"
+            )
+        ),
+        min_base_amount=_decimal(
+            pair_data.get(
+                "min_base_amount"
+            )
+        ),
+        min_quote_amount=_decimal(
+            pair_data.get(
+                "min_quote_amount"
+            )
+        ),
+        base_available=base_available,
+        quote_available=quote_available,
+        best_bid=best_bid,
+        best_ask=best_ask,
+    )
+
+    blockers = list(
+        checks["blockers"]
+    )
+
+    warnings = list(
+        checks["warnings"]
+    )
+
+    order = dict(
+        local_result.get(
+            "order"
+        )
+        or {}
+    )
+
+    order["total"] = _decimal_text(
+        checks["total"]
+    )
+
+    ready = not blockers
+
+    return {
+        **local_result,
+        "market_data_source":
+            "gate",
+        "gate_read_performed":
+            True,
+        "gate_write_performed":
+            False,
+        "write_performed":
+            False,
+        "status":
+            (
+                "ready"
+                if ready
+                else "blocked"
+            ),
+        "demo_execution_ready":
+            ready,
+        "execution_enabled":
+            ready,
+        "can_execute":
+            ready,
+        "gate_write_required":
+            False,
+        "pair":
+            pair_data,
+        "order":
+            order,
+        "market": {
+            "best_bid":
+                (
+                    _decimal_text(
+                        best_bid
+                    )
+                    if best_bid
+                    is not None
+                    else None
+                ),
+            "best_ask":
+                (
+                    _decimal_text(
+                        best_ask
+                    )
+                    if best_ask
+                    is not None
+                    else None
+                ),
+            "marketable":
+                checks[
+                    "marketable"
+                ],
+        },
+        "funds": {
+            "asset":
+                required_asset,
+            "available":
+                _decimal_text(
+                    checks[
+                        "available"
+                    ]
+                ),
+            "required":
+                _decimal_text(
+                    checks[
+                        "required"
+                    ]
+                ),
+            "remaining":
+                _decimal_text(
+                    checks[
+                        "remaining"
+                    ]
+                ),
+        },
+        "blockers":
+            blockers,
+        "warnings":
+            warnings,
+    }
+
+
 @router.post("/limit-orders/preview")
 async def preview_limit_order(
     request: LimitOrderPreviewRequest,
@@ -1300,20 +1756,15 @@ async def preview_limit_order(
     ],
 ):
     if getattr(user, "is_demo", False):
-        return _demo_trading_result(
-            lambda: _demo_trading_api(
-                settings
-            ).preview_payload(
-                account_ids=_demo_trading_scope(
-                    user
-                ),
-                account_id=request.account_id,
-                pair=request.pair,
-                side=request.side,
-                price=request.price,
-                amount=request.amount,
-                time_in_force=request.time_in_force,
-            )
+        return await _demo_public_limit_order_preview(
+            settings=settings,
+            user=user,
+            account_id=request.account_id,
+            pair=request.pair,
+            side=request.side,
+            price=request.price,
+            amount=request.amount,
+            time_in_force=request.time_in_force,
         )
 
     account_id = _explicit_trading_account(
@@ -1775,10 +2226,71 @@ async def execute_trading_limit_order(
     ],
 ):
     if getattr(user, "is_demo", False):
+        demo_api = _demo_trading_api(
+            settings
+        )
+
+        # Idempotency is resolved entirely from isolated Demo
+        # state before confirmation validation or a fresh
+        # public-market read. This preserves replay availability
+        # even if Gate public market data is temporarily down.
+        existing = _demo_trading_result(
+            lambda: demo_api.existing_execute_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                request_id=request.request_id,
+                username=user.username,
+                account_id=request.account_id,
+                pair=request.pair,
+                side=request.side,
+                price=request.price,
+                amount=request.amount,
+                time_in_force=request.time_in_force,
+            )
+        )
+
+        if existing is not None:
+            return existing
+
+        # New requests with a wrong confirmation are also
+        # rejected locally before any Gate public read.
+        if (
+            request.confirmation
+            != DEMO_TRADING_REQUIRED_CONFIRMATION
+        ):
+            return _demo_trading_result(
+                lambda: demo_api.execute_payload(
+                    account_ids=_demo_trading_scope(
+                        user
+                    ),
+                    request_id=request.request_id,
+                    username=user.username,
+                    account_id=request.account_id,
+                    pair=request.pair,
+                    side=request.side,
+                    price=request.price,
+                    amount=request.amount,
+                    time_in_force=request.time_in_force,
+                    confirmation=request.confirmation,
+                )
+            )
+
+        preview = await (
+            _demo_public_limit_order_preview(
+                settings=settings,
+                user=user,
+                account_id=request.account_id,
+                pair=request.pair,
+                side=request.side,
+                price=request.price,
+                amount=request.amount,
+                time_in_force=request.time_in_force,
+            )
+        )
+
         return _demo_trading_result(
-            lambda: _demo_trading_api(
-                settings
-            ).execute_payload(
+            lambda: demo_api.execute_payload(
                 account_ids=_demo_trading_scope(
                     user
                 ),
@@ -1791,6 +2303,7 @@ async def execute_trading_limit_order(
                 amount=request.amount,
                 time_in_force=request.time_in_force,
                 confirmation=request.confirmation,
+                preview=preview,
             )
         )
 
@@ -2842,7 +3355,7 @@ async def trading_trades(
     ),
 ):
     if getattr(user, "is_demo", False):
-        return _demo_trading_result(
+        demo_result = _demo_trading_result(
             lambda: _demo_trading_api(
                 settings
             ).trades_payload(
@@ -2854,6 +3367,38 @@ async def trading_trades(
                 limit=limit,
             )
         )
+
+        try:
+            async with GateClient(
+                settings,
+                None,
+            ) as client:
+                market_result = await (
+                    PublicSpotMarketData(
+                        client
+                    ).trades(
+                        pair=pair,
+                        limit=limit,
+                    )
+                )
+
+        except GateAPIError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=str(exc),
+            ) from exc
+
+        return {
+            **demo_result,
+            "market_data_source":
+                "gate",
+            "gate_read_performed":
+                True,
+            "pair":
+                market_result["pair"],
+            "trades":
+                market_result["trades"],
+        }
 
     account_id = _explicit_trading_account(
         user,
@@ -2981,7 +3526,7 @@ async def trading_candles(
     ),
 ):
     if getattr(user, "is_demo", False):
-        return _demo_trading_result(
+        demo_result = _demo_trading_result(
             lambda: _demo_trading_api(
                 settings
             ).candles_payload(
@@ -2994,6 +3539,45 @@ async def trading_candles(
                 limit=limit,
             )
         )
+
+        try:
+            async with GateClient(
+                settings,
+                None,
+            ) as client:
+                market_result = await (
+                    PublicSpotMarketData(
+                        client
+                    ).candles(
+                        pair=pair,
+                        interval=interval,
+                        limit=limit,
+                    )
+                )
+
+        except GateAPIError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=str(exc),
+            ) from exc
+
+        return {
+            **demo_result,
+            "market_data_source":
+                "gate",
+            "gate_read_performed":
+                True,
+            "pair":
+                market_result["pair"],
+            "interval":
+                market_result[
+                    "interval"
+                ],
+            "candles":
+                market_result[
+                    "candles"
+                ],
+        }
 
     account_id = _explicit_trading_account(
         user,
