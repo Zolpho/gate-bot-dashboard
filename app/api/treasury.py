@@ -33,6 +33,22 @@ from ..demo_wallet import (
     DemoWalletStore,
     DemoWalletTransferConflict,
 )
+from ..demo_withdrawal import (
+    DemoWithdrawalRegistryConflict,
+    DemoWithdrawalRegistryError,
+)
+from ..demo_withdrawal_api import (
+    DemoWithdrawalApi,
+    DemoWithdrawalAuthorizationError,
+)
+from ..demo_withdrawal_flow import (
+    DemoWithdrawalFlowError,
+    DemoWithdrawalIdempotencyConflict,
+)
+from ..demo_withdrawal_lifecycle import (
+    DemoWithdrawalLifecycleError,
+    DemoWithdrawalLocked,
+)
 from ..donation_ledger import (
     DonationAttributionCapabilityError,
     DonationAttributionValidationError,
@@ -237,6 +253,113 @@ def _demo_account_scope(
             item or ""
         ).strip()
     }
+
+
+def _demo_withdrawal_api(
+    request_settings: Settings,
+) -> DemoWithdrawalApi:
+    return DemoWithdrawalApi(
+        request_settings
+        .dashboard_demo_database_path
+    )
+
+
+def _demo_withdrawal_scope_for_owner(
+    user: DashboardUser,
+    owner_account_id: str | None,
+) -> set[str]:
+    scope = _demo_account_scope(
+        user
+    )
+
+    if owner_account_id is None:
+        return scope
+
+    normalized = str(
+        owner_account_id
+        or ""
+    ).strip().lower()
+
+    if normalized not in scope:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "Demo Wallet account is outside "
+                    "the authenticated withdrawal scope"
+                ),
+                "gate_write_performed": False,
+            },
+        )
+
+    return {
+        normalized
+    }
+
+
+def _demo_withdrawal_result(
+    operation,
+):
+    try:
+        return operation()
+
+    except DemoWithdrawalAuthorizationError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": str(
+                    exc
+                ),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    except (
+        DemoWithdrawalRegistryConflict,
+        DemoWithdrawalIdempotencyConflict,
+        DemoWithdrawalLocked,
+    ) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(
+                    exc
+                ),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    except (
+        DemoWithdrawalLifecycleError,
+        DemoWithdrawalFlowError,
+        DemoWithdrawalRegistryError,
+        KeyError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(
+                    exc
+                ),
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    except (
+        OSError,
+        sqlite3.Error,
+        DemoWalletStateError,
+    ) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": (
+                    "Demo withdrawal state is unavailable"
+                ),
+                "gate_write_performed": False,
+            },
+        ) from exc
 
 
 def _require_demo_transfer_source_access(
@@ -2809,7 +2932,25 @@ def create_treasury_withdrawal_recipient(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).create_recipient_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                owner_account_id=(
+                    request.owner_account_id
+                ),
+                address=request.address,
+                label=request.label,
+                username=user.username,
+            )
+        )
+
     owner = require_account_access(
         user,
         request.owner_account_id,
@@ -2868,7 +3009,24 @@ def treasury_withdrawal_recipients(
         ge=1,
         le=500,
     ),
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).recipients_payload(
+                account_ids=(
+                    _demo_withdrawal_scope_for_owner(
+                        user,
+                        owner_account_id,
+                    )
+                ),
+                status=status,
+                limit=limit,
+            )
+        )
+
     if owner_account_id:
         selected_owner = (
             require_account_access(
@@ -2918,7 +3076,20 @@ def treasury_withdrawal_recipient_detail(
         DashboardUser,
         Depends(require_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).recipient_detail_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                recipient_id=recipient_id,
+            )
+        )
+
     row = (
         _treasury_withdrawal_recipient_for_user(
             recipient_id,
@@ -2949,8 +3120,23 @@ def rename_treasury_withdrawal_recipient(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
     # Authorize before invoking the mutating service.
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).rename_recipient_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                recipient_id=recipient_id,
+                label=request.label,
+                username=user.username,
+            )
+        )
+
     _treasury_withdrawal_recipient_for_user(
         recipient_id,
         user,
@@ -3002,7 +3188,22 @@ def archive_treasury_withdrawal_recipient(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).archive_recipient_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                recipient_id=recipient_id,
+                username=user.username,
+                reason=request.reason,
+            )
+        )
+
     _treasury_withdrawal_recipient_for_user(
         recipient_id,
         user,
@@ -3056,7 +3257,22 @@ def restore_treasury_withdrawal_recipient(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).restore_recipient_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                recipient_id=recipient_id,
+                username=user.username,
+                reason=request.reason,
+            )
+        )
+
     _treasury_withdrawal_recipient_for_user(
         recipient_id,
         user,
@@ -3111,7 +3327,24 @@ def create_treasury_withdrawal_recipient_destination(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).prepare_destination_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                recipient_id=recipient_id,
+                currency=request.currency,
+                chain=request.chain,
+                memo=request.memo,
+                username=user.username,
+            )
+        )
+
     recipient = (
         _treasury_withdrawal_recipient_for_user(
             recipient_id,
@@ -3268,7 +3501,24 @@ def treasury_withdrawal_destinations(
         ge=1,
         le=500,
     ),
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).destinations_payload(
+                account_ids=(
+                    _demo_withdrawal_scope_for_owner(
+                        user,
+                        owner_account_id,
+                    )
+                ),
+                status=status,
+                limit=limit,
+            )
+        )
+
     if owner_account_id:
         selected_owner = require_account_access(
             user,
@@ -3315,7 +3565,20 @@ def treasury_withdrawal_destination_detail(
         DashboardUser,
         Depends(require_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).destination_detail_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                destination_id=destination_id,
+            )
+        )
+
     row = get_destination(destination_id)
 
     if row is None:
@@ -3499,7 +3762,23 @@ async def treasury_withdrawal_preflight(
         Decimal,
         Query(gt=0),
     ] = ...,
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).preflight_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                account_id=owner_account_id,
+                destination_id=destination_id,
+                currency=currency,
+                amount=amount,
+            )
+        )
+
     owner = require_account_access(
         user,
         owner_account_id,
@@ -3755,7 +4034,29 @@ async def simulate_treasury_withdrawal_request(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).simulate_request_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                request_id=request.request_id,
+                account_id=(
+                    request.owner_account_id
+                ),
+                destination_id=(
+                    request.destination_id
+                ),
+                currency=request.currency,
+                amount=request.amount,
+                username=user.username,
+            )
+        )
+
     owner = require_account_access(
         user,
         request.owner_account_id,
@@ -4003,7 +4304,20 @@ def treasury_withdrawal_requests(
         ge=1,
         le=200,
     ),
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).requests_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                limit=limit,
+            )
+        )
+
     account_ids = (
         None
         if user.is_super_admin
@@ -4032,7 +4346,20 @@ def treasury_withdrawal_request_detail(
         DashboardUser,
         Depends(require_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).request_detail_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                request_id=request_id,
+            )
+        )
+
     row = get_withdrawal_request(
         request_id
     )
@@ -4686,7 +5013,24 @@ async def reserve_treasury_withdrawal_request(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).reserve_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                request_id=request_id,
+                confirmation=(
+                    request.confirmation
+                ),
+                username=user.username,
+            )
+        )
+
     row = _withdrawal_request_or_http(
         request_id
     )
@@ -5021,7 +5365,24 @@ async def confirm_treasury_withdrawal_request(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).confirm_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                request_id=request_id,
+                confirmation=(
+                    request.confirmation
+                ),
+                username=user.username,
+            )
+        )
+
     row = _withdrawal_request_or_http(
         request_id
     )
@@ -5263,7 +5624,24 @@ async def prepare_treasury_withdrawal_jit(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).prepare_jit_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                request_id=request_id,
+                confirmation=(
+                    request.confirmation
+                ),
+                username=user.username,
+            )
+        )
+
     row = _withdrawal_request_or_http(
         request_id
     )
@@ -5806,7 +6184,24 @@ async def execute_treasury_withdrawal_jit(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).execute_jit_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                request_id=request_id,
+                confirmation=(
+                    request.confirmation
+                ),
+                username=user.username,
+            )
+        )
+
     row = _withdrawal_request_or_http(
         request_id
     )
@@ -6694,7 +7089,24 @@ async def execute_treasury_external_withdrawal(
         DashboardUser,
         Depends(require_bearer_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).execute_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                request_id=request_id,
+                confirmation=(
+                    request.confirmation
+                ),
+                username=user.username,
+            )
+        )
+
     row = _withdrawal_request_or_http(
         request_id
     )
@@ -7837,7 +8249,19 @@ def treasury_withdrawal_locks(
         DashboardUser,
         Depends(require_user),
     ],
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).locks_payload(
+                account_ids=_demo_account_scope(
+                    user
+                )
+            )
+        )
+
     owner_account_ids = (
         None
         if user.is_super_admin
@@ -7872,7 +8296,21 @@ async def treasury_withdrawal_capabilities(
         min_length=1,
         max_length=64,
     ),
+    request_settings: Settings = Depends(get_settings),
 ):
+    if user.is_demo:
+        return _demo_withdrawal_result(
+            lambda: _demo_withdrawal_api(
+                request_settings
+            ).capabilities_payload(
+                account_ids=_demo_account_scope(
+                    user
+                ),
+                account_id=owner_account_id,
+                currency=currency,
+            )
+        )
+
     owner = require_account_access(
         user,
         owner_account_id,

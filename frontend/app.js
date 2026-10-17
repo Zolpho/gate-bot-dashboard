@@ -339,6 +339,7 @@ function walletViewForSession(view) {
       'balance',
       'deposits',
       'transfers',
+      'withdrawals',
     ].includes(
       target
     )
@@ -565,21 +566,15 @@ function renderDemoPresentation() {
     '#walletWithdrawalsTab'
   );
 
-  withdrawalsButton?.classList.toggle(
-    'hidden',
-    demo,
-  );
+  if (withdrawalsButton) {
+    withdrawalsButton.classList.remove(
+      'hidden'
+    );
 
-  withdrawalsButton?.setAttribute(
-    'aria-hidden',
-    String(demo),
-  );
-
-  if (
-    demo
-    && withdrawalsButton
-  ) {
-    withdrawalsButton.tabIndex = -1;
+    withdrawalsButton.setAttribute(
+      'aria-hidden',
+      'false',
+    );
   }
 
   const depositSync = $(
@@ -612,9 +607,11 @@ function renderDemoPresentation() {
     demo
     && treasuryPanel
   ) {
-    treasuryPanel.hidden = (
+    treasuryPanel.hidden = ![
+      'transfers',
+      'withdrawals',
+    ].includes(
       state.walletView
-      !== 'transfers'
     );
   }
 
@@ -633,7 +630,11 @@ function renderDemoPresentation() {
   if (treasuryHeaderTitle) {
     treasuryHeaderTitle.textContent = (
       demo
-        ? 'Demo transfers'
+        ? (
+            state.walletView === 'withdrawals'
+              ? 'Demo withdrawals'
+              : 'Demo transfers'
+          )
         : 'Treasury'
     );
   }
@@ -642,8 +643,16 @@ function renderDemoPresentation() {
     treasuryHeaderSubtitle.textContent = (
       demo
         ? (
-            'Simulated Wallet-account transfers '
-            + 'and isolated Demo audit.'
+            state.walletView === 'withdrawals'
+              ? (
+                  'Simulated withdrawals from isolated '
+                  + 'Demo Wallet balances. No Gate request '
+                  + 'or real funds are involved.'
+                )
+              : (
+                  'Simulated Wallet-account transfers '
+                  + 'and isolated Demo audit.'
+                )
           )
         : (
             'Account-scoped controls, safety and audit.'
@@ -690,6 +699,8 @@ function renderDemoPresentation() {
     );
   }
 
+  renderTreasuryWithdrawalPresentationCopy();
+
   const lockSection = (
     $('#treasuryRecords')
       ?.querySelector(
@@ -735,6 +746,7 @@ function renderDemoPresentation() {
       'balance',
       'deposits',
       'transfers',
+      'withdrawals',
     ].includes(
       state.walletView
     )
@@ -758,6 +770,115 @@ function renderDemoPresentation() {
     }
   }
 }
+
+
+function renderTreasuryWithdrawalPresentationCopy() {
+  const demo = isDemoSession();
+
+  const heading = $(
+    '#treasuryWithdrawalAction '
+    + '.treasury-section-header h3'
+  );
+
+  const subtitle = $(
+    '#treasuryWithdrawalAction '
+    + '.treasury-section-header p'
+  );
+
+  const recordsSubtitle = $(
+    '#treasuryWithdrawalRecords '
+    + '.treasury-section-header p'
+  );
+
+  const footnote = $(
+    '#walletWithdrawalsWorkspace '
+    + '.treasury-footnote'
+  );
+
+  const statusHeader = $(
+    '#treasuryWithdrawalRecords '
+    + 'thead th:nth-child(7)'
+  );
+
+  if (heading) {
+    heading.textContent = (
+      demo
+        ? 'Simulated withdrawal'
+        : 'Withdraw funds'
+    );
+  }
+
+  if (subtitle) {
+    subtitle.textContent = (
+      demo
+        ? (
+            'Choose an asset, network and saved recipient. '
+            + 'Destinations, capability checks and preflight '
+            + 'use isolated Demo state only.'
+          )
+        : (
+            'Choose an asset, network and saved recipient. '
+            + 'Approved routes match automatically; preflight '
+            + 'performs Gate reads only and does not submit '
+            + 'a withdrawal to Gate.'
+          )
+    );
+  }
+
+  if (recordsSubtitle) {
+    recordsSubtitle.textContent = (
+      demo
+        ? (
+            'Persistent simulated withdrawal lifecycle '
+            + 'records. Production reconciliation and '
+            + 'settlement controls are unavailable in Demo.'
+          )
+        : (
+            'Persistent withdrawal lifecycle records. '
+            + 'Live execution controls are intentionally '
+            + 'not exposed in this UI stage.'
+          )
+    );
+  }
+
+  if (footnote) {
+    footnote.textContent = (
+      demo
+        ? (
+            'Demo withdrawals change isolated Demo state '
+            + 'only. No Gate request, production database '
+            + 'mutation or real funds are involved.'
+          )
+        : (
+            'Live Gate withdrawal execution is currently '
+            + 'disarmed. Preflight is read-only and request '
+            + 'creation is audited locally.'
+          )
+    );
+  }
+
+  if (statusHeader) {
+    statusHeader.textContent = (
+      demo
+        ? 'Simulation'
+        : 'Gate status'
+    );
+  }
+
+  const capabilityBadge = $(
+    '#treasuryWithdrawalState'
+  );
+
+  if (
+    demo
+    && capabilityBadge
+  ) {
+    capabilityBadge.textContent = (
+      'Simulation only'
+    );
+  }
+}
+
 
 
 async function loadDemoAvailability() {
@@ -16148,6 +16269,10 @@ async function loadTreasuryWithdrawalDestinationReview(
     quiet = false,
   } = {}
 ) {
+  if (isDemoSession()) {
+    return;
+  }
+
   const owner = (
     treasuryWithdrawalPreparationOwner()
   );
@@ -16255,6 +16380,10 @@ async function loadTreasuryWithdrawalDestinationReview(
 
 
 async function openTreasuryWithdrawalDestinationReview() {
+  if (isDemoSession()) {
+    return;
+  }
+
   if (
     !state.adminUser
     || !state.adminAuthorization
@@ -16346,6 +16475,10 @@ function handleTreasuryWithdrawalDestinationReviewInput(
 async function mutateTreasuryWithdrawalDestinationReview(
   button
 ) {
+  if (isDemoSession()) {
+    return;
+  }
+
   if (
     state.adminUser?.role !== 'super_admin'
   ) {
@@ -16810,6 +16943,11 @@ async function loadTreasuryWithdrawalRecipientManager(
       ),
     );
 
+    assertDemoWithdrawalPayload(
+      result,
+      'withdrawal recipient operation',
+    );
+
     if (result.gate_write_performed) {
       throw new Error(
         'Safety invariant failed: recipient '
@@ -16985,6 +17123,11 @@ async function createTreasuryWithdrawalRecipientFromManager(
       },
     );
 
+    assertDemoWithdrawalPayload(
+      result,
+      'withdrawal recipient operation',
+    );
+
     if (result.gate_write_performed) {
       throw new Error(
         'Safety invariant failed: saving a '
@@ -17155,6 +17298,11 @@ async function mutateTreasuryWithdrawalRecipientFromManager(
           body
         ),
       },
+    );
+
+    assertDemoWithdrawalPayload(
+      result,
+      'withdrawal recipient operation',
     );
 
     if (result.gate_write_performed) {
@@ -17619,12 +17767,20 @@ function updateTreasuryWithdrawalRoutePrepareButton() {
   );
 
   button.textContent = (
-    state.treasuryWithdrawalRoutePreparing
-      ? 'Requesting approval…'
+    isDemoSession()
+      ? (
+          state.treasuryWithdrawalRoutePreparing
+            ? 'Preparing simulation…'
+            : 'Prepare simulated destination'
+        )
       : (
-          approvalAlreadyRequested
-            ? 'Approval requested'
-            : 'Request destination approval'
+          state.treasuryWithdrawalRoutePreparing
+            ? 'Requesting approval…'
+            : (
+                approvalAlreadyRequested
+                  ? 'Approval requested'
+                  : 'Request destination approval'
+              )
         )
   );
 }
@@ -17977,29 +18133,55 @@ function renderTreasuryWithdrawalRoutePreparation() {
         routeResolution.status === 'matched'
       ) {
         message = (
-          'Approved destination matched automatically.'
+          isDemoSession()
+            ? 'Simulated destination matched automatically.'
+            : 'Approved destination matched automatically.'
         );
 
       } else if (
         routeResolution.status === 'missing'
       ) {
         message = (
-          'No approved withdrawal destination matches '
-          + 'this route. Request approval before preflight.'
+          isDemoSession()
+            ? (
+                'No simulated withdrawal destination matches '
+                + 'this route. Prepare one in isolated Demo '
+                + 'state before preflight.'
+              )
+            : (
+                'No approved withdrawal destination matches '
+                + 'this route. Request approval before preflight.'
+              )
         );
 
       } else if (
         routeResolution.status === 'ambiguous'
       ) {
         message = (
-          'Multiple approved destinations match this '
-          + 'route. Administrator review is required.'
+          isDemoSession()
+            ? (
+                'Multiple simulated destinations match this '
+                + 'route. Reset the route and prepare a unique '
+                + 'Demo destination.'
+              )
+            : (
+                'Multiple approved destinations match this '
+                + 'route. Administrator review is required.'
+              )
         );
 
       } else {
         message = (
-          'Select an asset, network and saved '
-          + 'recipient. Network lookup is read-only.'
+          isDemoSession()
+            ? (
+                'Select an asset, network and saved '
+                + 'recipient. Capability lookup uses '
+                + 'isolated Demo state only.'
+              )
+            : (
+                'Select an asset, network and saved '
+                + 'recipient. Network lookup is read-only.'
+              )
         );
       }
     }
@@ -18094,6 +18276,11 @@ async function loadTreasuryWithdrawalCapabilities() {
           owner_account_id: owner,
         },
       ),
+    );
+
+    assertDemoWithdrawalPayload(
+      response,
+      'withdrawal capability lookup',
     );
 
     const currentKey = (
@@ -18390,6 +18577,11 @@ async function prepareTreasuryWithdrawalRecipientDestination() {
       },
     );
 
+    assertDemoWithdrawalPayload(
+      result,
+      'withdrawal destination preparation',
+    );
+
     if (result.gate_write_performed) {
       throw new Error(
         'Safety invariant failed: destination '
@@ -18408,20 +18600,27 @@ async function prepareTreasuryWithdrawalRecipientDestination() {
     );
 
     state.treasuryWithdrawalRouteMessage = (
-      routeStatus === 'approved'
+      isDemoSession()
         ? (
-            'Approved destination ready. '
-            + 'It is selected below.'
+            'Simulated destination ready in isolated '
+            + 'Demo state. No Gate approval occurred.'
           )
         : (
-            state.adminUser?.role === 'super_admin'
+            routeStatus === 'approved'
               ? (
-                  'Destination prepared. Open Review '
-                  + 'destinations to approve or revoke it.'
+                  'Approved destination ready. '
+                  + 'It is selected below.'
                 )
               : (
-                  'Destination prepared. An administrator '
-                  + 'must approve it before withdrawal.'
+                  state.adminUser?.role === 'super_admin'
+                    ? (
+                        'Destination prepared. Open Review '
+                        + 'destinations to approve or revoke it.'
+                      )
+                    : (
+                        'Destination prepared. An administrator '
+                        + 'must approve it before withdrawal.'
+                      )
                 )
           )
     );
@@ -18501,9 +18700,27 @@ function renderTreasuryWithdrawalDestinations() {
   );
 
   const canReview = Boolean(
-    state.adminUser?.role === 'super_admin'
+    !isDemoSession()
+    && state.adminUser?.role === 'super_admin'
     && treasuryWithdrawalPreparationOwner()
   );
+
+  if (unavailable) {
+    unavailable.textContent = (
+      isDemoSession()
+        ? (
+            'No simulated withdrawal destination matches '
+            + 'the current route yet. Prepare one from a '
+            + 'saved Demo recipient above.'
+          )
+        : (
+            'No approved withdrawal destinations are ready '
+            + 'yet. Prepare one from a saved recipient above; '
+            + 'an administrator must approve a new route '
+            + 'before withdrawal.'
+          )
+    );
+  }
 
   if (reviewButton) {
     reviewButton.classList.toggle(
@@ -18527,7 +18744,11 @@ function renderTreasuryWithdrawalDestinations() {
   if (!rows.length) {
     select.innerHTML = (
       '<option value="">'
-      + 'No approved destinations available'
+      + (
+          isDemoSession()
+            ? 'No simulated destinations available'
+            : 'No approved destinations available'
+        )
       + '</option>'
     );
 
@@ -18593,9 +18814,17 @@ function renderTreasuryWithdrawalDestinations() {
 
   if (count) {
     count.textContent = (
-      `${rows.length} approved destination${
-        rows.length === 1 ? '' : 's'
-      }`
+      isDemoSession()
+        ? (
+            `${rows.length} simulated destination${
+              rows.length === 1 ? '' : 's'
+            }`
+          )
+        : (
+            `${rows.length} approved destination${
+              rows.length === 1 ? '' : 's'
+            }`
+          )
     );
   }
 
@@ -18883,12 +19112,20 @@ function renderTreasuryWithdrawalPreflight() {
     }">`
     + `<strong>${
         valid
-          ? 'Preflight passed'
+          ? (
+              isDemoSession()
+                ? 'Simulation preflight passed'
+                : 'Preflight passed'
+            )
           : 'Preflight blocked'
       }</strong>`
     + `<span>${
         valid
-          ? 'No withdrawal has been submitted yet.'
+          ? (
+              isDemoSession()
+                ? 'No Gate request has been made.'
+                : 'No withdrawal has been submitted yet.'
+            )
           : escapeHtml(
               errors.length
                 ? errors.join(', ')
@@ -19046,7 +19283,11 @@ function renderTreasuryWithdrawalRequests() {
         + '</td>'
 
         + `<td>${escapeHtml(
-            item.gate_status || '—'
+            isDemoSession()
+              ? 'Simulated'
+              : (
+                  item.gate_status || '—'
+                )
           )}</td>`
 
         + '<td>'
@@ -19190,13 +19431,30 @@ async function runTreasuryWithdrawalPreflight(event) {
       }?${params.toString()}`
     );
 
+    assertDemoWithdrawalPayload(
+      response,
+      'withdrawal preflight',
+    );
+
+    const normalizedResponse = (
+      isDemoSession()
+        ? {
+            ...response,
+            preflight: (
+              response.preflight
+              || response
+            ),
+          }
+        : response
+    );
+
     state.treasuryWithdrawalPreflight = {
       owner,
       currency,
       destinationId,
       amount,
       requestId: generateTreasuryWithdrawalRequestId(),
-      response,
+      response: normalizedResponse,
     };
 
     renderTreasuryWithdrawalPreflight();
@@ -19274,6 +19532,11 @@ async function createTreasuryWithdrawalRequest() {
       },
     );
 
+    assertDemoWithdrawalPayload(
+      result,
+      'withdrawal request creation',
+    );
+
     const audit = result.audit || {};
 
     if (
@@ -19303,7 +19566,15 @@ async function createTreasuryWithdrawalRequest() {
     renderTreasuryWithdrawalPreflight();
 
     showToast(
-      `Withdrawal request created: ${requestId}`
+      isDemoSession()
+        ? (
+            `Simulated withdrawal request created: ${
+              requestId
+            }`
+          )
+        : (
+            `Withdrawal request created: ${requestId}`
+          )
     );
 
     await loadTreasuryOverview({
@@ -19413,6 +19684,392 @@ function treasuryWithdrawalLifecycleConfirmation(
 }
 
 
+
+function demoWithdrawalNextAction(
+  payload = state.treasuryWithdrawalRequestDetail
+) {
+  const workflow = payload?.workflow || {};
+
+  return String(
+    payload?.next_action
+    ?? workflow.next_action
+    ?? ''
+  ).trim();
+}
+
+
+function demoWithdrawalRequiredConfirmation(
+  payload = state.treasuryWithdrawalRequestDetail
+) {
+  return String(
+    payload?.required_confirmation
+    ?? ''
+  );
+}
+
+
+function assertDemoWithdrawalMutationPayload(
+  payload,
+  context = 'withdrawal lifecycle'
+) {
+  if (!isDemoSession()) {
+    return;
+  }
+
+  if (
+    payload?.source !== 'demo'
+    || payload?.simulation !== true
+    || payload?.gate_write_performed !== false
+    || (
+      payload?.gate_read_performed !== undefined
+      && payload?.gate_read_performed !== false
+    )
+  ) {
+    throw new Error(
+      'Safety invariant failed: Demo '
+      + context
+      + ' escaped isolated Demo state.'
+    );
+  }
+}
+
+
+function demoWithdrawalLifecycleButton(
+  action
+) {
+  if (action === 'reserve') {
+    return $('#reserveTreasuryWithdrawalRequest');
+  }
+
+  if (
+    action === 'confirm'
+    || action === 'execute'
+  ) {
+    return $('#confirmTreasuryWithdrawalRequest');
+  }
+
+  if (
+    action === 'jit_prepare'
+    || action === 'jit_execute'
+  ) {
+    return $('#prepareTreasuryWithdrawalJit');
+  }
+
+  return null;
+}
+
+
+function demoWithdrawalLifecycleButtonLabel(
+  action
+) {
+  return ({
+    reserve:
+      'Reserve simulated withdrawal',
+    confirm:
+      'Confirm simulated withdrawal',
+    jit_prepare:
+      'Prepare simulated readiness',
+    jit_execute:
+      'Mark simulated withdrawal ready',
+    execute:
+      'Execute simulated withdrawal',
+  })[action] || '';
+}
+
+
+function demoWithdrawalLifecycleBusyLabel(
+  action
+) {
+  return ({
+    reserve:
+      'Reserving simulation…',
+    confirm:
+      'Confirming simulation…',
+    jit_prepare:
+      'Preparing simulation…',
+    jit_execute:
+      'Marking simulation ready…',
+    execute:
+      'Executing simulation…',
+  })[action] || 'Working…';
+}
+
+
+function demoWithdrawalLifecycleSuccessLabel(
+  action,
+  replay = false
+) {
+  if (
+    action === 'execute'
+    && replay
+  ) {
+    return (
+      'Simulation was already completed. '
+      + 'No second withdrawal or debit occurred.'
+    );
+  }
+
+  return ({
+    reserve:
+      'Simulated withdrawal reserved.',
+    confirm:
+      'Simulated withdrawal confirmed.',
+    jit_prepare:
+      'Simulated readiness prepared.',
+    jit_execute:
+      'Simulated withdrawal marked ready.',
+    execute:
+      (
+        'Simulated withdrawal completed. '
+        + 'No Gate request or real funds were involved.'
+      ),
+  })[action] || 'Simulation updated.';
+}
+
+
+async function runDemoWithdrawalLifecycleAction(
+  allowedActions
+) {
+  if (!isDemoSession()) {
+    return;
+  }
+
+  const payload = (
+    state.treasuryWithdrawalRequestDetail
+  );
+
+  const item = payload?.item || {};
+
+  const requestId = String(
+    item.request_id || ''
+  );
+
+  const action = (
+    demoWithdrawalNextAction(
+      payload
+    )
+  );
+
+  const allowed = (
+    Array.isArray(
+      allowedActions
+    )
+      ? allowedActions
+      : []
+  );
+
+  if (
+    !requestId
+    || !allowed.includes(
+      action
+    )
+  ) {
+    return;
+  }
+
+  const required = (
+    demoWithdrawalRequiredConfirmation(
+      payload
+    )
+  );
+
+  const confirmation = String(
+    $('#treasuryWithdrawalConfirmation')?.value
+    || ''
+  );
+
+  if (
+    !required
+    || confirmation !== required
+  ) {
+    return;
+  }
+
+  const configs = {
+    reserve: {
+      suffix: 'reserve',
+      expectedNext: 'confirm',
+    },
+    confirm: {
+      suffix: 'confirm',
+      expectedNext: 'jit_prepare',
+    },
+    jit_prepare: {
+      suffix: 'jit/prepare',
+      expectedNext: 'jit_execute',
+    },
+    jit_execute: {
+      suffix: 'jit/execute',
+      expectedNext: 'execute',
+    },
+    execute: {
+      suffix: 'execute',
+      expectedNext: '',
+    },
+  };
+
+  const config = configs[
+    action
+  ];
+
+  if (!config) {
+    return;
+  }
+
+  const button = (
+    demoWithdrawalLifecycleButton(
+      action
+    )
+  );
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = (
+      demoWithdrawalLifecycleBusyLabel(
+        action
+      )
+    );
+  }
+
+  try {
+    const result = await adminApi(
+      `/api/treasury/withdrawals/requests/${
+        encodeURIComponent(
+          requestId
+        )
+      }/${config.suffix}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          confirmation,
+        }),
+      },
+    );
+
+    assertDemoWithdrawalMutationPayload(
+      result,
+      `withdrawal ${action}`,
+    );
+
+    const detail = (
+      result?.detail
+      || {}
+    );
+
+    if (action === 'execute') {
+      if (
+        result?.status !== 'withdrawal_settled'
+        || detail?.workflow?.terminal !== true
+        || demoWithdrawalNextAction(
+          detail
+        ) !== ''
+      ) {
+        throw new Error(
+          'Safety invariant failed: simulated '
+          + 'withdrawal did not reach terminal '
+          + 'settled state.'
+        );
+      }
+
+      if (
+        result?.idempotent_replay === true
+      ) {
+        if (
+          result?.local_write_performed !== false
+        ) {
+          throw new Error(
+            'Safety invariant failed: terminal '
+            + 'Demo replay reported another local write.'
+          );
+        }
+
+      } else if (
+        result?.local_write_performed !== true
+      ) {
+        throw new Error(
+          'Safety invariant failed: first simulated '
+          + 'withdrawal execution did not report the '
+          + 'isolated Demo debit.'
+        );
+      }
+
+    } else {
+      const next = (
+        demoWithdrawalNextAction(
+          detail
+        )
+      );
+
+      if (
+        next
+        !== config.expectedNext
+      ) {
+        throw new Error(
+          'Safety invariant failed: unexpected '
+          + 'Demo withdrawal lifecycle transition.'
+        );
+      }
+    }
+
+    showToast(
+      demoWithdrawalLifecycleSuccessLabel(
+        action,
+        result?.idempotent_replay === true,
+      )
+    );
+
+    /*
+     * A settled Demo withdrawal changes only the isolated
+     * Demo Wallet balance. Refresh it immediately so the
+     * gross debit is visible before any further navigation.
+     */
+    if (action === 'execute') {
+      await loadPrivateBalance({
+        quiet: true,
+      });
+    }
+
+    await refreshTreasuryWithdrawalRequestDetail(
+      requestId
+    );
+
+    await loadDemoWithdrawalOverview({
+      quiet: true,
+    });
+
+  } catch (error) {
+    showToast(
+      treasuryErrorMessage(
+        error
+      ),
+      true,
+    );
+
+    try {
+      if (action === 'execute') {
+        await loadPrivateBalance({
+          quiet: true,
+        });
+      }
+
+      await refreshTreasuryWithdrawalRequestDetail(
+        requestId
+      );
+
+      await loadDemoWithdrawalOverview({
+        quiet: true,
+      });
+
+    } catch (_refreshError) {
+      // Preserve the original Demo operation error.
+    }
+
+  } finally {
+    updateTreasuryWithdrawalLifecycleButtons();
+  }
+}
+
+
 function updateTreasuryWithdrawalLifecycleButtons() {
   const payload = (
     state.treasuryWithdrawalRequestDetail
@@ -19425,7 +20082,9 @@ function updateTreasuryWithdrawalLifecycleButtons() {
   ).toLowerCase();
 
   const required = (
-    treasuryWithdrawalLifecycleConfirmation(item)
+    isDemoSession()
+      ? demoWithdrawalRequiredConfirmation(payload)
+      : treasuryWithdrawalLifecycleConfirmation(item)
   );
 
   const typed = String(
@@ -19448,6 +20107,56 @@ function updateTreasuryWithdrawalLifecycleButtons() {
   const prepareJit = $(
     '#prepareTreasuryWithdrawalJit'
   );
+
+  if (isDemoSession()) {
+    const action = (
+      demoWithdrawalNextAction(
+        payload
+      )
+    );
+
+    for (
+      const button
+      of [
+        reserve,
+        confirm,
+        prepareJit,
+      ]
+    ) {
+      button?.classList.add(
+        'hidden'
+      );
+
+      if (button) {
+        button.disabled = true;
+      }
+    }
+
+    const activeButton = (
+      demoWithdrawalLifecycleButton(
+        action
+      )
+    );
+
+    if (
+      activeButton
+      && required
+    ) {
+      activeButton.classList.remove(
+        'hidden'
+      );
+
+      activeButton.disabled = !exact;
+
+      activeButton.textContent = (
+        demoWithdrawalLifecycleButtonLabel(
+          action
+        )
+      );
+    }
+
+    return;
+  }
 
   if (reserve) {
     reserve.classList.toggle(
@@ -19550,6 +20259,15 @@ function renderTreasuryWithdrawalJitExecutionPreview(
   );
 
   if (!element) return;
+
+  if (isDemoSession()) {
+    element.classList.add(
+      'hidden'
+    );
+
+    element.innerHTML = '';
+    return;
+  }
 
   const item = payload?.item || {};
   const preview = (
@@ -19855,6 +20573,15 @@ function renderTreasuryWithdrawalExternalExecutionPreview(
   );
 
   if (!element) return;
+
+  if (isDemoSession()) {
+    element.classList.add(
+      'hidden'
+    );
+
+    element.innerHTML = '';
+    return;
+  }
 
   const item = payload?.item || {};
   const preview = (
@@ -20199,6 +20926,15 @@ function renderTreasuryWithdrawalSettlementPreview(
 
   if (!element) return;
 
+  if (isDemoSession()) {
+    element.classList.add(
+      'hidden'
+    );
+
+    element.innerHTML = '';
+    return;
+  }
+
   const item = payload?.item || {};
   const preview = payload?.settlement_preview;
 
@@ -20437,6 +21173,8 @@ function renderTreasuryWithdrawalRequestDetail(
 ) {
   state.treasuryWithdrawalRequestDetail = payload;
 
+  const demo = isDemoSession();
+
   renderTreasuryWithdrawalJitExecutionPreview(
     payload
   );
@@ -20478,7 +21216,11 @@ function renderTreasuryWithdrawalRequestDetail(
           </h3>
 
           <small>
-            External withdrawal lifecycle
+            ${
+              demo
+                ? 'Simulated withdrawal lifecycle'
+                : 'External withdrawal lifecycle'
+            }
           </small>
         </div>
 
@@ -20575,9 +21317,17 @@ function renderTreasuryWithdrawalRequestDetail(
         </div>
 
         <div>
-          <span>Gate status</span>
+          <span>${
+            demo
+              ? 'Simulation'
+              : 'Gate status'
+          }</span>
           <strong>${escapeHtml(
-            item.gate_status || '—'
+            demo
+              ? 'Isolated Demo state'
+              : (
+                  item.gate_status || '—'
+                )
           )}</strong>
         </div>
       </div>
@@ -20640,7 +21390,15 @@ function renderTreasuryWithdrawalRequestDetail(
   );
 
   const required = (
-    treasuryWithdrawalLifecycleConfirmation(item)
+    demo
+      ? demoWithdrawalRequiredConfirmation(payload)
+      : treasuryWithdrawalLifecycleConfirmation(item)
+  );
+
+  const demoNextAction = (
+    demo
+      ? demoWithdrawalNextAction(payload)
+      : ''
   );
 
   const confirmationBlock = $(
@@ -20651,10 +21409,25 @@ function renderTreasuryWithdrawalRequestDetail(
     '#treasuryWithdrawalLifecycleNotice'
   );
 
-  const actionable = (
-    status === 'simulated'
-    || status === 'reserved'
-    || status === 'confirmed_ready'
+  const actionable = Boolean(
+    demo
+      ? (
+          required
+          && [
+            'reserve',
+            'confirm',
+            'jit_prepare',
+            'jit_execute',
+            'execute',
+          ].includes(
+            demoNextAction
+          )
+        )
+      : (
+          status === 'simulated'
+          || status === 'reserved'
+          || status === 'confirmed_ready'
+        )
   );
 
   confirmationBlock?.classList.toggle(
@@ -20672,7 +21445,51 @@ function renderTreasuryWithdrawalRequestDetail(
   }
 
   if (lifecycleNotice) {
-    if (status === 'simulated') {
+    if (demo) {
+      const actionLabels = {
+        reserve:
+          'Reserve the simulated withdrawal',
+        confirm:
+          'Confirm the simulated withdrawal',
+        jit_prepare:
+          'Prepare simulated readiness',
+        jit_execute:
+          'Mark the simulated withdrawal ready',
+        execute:
+          'Execute the simulated withdrawal',
+      };
+
+      if (
+        payload?.workflow?.terminal === true
+        || status === 'withdrawal_settled'
+      ) {
+        lifecycleNotice.textContent = (
+          'Simulated withdrawal complete in isolated '
+          + 'Demo state. The Demo Wallet balance was '
+          + 'debited once. No Gate request or real funds '
+          + 'were involved.'
+        );
+
+      } else if (
+        actionLabels[
+          demoNextAction
+        ]
+      ) {
+        lifecycleNotice.textContent = (
+          `${actionLabels[demoNextAction]}. `
+          + 'Use the exact confirmation shown below. '
+          + 'This changes isolated Demo state only.'
+        );
+
+      } else {
+        lifecycleNotice.textContent = (
+          'This Demo withdrawal is view-only in its '
+          + 'current state. No production recovery or '
+          + 'settlement action is available.'
+        );
+      }
+
+    } else if (status === 'simulated') {
       lifecycleNotice.textContent = (
         'Reserve performs a fresh Gate GET-only '
         + 'preflight and acquires the withdrawal '
@@ -20744,6 +21561,11 @@ async function openTreasuryWithdrawalRequestDetail(
       }`
     );
 
+    assertDemoWithdrawalPayload(
+      payload,
+      'withdrawal request detail',
+    );
+
     renderTreasuryWithdrawalRequestDetail(payload);
 
     const dialog = $(
@@ -20780,11 +21602,24 @@ async function refreshTreasuryWithdrawalRequestDetail(
     }`
   );
 
+  assertDemoWithdrawalPayload(
+    payload,
+    'withdrawal request detail refresh',
+  );
+
   renderTreasuryWithdrawalRequestDetail(payload);
 }
 
 
 async function reserveCurrentTreasuryWithdrawal() {
+  if (isDemoSession()) {
+    await runDemoWithdrawalLifecycleAction([
+      'reserve',
+    ]);
+
+    return;
+  }
+
   const payload = (
     state.treasuryWithdrawalRequestDetail
   );
@@ -20887,6 +21722,15 @@ async function reserveCurrentTreasuryWithdrawal() {
 
 
 async function confirmCurrentTreasuryWithdrawal() {
+  if (isDemoSession()) {
+    await runDemoWithdrawalLifecycleAction([
+      'confirm',
+      'execute',
+    ]);
+
+    return;
+  }
+
   const payload = (
     state.treasuryWithdrawalRequestDetail
   );
@@ -20988,6 +21832,15 @@ async function confirmCurrentTreasuryWithdrawal() {
 
 
 async function prepareCurrentTreasuryWithdrawalJit() {
+  if (isDemoSession()) {
+    await runDemoWithdrawalLifecycleAction([
+      'jit_prepare',
+      'jit_execute',
+    ]);
+
+    return;
+  }
+
   const payload = (
     state.treasuryWithdrawalRequestDetail
   );
@@ -21101,6 +21954,10 @@ async function prepareCurrentTreasuryWithdrawalJit() {
 
 
 async function executeCurrentTreasuryWithdrawalJit() {
+  if (isDemoSession()) {
+    return;
+  }
+
   const payload = (
     state.treasuryWithdrawalRequestDetail
   );
@@ -21212,6 +22069,10 @@ async function executeCurrentTreasuryWithdrawalJit() {
 
 
 async function reconcileCurrentTreasuryWithdrawalJit() {
+  if (isDemoSession()) {
+    return;
+  }
+
   const payload = (
     state.treasuryWithdrawalRequestDetail
   );
@@ -21288,6 +22149,10 @@ async function reconcileCurrentTreasuryWithdrawalJit() {
 
 
 async function executeCurrentTreasuryExternalWithdrawal() {
+  if (isDemoSession()) {
+    return;
+  }
+
   const payload = (
     state.treasuryWithdrawalRequestDetail
   );
@@ -21387,6 +22252,10 @@ async function executeCurrentTreasuryExternalWithdrawal() {
 
 
 async function reconcileCurrentTreasuryExternalWithdrawal() {
+  if (isDemoSession()) {
+    return;
+  }
+
   const payload = (
     state.treasuryWithdrawalRequestDetail
   );
@@ -21464,6 +22333,10 @@ async function reconcileCurrentTreasuryExternalWithdrawal() {
 
 
 async function settleCurrentTreasuryWithdrawal() {
+  if (isDemoSession()) {
+    return;
+  }
+
   const payload = (
     state.treasuryWithdrawalRequestDetail
   );
@@ -22324,6 +23197,235 @@ function renderTreasuryRequestDetail(payload) {
 
 
 
+function assertDemoWithdrawalPayload(
+  payload,
+  context = 'withdrawal'
+) {
+  if (!isDemoSession()) {
+    return;
+  }
+
+  if (
+    payload?.source !== 'demo'
+    || payload?.simulation !== true
+    || payload?.gate_read_performed !== false
+    || payload?.gate_write_performed !== false
+  ) {
+    throw new Error(
+      'Safety invariant failed: Demo '
+      + context
+      + ' escaped isolated Demo state.'
+    );
+  }
+}
+
+
+async function loadDemoWithdrawalOverview(
+  {
+    quiet = false,
+  } = {},
+) {
+  if (
+    !isDemoSession()
+    || !state.adminUser
+    || !state.adminAuthorization
+  ) {
+    return;
+  }
+
+  const owner = (
+    treasuryWithdrawalPreparationOwner()
+  );
+
+  const button = $('#refreshTreasury');
+  const errorBox = $('#treasuryError');
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Loading…';
+  }
+
+  errorBox?.classList.add(
+    'hidden'
+  );
+
+  if (!owner) {
+    state.treasuryWithdrawalDestinations = [];
+    state.treasuryWithdrawalRecipients = [];
+    state.treasuryWithdrawalRequests = [];
+
+    renderTreasuryWithdrawalRoutePreparation();
+    renderTreasuryWithdrawalDestinations();
+    renderTreasuryWithdrawalRequests();
+    renderTreasuryWithdrawalPreflight();
+    renderDemoPresentation();
+
+    if (button) {
+      button.disabled = false;
+      button.textContent = (
+        'Refresh Demo withdrawals'
+      );
+    }
+
+    return;
+  }
+
+  try {
+    const [
+      destinations,
+      recipients,
+      requests,
+    ] = await Promise.all([
+      adminApi(
+        withParams(
+          '/api/treasury/withdrawals/destinations',
+          {
+            owner_account_id: owner,
+            status: 'approved',
+            limit: 100,
+          },
+        ),
+      ),
+      adminApi(
+        withParams(
+          '/api/treasury/withdrawals/recipients',
+          {
+            owner_account_id: owner,
+            status: 'active',
+            limit: 100,
+          },
+        ),
+      ),
+      adminApi(
+        '/api/treasury/withdrawals/requests?limit=50'
+      ),
+    ]);
+
+    for (
+      const [
+        payload,
+        context,
+      ]
+      of [
+        [
+          destinations,
+          'withdrawal destination lookup',
+        ],
+        [
+          recipients,
+          'withdrawal recipient lookup',
+        ],
+        [
+          requests,
+          'withdrawal request lookup',
+        ],
+      ]
+    ) {
+      assertDemoWithdrawalPayload(
+        payload,
+        context,
+      );
+    }
+
+    if (
+      treasuryWithdrawalPreparationOwner()
+      !== owner
+    ) {
+      return;
+    }
+
+    state.treasuryWithdrawalDestinations = (
+      destinations.items || []
+    );
+
+    state.treasuryWithdrawalRecipients = (
+      recipients.items || []
+    );
+
+    state.treasuryWithdrawalRequests = (
+      requests.items || []
+    ).filter(
+      item => String(
+        item.owner_account_id || ''
+      ) === owner
+    );
+
+    if (
+      state.treasuryWithdrawalCapabilitiesKey
+      && !state.treasuryWithdrawalCapabilitiesKey
+        .startsWith(
+          `${owner}:`
+        )
+    ) {
+      state.treasuryWithdrawalCapabilities = null;
+      state.treasuryWithdrawalCapabilitiesKey = '';
+      state.treasuryWithdrawalCapabilitiesRequestKey = '';
+      state.treasuryWithdrawalNetwork = '';
+    }
+
+    if (
+      state.treasuryWithdrawalPreflight
+      && state.treasuryWithdrawalPreflight.owner
+        !== owner
+    ) {
+      clearTreasuryWithdrawalPreflight();
+    }
+
+    const detailOwner = String(
+      state.treasuryWithdrawalRequestDetail
+        ?.item
+        ?.owner_account_id
+      || ''
+    );
+
+    if (
+      detailOwner
+      && detailOwner !== owner
+    ) {
+      state.treasuryWithdrawalRequestDetail = null;
+    }
+
+    renderTreasuryWithdrawalRoutePreparation();
+    renderTreasuryWithdrawalDestinations();
+    renderTreasuryWithdrawalRequests();
+    renderTreasuryWithdrawalPreflight();
+    renderDemoPresentation();
+
+  } catch (error) {
+    if (staleAdminSessionError(error)) {
+      return;
+    }
+
+    const message = treasuryErrorMessage(
+      error
+    );
+
+    if (errorBox) {
+      errorBox.textContent = message;
+      errorBox.classList.remove(
+        'hidden'
+      );
+    }
+
+    if (!quiet) {
+      showToast(
+        message,
+        true,
+      );
+    }
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = (
+        'Refresh Demo withdrawals'
+      );
+    }
+  }
+}
+
+
+
 async function loadDemoTreasuryOverview(
   {
     quiet = false,
@@ -22489,9 +23591,18 @@ async function loadTreasuryOverview(
   }
 
   if (isDemoSession()) {
-    await loadDemoTreasuryOverview({
-      quiet,
-    });
+    if (
+      state.walletView === 'withdrawals'
+    ) {
+      await loadDemoWithdrawalOverview({
+        quiet,
+      });
+
+    } else {
+      await loadDemoTreasuryOverview({
+        quiet,
+      });
+    }
 
     return;
   }
@@ -23027,10 +24138,7 @@ function renderWalletView(view) {
   if (treasuryPanel) {
     const treasuryVisible = (
       target === 'transfers'
-      || (
-        !isDemoSession()
-        && target === 'withdrawals'
-      )
+      || target === 'withdrawals'
     );
 
     treasuryPanel.hidden = !treasuryVisible;
@@ -23078,6 +24186,20 @@ async function loadWalletViewData(
       target === 'transfers'
     ) {
       await loadDemoTreasuryOverview({
+        quiet,
+      });
+
+      return;
+    }
+
+    if (
+      target === 'withdrawals'
+    ) {
+      await loadPrivateBalance({
+        quiet,
+      });
+
+      await loadDemoWithdrawalOverview({
         quiet,
       });
 

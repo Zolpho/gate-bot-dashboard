@@ -61,7 +61,7 @@ def _function_source(
     ]
 
 
-def test_demo_wallet_view_allows_transfers_but_not_withdrawals():
+def test_demo_wallet_view_allows_transfers_and_withdrawals():
     block = _function_source(
         "walletViewForSession"
     )
@@ -75,10 +75,10 @@ def test_demo_wallet_view_allows_transfers_but_not_withdrawals():
         1,
     )[0]
 
-    assert "'withdrawals'" not in allowed_region
+    assert "'withdrawals'" in allowed_region
 
 
-def test_demo_presentation_exposes_transfer_and_ownership_but_hides_withdrawal():
+def test_demo_presentation_exposes_transfer_withdrawal_and_ownership():
     block = _function_source(
         "renderDemoPresentation"
     )
@@ -89,7 +89,7 @@ def test_demo_presentation_exposes_transfer_and_ownership_but_hides_withdrawal()
     )
 
     assert (
-        "withdrawalsButton?.classList.toggle"
+        "withdrawalsButton.classList.remove"
         in block
     )
 
@@ -101,7 +101,7 @@ def test_demo_presentation_exposes_transfer_and_ownership_but_hides_withdrawal()
     assert (
         "state.walletView"
         in block
-        and "!== 'transfers'"
+        and "'withdrawals'"
         in block
     )
 
@@ -363,12 +363,22 @@ def test_demo_wallet_data_loading_exposes_ownership_and_transfers_safely():
     )
 
     assert (
+        "target === 'withdrawals'"
+        in demo_block
+    )
+
+    assert (
         "loadPrivateBalance"
         in demo_block
     )
 
     assert (
         "loadDemoTreasuryOverview"
+        in demo_block
+    )
+
+    assert (
+        "loadDemoWithdrawalOverview"
         in demo_block
     )
 
@@ -408,5 +418,11 @@ def test_f5e_cache_marker_is_additive():
     assert (
         "m424f5e="
         "20261017-demo-ownership-transfers-ui-v1"
+        in HTML
+    )
+
+    assert (
+        "m424f6e2a="
+        "20261017-demo-withdrawal-workspace-v1"
         in HTML
     )

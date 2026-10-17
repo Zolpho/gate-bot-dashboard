@@ -37,6 +37,12 @@ DEMO_AUTH_REQUEST_ALLOWLIST = frozenset(
         ("GET", "/api/treasury/user-transfers/participants"),
         ("POST", "/api/treasury/user-transfers/preview"),
         ("POST", "/api/treasury/user-transfers/execute"),
+        ("GET", "/api/treasury/withdrawals/recipients"),
+        ("POST", "/api/treasury/withdrawals/recipients"),
+        ("GET", "/api/treasury/withdrawals/destinations"),
+        ("GET", "/api/treasury/withdrawals/requests"),
+        ("POST", "/api/treasury/withdrawals/requests/simulate"),
+        ("GET", "/api/treasury/withdrawals/locks"),
     }
 )
 
@@ -54,6 +60,83 @@ _DEMO_WALLET_GET_PATH_PATTERNS = (
         r"^/api/treasury/transfers/requests/"
         r"[A-Za-z0-9]"
         r"[A-Za-z0-9._:-]{7,127}$"
+    ),
+)
+
+
+_DEMO_WITHDRAWAL_METHOD_PATH_PATTERNS = (
+    (
+        "GET",
+        re.compile(
+            r"^/api/treasury/withdrawals/recipients/"
+            r"[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{3,127}$"
+        ),
+    ),
+    (
+        "PATCH",
+        re.compile(
+            r"^/api/treasury/withdrawals/recipients/"
+            r"[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{3,127}$"
+        ),
+    ),
+    (
+        "POST",
+        re.compile(
+            r"^/api/treasury/withdrawals/recipients/"
+            r"[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{3,127}"
+            r"/(?:archive|restore|destinations)$"
+        ),
+    ),
+    (
+        "GET",
+        re.compile(
+            r"^/api/treasury/withdrawals/destinations/"
+            r"[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{3,127}$"
+        ),
+    ),
+    (
+        "GET",
+        re.compile(
+            r"^/api/treasury/withdrawals/capabilities/"
+            r"[A-Za-z0-9_]{1,20}$"
+        ),
+    ),
+    (
+        "GET",
+        re.compile(
+            r"^/api/treasury/withdrawals/preflight/"
+            r"[A-Za-z0-9_]{1,20}$"
+        ),
+    ),
+    (
+        "GET",
+        re.compile(
+            r"^/api/treasury/withdrawals/requests/"
+            r"[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{7,127}$"
+        ),
+    ),
+    (
+        "POST",
+        re.compile(
+            r"^/api/treasury/withdrawals/requests/"
+            r"[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{7,127}"
+            r"/(?:reserve|confirm|execute)$"
+        ),
+    ),
+    (
+        "POST",
+        re.compile(
+            r"^/api/treasury/withdrawals/requests/"
+            r"[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{7,127}"
+            r"/jit/(?:prepare|execute)$"
+        ),
     ),
 )
 
@@ -76,16 +159,30 @@ def demo_request_is_allowed(
     ) in DEMO_AUTH_REQUEST_ALLOWLIST:
         return True
 
-    if normalized_method != "GET":
-        return False
+    if (
+        normalized_method == "GET"
+        and any(
+            pattern.fullmatch(
+                normalized_path
+            )
+            is not None
+            for pattern
+            in _DEMO_WALLET_GET_PATH_PATTERNS
+        )
+    ):
+        return True
 
     return any(
-        pattern.fullmatch(
+        normalized_method == allowed_method
+        and pattern.fullmatch(
             normalized_path
         )
         is not None
-        for pattern
-        in _DEMO_WALLET_GET_PATH_PATTERNS
+        for (
+            allowed_method,
+            pattern,
+        )
+        in _DEMO_WITHDRAWAL_METHOD_PATH_PATTERNS
     )
 
 

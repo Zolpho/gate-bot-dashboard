@@ -241,8 +241,11 @@ def test_demo_treasury_allowlist_is_method_aware_and_bounded():
             "/api/treasury/status",
         ),
         (
-            "GET",
-            "/api/treasury/withdrawals/recipients",
+            "POST",
+            (
+                "/api/treasury/withdrawals/requests/"
+                "demo-blocked-001/reconcile"
+            ),
         ),
     )
 
