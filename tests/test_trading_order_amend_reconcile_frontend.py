@@ -65,9 +65,35 @@ def test_manual_reconcile_adds_exactly_one_post_caller():
     core = _core()
     limit = LIMIT.read_text()
 
-    assert core.count(
+    reconcile_start = core.index(
+        "async function tradingReconcilePersistentAmendment("
+    )
+
+    next_function_candidates = [
+        position
+        for marker in (
+            "\nfunction ",
+            "\nasync function ",
+        )
+        if (
+            position := core.find(
+                marker,
+                reconcile_start + 1,
+            )
+        ) != -1
+    ]
+
+    reconcile_end = min(
+        next_function_candidates
+    )
+
+    reconcile_body = core[
+        reconcile_start:reconcile_end
+    ]
+
+    assert reconcile_body.count(
         "method: 'POST'"
-    ) == 3
+    ) == 1
 
     assert limit.count(
         "method: 'POST'"

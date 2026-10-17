@@ -423,8 +423,8 @@ function renderDemoPresentation() {
     );
   }
 
-  // Demo now exposes the accepted read-only product slices:
-  // Overview, Bots/Bot Detail, and Wallet Balance/Deposits.
+  // Demo exposes only product slices with reviewed Demo boundaries:
+  // Overview, Bots/Bot Detail, Wallet, and Trading market reads.
   if (demo) {
     $$(
       '.nav-item'
@@ -441,6 +441,7 @@ function renderDemoPresentation() {
             'overview',
             'bots',
             'wallet',
+            'trading',
           ].includes(
             tab
           ),
@@ -24297,6 +24298,7 @@ function switchTab(tab, { updateHash = true } = {}) {
       'overview',
       'bots',
       'wallet',
+      'trading',
     ].includes(
       tab
     )
@@ -24382,7 +24384,15 @@ function switchTab(tab, { updateHash = true } = {}) {
   });
 
   $('#pageTitle').textContent = titles[target][0];
-  $('#pageSubtitle').textContent = titles[target][1];
+  $('#pageSubtitle').textContent = (
+    isDemoSession()
+    && target === 'trading'
+      ? (
+          'Synthetic Demo spot market, isolated '
+          + 'Wallet-account balances and no real funds'
+        )
+      : titles[target][1]
+  );
 
   if (tabChanged) {
     resetPageScroll();

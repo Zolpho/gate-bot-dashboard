@@ -287,7 +287,7 @@ def test_demo_still_has_no_account_management_authority():
     )
 
 
-def test_demo_navigation_now_exposes_wallet_but_not_unreviewed_tabs():
+def test_demo_navigation_exposes_trading_after_reviewed_boundary():
     presentation = _function(
         "renderDemoPresentation"
     )
@@ -295,6 +295,7 @@ def test_demo_navigation_now_exposes_wallet_but_not_unreviewed_tabs():
     assert "'overview'" in presentation
     assert "'bots'" in presentation
     assert "'wallet'" in presentation
+    assert "'trading'" in presentation
 
     switch_tab = _function(
         "switchTab"
@@ -318,7 +319,7 @@ def test_demo_navigation_now_exposes_wallet_but_not_unreviewed_tabs():
     assert "'bots'" in guard
     assert "'wallet'" in guard
 
-    assert "'trading'" not in guard
+    assert "'trading'" in guard
     assert "'security'" not in guard
     assert "'alerts'" not in guard
 

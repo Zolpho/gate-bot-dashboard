@@ -27,6 +27,7 @@ const tradingState = {
   recentOrdersError: '',
   loadingOpenOrders: false,
   loadingRecentOrders: false,
+  demoCancelPending: new Set(),
   persistentCancelPending: new Set(),
   persistentCancelFrozen: new Set(),
   persistentAmendPending: new Set(),
@@ -338,6 +339,158 @@ function tradingRenderAccountControl(accounts) {
 }
 
 
+function tradingApplyDemoReadOnlyPresentation() {
+  const demo = isDemoSession();
+
+  const orderForm = $(
+    '#tradingLimitOrderForm'
+  );
+
+  if (orderForm) {
+    orderForm.classList.remove(
+      'hidden',
+    );
+
+    orderForm.setAttribute(
+      'aria-hidden',
+      'false',
+    );
+  }
+
+  const orderPanel = (
+    orderForm?.closest?.(
+      '.trading-order-panel'
+    )
+  );
+
+  const orderIntro = (
+    orderPanel?.querySelector?.(
+      '.panel-header p'
+    )
+  );
+
+  const orderBadge = (
+    orderPanel?.querySelector?.(
+      '.trading-order-preview-badge'
+    )
+  );
+
+  if (orderIntro) {
+    orderIntro.textContent = (
+      demo
+        ? (
+            'Review against simulated Demo balances '
+            + 'and synthetic order-book prices.'
+          )
+        : (
+            'Review against fresh Gate balances and '
+            + 'order-book prices before execution.'
+          )
+    );
+  }
+
+  if (orderBadge) {
+    orderBadge.textContent = (
+      demo
+        ? 'SIMULATION'
+        : 'PREVIEW ONLY'
+    );
+  }
+  const openOrdersBody = $(
+    '#tradingOpenOrders'
+  );
+
+  const recentOrdersBody = $(
+    '#tradingRecentOrders'
+  );
+
+  const ordersPanel = (
+    openOrdersBody?.closest?.(
+      '.trading-orders-panel'
+    )
+  );
+
+  const ordersIntro = (
+    ordersPanel?.querySelector?.(
+      '.panel-header p'
+    )
+  );
+
+  const openSection = (
+    openOrdersBody?.closest?.(
+      '.trading-orders-section'
+    )
+  );
+
+  const recentSection = (
+    recentOrdersBody?.closest?.(
+      '.trading-orders-section'
+    )
+  );
+
+  const openSubtitle = (
+    openSection?.querySelector?.(
+      '.trading-orders-section-head small'
+    )
+  );
+
+  const recentSubtitle = (
+    recentSection?.querySelector?.(
+      '.trading-orders-section-head small'
+    )
+  );
+
+  const recentHeaders = (
+    recentSection?.querySelectorAll?.(
+      'thead th'
+    )
+    || []
+  );
+
+  if (ordersIntro) {
+    ordersIntro.textContent = (
+      demo
+        ? (
+            'Simulated Demo open orders and isolated '
+            + 'Demo order history across all Spot pairs '
+            + 'for the selected Wallet account.'
+          )
+        : (
+            'Live Gate open orders and durable dashboard '
+            + 'order history across all Spot pairs for '
+            + 'the selected account.'
+          )
+    );
+  }
+
+  if (openSubtitle) {
+    openSubtitle.textContent = (
+      demo
+        ? 'Simulated Demo state · all Spot pairs'
+        : 'Live Gate state · all Spot pairs'
+    );
+  }
+
+  if (recentSubtitle) {
+    recentSubtitle.textContent = (
+      demo
+        ? 'Isolated Demo history · all pairs'
+        : 'Durable dashboard audit · all pairs'
+    );
+  }
+
+  if (recentHeaders[7]) {
+    recentHeaders[7].textContent = (
+      demo
+        ? 'Demo ID'
+        : 'Gate ID'
+    );
+  }
+
+
+}
+
+
 function tradingPopulateCatalog() {
   const catalog = tradingState.catalog;
 
@@ -416,6 +569,7 @@ function tradingPopulateCatalog() {
   tradingRenderIntervalButtons();
   tradingPopulateBookIntervals();
   tradingRenderMarketSideTabs();
+  tradingApplyDemoReadOnlyPresentation();
 
   tradingResetPersistentOrders();
 
@@ -455,7 +609,13 @@ function tradingValidatePair() {
     !pairs.some(item => item.id === pair)
   ) {
     throw new Error(
-      `Unknown or unavailable Gate spot pair: ${pair}`
+      isDemoSession()
+        ? (
+            `Unknown or unavailable Demo spot pair: ${pair}`
+          )
+        : (
+            `Unknown or unavailable Gate spot pair: ${pair}`
+          )
     );
   }
 
@@ -1097,7 +1257,13 @@ function tradingRenderSnapshot() {
   }
 
   $('#tradingBalanceSubtitle').textContent = (
-    `Gate spot · ${tradingState.accountId}`
+    isDemoSession()
+      ? (
+          `Simulated Demo balances · ${tradingState.accountId}`
+        )
+      : (
+          `Gate spot · ${tradingState.accountId}`
+        )
   );
 
   window.renderTradingLimitOrderTicket?.();
@@ -4027,10 +4193,799 @@ async function tradingCancelPersistentOpenOrder(
 }
 
 
+function tradingDemoOrderAmendmentReadModel(
+  row,
+) {
+  const history = (
+    Array.isArray(
+      row?.amendments
+    )
+      ? row.amendments
+      : []
+  );
+
+  if (!history.length) {
+    return {
+      label: 'No history',
+      warning: false,
+      title: (
+        'No simulated Demo price amendment '
+        + 'has been recorded.'
+      ),
+    };
+  }
+
+  const latest = (
+    row?.latest_amendment
+    || history[0]
+    || null
+  );
+
+  const status = String(
+    latest?.status || ''
+  ).trim().toLowerCase();
+
+  return {
+    label: (
+      status
+        ? tradingOrderStatusLabel(status)
+        : `Recorded · ${history.length}`
+    ),
+    warning: false,
+    title: (
+      `${history.length} simulated Demo amendment`
+      + (
+        history.length === 1
+          ? ''
+          : 's'
+      )
+      + ' recorded.'
+    ),
+  };
+}
+
+
+function tradingDemoCancelConfirmation(
+  requestId,
+) {
+  const normalizedRequestId = String(
+    requestId || ''
+  ).trim();
+
+  if (!normalizedRequestId) {
+    return '';
+  }
+
+  return (
+    'CANCEL DEMO LIMIT ORDER '
+    + normalizedRequestId
+  );
+}
+
+
+function tradingDemoCancelRequestId() {
+  const uuid = (
+    globalThis.crypto
+      ?.randomUUID
+      ?.()
+  );
+
+  if (uuid) {
+    return (
+      'demo-cancel-'
+      + uuid
+    );
+  }
+
+  return (
+    'demo-cancel-'
+    + Date.now()
+    + '-'
+    + Math.random()
+      .toString(16)
+      .slice(2)
+  );
+}
+
+
+function tradingDemoCancelEligibility(
+  row,
+) {
+  const request = (
+    row?.request || {}
+  );
+
+  const demoOrder = (
+    row?.demo_order || {}
+  );
+
+  const requestId = String(
+    request.request_id
+    || demoOrder.request_id
+    || ''
+  ).trim();
+
+  const accountId = String(
+    request.account_id
+    || demoOrder.account_id
+    || ''
+  ).trim().toLowerCase();
+
+  const selectedAccount = String(
+    tradingState.accountId || ''
+  ).trim().toLowerCase();
+
+  const effectiveStatus = String(
+    row?.order_state?.effective_status
+    || request.status
+    || demoOrder.status
+    || ''
+  ).trim().toLowerCase();
+
+  const demoOrderStatus = String(
+    demoOrder.status || ''
+  ).trim().toLowerCase();
+
+  if (!isDemoSession()) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'not_demo',
+    };
+  }
+
+  if (
+    !requestId
+    || !accountId
+    || accountId !== selectedAccount
+  ) {
+    return {
+      allowed: false,
+      label: 'Unavailable',
+      reason: 'scope_mismatch',
+    };
+  }
+
+  if (row?.cancellation) {
+    return {
+      allowed: false,
+      label: 'Cancelled',
+      reason: 'already_cancelled',
+    };
+  }
+
+  if (
+    effectiveStatus !== 'confirmed_open'
+    || demoOrderStatus !== 'open'
+  ) {
+    return {
+      allowed: false,
+      label: 'Not open',
+      reason: 'not_open',
+    };
+  }
+
+  if (
+    tradingState
+      .demoCancelPending
+      .has(requestId)
+  ) {
+    return {
+      allowed: false,
+      label: 'Cancelling…',
+      reason: 'pending',
+    };
+  }
+
+  return {
+    allowed: true,
+    label: 'Cancel Demo',
+    reason: 'ready',
+    requestId,
+    confirmation:
+      tradingDemoCancelConfirmation(
+        requestId
+      ),
+  };
+}
+
+
+function tradingDemoCancellationResultValid(
+  result,
+  {
+    requestId,
+    cancelRequestId,
+    accountId,
+  },
+) {
+  const cancellation = (
+    result?.cancellation || {}
+  );
+
+  const order = (
+    cancellation.order || {}
+  );
+
+  const freshMutation = Boolean(
+    result?.idempotent_replay === false
+    && result?.demo_write_performed === true
+    && result?.balance_release_performed === true
+  );
+
+  const replay = Boolean(
+    result?.idempotent_replay === true
+    && result?.demo_write_performed === false
+    && result?.balance_release_performed === false
+  );
+
+  return Boolean(
+    result
+    && result.source === 'demo'
+    && result.simulation === true
+    && result.gate_read_performed === false
+    && result.gate_write_performed === false
+    && result.write_performed === false
+    && (
+      freshMutation
+      || replay
+    )
+    && String(
+      result.cancel_request_id || ''
+    ).trim() === cancelRequestId
+    && String(
+      cancellation.request_id || ''
+    ).trim() === requestId
+    && String(
+      cancellation.account_id || ''
+    ).trim().toLowerCase() === accountId
+    && cancellation.source === 'demo'
+    && String(
+      order.status || ''
+    ).trim().toLowerCase() === 'cancelled'
+  );
+}
+
+
+function tradingDemoCancellationMessage(
+  result,
+) {
+  if (
+    result?.idempotent_replay === true
+  ) {
+    return (
+      'This simulated Demo order was already '
+      + 'cancelled. No additional Demo balance '
+      + 'release occurred and no Gate request '
+      + 'was sent.'
+    );
+  }
+
+  const cancellation = (
+    result?.cancellation || {}
+  );
+
+  const asset = String(
+    cancellation.released_asset || ''
+  ).trim().toUpperCase();
+
+  const amount = String(
+    cancellation.released_amount || ''
+  ).trim();
+
+  return (
+    'Simulated Demo order cancelled. '
+    + (
+      asset && amount
+        ? (
+            amount
+            + ' '
+            + asset
+            + ' returned to available Demo balance. '
+          )
+        : (
+            'Reserved Demo balance was released. '
+          )
+    )
+    + 'No Gate request was sent.'
+  );
+}
+
+
+async function tradingCancelDemoOpenOrder(
+  requestId,
+) {
+  const normalizedRequestId = String(
+    requestId || ''
+  ).trim();
+
+  if (
+    !isDemoSession()
+    || !normalizedRequestId
+  ) {
+    return;
+  }
+
+  /*
+   * Resolve the source from the authenticated
+   * Demo Open Orders response.
+   *
+   * The DOM contributes only request_id.
+   */
+  const matches = (
+    tradingState.openOrders || []
+  ).filter(row => (
+    String(
+      row?.request?.request_id
+      || row?.demo_order?.request_id
+      || ''
+    ).trim()
+    === normalizedRequestId
+  ));
+
+  if (matches.length !== 1) {
+    showToast(
+      'Unable to identify exactly one simulated '
+      + 'Demo open order for cancellation.',
+      true,
+    );
+
+    return;
+  }
+
+  const row = matches[0];
+
+  const eligibility = (
+    tradingDemoCancelEligibility(
+      row
+    )
+  );
+
+  if (!eligibility.allowed) {
+    showToast(
+      (
+        eligibility.reason === 'pending'
+          ? 'This Demo cancellation is already in progress.'
+          : (
+              'This simulated Demo order is not '
+              + 'currently eligible for cancellation.'
+            )
+      ),
+      true,
+    );
+
+    tradingRenderOpenOrders();
+
+    return;
+  }
+
+  const expectedConfirmation = (
+    eligibility.confirmation
+  );
+
+  const typedConfirmation = window.prompt(
+    (
+      'This cancels only the simulated Demo order.'
+      + '\n'
+      + 'No Gate order or real funds are involved.'
+      + '\n\n'
+      + 'Type exactly:'
+      + '\n\n'
+      + expectedConfirmation
+    ),
+    '',
+  );
+
+  if (typedConfirmation === null) {
+    return;
+  }
+
+  if (
+    typedConfirmation
+    !== expectedConfirmation
+  ) {
+    showToast(
+      'Exact Demo cancellation confirmation '
+      + 'did not match.',
+      true,
+    );
+
+    return;
+  }
+
+  const cancelRequestId = (
+    tradingDemoCancelRequestId()
+  );
+
+  if (!cancelRequestId) {
+    showToast(
+      'Unable to create the Demo cancellation '
+      + 'request identity.',
+      true,
+    );
+
+    return;
+  }
+
+  const accountId = String(
+    row?.request?.account_id
+    || row?.demo_order?.account_id
+    || ''
+  ).trim().toLowerCase();
+
+  tradingState
+    .demoCancelPending
+    .add(normalizedRequestId);
+
+  tradingRenderOpenOrders();
+
+  try {
+    const result = await adminApi(
+      (
+        '/api/trading/limit-orders/requests/'
+        + encodeURIComponent(
+          normalizedRequestId
+        )
+        + '/cancel'
+      ),
+      {
+        method: 'POST',
+
+        body: JSON.stringify({
+          cancel_request_id:
+            cancelRequestId,
+
+          confirmation:
+            typedConfirmation,
+        }),
+      },
+    );
+
+    if (
+      !tradingDemoCancellationResultValid(
+        result,
+        {
+          requestId:
+            normalizedRequestId,
+          cancelRequestId,
+          accountId,
+        },
+      )
+    ) {
+      throw new Error(
+        'Safety invariant failed: Demo cancellation '
+        + 'did not return an isolated cancelled order.'
+      );
+    }
+
+    showToast(
+      tradingDemoCancellationMessage(
+        result
+      ),
+      false,
+    );
+
+  } catch (error) {
+    showToast(
+      (
+        error?.message
+        || (
+          'Simulated Demo cancellation could '
+          + 'not be confirmed.'
+        )
+      )
+      + ' Demo state will be refreshed. '
+      + 'No Gate cancellation was sent.',
+      true,
+    );
+
+  } finally {
+    tradingState
+      .demoCancelPending
+      .delete(normalizedRequestId);
+
+    tradingRenderOpenOrders();
+
+    /*
+     * Read-only isolated-state resolution.
+     * There is deliberately no Demo recovery
+     * checkpoint and no reconciliation request.
+     */
+    await Promise.allSettled([
+      tradingRefreshPersistentOrders({
+        quiet: true,
+      }),
+      tradingLoadSnapshot({
+        quiet: true,
+      }),
+    ]);
+  }
+}
+
+
+function tradingRenderDemoOpenOrderRow(
+  row,
+) {
+  const request = (
+    row?.request || {}
+  );
+
+  const demoOrder = (
+    row?.demo_order || {}
+  );
+
+  const pair = String(
+    request.pair
+    || demoOrder.pair
+    || ''
+  ).trim().toUpperCase();
+
+  const side = String(
+    request.side
+    || demoOrder.side
+    || ''
+  ).trim().toLowerCase();
+
+  const status = (
+    tradingOrderStatusLabel(
+      row?.order_state?.effective_status
+      || request.status
+      || demoOrder.status
+      || 'open'
+    )
+  );
+
+  const amendment = (
+    tradingDemoOrderAmendmentReadModel(
+      row
+    )
+  );
+
+  const cancel = (
+    tradingDemoCancelEligibility(
+      row
+    )
+  );
+
+  return `
+    <tr>
+      <td>
+        <code>${escapeHtml(
+          pair || '—'
+        )}</code>
+      </td>
+
+      <td>
+        <span class="trading-orders-side ${escapeHtml(side)}">
+          ${escapeHtml(
+            side
+              ? side.toUpperCase()
+              : '—'
+          )}
+        </span>
+      </td>
+
+      <td>${escapeHtml(
+        tradingFormatPrice(
+          request.price
+          ?? demoOrder.price
+        )
+      )}</td>
+
+      <td>${escapeHtml(
+        tradingFormatAmount(
+          request.amount
+          ?? demoOrder.amount
+        )
+      )}</td>
+
+      <td>—</td>
+
+      <td>
+        <span class="trading-orders-status">
+          ${escapeHtml(status)}
+        </span>
+      </td>
+
+      <td>Demo</td>
+
+      <td>
+        <span
+          class="trading-orders-status ${
+            amendment.warning
+              ? 'warning'
+              : ''
+          }"
+          title="${escapeHtml(
+            amendment.title
+          )}"
+        >
+          ${escapeHtml(
+            amendment.label
+          )}
+        </span>
+      </td>
+
+      <td class="trading-orders-action-cell">
+        ${
+          cancel.allowed
+            ? `
+              <button
+                type="button"
+                class="trading-orders-cancel-button"
+                data-trading-demo-cancel-request="${escapeHtml(
+                  cancel.requestId
+                )}"
+                title="Cancel this simulated Demo order. No Gate order exists."
+              >
+                Cancel Demo
+              </button>
+            `
+            : `
+              <span class="trading-orders-action-note">
+                ${escapeHtml(
+                  cancel.label
+                  || 'Unavailable'
+                )}
+              </span>
+            `
+        }
+      </td>
+    </tr>
+  `;
+}
+
+
+function tradingRenderDemoRecentOrderRow(
+  row,
+) {
+  const request = (
+    row?.request || {}
+  );
+
+  const cancellation = (
+    row?.cancellation || {}
+  );
+
+  const demoOrder = (
+    row?.demo_order || {}
+  );
+
+  const state = (
+    row?.order_state || {}
+  );
+
+  const pair = String(
+    request.pair
+    || demoOrder.pair
+    || ''
+  ).trim().toUpperCase();
+
+  const side = String(
+    request.side
+    || demoOrder.side
+    || ''
+  ).trim().toLowerCase();
+
+  const timestamp = (
+    cancellation.completed_at
+    || cancellation.updated_at
+    || request.completed_at
+    || request.updated_at
+    || request.created_at
+    || demoOrder.updated_at
+    || demoOrder.created_at
+  );
+
+  const status = (
+    tradingOrderStatusLabel(
+      state.effective_status
+      || request.status
+      || demoOrder.status
+      || 'unknown'
+    )
+  );
+
+  const demoId = String(
+    demoOrder.demo_order_id
+    || demoOrder.order_id
+    || request.request_id
+    || ''
+  ).trim();
+
+  const amendment = (
+    tradingDemoOrderAmendmentReadModel(
+      row
+    )
+  );
+
+  return `
+    <tr>
+      <td>${escapeHtml(
+        tradingOrderTime(timestamp)
+      )}</td>
+
+      <td>
+        <code>${escapeHtml(
+          pair || '—'
+        )}</code>
+      </td>
+
+      <td>
+        <span class="trading-orders-side ${escapeHtml(side)}">
+          ${escapeHtml(
+            side
+              ? side.toUpperCase()
+              : '—'
+          )}
+        </span>
+      </td>
+
+      <td>${escapeHtml(
+        tradingFormatPrice(
+          request.price
+          ?? demoOrder.price
+        )
+      )}</td>
+
+      <td>${escapeHtml(
+        tradingFormatAmount(
+          request.amount
+          ?? demoOrder.amount
+        )
+      )}</td>
+
+      <td>—</td>
+
+      <td>
+        <span class="trading-orders-status">
+          ${escapeHtml(status)}
+        </span>
+      </td>
+
+      <td class="trading-orders-gate-id-cell">
+        <code
+          class="trading-orders-gate-id"
+          title="${escapeHtml(demoId)}"
+        >${escapeHtml(
+          tradingOrderIdLabel(
+            demoId
+          )
+        )}</code>
+      </td>
+
+      <td>
+        <span
+          class="trading-orders-status ${
+            amendment.warning
+              ? 'warning'
+              : ''
+          }"
+          title="${escapeHtml(
+            amendment.title
+          )}"
+        >
+          ${escapeHtml(
+            amendment.label
+          )}
+        </span>
+      </td>
+
+      <td class="trading-orders-action-cell">
+        <span class="trading-orders-action-note">
+          Actions deferred
+        </span>
+      </td>
+    </tr>
+  `;
+}
+
+
 function tradingRenderOpenOrders() {
   const body = $('#tradingOpenOrders');
   const message = $('#tradingOpenOrdersMessage');
   const count = $('#tradingOpenOrdersCount');
+
+  const demo = isDemoSession();
 
   if (
     !body
@@ -4085,7 +5040,17 @@ function tradingRenderOpenOrders() {
   } else if (!orders.length) {
     message.textContent = (
       tradingState.openOrdersLoaded
-        ? 'No open Gate Spot orders for the selected account.'
+        ? (
+            demo
+              ? (
+                  'No simulated Demo open orders '
+                  + 'for the selected Wallet account.'
+                )
+              : (
+                  'No open Gate Spot orders '
+                  + 'for the selected account.'
+                )
+          )
         : 'Open orders have not been loaded yet.'
     );
 
@@ -4096,7 +5061,9 @@ function tradingRenderOpenOrders() {
 
   } else {
     message.textContent = (
-      'Live Gate open-order state.'
+      demo
+        ? 'Simulated Demo open-order state.'
+        : 'Live Gate open-order state.'
     );
 
     message.classList.remove(
@@ -4110,6 +5077,12 @@ function tradingRenderOpenOrders() {
 
   body.innerHTML = orders
     .map(row => {
+      if (demo) {
+        return tradingRenderDemoOpenOrderRow(
+          row
+        );
+      }
+
       const gate = (
         row?.gate_order || {}
       );
@@ -4459,6 +5432,8 @@ function tradingRenderRecentOrders() {
   const message = $('#tradingRecentOrdersMessage');
   const count = $('#tradingRecentOrdersCount');
 
+  const demo = isDemoSession();
+
   if (
     !body
     || !message
@@ -4512,7 +5487,17 @@ function tradingRenderRecentOrders() {
   } else if (!orders.length) {
     message.textContent = (
       tradingState.recentOrdersLoaded
-        ? 'No dashboard-managed order history for the selected account.'
+        ? (
+            demo
+              ? (
+                  'No simulated Demo order history '
+                  + 'for the selected Wallet account.'
+                )
+              : (
+                  'No dashboard-managed order history '
+                  + 'for the selected account.'
+                )
+          )
         : 'Recent orders have not been loaded yet.'
     );
 
@@ -4523,7 +5508,9 @@ function tradingRenderRecentOrders() {
 
   } else {
     message.textContent = (
-      'Durable dashboard order history.'
+      demo
+        ? 'Isolated Demo order history.'
+        : 'Durable dashboard order history.'
     );
 
     message.classList.remove(
@@ -4537,6 +5524,12 @@ function tradingRenderRecentOrders() {
 
   body.innerHTML = orders
     .map(row => {
+      if (demo) {
+        return tradingRenderDemoRecentOrderRow(
+          row
+        );
+      }
+
       const request = (
         row?.request || {}
       );
@@ -4780,6 +5773,8 @@ async function tradingLoadOpenOrders({
     tradingState.accountId
   );
 
+  const demo = isDemoSession();
+
   tradingState.loadingOpenOrders = true;
   tradingState.openOrdersError = '';
 
@@ -4796,17 +5791,35 @@ async function tradingLoadOpenOrders({
       ),
     );
 
-    if (
-      result?.gate_read_performed !== true
-      || result?.gate_write_performed !== false
-      || result?.write_performed !== false
-      || result?.scope !== 'account'
-      || String(
-        result?.account_id || ''
-      ).toLowerCase() !== accountId
-      || result?.pair !== null
-      || !Array.isArray(result?.orders)
-    ) {
+    const valid = (
+      demo
+        ? (
+            result?.source === 'demo'
+            && result?.simulation === true
+            && result?.gate_read_performed === false
+            && result?.gate_write_performed === false
+            && result?.write_performed === false
+            && result?.scope === 'account'
+            && String(
+              result?.account_id || ''
+            ).toLowerCase() === accountId
+            && result?.pair === null
+            && Array.isArray(result?.orders)
+          )
+        : (
+            result?.gate_read_performed === true
+            && result?.gate_write_performed === false
+            && result?.write_performed === false
+            && result?.scope === 'account'
+            && String(
+              result?.account_id || ''
+            ).toLowerCase() === accountId
+            && result?.pair === null
+            && Array.isArray(result?.orders)
+          )
+    );
+
+    if (!valid) {
       throw new Error(
         'Safety invariant failed: invalid '
         + 'account-wide Open Orders response.'
@@ -4839,7 +5852,11 @@ async function tradingLoadOpenOrders({
     ) {
       tradingState.openOrdersError = (
         error.message
-        || 'Unable to load open orders.'
+        || (
+          demo
+            ? 'Unable to load simulated Demo open orders.'
+            : 'Unable to load open orders.'
+        )
       );
 
       if (!quiet) {
@@ -4874,6 +5891,8 @@ async function tradingLoadRecentOrders({
     tradingState.accountId
   );
 
+  const demo = isDemoSession();
+
   tradingState.loadingRecentOrders = true;
   tradingState.recentOrdersError = '';
 
@@ -4890,19 +5909,38 @@ async function tradingLoadRecentOrders({
       ),
     );
 
-    if (
-      result?.history_source
-        !== 'dashboard_audit'
-      || result?.gate_read_performed !== false
-      || result?.gate_write_performed !== false
-      || result?.write_performed !== false
-      || result?.scope !== 'account'
-      || String(
-        result?.account_id || ''
-      ).toLowerCase() !== accountId
-      || result?.pair !== null
-      || !Array.isArray(result?.orders)
-    ) {
+    const valid = (
+      demo
+        ? (
+            result?.source === 'demo'
+            && result?.simulation === true
+            && result?.history_source === 'demo'
+            && result?.gate_read_performed === false
+            && result?.gate_write_performed === false
+            && result?.write_performed === false
+            && result?.scope === 'account'
+            && String(
+              result?.account_id || ''
+            ).toLowerCase() === accountId
+            && result?.pair === null
+            && Array.isArray(result?.orders)
+          )
+        : (
+            result?.history_source
+              === 'dashboard_audit'
+            && result?.gate_read_performed === false
+            && result?.gate_write_performed === false
+            && result?.write_performed === false
+            && result?.scope === 'account'
+            && String(
+              result?.account_id || ''
+            ).toLowerCase() === accountId
+            && result?.pair === null
+            && Array.isArray(result?.orders)
+          )
+    );
+
+    if (!valid) {
       throw new Error(
         'Safety invariant failed: invalid '
         + 'account-wide Recent Orders response.'
@@ -4935,7 +5973,11 @@ async function tradingLoadRecentOrders({
     ) {
       tradingState.recentOrdersError = (
         error.message
-        || 'Unable to load recent orders.'
+        || (
+          demo
+            ? 'Unable to load simulated Demo order history.'
+            : 'Unable to load recent orders.'
+        )
       );
 
       if (!quiet) {
@@ -5034,13 +6076,21 @@ async function tradingLoadSnapshot({
   } catch (error) {
     tradingSetError(
       error.message
-      || 'Unable to load Gate market snapshot.'
+      || (
+        isDemoSession()
+          ? 'Unable to load simulated Demo market snapshot.'
+          : 'Unable to load Gate market snapshot.'
+      )
     );
 
     if (!quiet) {
       showToast(
         error.message
-        || 'Unable to load Gate market snapshot.',
+        || (
+        isDemoSession()
+          ? 'Unable to load simulated Demo market snapshot.'
+          : 'Unable to load Gate market snapshot.'
+      ),
         true,
       );
     }
@@ -5071,7 +6121,11 @@ async function tradingLoadCandles({
   try {
     if (message) {
       message.textContent = (
-        'Loading Gate candlesticks…'
+        (
+          isDemoSession()
+            ? 'Loading simulated Demo candlesticks…'
+            : 'Loading Gate candlesticks…'
+        )
       );
 
       message.classList.remove('hidden');
@@ -5106,7 +6160,11 @@ async function tradingLoadCandles({
     if (message) {
       message.textContent = (
         error.message
-        || 'Unable to load Gate candlesticks.'
+        || (
+        isDemoSession()
+          ? 'Unable to load simulated Demo candlesticks.'
+          : 'Unable to load Gate candlesticks.'
+      )
       );
 
       message.classList.remove('hidden');
@@ -5114,13 +6172,21 @@ async function tradingLoadCandles({
 
     tradingSetError(
       error.message
-      || 'Unable to load Gate candlesticks.'
+      || (
+        isDemoSession()
+          ? 'Unable to load simulated Demo candlesticks.'
+          : 'Unable to load Gate candlesticks.'
+      )
     );
 
     if (!quiet) {
       showToast(
         error.message
-        || 'Unable to load Gate candlesticks.',
+        || (
+        isDemoSession()
+          ? 'Unable to load simulated Demo candlesticks.'
+          : 'Unable to load Gate candlesticks.'
+      ),
         true,
       );
     }
@@ -5217,6 +6283,10 @@ function tradingStartTimers() {
 
 
 function tradingApplyRecoveryCheckpointScope() {
+  if (isDemoSession()) {
+    return false;
+  }
+
   const reader = (
     window
       .tradingLimitRecoveryCheckpointForUser
@@ -5305,6 +6375,14 @@ function tradingApplyRecoveryCheckpointScope() {
 async function tradingRecoverSessionCheckpoint({
   quiet = true,
 } = {}) {
+  if (isDemoSession()) {
+    return {
+      recovered: false,
+      status: 'demo_not_applicable',
+      definitive: true,
+    };
+  }
+
   if (
     !state.adminUser
     || !state.adminAuthorization
@@ -5367,26 +6445,38 @@ async function activateTradingTab() {
       || !tradingState.pair
     ) {
       tradingSetError(
-        'No explicitly assigned Gate trading account '
-        + 'or tradable spot pair is available.'
+        isDemoSession()
+          ? (
+              'No assigned Demo Wallet account '
+              + 'or simulated spot pair is available.'
+            )
+          : (
+              'No explicitly assigned Gate trading account '
+              + 'or tradable spot pair is available.'
+            )
       );
 
       return;
     }
 
-    const loadCapabilities = (
-      window.loadTradingExecutionCapabilities
-    );
-
-    if (
-      typeof loadCapabilities !== 'function'
-    ) {
-      throw new Error(
-        'Trading capability loader is unavailable.'
+    if (!isDemoSession()) {
+      const loadCapabilities = (
+        window.loadTradingExecutionCapabilities
       );
-    }
 
-    await loadCapabilities();
+      if (
+        typeof loadCapabilities !== 'function'
+      ) {
+        throw new Error(
+          'Trading capability loader is unavailable.'
+        );
+      }
+
+      await loadCapabilities();
+
+    } else {
+      tradingState.limitOrderExecutionCapabilities = null;
+    }
 
     tradingEnsureChart();
 
@@ -5444,6 +6534,7 @@ function resetTradingTab() {
   tradingState.limitOrderExecutionCapabilities = null;
   tradingState.loadingLimitOrderExecutionCapabilities = false;
 
+  tradingState.demoCancelPending.clear();
   tradingState.persistentCancelPending.clear();
   tradingState.persistentCancelFrozen.clear();
 
@@ -5629,6 +6720,29 @@ function bindTradingEvents() {
           void tradingReconcilePersistentAmendment(
             requestId,
             amendRequestId,
+          );
+        }
+
+        return;
+      }
+
+      const demoCancelButton = target.closest(
+        '[data-trading-demo-cancel-request]'
+      );
+
+      if (demoCancelButton) {
+        const requestId = String(
+          demoCancelButton.dataset
+            .tradingDemoCancelRequest
+          || ''
+        ).trim();
+
+        if (
+          isDemoSession()
+          && requestId
+        ) {
+          void tradingCancelDemoOpenOrder(
+            requestId
           );
         }
 

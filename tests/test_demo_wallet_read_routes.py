@@ -136,6 +136,10 @@ def test_demo_request_allowlist_is_method_aware_and_read_only():
             "GET",
             "/api/me/deposits/900001",
         ),
+        (
+            "GET",
+            "/api/trading/catalog",
+        ),
     )
 
     for method, path in allowed:
@@ -156,10 +160,6 @@ def test_demo_request_allowlist_is_method_aware_and_read_only():
         (
             "GET",
             "/api/auth/sessions",
-        ),
-        (
-            "GET",
-            "/api/trading/catalog",
         ),
         (
             "POST",

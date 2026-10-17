@@ -1956,6 +1956,22 @@ function renderTradingLimitCancellationResult() {
 
 
 function renderTradingLimitCancellationReadiness() {
+  if (
+    tradingLimitDemoExecutionMode()
+  ) {
+    const element = $(
+      '#tradingLimitCancellation'
+    );
+
+    if (element) {
+      element.classList.add(
+        'hidden'
+      );
+    }
+
+    return;
+  }
+
   const element = $(
     '#tradingLimitCancellation'
   );
@@ -4118,6 +4134,117 @@ async function reconcileTradingLimitCancellation() {
 }
 
 
+function tradingLimitDemoExecutionMode() {
+  return Boolean(
+    isDemoSession()
+  );
+}
+
+
+function tradingLimitDemoCapabilitiesValid(
+  result,
+) {
+  return Boolean(
+    result
+    && result.source === 'demo'
+    && result.simulation === true
+    && result.gate_read_performed === false
+    && result.gate_write_performed === false
+    && result.write_performed === false
+    && result.execution_implemented === true
+    && result.execution_route_available === true
+    && result.live_arm_enabled === false
+    && result.demo_execution_enabled === true
+    && result.cancellation_implemented === true
+    && result.cancellation_route_available === true
+    && result.cancel_arm_enabled === false
+    && result.demo_cancellation_enabled === true
+    && result.amendment_implemented === true
+    && result.amendment_route_available === true
+    && result.amend_arm_enabled === false
+    && result.demo_amendment_enabled === true
+    && Array.isArray(
+      result.configured_account_ids
+    )
+    && Array.isArray(
+      result.policy_allowed_account_ids
+    )
+    && typeof result.required_confirmation
+      === 'string'
+    && result.required_confirmation.includes(
+      'DEMO'
+    )
+  );
+}
+
+
+function tradingLimitDemoPreviewValid(
+  result,
+) {
+  return Boolean(
+    result
+    && result.source === 'demo'
+    && result.simulation === true
+    && result.preview_only === true
+    && result.execution_implemented === true
+    && typeof result.execution_enabled
+      === 'boolean'
+    && typeof result.can_execute
+      === 'boolean'
+    && result.can_execute
+      === result.execution_enabled
+    && result.demo_execution_ready
+      === result.execution_enabled
+    && result.gate_write_required === false
+    && result.gate_read_performed === false
+    && result.gate_write_performed === false
+    && result.write_performed === false
+  );
+}
+
+
+function tradingLimitDemoExecutionResultValid(
+  result,
+) {
+  return Boolean(
+    result
+    && result.source === 'demo'
+    && result.simulation === true
+    && result.gate_read_performed === false
+    && result.gate_write_performed === false
+    && result.write_performed === false
+    && typeof result.demo_write_performed
+      === 'boolean'
+    && typeof result.balance_reservation_performed
+      === 'boolean'
+    && String(
+      result?.order?.status || ''
+    ).toLowerCase() === 'open'
+  );
+}
+
+
+function tradingLimitDemoExecutionMessage(
+  result = {},
+) {
+  if (
+    result.idempotent_replay === true
+  ) {
+    return (
+      'Simulated Demo limit order was already created. '
+      + 'No additional balance reservation occurred '
+      + 'and no Gate order was submitted.'
+    );
+  }
+
+  return (
+    'Simulated Demo limit order is open. '
+    + 'Demo Wallet balance was reserved locally. '
+    + 'No Gate order was submitted.'
+  );
+}
+
+
 function renderTradingLimitExecutionResult() {
   const element = $(
     '#tradingLimitExecutionResult'
@@ -4129,6 +4256,10 @@ function renderTradingLimitExecutionResult() {
 
   const attempt = (
     tradingState.limitOrderExecutionAttempt
+  );
+
+  const demo = (
+    tradingLimitDemoExecutionMode()
   );
 
   element.classList.remove(
@@ -4155,6 +4286,7 @@ function renderTradingLimitExecutionResult() {
     'confirmed_open',
     'confirmed_closed',
     'confirmed_cancelled',
+    ...(demo ? ['open'] : []),
   ]).has(status);
 
   const uncertain = (
@@ -4177,7 +4309,10 @@ function renderTradingLimitExecutionResult() {
         : 'UNKNOWN'
   );
 
-  const actions = uncertain
+  const actions = (
+    !demo
+    && uncertain
+  )
     ? `
       <div class="trading-order-execution-result-actions">
         <button
@@ -4274,6 +4409,10 @@ function renderTradingLimitExecution() {
       .limitOrderExecutionCapabilities
   );
 
+  const demo = (
+    tradingLimitDemoExecutionMode()
+  );
+
   const ready = (
     String(
       preview?.status || ''
@@ -4368,6 +4507,18 @@ function renderTradingLimitExecution() {
     capabilities
       ?.live_arm_enabled
     === true
+  );
+
+  const demoExecutionEnabled = (
+    capabilities
+      ?.demo_execution_enabled
+    === true
+  );
+
+  const executionSwitchEnabled = (
+    demo
+      ? demoExecutionEnabled
+      : liveArmEnabled
   );
 
   const required = String(
@@ -4501,6 +4652,92 @@ function renderTradingLimitExecution() {
     statusClass = 'ready';
   }
 
+  if (demo) {
+    if (
+      tradingState
+        .loadingLimitOrderExecutionCapabilities
+    ) {
+      label = 'CHECKING';
+      description = (
+        'Checking Demo simulation capability…'
+      );
+      statusClass = 'disabled';
+
+    } else if (configError) {
+      label = 'CONFIG ERROR';
+      description = configError;
+      statusClass = 'warning';
+
+    } else if (
+      !implemented
+      || !routeAvailable
+    ) {
+      label = 'UNAVAILABLE';
+      description = (
+        'The Demo simulation backend '
+        + 'is unavailable.'
+      );
+      statusClass = 'warning';
+
+    } else if (!accountConfigured) {
+      label = 'NO DEMO ACCOUNT';
+      description = (
+        'This Demo Wallet account is not '
+        + 'available for simulation.'
+      );
+      statusClass = 'warning';
+
+    } else if (attempt) {
+      const attemptStatus = String(
+        attempt.status || ''
+      ).toLowerCase();
+
+      label = (
+        attemptStatus === 'open'
+          ? 'DEMO ORDER OPEN'
+          : 'SIMULATION FINISHED'
+      );
+
+      description = (
+        attempt.message
+        || tradingLimitDemoExecutionMessage(
+          attempt.result || {}
+        )
+      );
+
+      statusClass = (
+        attemptStatus === 'open'
+          ? 'ready'
+          : 'warning'
+      );
+
+    } else if (!accountPolicyAllowed) {
+      label = 'DEMO ACCOUNT DISABLED';
+      description = (
+        'This Demo Wallet account is not '
+        + 'enabled for simulated Trading.'
+      );
+      statusClass = 'disabled';
+
+    } else if (demoExecutionEnabled) {
+      label = 'SIMULATION READY';
+      description = (
+        'Exact Demo confirmation is required. '
+        + 'No Gate order or real-fund write '
+        + 'will occur.'
+      );
+      statusClass = 'ready';
+
+    } else {
+      label = 'SIMULATION DISABLED';
+      description = (
+        'Demo limit-order simulation is '
+        + 'disabled by the backend.'
+      );
+      statusClass = 'disabled';
+    }
+  }
+
   if (status) {
     status.textContent = label;
 
@@ -4526,7 +4763,7 @@ function renderTradingLimitExecution() {
     && routeAvailable
     && accountConfigured
     && accountPolicyAllowed
-    && liveArmEnabled
+    && executionSwitchEnabled
     && required
     && !attempt
     && !busy
@@ -4539,7 +4776,7 @@ function renderTradingLimitExecution() {
 
     if (
       (
-        !liveArmEnabled
+        !executionSwitchEnabled
         || !accountPolicyAllowed
       )
       && !attempt
@@ -4562,9 +4799,17 @@ function renderTradingLimitExecution() {
     );
 
     button.textContent = (
-      tradingState.loadingLimitOrderExecution
-        ? 'Placing…'
-        : 'Place limit order'
+      demo
+        ? (
+            tradingState.loadingLimitOrderExecution
+              ? 'Simulating…'
+              : 'Simulate limit order'
+          )
+        : (
+            tradingState.loadingLimitOrderExecution
+              ? 'Placing…'
+              : 'Place limit order'
+          )
     );
 
     button.title = (
@@ -4590,6 +4835,41 @@ function renderTradingLimitExecution() {
     );
   }
 
+  if (
+    demo
+    && button
+  ) {
+    const exactConfirmation = (
+      String(
+        confirmation?.value || ''
+      )
+      === required
+    );
+
+    button.title = (
+      !demoExecutionEnabled
+        ? (
+            'Demo Trading simulation is '
+            + 'disabled by the backend.'
+          )
+        : !accountPolicyAllowed
+          ? (
+              'This Demo Wallet account is '
+              + 'disabled for simulated Trading.'
+            )
+          : !exactConfirmation
+            ? (
+                'Enter the exact required '
+                + 'Demo confirmation first.'
+              )
+            : (
+                'Create this simulated Demo '
+                + 'limit order locally. '
+                + 'No Gate write will occur.'
+              )
+    );
+  }
+
   renderTradingLimitExecutionResult();
   renderTradingLimitCancellationReadiness();
 }
@@ -4606,6 +4886,10 @@ async function placeTradingLimitOrder() {
   const capabilities = (
     tradingState
       .limitOrderExecutionCapabilities
+  );
+
+  const demo = (
+    tradingLimitDemoExecutionMode()
   );
 
   const required = String(
@@ -4637,9 +4921,19 @@ async function placeTradingLimitOrder() {
     || capabilities
       ?.execution_route_available
       !== true
-    || capabilities
-      ?.live_arm_enabled
-      !== true
+    || (
+      demo
+        ? (
+            capabilities
+              ?.demo_execution_enabled
+            !== true
+          )
+        : (
+            capabilities
+              ?.live_arm_enabled
+            !== true
+          )
+    )
     || !(
       capabilities
         ?.configured_account_ids
@@ -4664,7 +4958,11 @@ async function placeTradingLimitOrder() {
     )
   ) {
     showToast(
-      'Live Spot execution is not available.',
+      (
+        demo
+          ? 'Demo limit-order simulation is not available.'
+          : 'Live Spot execution is not available.'
+      ),
       true,
     );
 
@@ -4695,34 +4993,37 @@ async function placeTradingLimitOrder() {
     tradingLimitRequestId()
   );
 
-  /*
-   * Persist recovery identity BEFORE the
-   * execution POST boundary.
-   *
-   * If sessionStorage cannot preserve it,
-   * fail closed and do not send the order.
-   */
-  try {
-    tradingLimitRecoveryCheckpointWrite({
-      kind: 'execution',
-      requestId,
-    });
+  if (!demo) {
+    /*
+     * Persist recovery identity BEFORE the
+     * execution POST boundary.
+     *
+     * If sessionStorage cannot preserve it,
+     * fail closed and do not send the order.
+     */
+    try {
+      tradingLimitRecoveryCheckpointWrite({
+        kind: 'execution',
+        requestId,
+      });
 
-  } catch (error) {
-    showToast(
-      (
-        error?.message
-        || 'Unable to preserve Trading '
-        + 'recovery identity.'
-      )
-      + ' No Spot order was sent.',
-      true,
-    );
+    } catch (error) {
+      showToast(
+        (
+          error?.message
+          || 'Unable to preserve Trading '
+          + 'recovery identity.'
+        )
+        + ' No Spot order was sent.',
+        true,
+      );
 
-    renderTradingLimitOrderTicket();
-    renderTradingLimitExecution();
+      renderTradingLimitOrderTicket();
+      renderTradingLimitExecution();
 
-    return;
+      return;
+    }
+
   }
 
   tradingState.limitOrderExecutionAttempt = {
@@ -4730,11 +5031,20 @@ async function placeTradingLimitOrder() {
     snapshot,
     status: 'submitting',
     definitive: false,
-    gateWritePerformed: null,
+    gateWritePerformed: (
+      demo ? false : null
+    ),
     result: null,
     message: (
-      'Submitting exactly one guarded '
-      + 'Spot limit-order request…'
+      demo
+        ? (
+            'Creating exactly one simulated '
+            + 'Demo limit-order request…'
+          )
+        : (
+            'Submitting exactly one guarded '
+            + 'Spot limit-order request…'
+          )
     ),
   };
 
@@ -4764,15 +5074,31 @@ async function placeTradingLimitOrder() {
       },
     );
 
+    if (
+      demo
+      && !tradingLimitDemoExecutionResultValid(
+        result
+      )
+    ) {
+      throw new Error(
+        'Safety invariant failed: Demo execution '
+        + 'did not return an isolated open order.'
+      );
+    }
+
     const executionStatus = String(
       result?.status || 'unknown'
     ).toLowerCase();
 
     const definitive = (
-      tradingLimitExecutionDefinitive(
-        executionStatus,
-        result,
-      )
+      demo
+        ? true
+        : (
+            tradingLimitExecutionDefinitive(
+              executionStatus,
+              result,
+            )
+          )
     );
 
     tradingState.limitOrderExecutionAttempt = {
@@ -4789,26 +5115,56 @@ async function placeTradingLimitOrder() {
       ),
       result,
       message: (
-        tradingLimitExecutionMessage(
-          executionStatus,
-          result,
-        )
+        demo
+          ? (
+              tradingLimitDemoExecutionMessage(
+                result
+              )
+            )
+          : (
+              tradingLimitExecutionMessage(
+                executionStatus,
+                result,
+              )
+            )
       ),
     };
 
     if (definitive) {
       showToast(
-        tradingLimitExecutionMessage(
-          executionStatus,
-          result,
-        ),
-        executionStatus !== 'submitted',
+        demo
+          ? (
+              tradingLimitDemoExecutionMessage(
+                result
+              )
+            )
+          : (
+              tradingLimitExecutionMessage(
+                executionStatus,
+                result,
+              )
+            ),
+        demo
+          ? false
+          : executionStatus !== 'submitted',
       );
 
-      tradingLimitRecoveryClearKnownDefinitive({
-        kind: 'execution',
-        requestId,
-      });
+      if (!demo) {
+        tradingLimitRecoveryClearKnownDefinitive({
+          kind: 'execution',
+          requestId,
+        });
+
+      } else {
+        await Promise.allSettled([
+          tradingRefreshPersistentOrders({
+            quiet: true,
+          }),
+          tradingLoadSnapshot({
+            quiet: true,
+          }),
+        ]);
+      }
 
     } else {
       showToast(
@@ -4826,10 +5182,14 @@ async function placeTradingLimitOrder() {
     );
 
     const explicitNoWrite = (
-      detail.gate_write_performed
-        === false
-      && detail.write_performed
-        === false
+      demo
+        ? true
+        : (
+            detail.gate_write_performed
+              === false
+            && detail.write_performed
+              === false
+          )
     );
 
     const executionStatus = String(
@@ -4879,10 +5239,12 @@ async function placeTradingLimitOrder() {
     );
 
     if (explicitNoWrite) {
-      tradingLimitRecoveryClearKnownDefinitive({
-        kind: 'execution',
-        requestId,
-      });
+      if (!demo) {
+        tradingLimitRecoveryClearKnownDefinitive({
+          kind: 'execution',
+          requestId,
+        });
+      }
     }
 
   } finally {
@@ -5122,28 +5484,42 @@ async function loadTradingExecutionCapabilities() {
 
   renderTradingLimitExecution();
 
+  const demo = (
+    tradingLimitDemoExecutionMode()
+  );
+
   try {
     const result = await adminApi(
       '/api/trading/execution-capabilities'
     );
 
-    if (
-      result.execution_implemented !== true
-      || result.execution_route_available !== true
-      || result.cancellation_implemented !== true
-      || result.cancellation_route_available !== true
-      || result.amendment_implemented !== true
-      || result.amendment_route_available !== true
-      || typeof result.amend_arm_enabled !== 'boolean'
-      || result.amend_reconciliation_implemented !== true
-      || result.amend_reconciliation_route_available !== true
-      || result.amend_reconciliation_gate_get_only !== true
-      || !Array.isArray(
-        result.policy_allowed_account_ids
-      )
-      || result.gate_write_performed !== false
-      || result.write_performed !== false
-    ) {
+    const valid = (
+      demo
+        ? (
+            tradingLimitDemoCapabilitiesValid(
+              result
+            )
+          )
+        : !(
+            result.execution_implemented !== true
+            || result.execution_route_available !== true
+            || result.cancellation_implemented !== true
+            || result.cancellation_route_available !== true
+            || result.amendment_implemented !== true
+            || result.amendment_route_available !== true
+            || typeof result.amend_arm_enabled !== 'boolean'
+            || result.amend_reconciliation_implemented !== true
+            || result.amend_reconciliation_route_available !== true
+            || result.amend_reconciliation_gate_get_only !== true
+            || !Array.isArray(
+              result.policy_allowed_account_ids
+            )
+            || result.gate_write_performed !== false
+            || result.write_performed !== false
+          )
+    );
+
+    if (!valid) {
       throw new Error(
         'Safety invariant failed: invalid '
         + 'Trading execution capability response.'
@@ -5159,12 +5535,15 @@ async function loadTradingExecutionCapabilities() {
         execution_implemented: false,
         execution_route_available: false,
         live_arm_enabled: false,
+        demo_execution_enabled: false,
         cancellation_implemented: false,
         cancellation_route_available: false,
         cancel_arm_enabled: false,
+        demo_cancellation_enabled: false,
         amendment_implemented: false,
         amendment_route_available: false,
         amend_arm_enabled: false,
+        demo_amendment_enabled: false,
         amend_required_confirmation: '',
         amend_reconciliation_implemented: false,
         amend_reconciliation_route_available: false,
@@ -5360,6 +5739,10 @@ async function reviewTradingLimitOrder() {
 
   clearTradingLimitOrderPreview();
 
+  const demo = (
+    tradingLimitDemoExecutionMode()
+  );
+
   try {
     const result = await adminApi(
       '/api/trading/limit-orders/preview',
@@ -5384,13 +5767,23 @@ async function reviewTradingLimitOrder() {
       },
     );
 
-    if (
-      result.execution_implemented !== false
-      || result.execution_enabled !== false
-      || result.can_execute !== false
-      || result.gate_write_performed !== false
-      || result.write_performed !== false
-    ) {
+    const valid = (
+      demo
+        ? (
+            tradingLimitDemoPreviewValid(
+              result
+            )
+          )
+        : !(
+            result.execution_implemented !== false
+            || result.execution_enabled !== false
+            || result.can_execute !== false
+            || result.gate_write_performed !== false
+            || result.write_performed !== false
+          )
+    );
+
+    if (!valid) {
       throw new Error(
         'Safety invariant failed: preview endpoint '
         + 'reported an executable or written order.'

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import sqlite3
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any, Literal
 
@@ -12,6 +13,19 @@ from fastapi import (
     Query,
 )
 from pydantic import BaseModel, Field
+
+from ..demo_trading import DemoTradingError
+from ..demo_trading_api import (
+    DemoTradingApi,
+    DemoTradingAuthorizationError,
+)
+from ..demo_trading_order_lifecycle import (
+    DemoTradingOrderAmendmentConflict,
+)
+from ..demo_trading_orders import (
+    DemoTradingOrderConflict,
+)
+from ..demo_wallet import DemoWalletStateError
 
 from ..account_action_policy import (
     AccountActionPolicyDenied,
@@ -204,6 +218,97 @@ class LimitOrderPreviewRequest(BaseModel):
         "gtc",
         "poc",
     ] = "gtc"
+
+
+def _demo_trading_api(
+    request_settings: Settings | None = None,
+) -> DemoTradingApi:
+    resolved = (
+        request_settings
+        if request_settings is not None
+        else get_settings()
+    )
+
+    return DemoTradingApi(
+        resolved.dashboard_demo_database_path
+    )
+
+
+def _demo_trading_scope(
+    user: DashboardUser,
+) -> set[str]:
+    return {
+        str(item or "").strip().lower()
+        for item in user.account_ids
+        if str(item or "").strip()
+    }
+
+
+def _demo_trading_result(
+    operation,
+):
+    try:
+        return operation()
+
+    except DemoTradingAuthorizationError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": str(exc),
+                "gate_read_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    except (
+        DemoTradingOrderConflict,
+        DemoTradingOrderAmendmentConflict,
+    ) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "gate_read_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "message": str(exc.args[0] if exc.args else exc),
+                "gate_read_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    except (
+        DemoTradingError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(exc),
+                "gate_read_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
+
+    except (
+        OSError,
+        sqlite3.Error,
+        DemoWalletStateError,
+    ) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "Demo Trading state is unavailable",
+                "gate_read_performed": False,
+                "gate_write_performed": False,
+            },
+        ) from exc
 
 
 def _explicit_trading_account(
@@ -892,6 +997,17 @@ async def trading_catalog(
         Depends(get_settings),
     ],
 ):
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api(
+                settings
+            ).catalog_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+            )
+        )
+
     explicit_ids = {
         item.strip().lower()
         for item in user.account_ids
@@ -1053,6 +1169,21 @@ async def trading_snapshot(
         max_length=32,
     ),
 ):
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api(
+                settings
+            ).snapshot_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                account_id=account_id,
+                pair=pair,
+                depth=depth,
+                book_interval=book_interval,
+            )
+        )
+
     account_id = _explicit_trading_account(
         user,
         account_id,
@@ -1168,6 +1299,23 @@ async def preview_limit_order(
         Depends(get_settings),
     ],
 ):
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api(
+                settings
+            ).preview_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                account_id=request.account_id,
+                pair=request.pair,
+                side=request.side,
+                price=request.price,
+                amount=request.amount,
+                time_in_force=request.time_in_force,
+            )
+        )
+
     account_id = _explicit_trading_account(
         user,
         request.account_id,
@@ -1508,6 +1656,17 @@ async def trading_execution_capabilities(
     Trading authorization remains explicit account_id
     assignment only. Super-admin receives no wildcard.
     """
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api(
+                settings
+            ).execution_capabilities_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+            )
+        )
+
     authorized_account_ids = sorted(
         {
             item.strip().lower()
@@ -1615,6 +1774,26 @@ async def execute_trading_limit_order(
         Depends(get_settings),
     ],
 ):
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api(
+                settings
+            ).execute_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                request_id=request.request_id,
+                username=user.username,
+                account_id=request.account_id,
+                pair=request.pair,
+                side=request.side,
+                price=request.price,
+                amount=request.amount,
+                time_in_force=request.time_in_force,
+                confirmation=request.confirmation,
+            )
+        )
+
     account_id = _explicit_trading_account(
         user,
         request.account_id,
@@ -1678,6 +1857,16 @@ async def get_trading_limit_order_request(
         Depends(require_user),
     ],
 ):
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api().order_detail_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                request_id=request_id,
+            )
+        )
+
     request = (
         _trading_request_for_user(
             user,
@@ -1745,6 +1934,21 @@ async def cancel_trading_limit_order(
         Depends(get_settings),
     ],
 ):
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api(
+                settings
+            ).cancel_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                request_id=request_id,
+                cancel_request_id=request.cancel_request_id,
+                username=user.username,
+                confirmation=request.confirmation,
+            )
+        )
+
     source = (
         _trading_request_for_user(
             user,
@@ -1871,6 +2075,22 @@ async def amend_trading_limit_order(
         Depends(get_settings),
     ],
 ):
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api(
+                settings
+            ).amend_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                request_id=request_id,
+                amend_request_id=request.amend_request_id,
+                username=user.username,
+                requested_price=request.requested_price,
+                confirmation=request.confirmation,
+            )
+        )
+
     source = (
         _trading_request_for_user(
             user,
@@ -2251,6 +2471,18 @@ async def trading_recent_orders(
 
     This route intentionally performs no Gate request.
     """
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api().recent_orders_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                account_id=account_id,
+                pair=pair,
+                limit=limit,
+            )
+        )
+
 
     account_id = (
         _explicit_trading_account(
@@ -2371,6 +2603,20 @@ async def trading_open_orders(
 
     This route performs Gate reads only.
     """
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api(
+                settings
+            ).open_orders_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                account_id=account_id,
+                pair=pair,
+                limit=limit,
+            )
+        )
+
 
     account_id = (
         _explicit_trading_account(
@@ -2595,6 +2841,20 @@ async def trading_trades(
         le=100,
     ),
 ):
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api(
+                settings
+            ).trades_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                account_id=account_id,
+                pair=pair,
+                limit=limit,
+            )
+        )
+
     account_id = _explicit_trading_account(
         user,
         account_id,
@@ -2720,6 +2980,21 @@ async def trading_candles(
         le=1000,
     ),
 ):
+    if getattr(user, "is_demo", False):
+        return _demo_trading_result(
+            lambda: _demo_trading_api(
+                settings
+            ).candles_payload(
+                account_ids=_demo_trading_scope(
+                    user
+                ),
+                account_id=account_id,
+                pair=pair,
+                interval=interval,
+                limit=limit,
+            )
+        )
+
     account_id = _explicit_trading_account(
         user,
         account_id,

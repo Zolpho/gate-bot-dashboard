@@ -43,6 +43,15 @@ DEMO_AUTH_REQUEST_ALLOWLIST = frozenset(
         ("GET", "/api/treasury/withdrawals/requests"),
         ("POST", "/api/treasury/withdrawals/requests/simulate"),
         ("GET", "/api/treasury/withdrawals/locks"),
+        ("GET", "/api/trading/catalog"),
+        ("GET", "/api/trading/snapshot"),
+        ("GET", "/api/trading/execution-capabilities"),
+        ("POST", "/api/trading/limit-orders/preview"),
+        ("POST", "/api/trading/limit-orders/execute"),
+        ("GET", "/api/trading/orders/open"),
+        ("GET", "/api/trading/orders/recent"),
+        ("GET", "/api/trading/trades"),
+        ("GET", "/api/trading/candles"),
     }
 )
 
@@ -140,6 +149,27 @@ _DEMO_WITHDRAWAL_METHOD_PATH_PATTERNS = (
     ),
 )
 
+_DEMO_TRADING_METHOD_PATH_PATTERNS = (
+    (
+        "GET",
+        re.compile(
+            r"^/api/trading/limit-orders/requests/"
+            r"[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{7,127}$"
+        ),
+    ),
+    (
+        "POST",
+        re.compile(
+            r"^/api/trading/limit-orders/requests/"
+            r"[A-Za-z0-9]"
+            r"[A-Za-z0-9._:-]{7,127}"
+            r"/(?:cancel|amend)$"
+        ),
+    ),
+)
+
+
 
 def demo_request_is_allowed(
     method: str,
@@ -172,7 +202,7 @@ def demo_request_is_allowed(
     ):
         return True
 
-    return any(
+    if any(
         normalized_method == allowed_method
         and pattern.fullmatch(
             normalized_path
@@ -183,6 +213,20 @@ def demo_request_is_allowed(
             pattern,
         )
         in _DEMO_WITHDRAWAL_METHOD_PATH_PATTERNS
+    ):
+        return True
+
+    return any(
+        normalized_method == allowed_method
+        and pattern.fullmatch(
+            normalized_path
+        )
+        is not None
+        for (
+            allowed_method,
+            pattern,
+        )
+        in _DEMO_TRADING_METHOD_PATH_PATTERNS
     )
 
 
