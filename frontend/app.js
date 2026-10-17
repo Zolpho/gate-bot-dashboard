@@ -48,6 +48,7 @@ const state = {
   selectedAccount: '',
   activeTab: 'overview',
   walletView: 'balance',
+  demoWalletAccount: '',
   demoAvailable: false,
   adminAuthorization: '',
   adminUser: null,
@@ -239,6 +240,115 @@ function isDemoSession() {
   );
 }
 
+function demoWalletAccountIds() {
+  if (!isDemoSession()) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      (
+        state.adminUser?.account_ids
+        || []
+      )
+        .map(
+          item => String(
+            item || ''
+          )
+            .trim()
+            .toLowerCase()
+        )
+        .filter(
+          item => (
+            item.startsWith(
+              'demo-wallet-'
+            )
+          )
+        ),
+    ),
+  ];
+}
+
+
+function demoWalletAccountLabel(accountId) {
+  const normalized = String(
+    accountId || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  const labels = {
+    'demo-wallet-1':
+      'Demo Growth Wallet',
+    'demo-wallet-2':
+      'Demo Treasury Wallet',
+  };
+
+  return (
+    labels[normalized]
+    || normalized
+    || 'Demo Wallet'
+  );
+}
+
+
+function ensureDemoWalletAccount() {
+  const accountIds = (
+    demoWalletAccountIds()
+  );
+
+  const current = String(
+    state.demoWalletAccount
+    || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  if (
+    current
+    && accountIds.includes(
+      current
+    )
+  ) {
+    return current;
+  }
+
+  const fallback = (
+    accountIds[0]
+    || ''
+  );
+
+  state.demoWalletAccount = (
+    fallback
+  );
+
+  return fallback;
+}
+
+
+function walletViewForSession(view) {
+  const target = (
+    normalizeWalletView(
+      view
+    )
+  );
+
+  if (
+    isDemoSession()
+    && ![
+      'balance',
+      'deposits',
+    ].includes(
+      target
+    )
+  ) {
+    return 'balance';
+  }
+
+  return target;
+}
+
+
 
 function canManageAccount(accountId) {
   const user = state.adminUser;
@@ -311,8 +421,8 @@ function renderDemoPresentation() {
     );
   }
 
-  // During this first product slice, Demo intentionally
-  // exposes Overview + Bots/Bot Detail only.
+  // Demo now exposes the accepted read-only product slices:
+  // Overview, Bots/Bot Detail, and Wallet Balance/Deposits.
   if (demo) {
     $$(
       '.nav-item'
@@ -328,6 +438,7 @@ function renderDemoPresentation() {
           ![
             'overview',
             'bots',
+            'wallet',
           ].includes(
             tab
           ),
@@ -365,10 +476,43 @@ function renderDemoPresentation() {
     '#globalAccountSelector'
   );
 
-  selector?.classList.toggle(
-    'hidden',
-    demo,
+  const selectorLabel = (
+    selector?.querySelector(
+      '.account-selector-label'
+    )
   );
+
+  if (selectorLabel) {
+    selectorLabel.textContent = (
+      demo
+        ? 'Wallet account'
+        : 'Account'
+    );
+  }
+
+  if (demo) {
+    const walletSelectorVisible = (
+      state.activeTab === 'wallet'
+    );
+
+    selector?.classList.toggle(
+      'hidden',
+      !walletSelectorVisible,
+    );
+
+    selector?.setAttribute(
+      'aria-hidden',
+      String(
+        !walletSelectorVisible
+      ),
+    );
+
+    if (walletSelectorVisible) {
+      populateAccountSelector(
+        []
+      );
+    }
+  }
 
   const permissionsButton = $(
     '#accountPermissionsButton'
@@ -400,6 +544,80 @@ function renderDemoPresentation() {
       'hidden',
       demo,
     );
+
+  for (
+    const selectorId
+    of [
+      '#walletTransfersTab',
+      '#walletWithdrawalsTab',
+    ]
+  ) {
+    const button = $(
+      selectorId
+    );
+
+    button?.classList.toggle(
+      'hidden',
+      demo,
+    );
+
+    button?.setAttribute(
+      'aria-hidden',
+      String(demo),
+    );
+
+    if (
+      demo
+      && button
+    ) {
+      button.tabIndex = -1;
+    }
+  }
+
+  const depositSync = $(
+    '#syncDepositHistory'
+  );
+
+  depositSync?.classList.toggle(
+    'hidden',
+    demo,
+  );
+
+  depositSync?.setAttribute(
+    'aria-hidden',
+    String(demo),
+  );
+
+  const ownershipRecords = $(
+    '#walletBalanceRecords'
+  );
+
+  if (ownershipRecords) {
+    ownershipRecords.hidden = demo;
+  }
+
+  const treasuryPanel = $(
+    '#treasuryPanel'
+  );
+
+  if (
+    demo
+    && treasuryPanel
+  ) {
+    treasuryPanel.hidden = true;
+  }
+
+  if (
+    demo
+    && ![
+      'balance',
+      'deposits',
+    ].includes(
+      state.walletView
+    )
+  ) {
+    state.walletView = 'balance';
+  }
 
   if (demo) {
     const badge = $(
@@ -5145,8 +5363,20 @@ async function loginDemo() {
     );
     state.adminUser = user;
 
-    // Demo always starts at the aggregate presentation.
+    // Overview/Bots remain aggregate. Demo Wallet uses a separate
+    // synthetic read-scope selection.
     state.selectedAccount = '';
+
+    state.demoWalletAccount = String(
+      user.account_ids?.[0]
+      || ''
+    )
+      .trim()
+      .toLowerCase();
+
+    populateAccountSelector(
+      []
+    );
 
     const accountSelector = $(
       '#accountSelector'
@@ -5857,10 +6087,35 @@ function scopedPath(path, params = {}) {
 
 function privateBalanceTargetAccount() {
   const user = state.adminUser;
+
   if (!user) return '';
-  if (state.selectedAccount && canManageAccount(state.selectedAccount)) return state.selectedAccount;
-  const assigned = user.account_ids || [];
-  if (assigned.length === 1) return assigned[0];
+
+  if (isDemoSession()) {
+    return (
+      ensureDemoWalletAccount()
+    );
+  }
+
+  if (
+    state.selectedAccount
+    && canManageAccount(
+      state.selectedAccount
+    )
+  ) {
+    return state.selectedAccount;
+  }
+
+  const assigned = (
+    user.account_ids
+    || []
+  );
+
+  if (
+    assigned.length === 1
+  ) {
+    return assigned[0];
+  }
+
   return '';
 }
 
@@ -6321,16 +6576,43 @@ function renderDepositNetworks() {
 }
 
 async function loadDepositCatalog() {
-  if (state.depositCatalog.length) return;
+  if (
+    state.depositCatalog.length
+  ) {
+    return;
+  }
 
-  setDepositLoading(true);
+  setDepositLoading(
+    true
+  );
+
   try {
-    const result = await api('/api/deposit/currencies');
-    state.depositCatalog = result.currencies || [];
-    state.depositFavorites = result.favorites || [];
+    const result = (
+      isDemoSession()
+        ? await adminApi(
+            '/api/deposit/currencies'
+          )
+        : await api(
+            '/api/deposit/currencies'
+          )
+    );
+
+    state.depositCatalog = (
+      result.currencies
+      || []
+    );
+
+    state.depositFavorites = (
+      result.favorites
+      || []
+    );
+
     renderDepositCurrencies();
+
   } finally {
-    setDepositLoading(false);
+    setDepositLoading(
+      false
+    );
   }
 }
 
@@ -22207,16 +22489,35 @@ function normalizeWalletView(view) {
 
 
 function renderWalletAccountContext() {
-  const element = $('#walletAccountContext');
+  const element = $(
+    '#walletAccountContext'
+  );
 
   if (!element) return;
 
-  const accountId = privateBalanceTargetAccount();
+  const accountId = (
+    privateBalanceTargetAccount()
+  );
+
+  const accountLabel = (
+    isDemoSession()
+      ? demoWalletAccountLabel(
+          accountId
+        )
+      : accountId
+  );
 
   element.textContent = (
     accountId
-      ? `Wallet account · ${accountId}`
-      : 'Wallet account · select one account'
+      ? (
+        `Wallet account · ${
+          accountLabel
+        }`
+      )
+      : (
+        'Wallet account · '
+        + 'select one account'
+      )
   );
 
   element.classList.toggle(
@@ -22228,36 +22529,46 @@ function renderWalletAccountContext() {
 
 function renderWalletView(view) {
   renderWalletAccountContext();
-  const target = normalizeWalletView(view);
+
+  const target = (
+    walletViewForSession(
+      view
+    )
+  );
 
   state.walletView = target;
 
-  $$('.wallet-subnav-button').forEach(button => {
-    const active = (
-      button.dataset.walletView === target
-    );
+  $$('.wallet-subnav-button').forEach(
+    button => {
+      const active = (
+        button.dataset.walletView
+        === target
+      );
 
-    button.classList.toggle(
-      'active',
-      active,
-    );
+      button.classList.toggle(
+        'active',
+        active,
+      );
 
-    button.setAttribute(
-      'aria-selected',
-      String(active),
-    );
+      button.setAttribute(
+        'aria-selected',
+        String(active),
+      );
 
-    button.tabIndex = (
-      active
-        ? 0
-        : -1
-    );
-  });
+      button.tabIndex = (
+        active
+          ? 0
+          : -1
+      );
+    },
+  );
 
   $$('[data-wallet-workspace]').forEach(
     workspace => {
       const active = (
-        workspace.dataset.walletWorkspace
+        workspace
+          .dataset
+          .walletWorkspace
         === target
       );
 
@@ -22270,16 +22581,23 @@ function renderWalletView(view) {
     },
   );
 
-  const treasuryPanel = $('#treasuryPanel');
+  const treasuryPanel = $(
+    '#treasuryPanel'
+  );
 
   if (treasuryPanel) {
     const treasuryVisible = (
-      target === 'transfers'
-      || target === 'withdrawals'
+      !isDemoSession()
+      && (
+        target === 'transfers'
+        || target === 'withdrawals'
+      )
     );
 
     treasuryPanel.hidden = !treasuryVisible;
   }
+
+  renderDemoPresentation();
 }
 
 
@@ -22290,6 +22608,7 @@ async function loadWalletViewData(
   } = {},
 ) {
   renderWalletAccountContext();
+
   if (
     !state.adminUser
     || !state.adminAuthorization
@@ -22297,7 +22616,31 @@ async function loadWalletViewData(
     return;
   }
 
-  const target = normalizeWalletView(view);
+  const target = (
+    walletViewForSession(
+      view
+    )
+  );
+
+  if (
+    isDemoSession()
+  ) {
+    if (
+      target === 'deposits'
+    ) {
+      await loadDepositHistory({
+        quiet,
+      });
+
+      return;
+    }
+
+    await loadPrivateBalance({
+      quiet,
+    });
+
+    return;
+  }
 
   if (target === 'balance') {
     await Promise.all([
@@ -22333,13 +22676,19 @@ function switchWalletView(
     load = true,
   } = {},
 ) {
-  const target = normalizeWalletView(view);
+  const target = (
+    walletViewForSession(
+      view
+    )
+  );
 
   const changed = (
     state.walletView !== target
   );
 
-  renderWalletView(target);
+  renderWalletView(
+    target
+  );
 
   if (
     changed
@@ -22371,6 +22720,7 @@ function switchTab(tab, { updateHash = true } = {}) {
     && ![
       'overview',
       'bots',
+      'wallet',
     ].includes(
       tab
     )
@@ -22427,13 +22777,15 @@ function switchTab(tab, { updateHash = true } = {}) {
   );
 
   const globalAccountVisible = (
-    ![
-      'wallet',
-      'donate',
-      'trading',
-      'bot-control',
-      'security',
-    ].includes(target)
+    isDemoSession()
+      ? ['wallet'].includes(target)
+      : ![
+          'wallet',
+          'donate',
+          'trading',
+          'bot-control',
+          'security',
+        ].includes(target)
   );
 
   globalAccountSelector?.classList.toggle(
@@ -22478,6 +22830,12 @@ function switchTab(tab, { updateHash = true } = {}) {
             || 'balance'
           )
     );
+
+    if (isDemoSession()) {
+      populateAccountSelector(
+        []
+      );
+    }
 
     switchWalletView(
       walletView,
@@ -23849,14 +24207,116 @@ function drawPortfolioChart() {
 }
 
 function populateAccountSelector(accounts = []) {
-  const selector = $('#accountSelector');
-  const current = state.selectedAccount;
-  selector.innerHTML = '<option value="">All accounts</option>' + accounts.map(account => {
-    const suffix = account.sync_status && account.sync_status !== 'success' ? ` · ${account.sync_status}` : '';
-    return `<option value="${escapeHtml(account.id)}">${escapeHtml(account.name)}${escapeHtml(suffix)}</option>`;
-  }).join('');
-  if (current && accounts.some(account => account.id === current)) selector.value = current;
-  else { state.selectedAccount = ''; selector.value = ''; }
+  const selector = $(
+    '#accountSelector'
+  );
+
+  if (!selector) {
+    return;
+  }
+
+  if (isDemoSession()) {
+    const accountIds = (
+      demoWalletAccountIds()
+    );
+
+    const current = (
+      ensureDemoWalletAccount()
+    );
+
+    selector.innerHTML = (
+      accountIds.length
+        ? accountIds
+          .map(
+            accountId => (
+              `<option value="${
+                escapeHtml(accountId)
+              }">${
+                escapeHtml(
+                  demoWalletAccountLabel(
+                    accountId
+                  )
+                )
+              }</option>`
+            )
+          )
+          .join('')
+        : (
+          '<option value="">'
+          + 'No Demo Wallet accounts'
+          + '</option>'
+        )
+    );
+
+    selector.value = (
+      accountIds.includes(
+        current
+      )
+        ? current
+        : ''
+    );
+
+    return;
+  }
+
+  const current = (
+    state.selectedAccount
+  );
+
+  selector.innerHTML = (
+    '<option value="">'
+    + 'All accounts'
+    + '</option>'
+    + accounts
+      .map(
+        account => {
+          const suffix = (
+            account.sync_status
+            && account.sync_status
+              !== 'success'
+              ? (
+                ` · ${
+                  account.sync_status
+                }`
+              )
+              : ''
+          );
+
+          return (
+            `<option value="${
+              escapeHtml(
+                account.id
+              )
+            }">${
+              escapeHtml(
+                account.name
+              )
+            }${
+              escapeHtml(
+                suffix
+              )
+            }</option>`
+          );
+        }
+      )
+      .join('')
+  );
+
+  if (
+    current
+    && accounts.some(
+      account => (
+        account.id
+        === current
+      )
+    )
+  ) {
+    selector.value = current;
+
+  } else {
+    state.selectedAccount = '';
+    selector.value = '';
+  }
 }
 
 function populateFilterOptions(filters = {}) {
@@ -25468,8 +25928,59 @@ async function loadCore() {
 }
 
 async function changeSelectedAccount(event) {
-  state.selectedAccount = String(
+  const requested = String(
     event?.target?.value || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  if (isDemoSession()) {
+    const accountIds = (
+      demoWalletAccountIds()
+    );
+
+    if (
+      !accountIds.includes(
+        requested
+      )
+    ) {
+      populateAccountSelector(
+        []
+      );
+
+      return;
+    }
+
+    state.demoWalletAccount = (
+      requested
+    );
+
+    closeDepositDialog();
+    clearPrivateBalance();
+    clearDepositHistory();
+
+    renderWalletAccountContext();
+
+    populateAccountSelector(
+      []
+    );
+
+    if (
+      state.activeTab === 'wallet'
+    ) {
+      await loadWalletViewData(
+        state.walletView,
+        {
+          quiet: false,
+        },
+      );
+    }
+
+    return;
+  }
+
+  state.selectedAccount = (
+    requested
   );
 
   closeDepositDialog();
